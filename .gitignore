@@ -59,9 +59,12 @@ Thumbs.db
 *.log
 logs/
 
-# State and output (if sensitive)
-state/
-output/
+# Output (large JSON files)
+output/*.json
+
+# Keep state file and CSV outputs tracked
+!state/
+!output/quality_prs.csv
 
 # Pytest
 .pytest_cache/
