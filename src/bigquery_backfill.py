@@ -256,6 +256,11 @@ def main() -> None:
         help="GCP project ID (uses default if not specified)"
     )
     parser.add_argument(
+        "--repos",
+        nargs="+",
+        help="Specific repos to backfill (e.g., owner/repo). If not specified, uses all from CSV"
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Print query without executing"
@@ -271,9 +276,17 @@ def main() -> None:
     logger = logging.getLogger(__name__)
 
     # Load repos from CSV
-    repos = parse_repos_csv(args.csv)
-    repo_names = [r.repo for r in repos]
-    logger.info(f"Loaded {len(repo_names)} repos from {args.csv}")
+    all_repos = parse_repos_csv(args.csv)
+
+    # Filter to specific repos if provided
+    if args.repos:
+        repos = [r for r in all_repos if r.repo in args.repos]
+        repo_names = args.repos
+        logger.info(f"Backfilling {len(repo_names)} specific repos: {repo_names}")
+    else:
+        repos = all_repos
+        repo_names = [r.repo for r in repos]
+        logger.info(f"Loaded {len(repo_names)} repos from {args.csv}")
 
     # Build query
     query = build_query(repo_names, args.days_back)
