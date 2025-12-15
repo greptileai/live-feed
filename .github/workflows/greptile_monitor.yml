@@ -1,0 +1,110 @@
+name: Greptile Comment Monitor
+
+on:
+  schedule:
+    # Run every 6 hours
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+    inputs:
+      max_repos:
+        description: 'Maximum repos to process (for testing)'
+        required: false
+        type: number
+      min_reviews:
+        description: 'Minimum reviews_30d filter'
+        required: false
+        default: '0'
+        type: string
+      skip_evaluation:
+        description: 'Skip LLM evaluation step'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  PYTHON_VERSION: '3.11'
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run monitor (fetch new comments)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
+        run: |
+          python -m src.main \
+            --csv oss_master.csv \
+            --output output/greptile_comments.json \
+            --state-file state/last_checked.json \
+            --min-reviews ${{ inputs.min_reviews || '0' }} \
+            ${{ inputs.max_repos && format('--max-repos {0}', inputs.max_repos) || '' }} \
+            --verbose
+
+      - name: Run LLM evaluation
+        if: ${{ !inputs.skip_evaluation }}
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GOOGLE_CREDENTIALS_FILE: ${{ github.workspace }}/credentials.json
+        run: |
+          # Write Google credentials from secret
+          echo '${{ secrets.GOOGLE_CREDENTIALS_JSON }}' > credentials.json
+
+          # Run evaluation
+          python run_evaluation.py
+
+          # Clean up credentials
+          rm -f credentials.json
+
+      - name: Upload output as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: greptile-comments-${{ github.run_number }}
+          path: |
+            output/greptile_comments.json
+            output/quality_prs.csv
+          retention-days: 30
+
+      - name: Commit state back to repo
+        if: success()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add state/last_checked.json
+          git add output/quality_prs.csv || true
+          git diff --staged --quiet || git commit -m "chore: update greptile monitor state [skip ci]"
+          git push
+
+      - name: Summary
+        run: |
+          echo "## Greptile Monitor Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ -f output/greptile_comments.json ]; then
+            jq -r '"### Fetch Results
+          - **Generated at**: \(.metadata.generated_at)
+          - **Repos processed**: \(.metadata.total_repos_processed)
+          - **PRs with comments**: \(.metadata.total_prs_with_comments)
+          - **Total comments**: \(.metadata.total_greptile_comments)"' output/greptile_comments.json >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ -f output/quality_prs.csv ]; then
+            echo "### Quality Catches" >> $GITHUB_STEP_SUMMARY
+            echo "Found $(tail -n +2 output/quality_prs.csv | wc -l | tr -d ' ') PRs with meaningful bug catches" >> $GITHUB_STEP_SUMMARY
+          fi

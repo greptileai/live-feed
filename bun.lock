@@ -1,0 +1,21 @@
+{
+  "lockfileVersion": 1,
+  "workspaces": {
+    "": {
+      "dependencies": {
+        "pip": "^0.0.1",
+      },
+    },
+  },
+  "packages": {
+    "freckle": ["freckle@0.0.2", "", {}, "sha512-+x+LoiQ4IDln6qgVyXEHAvu2uD/mRqdezrbx8tpwGwvEWH2gCho4eoe3uKzV4PAzBUjtViSbYLkilMRFy69B5g=="],
+
+    "minimist": ["minimist@0.0.10", "", {}, "sha512-iotkTvxc+TwOm5Ieim8VnSNvCDjCK9S8G3scJ50ZthspSxa7jx50jkhYduuAtAjvfDUwSgOwf8+If99AlOEhyw=="],
+
+    "optimist": ["optimist@0.6.1", "", { "dependencies": { "minimist": "~0.0.1", "wordwrap": "~0.0.2" } }, "sha512-snN4O4TkigujZphWLN0E//nQmm7790RYaE53DdL7ZYwee2D8DDo9/EyYiKUfN3rneWUjhJnueija3G9I2i0h3g=="],
+
+    "pip": ["pip@0.0.1", "", { "dependencies": { "freckle": ">= 0.0.1", "optimist": ">= 0.1.5" }, "bin": { "pip": "./lib/cli.js" } }, "sha512-DMoVWIlQTKcVZAnTZXt4QXPkuA9EFDUhksMOI8OLXIBq3i+W+lFCE+kr5pGDb0vy0f+WZvq0M0Pg7a8K+vNxPA=="],
+
+    "wordwrap": ["wordwrap@0.0.3", "", {}, "sha512-1tMA907+V4QmxV7dbRvb4/8MaRALK6q9Abid3ndMYnbyo8piisCmeONVqVSXqQA3KaP4SLt5b7ud6E2sqP8TFw=="],
+  }
+}
