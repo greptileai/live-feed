@@ -291,6 +291,7 @@ class LLMEvaluator:
                     "pr_created_at": pr.pr_created_at.isoformat(),
                     "pr_state": pr.pr_state,
                     "pr_score": pr_score,
+                    "trigger_type": pr.trigger_type,
                     "meaningful_catches": meaningful_comments,
                     "catch_count": len(meaningful_comments)
                 })

@@ -43,7 +43,8 @@ def load_results(json_file: str) -> list[PRWithGreptileComments]:
             pr_state=pr_data["pr_state"],
             greptile_comments=comments,
             fetched_at=datetime.fromisoformat(pr_data["fetched_at"]),
-            head_sha=pr_data.get("head_sha")
+            head_sha=pr_data.get("head_sha"),
+            trigger_type=pr_data.get("trigger_type", "new_pr")
         ))
 
     return results

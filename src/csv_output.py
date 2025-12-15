@@ -163,6 +163,7 @@ def append_quality_prs_csv(
         "pr_created_at",
         "pr_state",
         "pr_score",
+        "trigger_type",
         "quality_catch_count",
         "catch_categories",
         "evaluated_at"
@@ -195,6 +196,7 @@ def append_quality_prs_csv(
                 "pr_created_at": pr.get("pr_created_at", ""),
                 "pr_state": pr.get("pr_state", ""),
                 "pr_score": score_formatted,
+                "trigger_type": pr.get("trigger_type", "new_pr"),
                 "quality_catch_count": pr.get("catch_count", 0),
                 "catch_categories": ", ".join(categories),
                 "evaluated_at": datetime.now(timezone.utc).isoformat()

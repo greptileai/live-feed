@@ -55,3 +55,4 @@ class PRWithGreptileComments:
     greptile_comments: List[GreptileComment]
     fetched_at: datetime
     head_sha: Optional[str] = None  # Current HEAD SHA of the PR
+    trigger_type: str = "new_pr"  # "new_pr" or "new_commits"

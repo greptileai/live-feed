@@ -78,8 +78,8 @@ class CommentFetcher:
                 has_new_commits = old_sha is not None and old_sha != head_sha
 
                 if is_new_pr or has_new_commits:
-                    reason = "new PR" if is_new_pr else "new commits"
-                    self.logger.debug(f"  PR #{pr_number}: {reason}")
+                    trigger_type = "new_pr" if is_new_pr else "new_commits"
+                    self.logger.debug(f"  PR #{pr_number}: {trigger_type}")
 
                     pr_comments = self._fetch_greptile_comments_for_pr(
                         owner, repo_name, pr
@@ -97,7 +97,8 @@ class CommentFetcher:
                             pr_state=pr["state"],
                             greptile_comments=pr_comments,
                             fetched_at=datetime.now(timezone.utc),
-                            head_sha=head_sha
+                            head_sha=head_sha,
+                            trigger_type=trigger_type
                         ))
 
                 # Track SHA for next run
