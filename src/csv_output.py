@@ -156,15 +156,14 @@ def append_quality_prs_csv(
 
     fieldnames = [
         "repo",
-        "org",
+        "pr_url",
         "pr_number",
         "pr_title",
         "pr_author",
-        "pr_url",
         "pr_created_at",
         "pr_state",
         "pr_score",
-        "catch_count",
+        "quality_catch_count",
         "catch_categories",
         "evaluated_at"
     ]
@@ -183,17 +182,20 @@ def append_quality_prs_csv(
             catches = pr.get("meaningful_catches", [])
             categories = list(set(c.get("bug_category", "") for c in catches if c.get("bug_category")))
 
+            # Format score as x/5
+            score = pr.get("pr_score")
+            score_formatted = f"{score}/5" if score is not None else ""
+
             writer.writerow({
                 "repo": pr.get("repo", ""),
-                "org": pr.get("org", ""),
+                "pr_url": pr.get("pr_url", ""),
                 "pr_number": pr.get("pr_number", ""),
                 "pr_title": pr.get("pr_title", ""),
                 "pr_author": pr.get("pr_author", ""),
-                "pr_url": pr.get("pr_url", ""),
                 "pr_created_at": pr.get("pr_created_at", ""),
                 "pr_state": pr.get("pr_state", ""),
-                "pr_score": pr.get("pr_score", ""),
-                "catch_count": pr.get("catch_count", 0),
+                "pr_score": score_formatted,
+                "quality_catch_count": pr.get("catch_count", 0),
                 "catch_categories": ", ".join(categories),
                 "evaluated_at": datetime.now(timezone.utc).isoformat()
             })
