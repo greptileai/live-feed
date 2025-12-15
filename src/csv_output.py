@@ -2,11 +2,24 @@
 
 import csv
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import List
+from zoneinfo import ZoneInfo
 
 from .models import PRWithGreptileComments
+
+
+PST = ZoneInfo("America/Los_Angeles")
+
+
+def to_pst(dt_str: str) -> str:
+    """Convert ISO datetime string to PST without timezone suffix."""
+    if not dt_str:
+        return ""
+    dt = datetime.fromisoformat(dt_str)
+    dt_pst = dt.astimezone(PST)
+    return dt_pst.strftime("%Y-%m-%d %H:%M:%S")
 
 
 def write_comments_csv(
@@ -193,13 +206,13 @@ def append_quality_prs_csv(
                 "pr_number": pr.get("pr_number", ""),
                 "pr_title": pr.get("pr_title", ""),
                 "pr_author": pr.get("pr_author", ""),
-                "pr_created_at": pr.get("pr_created_at", ""),
+                "pr_created_at": to_pst(pr.get("pr_created_at", "")),
                 "pr_state": pr.get("pr_state", ""),
                 "pr_score": score_formatted,
                 "trigger_type": pr.get("trigger_type", "new_pr"),
                 "quality_catch_count": pr.get("catch_count", 0),
                 "catch_categories": ", ".join(categories),
-                "evaluated_at": datetime.now(timezone.utc).isoformat()
+                "evaluated_at": datetime.now(PST).strftime("%Y-%m-%d %H:%M:%S")
             })
 
     logger.info(f"Appended {len(quality_prs)} quality PRs to {output_file}")
