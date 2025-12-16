@@ -55,16 +55,27 @@ Respond with JSON only:
 }}"""
 
 
+SUMMARY_PROMPT = """Summarize what Greptile caught in this PR review. Be concise (1-2 sentences).
+
+PR: {repo} #{pr_number} - {pr_title}
+
+Greptile's catches:
+{catches}
+
+Write a brief summary of the bug(s) Greptile identified. Focus on the actual issue and its impact."""
+
+
 class LLMEvaluator:
     """Evaluates Greptile comments using Claude API."""
 
-    def __init__(self, api_key: Optional[str] = None, model: str = "claude-sonnet-4-20250514"):
+    def __init__(self, api_key: Optional[str] = None, model: str = "claude-opus-4-5-20251101"):
         self.api_key = api_key or os.environ.get("ANTHROPIC_API_KEY")
         if not self.api_key:
             raise ValueError("ANTHROPIC_API_KEY environment variable required")
 
         self.client = anthropic.Anthropic(api_key=self.api_key)
         self.model = model
+        self.summary_model = "claude-sonnet-4-20250514"
         self.logger = logging.getLogger(__name__)
 
     def evaluate_comment(
@@ -140,6 +151,45 @@ class LLMEvaluator:
             "severity": evaluation.get("severity"),
             "llm_reasoning": evaluation.get("reasoning", "")
         }
+
+    def summarize_catches(
+        self,
+        catches: List[Dict[str, Any]],
+        repo: str,
+        pr_number: int,
+        pr_title: str
+    ) -> str:
+        """Summarize multiple catches into a single cohesive explanation."""
+        if not catches:
+            return ""
+
+        if len(catches) == 1:
+            return catches[0].get("llm_reasoning", "")
+
+        # Format catches for the prompt
+        catches_text = "\n".join(
+            f"- [{c.get('bug_category', 'unknown')}] ({c.get('severity', 'unknown')}): {c.get('llm_reasoning', '')}"
+            for c in catches
+        )
+
+        prompt = SUMMARY_PROMPT.format(
+            repo=repo,
+            pr_number=pr_number,
+            pr_title=pr_title,
+            catches=catches_text
+        )
+
+        try:
+            response = self.client.messages.create(
+                model=self.summary_model,
+                max_tokens=150,
+                messages=[{"role": "user", "content": prompt}]
+            )
+            return response.content[0].text.strip()
+        except Exception as e:
+            self.logger.warning(f"Summary failed: {e}")
+            # Fallback to concatenation
+            return " | ".join(c.get("llm_reasoning", "") for c in catches)
 
     def _get_pr_score(self, pr: PRWithGreptileComments) -> Optional[int]:
         """Get the PR's confidence score from the overview comment."""
@@ -280,7 +330,21 @@ class LLMEvaluator:
                         f"{evaluation['bug_category']} ({evaluation['severity']})"
                     )
 
-            if pr_has_meaningful_catch:
+            # Only include PRs with critical or high severity bugs
+            high_severity_catches = [
+                c for c in meaningful_comments
+                if c.get("severity") in ("critical", "high")
+            ]
+
+            if high_severity_catches:
+                # Generate summary of what Greptile caught
+                summary = self.summarize_catches(
+                    high_severity_catches,
+                    pr.repo,
+                    pr.pr_number,
+                    pr.pr_title
+                )
+
                 quality_prs.append({
                     "repo": pr.repo,
                     "org": pr.org,
@@ -289,11 +353,12 @@ class LLMEvaluator:
                     "pr_author": pr.pr_author,
                     "pr_url": pr.pr_url,
                     "pr_created_at": pr.pr_created_at.isoformat(),
+                    "pr_updated_at": pr.pr_updated_at.isoformat(),
                     "pr_state": pr.pr_state,
                     "pr_score": pr_score,
                     "trigger_type": pr.trigger_type,
-                    "meaningful_catches": meaningful_comments,
-                    "catch_count": len(meaningful_comments)
+                    "meaningful_catches": high_severity_catches,
+                    "summary": summary
                 })
 
         self.logger.info(

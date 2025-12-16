@@ -51,6 +51,7 @@ class PRWithGreptileComments:
     pr_author: str
     pr_url: str
     pr_created_at: datetime
+    pr_updated_at: datetime  # When PR was last updated (new commits, comments, etc.)
     pr_state: str
     greptile_comments: List[GreptileComment]
     fetched_at: datetime

@@ -32,6 +32,9 @@ def load_results(json_file: str) -> list[PRWithGreptileComments]:
                 score=c.get("score")
             ))
 
+        # Handle pr_updated_at - use pr_created_at as fallback for older data
+        pr_updated_at = pr_data.get("pr_updated_at") or pr_data["pr_created_at"]
+
         results.append(PRWithGreptileComments(
             repo=pr_data["repo"],
             org=pr_data.get("org", ""),
@@ -40,6 +43,7 @@ def load_results(json_file: str) -> list[PRWithGreptileComments]:
             pr_author=pr_data["pr_author"],
             pr_url=pr_data["pr_url"],
             pr_created_at=datetime.fromisoformat(pr_data["pr_created_at"]),
+            pr_updated_at=datetime.fromisoformat(pr_updated_at),
             pr_state=pr_data["pr_state"],
             greptile_comments=comments,
             fetched_at=datetime.fromisoformat(pr_data["fetched_at"]),
@@ -77,9 +81,9 @@ def main():
             print(f"Repo: {pr['repo']} PR#{pr['pr_number']}")
             print(f"Title: {pr['pr_title']}")
             print(f"URL: {pr['pr_url']}")
-            print(f"Catches: {pr['catch_count']}")
+            print(f"Summary: {pr['summary']}")
             for catch in pr['meaningful_catches']:
-                print(f"  - {catch['bug_category']} ({catch['severity']}): {catch['llm_reasoning']}")
+                print(f"  - [{catch['bug_category']}] ({catch['severity']})")
 
         # Sync to Google Sheets
         try:

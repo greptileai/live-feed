@@ -85,6 +85,10 @@ class CommentFetcher:
                         owner, repo_name, pr
                     )
 
+                    pr_updated = datetime.fromisoformat(
+                        pr["updated_at"].replace("Z", "+00:00")
+                    )
+
                     if pr_comments:
                         results.append(PRWithGreptileComments(
                             repo=repo_config.repo,
@@ -94,6 +98,7 @@ class CommentFetcher:
                             pr_author=pr["user"]["login"],
                             pr_url=pr["html_url"],
                             pr_created_at=pr_created,
+                            pr_updated_at=pr_updated,
                             pr_state=pr["state"],
                             greptile_comments=pr_comments,
                             fetched_at=datetime.now(timezone.utc),

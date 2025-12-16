@@ -175,10 +175,10 @@ def append_quality_prs_csv(
         "pr_author",
         "pr_created_at",
         "pr_state",
-        "pr_score",
         "trigger_type",
-        "quality_catch_count",
+        "pr_score",
         "catch_categories",
+        "summary",
         "evaluated_at"
     ]
 
@@ -192,13 +192,16 @@ def append_quality_prs_csv(
             writer.writeheader()
 
         for pr in quality_prs:
-            # Summarize catch categories
+            # Extract catch categories
             catches = pr.get("meaningful_catches", [])
             categories = list(set(c.get("bug_category", "") for c in catches if c.get("bug_category")))
+            summary = pr.get("summary", "")
 
             # Format score as x/5
             score = pr.get("pr_score")
             score_formatted = f"{score}/5" if score is not None else ""
+
+            trigger = pr.get("trigger_type", "new_pr")
 
             writer.writerow({
                 "repo": pr.get("repo", ""),
@@ -208,10 +211,10 @@ def append_quality_prs_csv(
                 "pr_author": pr.get("pr_author", ""),
                 "pr_created_at": to_pst(pr.get("pr_created_at", "")),
                 "pr_state": pr.get("pr_state", ""),
+                "trigger_type": trigger,
                 "pr_score": score_formatted,
-                "trigger_type": pr.get("trigger_type", "new_pr"),
-                "quality_catch_count": pr.get("catch_count", 0),
                 "catch_categories": ", ".join(categories),
+                "summary": summary,
                 "evaluated_at": datetime.now(PST).strftime("%Y-%m-%d %H:%M:%S")
             })
 
