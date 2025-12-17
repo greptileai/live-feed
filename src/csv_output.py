@@ -111,7 +111,7 @@ def append_evaluated_comments_csv(
         "comment_body",
         "comment_url",
         "created_at",
-        "is_meaningful_bug",
+        "is_great_catch",
         "bug_category",
         "severity",
         "llm_reasoning",
@@ -141,7 +141,7 @@ def append_evaluated_comments_csv(
                 "comment_body": comment.get("comment_body", ""),
                 "comment_url": comment.get("comment_url", ""),
                 "created_at": comment.get("created_at", ""),
-                "is_meaningful_bug": comment.get("is_meaningful_bug", False),
+                "is_great_catch": comment.get("is_great_catch", False),
                 "bug_category": comment.get("bug_category", ""),
                 "severity": comment.get("severity", ""),
                 "llm_reasoning": comment.get("llm_reasoning", ""),
@@ -157,6 +157,10 @@ def append_quality_prs_csv(
     output_file: str = "output/quality_prs.csv"
 ) -> int:
     """Append PRs with meaningful catches to CSV.
+
+    Note: Duplicates may occur if a PR is re-evaluated (new_commits trigger).
+    The sync step (refresh_and_sync_open_prs) handles deduplication by keeping
+    the latest entry by evaluated_at and rewriting the CSV.
 
     Args:
         quality_prs: List of PR dicts that contain meaningful catches
@@ -193,7 +197,7 @@ def append_quality_prs_csv(
 
         for pr in quality_prs:
             # Extract catch categories
-            catches = pr.get("meaningful_catches", [])
+            catches = pr.get("great_catches", [])
             categories = list(set(c.get("bug_category", "") for c in catches if c.get("bug_category")))
             summary = pr.get("summary", "")
 

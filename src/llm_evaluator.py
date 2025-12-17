@@ -10,24 +10,39 @@ import anthropic
 from .models import GreptileComment, PRWithGreptileComments
 
 
-EVALUATION_PROMPT = """You are evaluating code review comments from an AI code reviewer (Greptile).
-Your task is to determine if the comment identifies a MEANINGFUL BUG - something that could cause:
-- Runtime errors or crashes
-- Security vulnerabilities
-- Data corruption or loss
-- Logic errors that produce wrong results
-- Performance issues that significantly impact users
-- Race conditions or concurrency bugs
+EVALUATION_PROMPT = """You are evaluating whether an AI code reviewer (Greptile) made a GREAT CATCH - a bug that's impressive and worth showcasing.
 
-NOT meaningful bugs (ignore these):
-- Style/formatting suggestions
-- Minor refactoring suggestions
-- Documentation improvements
-- Naming conventions
-- Code organization preferences
-- "Nice to have" improvements
+A GREAT CATCH is something that:
+1. Would likely cause real problems in production (crashes, security issues, data loss, wrong behavior)
+2. Is non-obvious - a human reviewer might reasonably miss it
+3. Shows genuine understanding of the code's intent and potential failure modes
+4. Is specific and actionable, not a vague concern
 
-Analyze this code review comment:
+NOT great catches (reject these):
+- Style, formatting, or naming suggestions
+- Generic best practice reminders ("consider adding error handling")
+- Documentation or comment suggestions
+- Refactoring ideas that don't fix actual bugs
+- Theoretical concerns that are unlikely in practice
+- Issues already handled elsewhere in the code
+- False positives where Greptile misunderstood the code
+- Suggestions that would break working code
+
+EXAMPLES OF GREAT CATCHES:
+- "This SQL query concatenates user input directly, allowing SQL injection"
+- "This loop modifies the array while iterating, causing skipped elements"
+- "This null check happens after the variable is already dereferenced"
+- "This async function doesn't await, so errors are silently swallowed"
+- "This boundary check uses < instead of <=, causing off-by-one on edge cases"
+
+EXAMPLES OF NOT GREAT CATCHES:
+- "Consider using const instead of let"
+- "This function could be split into smaller functions"
+- "Add JSDoc comments for better documentation"
+- "Consider handling the error case here" (too vague)
+- "This variable name could be more descriptive"
+
+---
 
 Repository: {repo}
 PR Title: {pr_title}
@@ -46,12 +61,16 @@ Greptile's comment:
 
 Greptile's confidence score: {score}/5
 
+---
+
+Evaluate: Is this a GREAT CATCH worth showcasing?
+
 Respond with JSON only:
 {{
-  "is_meaningful_bug": true/false,
+  "is_great_catch": true/false,
   "bug_category": "security|logic|runtime|performance|concurrency|data_integrity|null",
   "severity": "critical|high|medium|low|null",
-  "reasoning": "1-2 sentence explanation"
+  "reasoning": "1-2 sentence explanation of why this is or isn't a great catch"
 }}"""
 
 
@@ -118,7 +137,7 @@ class LLMEvaluator:
         except json.JSONDecodeError as e:
             self.logger.warning(f"Failed to parse LLM response: {e}")
             evaluation = {
-                "is_meaningful_bug": False,
+                "is_great_catch": False,
                 "bug_category": None,
                 "severity": None,
                 "reasoning": f"Parse error: {str(e)}"
@@ -126,7 +145,7 @@ class LLMEvaluator:
         except Exception as e:
             self.logger.error(f"LLM API error: {e}")
             evaluation = {
-                "is_meaningful_bug": False,
+                "is_great_catch": False,
                 "bug_category": None,
                 "severity": None,
                 "reasoning": f"API error: {str(e)}"
@@ -146,7 +165,7 @@ class LLMEvaluator:
             "comment_body": comment.comment_body,
             "comment_url": comment.comment_url,
             "created_at": comment.created_at.isoformat(),
-            "is_meaningful_bug": evaluation.get("is_meaningful_bug", False),
+            "is_great_catch": evaluation.get("is_great_catch", False),
             "bug_category": evaluation.get("bug_category"),
             "severity": evaluation.get("severity"),
             "llm_reasoning": evaluation.get("reasoning", "")
@@ -210,14 +229,12 @@ class LLMEvaluator:
 
     def evaluate_comments(
         self,
-        results: List[PRWithGreptileComments],
-        max_score: Optional[int] = None
+        results: List[PRWithGreptileComments]
     ) -> List[Dict[str, Any]]:
-        """Evaluate all comments, filtering by PR-level score.
+        """Evaluate all comments and return those that are meaningful bugs.
 
         Args:
             results: List of PRs with comments
-            max_score: Only evaluate PRs with confidence score <= this value (e.g., 3)
 
         Returns list of evaluated comments that ARE meaningful bugs.
         """
@@ -228,14 +245,6 @@ class LLMEvaluator:
         for pr in results:
             # Get PR-level score from overview comment
             pr_score = self._get_pr_score(pr)
-
-            # Filter by PR score if specified
-            if max_score is not None:
-                if pr_score is None or pr_score > max_score:
-                    self.logger.debug(
-                        f"Skipping {pr.repo} PR#{pr.pr_number} - score {pr_score} > {max_score}"
-                    )
-                    continue
 
             prs_evaluated += 1
             self.logger.info(
@@ -259,7 +268,7 @@ class LLMEvaluator:
 
                 evaluation = self.evaluate_comment(comment, pr)
 
-                if evaluation["is_meaningful_bug"]:
+                if evaluation["is_great_catch"]:
                     quality_catches.append(evaluation)
                     self.logger.info(
                         f"Found meaningful bug in {pr.repo} PR#{pr.pr_number}: "
@@ -274,14 +283,12 @@ class LLMEvaluator:
 
     def evaluate_prs(
         self,
-        results: List[PRWithGreptileComments],
-        max_score: Optional[int] = None
+        results: List[PRWithGreptileComments]
     ) -> List[Dict[str, Any]]:
         """Evaluate PRs and return those with at least one meaningful catch.
 
         Args:
             results: List of PRs with comments
-            max_score: Only evaluate PRs with confidence score <= this value (e.g., 3)
 
         Returns list of PRs that contain at least one meaningful bug catch.
         """
@@ -293,21 +300,12 @@ class LLMEvaluator:
             # Get PR-level score from overview comment
             pr_score = self._get_pr_score(pr)
 
-            # Filter by PR score if specified
-            if max_score is not None:
-                if pr_score is None or pr_score > max_score:
-                    self.logger.debug(
-                        f"Skipping {pr.repo} PR#{pr.pr_number} - score {pr_score} > {max_score}"
-                    )
-                    continue
-
             prs_evaluated += 1
             self.logger.info(
                 f"Evaluating {pr.repo} PR#{pr.pr_number} (score: {pr_score}/5)"
             )
 
-            pr_has_meaningful_catch = False
-            meaningful_comments = []
+            great_catches = []
 
             for comment in pr.greptile_comments:
                 # Skip noise comments
@@ -322,24 +320,18 @@ class LLMEvaluator:
                 total_evaluated += 1
                 evaluation = self.evaluate_comment(comment, pr)
 
-                if evaluation["is_meaningful_bug"]:
-                    pr_has_meaningful_catch = True
-                    meaningful_comments.append(evaluation)
+                if evaluation["is_great_catch"]:
+                    great_catches.append(evaluation)
                     self.logger.info(
                         f"Found meaningful bug in {pr.repo} PR#{pr.pr_number}: "
                         f"{evaluation['bug_category']} ({evaluation['severity']})"
                     )
 
-            # Only include PRs with critical or high severity bugs
-            high_severity_catches = [
-                c for c in meaningful_comments
-                if c.get("severity") in ("critical", "high")
-            ]
-
-            if high_severity_catches:
+            # Include PRs with any meaningful bug (LLM qualified it as meaningful)
+            if great_catches:
                 # Generate summary of what Greptile caught
                 summary = self.summarize_catches(
-                    high_severity_catches,
+                    great_catches,
                     pr.repo,
                     pr.pr_number,
                     pr.pr_title
@@ -357,7 +349,7 @@ class LLMEvaluator:
                     "pr_state": pr.pr_state,
                     "pr_score": pr_score,
                     "trigger_type": pr.trigger_type,
-                    "meaningful_catches": high_severity_catches,
+                    "great_catches": great_catches,
                     "summary": summary
                 })
 
@@ -366,3 +358,90 @@ class LLMEvaluator:
             f"found {len(quality_prs)} PRs with meaningful catches"
         )
         return quality_prs
+
+    def evaluate_single_pr_text(
+        self,
+        repo: str,
+        pr_title: str,
+        pr_url: str,
+        comment_text: str
+    ) -> Optional[Dict[str, Any]]:
+        """Evaluate a PR using raw comment text (for re-evaluation).
+
+        This is used when re-evaluating PRs with score changes, where we
+        fetch all comments and combine them into a single text block.
+
+        Args:
+            repo: Repository name (owner/repo)
+            pr_title: PR title
+            pr_url: PR URL
+            comment_text: Combined text of all Greptile comments
+
+        Returns dict with is_great_catch, great_catches, summary, or None on error.
+        """
+        prompt = f"""You are evaluating whether an AI code reviewer (Greptile) made any GREAT CATCHES in this PR review.
+
+A GREAT CATCH is something that:
+1. Would likely cause real problems in production (crashes, security issues, data loss, wrong behavior)
+2. Is non-obvious - a human reviewer might reasonably miss it
+3. Shows genuine understanding of the code's intent and potential failure modes
+4. Is specific and actionable, not a vague concern
+
+NOT great catches (reject these):
+- Style, formatting, or naming suggestions
+- Generic best practice reminders ("consider adding error handling")
+- Documentation or comment suggestions
+- Refactoring ideas that don't fix actual bugs
+- Theoretical concerns that are unlikely in practice
+- Issues already handled elsewhere in the code
+- False positives where Greptile misunderstood the code
+
+---
+
+Repository: {repo}
+PR Title: {pr_title}
+
+Greptile's comments:
+{comment_text}
+
+---
+
+Evaluate: Are there any GREAT CATCHES worth showcasing?
+
+Respond with JSON only:
+{{
+  "is_great_catch": true/false,
+  "great_catches": [
+    {{
+      "bug_category": "security|logic|runtime|performance|concurrency|data_integrity",
+      "severity": "critical|high|medium|low",
+      "reasoning": "1-2 sentence explanation"
+    }}
+  ],
+  "summary": "1-2 sentence summary of what Greptile caught (empty if no great catches)"
+}}"""
+
+        try:
+            response = self.client.messages.create(
+                model=self.model,
+                max_tokens=512,
+                messages=[{"role": "user", "content": prompt}]
+            )
+
+            response_text = response.content[0].text.strip()
+            # Handle potential markdown code blocks
+            if response_text.startswith("```"):
+                response_text = response_text.split("```")[1]
+                if response_text.startswith("json"):
+                    response_text = response_text[4:]
+                response_text = response_text.strip()
+
+            result = json.loads(response_text)
+            return result
+
+        except json.JSONDecodeError as e:
+            self.logger.warning(f"Failed to parse LLM response: {e}")
+            return None
+        except Exception as e:
+            self.logger.error(f"LLM API error: {e}")
+            return None

@@ -82,7 +82,7 @@ class CommentFetcher:
                     self.logger.debug(f"  PR #{pr_number}: {trigger_type}")
 
                     pr_comments = self._fetch_greptile_comments_for_pr(
-                        owner, repo_name, pr
+                        owner, repo_name, pr, since=since
                     )
 
                     pr_updated = datetime.fromisoformat(
@@ -136,23 +136,33 @@ class CommentFetcher:
         self,
         owner: str,
         repo: str,
-        pr: Dict[str, Any]
+        pr: Dict[str, Any],
+        since: Optional[datetime] = None
     ) -> List[GreptileComment]:
-        """Fetch all Greptile comments for a single PR."""
+        """Fetch Greptile comments for a single PR.
+
+        Args:
+            since: Only include comments created after this timestamp.
+                   If None, includes all comments.
+        """
         comments: List[GreptileComment] = []
         pr_number = pr["number"]
 
         # Review comments (inline comments on diff)
         for comment in self.client.get_pr_review_comments(owner, repo, pr_number):
             if self.client.is_greptile_user(comment.get("user")):
+                created_at = datetime.fromisoformat(
+                    comment["created_at"].replace("Z", "+00:00")
+                )
+                # Skip comments older than since timestamp
+                if since and created_at < since:
+                    continue
                 body = comment.get("body", "")
                 comments.append(GreptileComment(
                     comment_id=comment["id"],
                     comment_body=body,
                     comment_url=comment["html_url"],
-                    created_at=datetime.fromisoformat(
-                        comment["created_at"].replace("Z", "+00:00")
-                    ),
+                    created_at=created_at,
                     updated_at=datetime.fromisoformat(
                         comment["updated_at"].replace("Z", "+00:00")
                     ),
@@ -166,14 +176,18 @@ class CommentFetcher:
         # Issue comments (general comments on PR)
         for comment in self.client.get_pr_issue_comments(owner, repo, pr_number):
             if self.client.is_greptile_user(comment.get("user")):
+                created_at = datetime.fromisoformat(
+                    comment["created_at"].replace("Z", "+00:00")
+                )
+                # Skip comments older than since timestamp
+                if since and created_at < since:
+                    continue
                 body = comment.get("body", "")
                 comments.append(GreptileComment(
                     comment_id=comment["id"],
                     comment_body=body,
                     comment_url=comment["html_url"],
-                    created_at=datetime.fromisoformat(
-                        comment["created_at"].replace("Z", "+00:00")
-                    ),
+                    created_at=created_at,
                     updated_at=datetime.fromisoformat(
                         comment["updated_at"].replace("Z", "+00:00")
                     ),
@@ -187,14 +201,18 @@ class CommentFetcher:
         # Review bodies (from review submissions)
         for review in self.client.get_pr_reviews(owner, repo, pr_number):
             if self.client.is_greptile_user(review.get("user")) and review.get("body"):
+                created_at = datetime.fromisoformat(
+                    review["submitted_at"].replace("Z", "+00:00")
+                )
+                # Skip reviews older than since timestamp
+                if since and created_at < since:
+                    continue
                 body = review.get("body", "")
                 comments.append(GreptileComment(
                     comment_id=review["id"],
                     comment_body=body,
                     comment_url=review["html_url"],
-                    created_at=datetime.fromisoformat(
-                        review["submitted_at"].replace("Z", "+00:00")
-                    ),
+                    created_at=created_at,
                     updated_at=datetime.fromisoformat(
                         review["submitted_at"].replace("Z", "+00:00")
                     ),

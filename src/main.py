@@ -102,13 +102,7 @@ def main() -> None:
     parser.add_argument(
         "--evaluate",
         action="store_true",
-        help="Run LLM evaluation on low-confidence comments"
-    )
-    parser.add_argument(
-        "--max-score",
-        type=int,
-        default=3,
-        help="Only evaluate comments with score <= this value"
+        help="Run LLM evaluation on Greptile comments"
     )
     parser.add_argument(
         "--sync-sheets",
@@ -182,9 +176,7 @@ def main() -> None:
         try:
             from .llm_evaluator import LLMEvaluator
             evaluator = LLMEvaluator()
-            quality_catches = evaluator.evaluate_comments(
-                all_results, max_score=args.max_score
-            )
+            quality_catches = evaluator.evaluate_comments(all_results)
 
             if quality_catches:
                 append_evaluated_comments_csv(

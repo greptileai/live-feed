@@ -67,9 +67,13 @@ def main():
     results = load_results(json_file)
     logger.info(f"Loaded {len(results)} PRs")
 
+    # Track all PRs that had new comments this run (for re-evaluation)
+    prs_with_new_comments = [pr.pr_url for pr in results]
+    logger.info(f"PRs with new comments this run: {len(prs_with_new_comments)}")
+
     # Run evaluation at PR level
     evaluator = LLMEvaluator()
-    quality_prs = evaluator.evaluate_prs(results, max_score=3)
+    quality_prs = evaluator.evaluate_prs(results)
 
     if quality_prs:
         append_quality_prs_csv(quality_prs, "output/quality_prs.csv")
@@ -82,19 +86,25 @@ def main():
             print(f"Title: {pr['pr_title']}")
             print(f"URL: {pr['pr_url']}")
             print(f"Summary: {pr['summary']}")
-            for catch in pr['meaningful_catches']:
+            for catch in pr['great_catches']:
                 print(f"  - [{catch['bug_category']}] ({catch['severity']})")
-
-        # Sync to Google Sheets
-        try:
-            from src.sheets_sync import SheetsSync
-            syncer = SheetsSync()
-            synced = syncer.sync_quality_prs()
-            logger.info(f"Synced {synced} PRs to Google Sheets")
-        except Exception as e:
-            logger.warning(f"Sheets sync failed: {e}")
     else:
-        logger.info("No PRs with meaningful catches found")
+        logger.info("No new PRs with meaningful catches found in this run")
+
+    # Sync open PRs with great catches to Google Sheets
+    # - Re-evaluates PRs that had new comments this run (even if score unchanged)
+    # - Re-evaluates PRs with score changes
+    # - Removes PRs that are no longer great catches
+    # - Filters to open PRs only
+    try:
+        from src.sheets_sync import SheetsSync
+        syncer = SheetsSync()
+        synced = syncer.refresh_and_sync_open_prs(
+            prs_with_new_activity=prs_with_new_comments
+        )
+        logger.info(f"Synced {synced} open PRs to Google Sheets")
+    except Exception as e:
+        logger.warning(f"Sheets sync failed: {e}")
 
 
 if __name__ == "__main__":

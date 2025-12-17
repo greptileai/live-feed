@@ -8,16 +8,13 @@ from typing import Any, Dict, Generator, Optional
 
 import requests
 
+from .constants import GREPTILE_BOT_NAMES
+
 
 class GitHubClient:
     """Handles GitHub API interactions with rate limiting and pagination."""
 
     BASE_URL = "https://api.github.com"
-    GREPTILE_BOT_NAMES = [
-        "greptile-apps[bot]",
-        "greptileai",
-        "greptile[bot]"
-    ]
 
     def __init__(self, token: Optional[str] = None):
         self.token = token or os.environ.get("GITHUB_TOKEN")
@@ -195,5 +192,5 @@ class GitHubClient:
         login = user.get("login", "").lower()
         return any(
             bot_name.lower() in login
-            for bot_name in self.GREPTILE_BOT_NAMES
+            for bot_name in GREPTILE_BOT_NAMES
         )

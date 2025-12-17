@@ -58,16 +58,17 @@ jobs:
             ${{ inputs.max_repos && format('--max-repos {0}', inputs.max_repos) || '' }} \
             --verbose
 
-      - name: Run LLM evaluation
+      - name: Run LLM evaluation and sync to Sheets
         if: ${{ !inputs.skip_evaluation }}
         env:
+          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GOOGLE_CREDENTIALS_FILE: ${{ github.workspace }}/credentials.json
         run: |
           # Write Google credentials from secret
           echo '${{ secrets.GOOGLE_CREDENTIALS_JSON }}' > credentials.json
 
-          # Run evaluation
+          # Run evaluation (also syncs current run's great catches to Sheets)
           python run_evaluation.py
 
           # Clean up credentials
