@@ -12,6 +12,7 @@ import gspread
 from google.oauth2.service_account import Credentials
 
 from .constants import GREPTILE_BOT_NAMES
+from .comment_fetcher import extract_score
 
 
 SCOPES = [
@@ -294,6 +295,52 @@ class SheetsSync:
             self.logger.warning(f"Error getting PR state for {pr_url}: {e}")
             return None
 
+    def _get_latest_greptile_score(self, pr_url: str, github_token: str) -> Optional[int]:
+        """Fetch latest Greptile score for a PR from GitHub API."""
+        parsed = self._parse_pr_url(pr_url)
+        if not parsed:
+            return None
+        owner, repo, number = parsed
+
+        headers = {
+            "Authorization": f"Bearer {github_token}",
+            "Accept": "application/vnd.github+json"
+        }
+
+        greptile_logins = [u.lower() for u in GREPTILE_BOT_NAMES]
+        latest_score = None
+        latest_time = None
+
+        try:
+            # Check issue comments
+            url = f"https://api.github.com/repos/{owner}/{repo}/issues/{number}/comments"
+            for comment in self._fetch_paginated(url, headers):
+                user_login = comment.get("user", {}).get("login", "").lower()
+                if user_login in greptile_logins:
+                    score = extract_score(comment.get("body", ""))
+                    if score is not None:
+                        created = comment.get("created_at", "")
+                        if latest_time is None or created > latest_time:
+                            latest_score = score
+                            latest_time = created
+
+            # Check reviews
+            url = f"https://api.github.com/repos/{owner}/{repo}/pulls/{number}/reviews"
+            for review in self._fetch_paginated(url, headers):
+                user_login = review.get("user", {}).get("login", "").lower()
+                if user_login in greptile_logins:
+                    score = extract_score(review.get("body", ""))
+                    if score is not None:
+                        submitted = review.get("submitted_at", "")
+                        if latest_time is None or submitted > latest_time:
+                            latest_score = score
+                            latest_time = submitted
+
+            return latest_score
+        except Exception as e:
+            self.logger.warning(f"Error getting Greptile score for {pr_url}: {e}")
+            return None
+
     def _fetch_paginated(self, url: str, headers: dict) -> List[dict]:
         """Fetch all pages from a GitHub API endpoint."""
         all_items = []
@@ -530,8 +577,9 @@ class SheetsSync:
 
         self.logger.info(f"Deduplicated to {len(pr_map)} unique PRs")
 
-        # Refresh PR states from GitHub
+        # Refresh PR states and scores from GitHub
         state_updated_count = 0
+        score_updated_count = 0
 
         for i, (pr_url, row) in enumerate(pr_map.items()):
             # Check rate limit every 20 PRs
@@ -545,7 +593,17 @@ class SheetsSync:
                 row["pr_state"] = current_state
                 state_updated_count += 1
 
-        self.logger.info(f"Updated {state_updated_count} PR states from GitHub")
+            # Refresh Greptile score (for display, not re-evaluation trigger)
+            current_score = self._get_latest_greptile_score(pr_url, github_token)
+            if current_score is not None:
+                old_score = row.get("pr_score", "")
+                new_score_str = f"{current_score}/5"
+                if old_score != new_score_str:
+                    self.logger.info(f"PR score updated: {pr_url} {old_score or 'None'} -> {new_score_str}")
+                    row["pr_score"] = new_score_str
+                    score_updated_count += 1
+
+        self.logger.info(f"Updated {state_updated_count} PR states, {score_updated_count} scores from GitHub")
 
         # Re-evaluate open PRs with new activity this run
         prs_to_reevaluate: List[str] = []
