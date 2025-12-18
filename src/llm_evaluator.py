@@ -12,13 +12,15 @@ from .models import GreptileComment, PRWithGreptileComments
 
 EVALUATION_PROMPT = """You are evaluating whether an AI code reviewer (Greptile) made a GREAT CATCH - a bug that's impressive and worth showcasing.
 
-A GREAT CATCH is something that:
-1. Would likely cause real problems in production (crashes, security issues, data loss, wrong behavior)
-2. Is non-obvious - a human reviewer might reasonably miss it
-3. Shows genuine understanding of the code's intent and potential failure modes
-4. Is specific and actionable, not a vague concern
+BE SKEPTICAL. Most comments are NOT great catches. The bar should be HIGH.
 
-NOT great catches (reject these):
+A GREAT CATCH must meet ALL of these criteria:
+1. Is a REAL BUG in application/library code that would cause incorrect behavior, crashes, security issues, or data loss
+2. Is non-obvious - a human reviewer would likely miss it without careful analysis
+3. Greptile's analysis is CORRECT - verify the logic, don't just trust Greptile's claims
+4. Is specific and actionable with a clear fix
+
+NOT great catches (REJECT these - when in doubt, reject):
 - Style, formatting, or naming suggestions
 - Generic best practice reminders ("consider adding error handling")
 - Documentation or comment suggestions
@@ -27,20 +29,31 @@ NOT great catches (reject these):
 - Issues already handled elsewhere in the code
 - False positives where Greptile misunderstood the code
 - Suggestions that would break working code
+- Build/CI/config file issues (meta.yaml, Dockerfile, package.json, etc.)
+- Environment variable or shell script suggestions
+- Test file issues (unless it's hiding a real bug in production code)
+- Dependency version suggestions
+- "Could cause issues" or "may fail" without concrete evidence
+- Obvious issues any developer would catch immediately
 
-EXAMPLES OF GREAT CATCHES:
+EXAMPLES OF GREAT CATCHES (high bar - these are impressive):
 - "This SQL query concatenates user input directly, allowing SQL injection"
 - "This loop modifies the array while iterating, causing skipped elements"
 - "This null check happens after the variable is already dereferenced"
 - "This async function doesn't await, so errors are silently swallowed"
 - "This boundary check uses < instead of <=, causing off-by-one on edge cases"
+- "Race condition: this shared state is read and written without synchronization"
 
-EXAMPLES OF NOT GREAT CATCHES:
+EXAMPLES OF NOT GREAT CATCHES (reject these):
 - "Consider using const instead of let"
 - "This function could be split into smaller functions"
 - "Add JSDoc comments for better documentation"
 - "Consider handling the error case here" (too vague)
 - "This variable name could be more descriptive"
+- "This shell variable should be a conda build variant" (config/tooling issue)
+- "Add this to script_env for consistency" (config suggestion)
+- "Using http:// instead of https://" (obvious, anyone would catch)
+- "This test depends on external services" (test design feedback, not a bug)
 
 ---
 
@@ -241,10 +254,19 @@ class LLMEvaluator:
         quality_catches = []
         total_evaluated = 0
         prs_evaluated = 0
+        prs_skipped_no_score = 0
 
         for pr in results:
             # Get PR-level score from overview comment
             pr_score = self._get_pr_score(pr)
+
+            # Skip PRs without a confidence score - no overview comment to showcase
+            if pr_score is None:
+                self.logger.info(
+                    f"Skipping {pr.repo} PR#{pr.pr_number} - no confidence score"
+                )
+                prs_skipped_no_score += 1
+                continue
 
             prs_evaluated += 1
             self.logger.info(
@@ -277,7 +299,8 @@ class LLMEvaluator:
 
         self.logger.info(
             f"Evaluated {prs_evaluated} PRs, {total_evaluated} comments, "
-            f"found {len(quality_catches)} meaningful bugs"
+            f"found {len(quality_catches)} meaningful bugs "
+            f"(skipped {prs_skipped_no_score} PRs without confidence score)"
         )
         return quality_catches
 
@@ -295,10 +318,19 @@ class LLMEvaluator:
         quality_prs = []
         total_evaluated = 0
         prs_evaluated = 0
+        prs_skipped_no_score = 0
 
         for pr in results:
             # Get PR-level score from overview comment
             pr_score = self._get_pr_score(pr)
+
+            # Skip PRs without a confidence score - no overview comment to showcase
+            if pr_score is None:
+                self.logger.info(
+                    f"Skipping {pr.repo} PR#{pr.pr_number} - no confidence score"
+                )
+                prs_skipped_no_score += 1
+                continue
 
             prs_evaluated += 1
             self.logger.info(
@@ -355,7 +387,8 @@ class LLMEvaluator:
 
         self.logger.info(
             f"Evaluated {prs_evaluated} PRs, {total_evaluated} comments, "
-            f"found {len(quality_prs)} PRs with meaningful catches"
+            f"found {len(quality_prs)} PRs with meaningful catches "
+            f"(skipped {prs_skipped_no_score} PRs without confidence score)"
         )
         return quality_prs
 
@@ -381,13 +414,15 @@ class LLMEvaluator:
         """
         prompt = f"""You are evaluating whether an AI code reviewer (Greptile) made any GREAT CATCHES in this PR review.
 
-A GREAT CATCH is something that:
-1. Would likely cause real problems in production (crashes, security issues, data loss, wrong behavior)
-2. Is non-obvious - a human reviewer might reasonably miss it
-3. Shows genuine understanding of the code's intent and potential failure modes
-4. Is specific and actionable, not a vague concern
+BE SKEPTICAL. Most comments are NOT great catches. The bar should be HIGH.
 
-NOT great catches (reject these):
+A GREAT CATCH must meet ALL of these criteria:
+1. Is a REAL BUG in application/library code that would cause incorrect behavior, crashes, security issues, or data loss
+2. Is non-obvious - a human reviewer would likely miss it without careful analysis
+3. Greptile's analysis is CORRECT - verify the logic, don't just trust Greptile's claims
+4. Is specific and actionable with a clear fix
+
+NOT great catches (REJECT these - when in doubt, reject):
 - Style, formatting, or naming suggestions
 - Generic best practice reminders ("consider adding error handling")
 - Documentation or comment suggestions
@@ -395,6 +430,12 @@ NOT great catches (reject these):
 - Theoretical concerns that are unlikely in practice
 - Issues already handled elsewhere in the code
 - False positives where Greptile misunderstood the code
+- Build/CI/config file issues (meta.yaml, Dockerfile, package.json, etc.)
+- Environment variable or shell script suggestions
+- Test file issues (unless it's hiding a real bug in production code)
+- Dependency version suggestions
+- "Could cause issues" or "may fail" without concrete evidence
+- Obvious issues any developer would catch immediately
 
 ---
 
@@ -406,7 +447,7 @@ Greptile's comments:
 
 ---
 
-Evaluate: Are there any GREAT CATCHES worth showcasing?
+Evaluate: Are there any GREAT CATCHES worth showcasing? Be strict - only truly impressive bug catches should qualify.
 
 Respond with JSON only:
 {{
