@@ -12,7 +12,6 @@ import gspread
 from google.oauth2.service_account import Credentials
 
 from .constants import GREPTILE_BOT_NAMES
-from .comment_fetcher import extract_score
 
 
 SCOPES = [
@@ -295,55 +294,6 @@ class SheetsSync:
             self.logger.warning(f"Error getting PR state for {pr_url}: {e}")
             return None
 
-    def _get_latest_greptile_score(self, pr_url: str, github_token: str) -> Optional[int]:
-        """Fetch latest Greptile score for a PR from GitHub API.
-
-        Uses pagination to ensure we check ALL comments/reviews, not just the first page.
-        """
-        parsed = self._parse_pr_url(pr_url)
-        if not parsed:
-            return None
-        owner, repo, number = parsed
-
-        headers = {
-            "Authorization": f"Bearer {github_token}",
-            "Accept": "application/vnd.github+json"
-        }
-
-        greptile_logins = [u.lower() for u in GREPTILE_BOT_NAMES]
-        latest_score = None
-        latest_time = None
-
-        try:
-            # Check issue comments (with pagination)
-            url = f"https://api.github.com/repos/{owner}/{repo}/issues/{number}/comments"
-            for comment in self._fetch_paginated(url, headers):
-                user_login = comment.get("user", {}).get("login", "").lower()
-                if user_login in greptile_logins:
-                    score = extract_score(comment.get("body", ""))
-                    if score is not None:
-                        created = comment.get("created_at", "")
-                        if latest_time is None or created > latest_time:
-                            latest_score = score
-                            latest_time = created
-
-            # Check reviews (with pagination)
-            url = f"https://api.github.com/repos/{owner}/{repo}/pulls/{number}/reviews"
-            for review in self._fetch_paginated(url, headers):
-                user_login = review.get("user", {}).get("login", "").lower()
-                if user_login in greptile_logins:
-                    score = extract_score(review.get("body", ""))
-                    if score is not None:
-                        submitted = review.get("submitted_at", "")
-                        if latest_time is None or submitted > latest_time:
-                            latest_score = score
-                            latest_time = submitted
-
-            return latest_score
-        except Exception as e:
-            self.logger.warning(f"Error getting Greptile score for {pr_url}: {e}")
-            return None
-
     def _fetch_paginated(self, url: str, headers: dict) -> List[dict]:
         """Fetch all pages from a GitHub API endpoint."""
         all_items = []
@@ -534,18 +484,15 @@ class SheetsSync:
         """Refresh PR states from GitHub, re-evaluate as needed, sync open PRs.
 
         1. Reads CSV and deduplicates by pr_url (keeps latest by evaluated_at)
-        2. Refreshes pr_state and pr_score from GitHub API
-        3. Re-evaluates PRs that:
-           - Had new comments this run (passed via prs_with_new_activity)
-           - Have score changes detected during refresh
+        2. Refreshes pr_state from GitHub API
+        3. Re-evaluates open PRs that had new Greptile activity this run
         4. Removes PRs that are no longer great catches
         5. Updates CSV with current states and evaluations
         6. Syncs only open PRs to Google Sheets
 
         Args:
             prs_with_new_activity: List of PR URLs that had new Greptile comments
-                                   this run. These will be re-evaluated even if
-                                   score is unchanged.
+                                   this run. These will be re-evaluated.
 
         Returns number of rows written.
         """
@@ -583,9 +530,8 @@ class SheetsSync:
 
         self.logger.info(f"Deduplicated to {len(pr_map)} unique PRs")
 
-        # Refresh PR states and scores from GitHub, track score changes
+        # Refresh PR states from GitHub
         state_updated_count = 0
-        score_changed_prs: List[str] = []  # PRs that need re-evaluation
 
         for i, (pr_url, row) in enumerate(pr_map.items()):
             # Check rate limit every 20 PRs
@@ -599,44 +545,16 @@ class SheetsSync:
                 row["pr_state"] = current_state
                 state_updated_count += 1
 
-            # Refresh Greptile score
-            current_score = self._get_latest_greptile_score(pr_url, github_token)
-            if current_score is not None:
-                old_score = row.get("pr_score", "")
-                # Parse old score - handle both "3" and "3/5" formats
-                try:
-                    old_score_str = old_score.split("/")[0] if "/" in old_score else old_score
-                    old_score_int = int(old_score_str) if old_score_str else None
-                except (ValueError, TypeError):
-                    old_score_int = None
-
-                if old_score_int != current_score:
-                    self.logger.info(f"PR score changed: {pr_url} {old_score} -> {current_score}/5")
-                    row["pr_score"] = f"{current_score}/5"
-                    # Only re-evaluate open PRs with score changes
-                    if row.get("pr_state") == "open":
-                        score_changed_prs.append(pr_url)
-
         self.logger.info(f"Updated {state_updated_count} PR states from GitHub")
-        self.logger.info(f"Found {len(score_changed_prs)} open PRs with score changes")
 
-        # Combine PRs that need re-evaluation:
-        # 1. PRs with score changes (detected above)
-        # 2. PRs with new activity this run (if they exist in CSV)
-        prs_to_reevaluate = set(score_changed_prs)
-
+        # Re-evaluate open PRs with new activity this run
+        prs_to_reevaluate: List[str] = []
         if prs_with_new_activity:
-            # Only re-evaluate PRs that are in our CSV (existing great catches)
-            existing_prs_with_new_activity = [
+            prs_to_reevaluate = [
                 url for url in prs_with_new_activity
                 if url in pr_map and pr_map[url].get("pr_state") == "open"
             ]
-            prs_to_reevaluate.update(existing_prs_with_new_activity)
-            self.logger.info(
-                f"Found {len(existing_prs_with_new_activity)} existing great catches with new activity"
-            )
-
-        self.logger.info(f"Total PRs to re-evaluate: {len(prs_to_reevaluate)}")
+            self.logger.info(f"Found {len(prs_to_reevaluate)} open PRs with new activity to re-evaluate")
 
         # Re-evaluate PRs
         if prs_to_reevaluate:

@@ -91,6 +91,7 @@ jobs:
           git add state/last_checked.json
           git add output/quality_prs.csv || true
           git diff --staged --quiet || git commit -m "chore: update greptile monitor state [skip ci]"
+          git pull --rebase origin main || true
           git push
 
       - name: Summary
