@@ -4,13 +4,14 @@ import json
 import logging
 from datetime import datetime
 from pathlib import Path
+from typing import List
 
 from src.models import GreptileComment, PRWithGreptileComments
 from src.llm_evaluator import LLMEvaluator
 from src.csv_output import append_quality_prs_csv
 
 
-def load_results(json_file: str) -> list[PRWithGreptileComments]:
+def load_results(json_file: str) -> List[PRWithGreptileComments]:
     """Load PR results from JSON file."""
     with open(json_file, "r") as f:
         data = json.load(f)

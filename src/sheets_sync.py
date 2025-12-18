@@ -12,6 +12,7 @@ import gspread
 from google.oauth2.service_account import Credentials
 
 from .constants import GREPTILE_BOT_NAMES
+from .comment_fetcher import extract_score
 
 
 SCOPES = [
@@ -65,14 +66,18 @@ class SheetsSync:
             self._spreadsheet = client.open_by_key(self.spreadsheet_id)
         return self._spreadsheet
 
-    def sync_quality_catches(
+    def _sync_csv_to_sheet(
         self,
-        csv_file: str = "output/quality_catches.csv",
-        worksheet_name: str = "Quality Catches"
+        csv_file: str,
+        worksheet_name: str,
+        dedup_key: str
     ) -> int:
-        """Sync quality catches CSV to Google Sheets.
+        """Sync CSV to Google Sheets with deduplication.
 
-        Appends new rows to the worksheet, avoiding duplicates by comment_id.
+        Args:
+            csv_file: Path to the CSV file
+            worksheet_name: Name of the worksheet to sync to
+            dedup_key: Column name to use for deduplication (e.g. 'comment_id', 'pr_url')
 
         Returns number of new rows added.
         """
@@ -104,16 +109,16 @@ class SheetsSync:
             worksheet.append_row(headers)
             self.logger.info(f"Created new worksheet: {worksheet_name}")
 
-        # Get existing comment IDs to avoid duplicates
+        # Get existing values to avoid duplicates
         existing_data = worksheet.get_all_values()
         if existing_data:
             headers = existing_data[0]
-            comment_id_idx = headers.index("comment_id") if "comment_id" in headers else None
+            dedup_idx = headers.index(dedup_key) if dedup_key in headers else None
             existing_ids = set()
-            if comment_id_idx is not None:
+            if dedup_idx is not None:
                 for row in existing_data[1:]:
-                    if len(row) > comment_id_idx:
-                        existing_ids.add(row[comment_id_idx])
+                    if len(row) > dedup_idx:
+                        existing_ids.add(row[dedup_idx])
         else:
             existing_ids = set()
             # Add headers if worksheet is empty
@@ -123,7 +128,7 @@ class SheetsSync:
         # Filter to new rows only
         new_rows = [
             row for row in rows
-            if str(row.get("comment_id", "")) not in existing_ids
+            if str(row.get(dedup_key, "")) not in existing_ids
         ]
 
         if not new_rows:
@@ -139,6 +144,19 @@ class SheetsSync:
             f"Synced {len(new_rows)} new rows to '{worksheet_name}'"
         )
         return len(new_rows)
+
+    def sync_quality_catches(
+        self,
+        csv_file: str = "output/quality_catches.csv",
+        worksheet_name: str = "Quality Catches"
+    ) -> int:
+        """Sync quality catches CSV to Google Sheets.
+
+        Appends new rows to the worksheet, avoiding duplicates by comment_id.
+
+        Returns number of new rows added.
+        """
+        return self._sync_csv_to_sheet(csv_file, worksheet_name, dedup_key="comment_id")
 
     def sync_all_comments(
         self,
@@ -162,69 +180,7 @@ class SheetsSync:
 
         Returns number of new rows added.
         """
-        csv_path = Path(csv_file)
-        if not csv_path.exists():
-            self.logger.warning(f"CSV file not found: {csv_file}")
-            return 0
-
-        # Read CSV data
-        with open(csv_path, "r", encoding="utf-8") as f:
-            reader = csv.DictReader(f)
-            rows = list(reader)
-
-        if not rows:
-            self.logger.info("No rows to sync")
-            return 0
-
-        spreadsheet = self._get_spreadsheet()
-
-        # Get or create worksheet
-        try:
-            worksheet = spreadsheet.worksheet(worksheet_name)
-        except gspread.WorksheetNotFound:
-            worksheet = spreadsheet.add_worksheet(
-                title=worksheet_name, rows=1000, cols=20
-            )
-            # Add header row
-            headers = list(rows[0].keys())
-            worksheet.append_row(headers)
-            self.logger.info(f"Created new worksheet: {worksheet_name}")
-
-        # Get existing PR URLs to avoid duplicates
-        existing_data = worksheet.get_all_values()
-        if existing_data:
-            headers = existing_data[0]
-            pr_url_idx = headers.index("pr_url") if "pr_url" in headers else None
-            existing_urls = set()
-            if pr_url_idx is not None:
-                for row in existing_data[1:]:
-                    if len(row) > pr_url_idx:
-                        existing_urls.add(row[pr_url_idx])
-        else:
-            existing_urls = set()
-            # Add headers if worksheet is empty
-            headers = list(rows[0].keys())
-            worksheet.append_row(headers)
-
-        # Filter to new rows only
-        new_rows = [
-            row for row in rows
-            if str(row.get("pr_url", "")) not in existing_urls
-        ]
-
-        if not new_rows:
-            self.logger.info("No new PRs to sync (all already exist)")
-            return 0
-
-        # Append new rows
-        headers = list(new_rows[0].keys())
-        values = [[row.get(h, "") for h in headers] for row in new_rows]
-        worksheet.append_rows(values)
-
-        self.logger.info(
-            f"Synced {len(new_rows)} new PRs to '{worksheet_name}'"
-        )
-        return len(new_rows)
+        return self._sync_csv_to_sheet(csv_file, worksheet_name, dedup_key="pr_url")
 
     def replace_quality_prs(
         self,
@@ -312,7 +268,7 @@ class SheetsSync:
             repo = parts[-3]
             owner = parts[-4]
             return owner, repo, number
-        except:
+        except (IndexError, AttributeError):
             return None
 
     def _get_pr_state_from_github(self, pr_url: str, github_token: str) -> Optional[str]:
@@ -339,24 +295,6 @@ class SheetsSync:
             self.logger.warning(f"Error getting PR state for {pr_url}: {e}")
             return None
 
-    def _extract_score_from_body(self, body: str) -> Optional[int]:
-        """Extract confidence score from Greptile comment body."""
-        import re
-        if not body:
-            return None
-
-        patterns = [
-            r'[Cc]onfidence(?:\s+score)?[:\s]+(\d)/5',
-            r'[Ss]core[:\s]+(\d)/5',
-            r'(?:^|[\s:])(\d)/5',
-        ]
-
-        for pattern in patterns:
-            match = re.search(pattern, body)
-            if match:
-                return int(match.group(1))
-        return None
-
     def _get_latest_greptile_score(self, pr_url: str, github_token: str) -> Optional[int]:
         """Fetch latest Greptile score for a PR from GitHub API.
 
@@ -382,7 +320,7 @@ class SheetsSync:
             for comment in self._fetch_paginated(url, headers):
                 user_login = comment.get("user", {}).get("login", "").lower()
                 if user_login in greptile_logins:
-                    score = self._extract_score_from_body(comment.get("body", ""))
+                    score = extract_score(comment.get("body", ""))
                     if score is not None:
                         created = comment.get("created_at", "")
                         if latest_time is None or created > latest_time:
@@ -394,7 +332,7 @@ class SheetsSync:
             for review in self._fetch_paginated(url, headers):
                 user_login = review.get("user", {}).get("login", "").lower()
                 if user_login in greptile_logins:
-                    score = self._extract_score_from_body(review.get("body", ""))
+                    score = extract_score(review.get("body", ""))
                     if score is not None:
                         submitted = review.get("submitted_at", "")
                         if latest_time is None or submitted > latest_time:
