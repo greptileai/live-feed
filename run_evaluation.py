@@ -8,7 +8,7 @@ from typing import List
 
 from src.models import GreptileComment, PRWithGreptileComments
 from src.llm_evaluator import LLMEvaluator
-from src.csv_output import append_quality_prs_csv
+from src.csv_output import append_evaluated_comments_csv
 
 
 def load_results(json_file: str) -> List[PRWithGreptileComments]:
@@ -30,7 +30,9 @@ def load_results(json_file: str) -> List[PRWithGreptileComments]:
                 line_number=c.get("line_number"),
                 diff_hunk=c.get("diff_hunk"),
                 comment_type=c["comment_type"],
-                score=c.get("score")
+                score=c.get("score"),
+                reply_body=c.get("reply_body"),
+                file_patch=c.get("file_patch")
             ))
 
         # Handle pr_updated_at - use pr_created_at as fallback for older data
@@ -68,42 +70,33 @@ def main():
     results = load_results(json_file)
     logger.info(f"Loaded {len(results)} PRs")
 
-    # Track all PRs that had new comments this run (for re-evaluation)
-    prs_with_new_comments = [pr.pr_url for pr in results]
-    logger.info(f"PRs with new comments this run: {len(prs_with_new_comments)}")
-
-    # Run evaluation at PR level
+    # Run evaluation at individual comment level
     evaluator = LLMEvaluator()
-    quality_prs = evaluator.evaluate_prs(results)
+    quality_catches = evaluator.evaluate_comments(results)
 
-    if quality_prs:
-        append_quality_prs_csv(quality_prs, "output/quality_prs.csv")
-        logger.info(f"Found {len(quality_prs)} PRs with meaningful catches")
+    if quality_catches:
+        append_evaluated_comments_csv(quality_catches, "output/quality_catches.csv")
+        logger.info(f"Found {len(quality_catches)} meaningful catches")
 
         # Print results
-        for pr in quality_prs:
+        for catch in quality_catches:
             print(f"\n{'='*60}")
-            print(f"Repo: {pr['repo']} PR#{pr['pr_number']}")
-            print(f"Title: {pr['pr_title']}")
-            print(f"URL: {pr['pr_url']}")
-            print(f"Summary: {pr['summary']}")
-            for catch in pr['great_catches']:
-                print(f"  - [{catch['bug_category']}] ({catch['severity']})")
+            print(f"Repo: {catch['repo']} PR#{catch['pr_number']}")
+            print(f"Category: [{catch['bug_category']}] ({catch['severity']})")
+            print(f"Link: {catch['comment_url']}")
+            print(f"Reasoning: {catch['llm_reasoning']}")
     else:
-        logger.info("No new PRs with meaningful catches found in this run")
+        logger.info("No meaningful catches found in this run")
 
-    # Sync open PRs with great catches to Google Sheets
-    # - Re-evaluates PRs that had new comments this run (even if score unchanged)
-    # - Re-evaluates PRs with score changes
-    # - Removes PRs that are no longer great catches
-    # - Filters to open PRs only
+    # Sync catches to Google Sheets
     try:
         from src.sheets_sync import SheetsSync
         syncer = SheetsSync()
-        synced = syncer.refresh_and_sync_open_prs(
-            prs_with_new_activity=prs_with_new_comments
+        synced = syncer.sync_quality_catches(
+            csv_file="output/quality_catches.csv",
+            worksheet_name="Quality Catches"
         )
-        logger.info(f"Synced {synced} open PRs to Google Sheets")
+        logger.info(f"Synced {synced} catches to Google Sheets")
     except Exception as e:
         logger.warning(f"Sheets sync failed: {e}")
 

@@ -148,8 +148,15 @@ class CommentFetcher:
         comments: List[GreptileComment] = []
         pr_number = pr["number"]
 
+        # Track Greptile comment IDs for reply detection
+        greptile_comment_ids: Dict[int, int] = {}  # {comment_id: index in comments list}
+        # Track all replies to Greptile comments
+        replies: Dict[int, str] = {}  # {greptile_comment_id: reply_body}
+
         # Review comments (inline comments on diff)
-        for comment in self.client.get_pr_review_comments(owner, repo, pr_number):
+        all_review_comments = list(self.client.get_pr_review_comments(owner, repo, pr_number))
+
+        for comment in all_review_comments:
             if self.client.is_greptile_user(comment.get("user")):
                 created_at = datetime.fromisoformat(
                     comment["created_at"].replace("Z", "+00:00")
@@ -158,7 +165,7 @@ class CommentFetcher:
                 if since and created_at < since:
                     continue
                 body = comment.get("body", "")
-                comments.append(GreptileComment(
+                greptile_comment = GreptileComment(
                     comment_id=comment["id"],
                     comment_body=body,
                     comment_url=comment["html_url"],
@@ -171,18 +178,50 @@ class CommentFetcher:
                     diff_hunk=comment.get("diff_hunk"),
                     comment_type="review_comment",
                     score=extract_score(body)
-                ))
+                )
+                greptile_comment_ids[comment["id"]] = len(comments)
+                comments.append(greptile_comment)
+
+        # Check for replies to Greptile review comments
+        for comment in all_review_comments:
+            if not self.client.is_greptile_user(comment.get("user")):
+                reply_to_id = comment.get("in_reply_to_id")
+                if reply_to_id and reply_to_id in greptile_comment_ids:
+                    # This is a reply to a Greptile comment
+                    reply_body = comment.get("body", "")
+                    if reply_to_id not in replies:
+                        replies[reply_to_id] = reply_body
+                    else:
+                        # Append multiple replies
+                        replies[reply_to_id] += f"\n---\n{reply_body}"
+
+        # Update Greptile comments with reply info
+        for comment_id, reply_body in replies.items():
+            idx = greptile_comment_ids[comment_id]
+            comments[idx].reply_body = reply_body
+
+        # Fetch file patches for comments that have file_path
+        files_needed = set(c.file_path for c in comments if c.file_path)
+        if files_needed:
+            file_patches = self.client.get_pr_files(owner, repo, pr_number)
+            for comment in comments:
+                if comment.file_path and comment.file_path in file_patches:
+                    comment.file_patch = file_patches[comment.file_path]
 
         # Issue comments (general comments on PR)
+        # Skip Greptile Summary comments - they're PR summaries, not code review catches
         for comment in self.client.get_pr_issue_comments(owner, repo, pr_number):
             if self.client.is_greptile_user(comment.get("user")):
+                body = comment.get("body", "")
+                # Skip Greptile Summary comments
+                if "Greptile Summary" in body:
+                    continue
                 created_at = datetime.fromisoformat(
                     comment["created_at"].replace("Z", "+00:00")
                 )
                 # Skip comments older than since timestamp
                 if since and created_at < since:
                     continue
-                body = comment.get("body", "")
                 comments.append(GreptileComment(
                     comment_id=comment["id"],
                     comment_body=body,
@@ -199,28 +238,7 @@ class CommentFetcher:
                 ))
 
         # Review bodies (from review submissions)
-        for review in self.client.get_pr_reviews(owner, repo, pr_number):
-            if self.client.is_greptile_user(review.get("user")) and review.get("body"):
-                created_at = datetime.fromisoformat(
-                    review["submitted_at"].replace("Z", "+00:00")
-                )
-                # Skip reviews older than since timestamp
-                if since and created_at < since:
-                    continue
-                body = review.get("body", "")
-                comments.append(GreptileComment(
-                    comment_id=review["id"],
-                    comment_body=body,
-                    comment_url=review["html_url"],
-                    created_at=created_at,
-                    updated_at=datetime.fromisoformat(
-                        review["submitted_at"].replace("Z", "+00:00")
-                    ),
-                    file_path=None,
-                    line_number=None,
-                    diff_hunk=None,
-                    comment_type="review_body",
-                    score=extract_score(body)
-                ))
+        # Skip these - they're just metadata like "1 file reviewed, 2 comments"
+        # The actual review comments are already captured above as review_comments
 
         return comments

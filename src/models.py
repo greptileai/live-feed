@@ -39,6 +39,8 @@ class GreptileComment:
     diff_hunk: Optional[str]
     comment_type: str  # "review_comment" | "issue_comment" | "review_body"
     score: Optional[int] = None  # Extracted confidence score (0-5)
+    reply_body: Optional[str] = None  # Reply text if someone responded to this comment
+    file_patch: Optional[str] = None  # Full file patch from PR diff
 
 
 @dataclass

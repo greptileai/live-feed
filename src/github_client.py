@@ -194,3 +194,24 @@ class GitHubClient:
             bot_name.lower() in login
             for bot_name in GREPTILE_BOT_NAMES
         )
+
+    def get_pr_files(
+        self,
+        owner: str,
+        repo: str,
+        pr_number: int
+    ) -> Dict[str, str]:
+        """Get file patches for a PR.
+
+        Returns dict mapping file path to patch content.
+        """
+        url = f"/repos/{owner}/{repo}/pulls/{pr_number}/files"
+        file_patches: Dict[str, str] = {}
+
+        for file_data in self._paginate(url):
+            filename = file_data.get("filename", "")
+            patch = file_data.get("patch", "")
+            if filename and patch:
+                file_patches[filename] = patch
+
+        return file_patches

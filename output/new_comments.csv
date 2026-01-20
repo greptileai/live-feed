@@ -1,0 +1,58 @@
+repo,pr_number,pr_title,pr_author,pr_url,pr_state,comment_id,comment_type,score,file_path,line_number,comment_body,comment_url,created_at,fetched_at
+getarcaneapp/arcane,1501,refactor: cron based job scheduler,kmendell,https://github.com/getarcaneapp/arcane/pull/1501,open,2700493992,review_comment,,backend/internal/bootstrap/bootstrap.go,162,"**logic:** goroutine captures loop variable `s` by reference
+
+```suggestion
+func runServices(appCtx context.Context, cfg *config.Config, router http.Handler, schedulers ...interface{ Run(context.Context) error }) error {
+	for _, s := range schedulers {
+		scheduler := s
+		go func() {
+			slog.InfoContext(appCtx, ""Starting scheduler"")
+			if err := scheduler.Run(appCtx); err != nil {
+				if !errors.Is(err, context.Canceled) {
+					slog.ErrorContext(appCtx, ""Job scheduler exited with error"", ""error"", err)
+				}
+			}
+			slog.InfoContext(appCtx, ""Scheduler stopped"")
+		}()
+	}
+```
+
+**Context Used:** Rule from `dashboard` - GoLang Best Practices
+
+---
+description: 'Instructions for writing Go code following idiomatic Go pra... ([source](https://app.greptile.com/review/custom-context?memory=214b40a8-9695-4738-986d-5949b5d65ff1))
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: backend/internal/bootstrap/bootstrap.go
+Line: 151:162
+
+Comment:
+**logic:** goroutine captures loop variable `s` by reference
+
+```suggestion
+func runServices(appCtx context.Context, cfg *config.Config, router http.Handler, schedulers ...interface{ Run(context.Context) error }) error {
+	for _, s := range schedulers {
+		scheduler := s
+		go func() {
+			slog.InfoContext(appCtx, ""Starting scheduler"")
+			if err := scheduler.Run(appCtx); err != nil {
+				if !errors.Is(err, context.Canceled) {
+					slog.ErrorContext(appCtx, ""Job scheduler exited with error"", ""error"", err)
+				}
+			}
+			slog.InfoContext(appCtx, ""Scheduler stopped"")
+		}()
+	}
+```
+
+**Context Used:** Rule from `dashboard` - GoLang Best Practices
+
+---
+description: 'Instructions for writing Go code following idiomatic Go pra... ([source](https://app.greptile.com/review/custom-context?memory=214b40a8-9695-4738-986d-5949b5d65ff1))
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/getarcaneapp/arcane/pull/1501#discussion_r2700493992,2026-01-17T01:08:25+00:00,2026-01-17T01:08:39.913870+00:00

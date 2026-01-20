@@ -10,50 +10,35 @@ import anthropic
 from .models import GreptileComment, PRWithGreptileComments
 
 
-EVALUATION_PROMPT = """You are evaluating whether an AI code reviewer (Greptile) made a GREAT CATCH - a bug that's impressive and worth showcasing.
+EVALUATION_PROMPT = """Evaluate if this AI code review comment (by Greptile) is a GREAT CATCH worth showcasing.
 
-BE SKEPTICAL. Most comments are NOT great catches. The bar should be HIGH.
+YOUR TASK:
+1. Read the code diff carefully
+2. Read Greptile's comment
+3. Verify if Greptile's claim is actually correct by examining the code
+4. If a developer replied, treat their feedback as ground truth
 
-A GREAT CATCH must meet ALL of these criteria:
-1. Is a REAL BUG in application/library code that would cause incorrect behavior, crashes, security issues, or data loss
-2. Is non-obvious - a human reviewer would likely miss it without careful analysis
-3. Greptile's analysis is CORRECT - verify the logic, don't just trust Greptile's claims
-4. Is specific and actionable with a clear fix
+GREAT CATCH criteria (must meet ALL):
+- Real bug that causes incorrect behavior, crashes, security issues, or data loss
+- Non-obvious: a typical reviewer would likely miss it
+- Greptile's analysis is CORRECT (you must verify against the code)
+- Specific and actionable
 
-NOT great catches (REJECT these - when in doubt, reject):
-- Style, formatting, or naming suggestions
-- Generic best practice reminders ("consider adding error handling")
-- Documentation or comment suggestions
-- Refactoring ideas that don't fix actual bugs
-- Theoretical concerns that are unlikely in practice
-- Issues already handled elsewhere in the code
-- False positives where Greptile misunderstood the code
-- Suggestions that would break working code
-- Build/CI/config file issues (meta.yaml, Dockerfile, package.json, etc.)
-- Environment variable or shell script suggestions
-- Test file issues (unless it's hiding a real bug in production code)
-- Dependency version suggestions
-- "Could cause issues" or "may fail" without concrete evidence
-- Obvious issues any developer would catch immediately
+REJECT these (when in doubt, reject):
+- Style/formatting/naming suggestions
+- Vague advice ("consider adding error handling")
+- Documentation suggestions
+- Refactoring that doesn't fix a bug
+- Theoretical concerns without concrete evidence
+- Config/build/CI file issues
+- Test file feedback
+- Obvious issues anyone would catch
+- FALSE POSITIVES where Greptile misread the code
 
-EXAMPLES OF GREAT CATCHES (high bar - these are impressive):
-- "This SQL query concatenates user input directly, allowing SQL injection"
-- "This loop modifies the array while iterating, causing skipped elements"
-- "This null check happens after the variable is already dereferenced"
-- "This async function doesn't await, so errors are silently swallowed"
-- "This boundary check uses < instead of <=, causing off-by-one on edge cases"
-- "Race condition: this shared state is read and written without synchronization"
-
-EXAMPLES OF NOT GREAT CATCHES (reject these):
-- "Consider using const instead of let"
-- "This function could be split into smaller functions"
-- "Add JSDoc comments for better documentation"
-- "Consider handling the error case here" (too vague)
-- "This variable name could be more descriptive"
-- "This shell variable should be a conda build variant" (config/tooling issue)
-- "Add this to script_env for consistency" (config suggestion)
-- "Using http:// instead of https://" (obvious, anyone would catch)
-- "This test depends on external services" (test design feedback, not a bug)
+DEVELOPER REPLIES:
+- If developer says Greptile is WRONG → reject (false positive)
+- If developer says "good catch", "fixed", "thanks" → validates the catch
+- If NO reply → evaluate based on code analysis alone
 
 ---
 
@@ -62,28 +47,24 @@ PR Title: {pr_title}
 File: {file_path}
 Line: {line_number}
 
-Code context (diff hunk):
-```
-{diff_hunk}
-```
-
+{code_context_section}
 Greptile's comment:
 ```
 {comment_body}
 ```
 
 Greptile's confidence score: {score}/5
-
+{developer_reply_section}
 ---
 
-Evaluate: Is this a GREAT CATCH worth showcasing?
+Examine the code. Is Greptile's claim correct? Is this a great catch?
 
 Respond with JSON only:
 {{
   "is_great_catch": true/false,
-  "bug_category": "security|logic|runtime|performance|concurrency|data_integrity|null",
+  "bug_category": "security|logic|runtime|performance|concurrency|data_integrity|type_error|resource_leak|null",
   "severity": "critical|high|medium|low|null",
-  "reasoning": "1-2 sentence explanation of why this is or isn't a great catch"
+  "reasoning": "1-2 sentences: what you verified in the code and why this is/isn't a great catch"
 }}"""
 
 
@@ -119,14 +100,45 @@ class LLMEvaluator:
 
         Returns dict with original comment data + evaluation results.
         """
+        # Build code context section - prefer full file patch over diff hunk
+        if comment.file_patch:
+            code_context_section = f"""Full file diff:
+```diff
+{comment.file_patch}
+```
+
+"""
+        elif comment.diff_hunk:
+            code_context_section = f"""Code context (diff hunk):
+```
+{comment.diff_hunk}
+```
+
+"""
+        else:
+            code_context_section = ""
+
+        # Build developer reply section if there's a reply
+        if comment.reply_body:
+            developer_reply_section = f"""
+Developer's reply to Greptile:
+```
+{comment.reply_body}
+```
+
+"""
+        else:
+            developer_reply_section = ""
+
         prompt = EVALUATION_PROMPT.format(
             repo=pr.repo,
             pr_title=pr.pr_title,
             file_path=comment.file_path or "N/A",
             line_number=comment.line_number or "N/A",
-            diff_hunk=comment.diff_hunk or "N/A",
+            code_context_section=code_context_section,
             comment_body=comment.comment_body,
-            score=comment.score if comment.score is not None else "N/A"
+            score=comment.score if comment.score is not None else "N/A",
+            developer_reply_section=developer_reply_section
         )
 
         try:
@@ -173,10 +185,9 @@ class LLMEvaluator:
             "comment_id": comment.comment_id,
             "comment_type": comment.comment_type,
             "score": comment.score,
-            "file_path": comment.file_path,
-            "line_number": comment.line_number,
             "comment_body": comment.comment_body,
             "comment_url": comment.comment_url,
+            "reply_body": comment.reply_body,
             "created_at": comment.created_at.isoformat(),
             "is_great_catch": evaluation.get("is_great_catch", False),
             "bug_category": evaluation.get("bug_category"),
@@ -254,23 +265,11 @@ class LLMEvaluator:
         quality_catches = []
         total_evaluated = 0
         prs_evaluated = 0
-        prs_skipped_no_score = 0
 
         for pr in results:
-            # Get PR-level score from overview comment
-            pr_score = self._get_pr_score(pr)
-
-            # Skip PRs without a confidence score - no overview comment to showcase
-            if pr_score is None:
-                self.logger.info(
-                    f"Skipping {pr.repo} PR#{pr.pr_number} - no confidence score"
-                )
-                prs_skipped_no_score += 1
-                continue
-
             prs_evaluated += 1
             self.logger.info(
-                f"Evaluating {pr.repo} PR#{pr.pr_number} (score: {pr_score}/5)"
+                f"Evaluating {pr.repo} PR#{pr.pr_number} ({len(pr.greptile_comments)} comments)"
             )
 
             for comment in pr.greptile_comments:
@@ -299,8 +298,7 @@ class LLMEvaluator:
 
         self.logger.info(
             f"Evaluated {prs_evaluated} PRs, {total_evaluated} comments, "
-            f"found {len(quality_catches)} meaningful bugs "
-            f"(skipped {prs_skipped_no_score} PRs without confidence score)"
+            f"found {len(quality_catches)} meaningful bugs"
         )
         return quality_catches
 

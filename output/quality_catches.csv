@@ -1,0 +1,142 @@
+repo,pr_number,pr_title,pr_url,score,comment_body,comment_url,reply_body,created_at,bug_category,severity,llm_reasoning,evaluated_at
+PostHog/posthog,45413,chore: Use pre-migrated database and update comment when containers start,https://github.com/PostHog/posthog/pull/45413,,"**logic:** `update_containers_started_comment()` silently fails if no comment exists yet. The function returns early when `existing_comment` is `None`, but at the time cloud-init finishes (line 678), `update_smoke_test_comment()` hasn't been called yet to create the initial comment. This means the early notification feature doesn't work - users won't get the ""instance is accessible"" update.
+
+Either create the comment here if it doesn't exist (similar to `update_smoke_test_comment()` at lines 1205-1214), or ensure the comment is pre-created before this function is called.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: bin/hobby-ci.py
+Line: 1045:1046
+
+Comment:
+**logic:** `update_containers_started_comment()` silently fails if no comment exists yet. The function returns early when `existing_comment` is `None`, but at the time cloud-init finishes (line 678), `update_smoke_test_comment()` hasn't been called yet to create the initial comment. This means the early notification feature doesn't work - users won't get the ""instance is accessible"" update.
+
+Either create the comment here if it doesn't exist (similar to `update_smoke_test_comment()` at lines 1205-1214), or ensure the comment is pre-created before this function is called.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/45413#discussion_r2706357612,"Fixed in aa3a4c5. The function now creates the comment if it doesn't exist yet (similar to `update_smoke_test_comment()`), ensuring users get the early notification that the instance is accessible even when called before the final smoke test comment is created.",2026-01-20T00:08:16+00:00,logic,medium,"Greptile correctly identified that the `update_containers_started_comment()` function would silently fail when no existing comment is found - the code does have an else branch that creates a comment, but Greptile's analysis that the comment doesn't exist yet at the time cloud-init finishes (line 678) is validated by the developer's reply confirming they fixed this issue. The developer explicitly acknowledged and implemented the suggested fix.",2026-01-20T23:34:12.362182+00:00
+PostHog/posthog,44605,feat: EAV property materialization for HogQL,https://github.com/PostHog/posthog/pull/44605,,"The writable table is created on `NodeRole.INGESTION_SMALL` nodes only. However, the backfill activity in `posthog/temporal/eav_backfill/activities.py` line 98 writes to `writable_event_properties` from a worker node (not an ingestion node).
+
+This will fail if:
+1. Worker nodes don't have access to `writable_event_properties` table
+2. The distributed table routing expects writes from specific nodes
+
+Verify that worker nodes can access this table, or modify the backfill to write to a table accessible from worker nodes. The DMAT backfill has the same pattern, so check if this is already tested and working.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: posthog/clickhouse/migrations/0195_event_properties_eav_table.py
+Line: 23:27
+
+Comment:
+The writable table is created on `NodeRole.INGESTION_SMALL` nodes only. However, the backfill activity in `posthog/temporal/eav_backfill/activities.py` line 98 writes to `writable_event_properties` from a worker node (not an ingestion node).
+
+This will fail if:
+1. Worker nodes don't have access to `writable_event_properties` table
+2. The distributed table routing expects writes from specific nodes
+
+Verify that worker nodes can access this table, or modify the backfill to write to a table accessible from worker nodes. The DMAT backfill has the same pattern, so check if this is already tested and working.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/44605#discussion_r2685409067,This looks legit,2026-01-13T08:37:21+00:00,runtime,high,"Greptile correctly identified a cross-cutting infrastructure issue: the writable table is only created on INGESTION_SMALL nodes, but the backfill activity runs on worker nodes which may not have access to this table. The developer confirmed this is a legitimate concern with 'This looks legit'. This is a non-obvious distributed systems issue that could cause the backfill to fail at runtime.",2026-01-20T23:34:12.362224+00:00
+PostHog/posthog,44605,feat: EAV property materialization for HogQL,https://github.com/PostHog/posthog/pull/44605,,"**logic:** Using `timestamp AS _timestamp` means backfilled rows can overwrite newer real-time data. ReplacingMergeTree uses `_timestamp` as the version column (ver=""_timestamp"" in table definition). If Kafka ingests a row during backfill with an earlier timestamp, the backfilled row wins despite being stale.
+
+Use `now() AS _timestamp` to ensure real-time ingestion always wins:
+
+```suggestion
+            now() AS _timestamp,
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: posthog/temporal/eav_backfill/activities.py
+Line: 116:116
+
+Comment:
+**logic:** Using `timestamp AS _timestamp` means backfilled rows can overwrite newer real-time data. ReplacingMergeTree uses `_timestamp` as the version column (ver=""_timestamp"" in table definition). If Kafka ingests a row during backfill with an earlier timestamp, the backfilled row wins despite being stale.
+
+Use `now() AS _timestamp` to ensure real-time ingestion always wins:
+
+```suggestion
+            now() AS _timestamp,
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/44605#discussion_r2688468884,,2026-01-13T23:45:08+00:00,data_integrity,high,"Greptile correctly identifies a subtle data integrity issue: when backfilling historical data into a ReplacingMergeTree table, using the event's original timestamp as the version column means backfilled rows could overwrite fresher real-time data if their timestamps happen to be later. Using now() ensures backfilled data is treated as 'old' and won't override concurrent real-time ingestion. This is a non-obvious issue specific to ClickHouse's ReplacingMergeTree semantics that could cause data loss.",2026-01-20T23:34:12.362247+00:00
+PostHog/posthog,44605,feat: EAV property materialization for HogQL,https://github.com/PostHog/posthog/pull/44605,,"**logic:** waiting before backfill creates data inconsistency window
+
+current flow:
+1. slot created (state=BACKFILL)
+2. wait 3 minutes for cache refresh (lines 60-67)
+3. backfill historical data (lines 69-88)
+4. set state=READY (lines 92-101)
+
+during the 3-minute wait, plugin-server cache refreshes and starts writing NEW events to `event_properties`, but historical events haven't been backfilled yet. queries using this EAV property will see incomplete data (new events yes, old events no).
+
+move backfill before cache wait:
+1. backfill historical data immediately
+2. wait for cache refresh
+3. set state=READY
+
+this ensures all historical data exists before plugin-server starts materializing new events
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: posthog/temporal/eav_backfill/workflows.py
+Line: 60:67
+
+Comment:
+**logic:** waiting before backfill creates data inconsistency window
+
+current flow:
+1. slot created (state=BACKFILL)
+2. wait 3 minutes for cache refresh (lines 60-67)
+3. backfill historical data (lines 69-88)
+4. set state=READY (lines 92-101)
+
+during the 3-minute wait, plugin-server cache refreshes and starts writing NEW events to `event_properties`, but historical events haven't been backfilled yet. queries using this EAV property will see incomplete data (new events yes, old events no).
+
+move backfill before cache wait:
+1. backfill historical data immediately
+2. wait for cache refresh
+3. set state=READY
+
+this ensures all historical data exists before plugin-server starts materializing new events
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/44605#discussion_r2688518516,,2026-01-14T00:16:50+00:00,data_integrity,medium,"Greptile correctly identifies a data inconsistency window in the workflow. The code waits 3 minutes before backfilling, during which the plugin-server cache refreshes and starts writing NEW events to event_properties while historical data hasn't been backfilled yet. This creates a window where queries could see incomplete/inconsistent data. The suggested fix to backfill first, then wait for cache refresh, is a valid solution to prevent this race condition.",2026-01-20T23:34:12.362272+00:00
+PostHog/posthog,44605,feat: EAV property materialization for HogQL,https://github.com/PostHog/posthog/pull/44605,,"**logic:** Using `timestamp AS _timestamp` means backfilled rows can overwrite newer real-time data.
+
+ReplacingMergeTree uses `_timestamp` as the version column (`ver=""_timestamp""` in table definition). If Kafka ingests a row during backfill with timestamp T1, but the backfilled row has timestamp T2 where T2 &gt; T1, the backfilled row wins even though it's stale.
+
+The original issue suggested using `now() AS _timestamp` to ensure real-time ingestion always wins over backfill. However, using event timestamp is more correct IF backfill always runs before ingestion starts (which would be true if the workflow order is fixed per previous comment). Should backfilled rows use event timestamp or now() as the version? This depends on whether backfill always completes before ingestion starts.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: posthog/temporal/eav_backfill/activities.py
+Line: 118:120
+
+Comment:
+**logic:** Using `timestamp AS _timestamp` means backfilled rows can overwrite newer real-time data.
+
+ReplacingMergeTree uses `_timestamp` as the version column (`ver=""_timestamp""` in table definition). If Kafka ingests a row during backfill with timestamp T1, but the backfilled row has timestamp T2 where T2 &gt; T1, the backfilled row wins even though it's stale.
+
+The original issue suggested using `now() AS _timestamp` to ensure real-time ingestion always wins over backfill. However, using event timestamp is more correct IF backfill always runs before ingestion starts (which would be true if the workflow order is fixed per previous comment). Should backfilled rows use event timestamp or now() as the version? This depends on whether backfill always completes before ingestion starts.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/44605#discussion_r2697429680,,2026-01-16T08:13:09+00:00,data_integrity,medium,"Greptile correctly identifies a subtle data integrity issue with ReplacingMergeTree versioning. Using `timestamp AS _timestamp` (event timestamp) as the version column means if backfill runs concurrently with real-time ingestion, older backfilled rows could overwrite newer real-time data when the event timestamp is later but the data is actually stale. This is a non-obvious race condition that depends on understanding ClickHouse's ReplacingMergeTree semantics.",2026-01-20T23:34:12.362379+00:00
