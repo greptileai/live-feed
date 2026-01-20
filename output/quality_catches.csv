@@ -140,3 +140,55 @@ The original issue suggested using `now() AS _timestamp` to ensure real-time ing
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/PostHog/posthog/pull/44605#discussion_r2697429680,,2026-01-16T08:13:09+00:00,data_integrity,medium,"Greptile correctly identifies a subtle data integrity issue with ReplacingMergeTree versioning. Using `timestamp AS _timestamp` (event timestamp) as the version column means if backfill runs concurrently with real-time ingestion, older backfilled rows could overwrite newer real-time data when the event timestamp is later but the data is actually stale. This is a non-obvious race condition that depends on understanding ClickHouse's ReplacingMergeTree semantics.",2026-01-20T23:34:12.362379+00:00
+posthog/posthog,45527,chore(ux): remove sidepanel part 2 (Posthog AI),https://github.com/PostHog/posthog/pull/45527,,"**logic:** Duplicate tab opening: The `onClick` handler calls `newInternalTab()`, but the `Link` component with `target=""_blank""` also calls `newInternalTab()` internally (see `Link.tsx:198-202`). This could open two tabs.
+
+Either remove `newInternalTab()` from the onClick and rely on Link's default behavior, or add `event.preventDefault()`:
+
+```suggestion
+                            onClick={(event) => {
+                                event.preventDefault()
+                                closeSidePanel()
+                                newInternalTab(urls.ai(conversationId ?? undefined))
+                            }}
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: frontend/src/scenes/max/Max.tsx
+Line: 230:233
+
+Comment:
+**logic:** Duplicate tab opening: The `onClick` handler calls `newInternalTab()`, but the `Link` component with `target=""_blank""` also calls `newInternalTab()` internally (see `Link.tsx:198-202`). This could open two tabs.
+
+Either remove `newInternalTab()` from the onClick and rely on Link's default behavior, or add `event.preventDefault()`:
+
+```suggestion
+                            onClick={(event) => {
+                                event.preventDefault()
+                                closeSidePanel()
+                                newInternalTab(urls.ai(conversationId ?? undefined))
+                            }}
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/45527#discussion_r2710443166,,2026-01-20T23:38:56+00:00,logic,medium,"Greptile correctly identifies that the Link component with target=""_blank"" combined with an onClick handler that also calls newInternalTab() would result in duplicate tab opening. The Link component's internal handling of target=""_blank"" (referenced at Link.tsx:198-202) plus the explicit newInternalTab() call creates a real bug that would confuse users by opening two tabs. This is non-obvious as it requires understanding the Link component's internal behavior.",2026-01-20T23:51:02.074241+00:00
+nvidia/earth2studio,635,CorrDiff CMIP6 Refactor,https://github.com/NVIDIA/earth2studio/pull/635,,"**syntax:** typo in test environment name - should be `cmip6` not `cmip4`
+
+```suggestion
+[testenv:test-corrdiff-cmip6]
+```",https://github.com/NVIDIA/earth2studio/pull/635#discussion_r2710448052,,2026-01-20T23:41:45+00:00,logic,medium,Greptile correctly identified a typo: the test environment is named 'test-corrdiff-cmip4' but the description says 'CorrDiff CMIP6->ERA5' and it runs 'test_corrdiff_cmip6.py'. This mismatch would cause confusion when running tests and could lead to the wrong test environment being invoked or missed entirely when developers try to run CMIP6 tests.,2026-01-20T23:51:02.074339+00:00
+nvidia/earth2studio,634,Add Atlas model,https://github.com/NVIDIA/earth2studio/pull/634,,**logic:** The nvw dependency points to an SSH-based internal GitLab repository which will fail for external users who don't have access to NVIDIA's internal infrastructure. Is this nvw dependency actually used by Atlas or can it be made optional for external users?,https://github.com/NVIDIA/earth2studio/pull/634#discussion_r2710352000,,2026-01-20T22:52:03+00:00,logic,high,"Greptile correctly identifies that the nvw dependency uses an SSH URL to an internal NVIDIA GitLab repository (gitlab-master.nvidia.com), which would cause installation failures for any external users trying to use the Atlas model. This is a real accessibility/usability bug that could easily be overlooked in an internal code review but would break the feature for the open-source community.",2026-01-20T23:51:02.074377+00:00
+nvidia/earth2studio,634,Add Atlas model,https://github.com/NVIDIA/earth2studio/pull/634,,**logic:** `find_num_heads` function is not defined anywhere in this file or imported,https://github.com/NVIDIA/earth2studio/pull/634#discussion_r2710352046,,2026-01-20T22:52:04+00:00,runtime,high,"I verified that `find_num_heads` is called on line 832 in the `Attention.__init__` method when `num_heads is None`, but this function is never defined in the file nor imported from any module. This would cause a `NameError` at runtime when `Attention` is instantiated without specifying `num_heads`, making it a real bug that's easy to miss in a large file.",2026-01-20T23:51:02.074419+00:00
+nvidia/earth2studio,634,Add Atlas model,https://github.com/NVIDIA/earth2studio/pull/634,,**logic:** Functions `conservative_interpolate` and `bilinear_interpolate` are referenced but not defined or imported,https://github.com/NVIDIA/earth2studio/pull/634#discussion_r2710352076,,2026-01-20T22:52:04+00:00,runtime,high,"Greptile correctly identified that `conservative_interpolate` and `bilinear_interpolate` are referenced in the `EquiangularInterpolator.set_method()` function (lines 571-577) but are never defined or imported anywhere in the file. This would cause a `NameError` at runtime when those interpolation methods are selected, making this a real bug that could be non-obvious during code review.",2026-01-20T23:51:02.074454+00:00
+nvidia/earth2studio,634,Add Atlas model,https://github.com/NVIDIA/earth2studio/pull/634,,**logic:** `RangeNormalizer` class is referenced but not defined or imported,https://github.com/NVIDIA/earth2studio/pull/634#discussion_r2710352094,,2026-01-20T22:52:04+00:00,runtime,medium,"Greptile correctly identified that `RangeNormalizer` is used in the `BaseProcessor.__init__` method (lines 1358-1360) but is never defined or imported anywhere in the file. This would cause a `NameError` at runtime when `normalization.lower() == 'range'`, making the code fail when that code path is executed.",2026-01-20T23:51:02.074490+00:00
+nvidia/earth2studio,634,Add Atlas model,https://github.com/NVIDIA/earth2studio/pull/634,,**logic:** `PatchResample` class is referenced but not defined or imported,https://github.com/NVIDIA/earth2studio/pull/634#discussion_r2710352108,,2026-01-20T22:52:05+00:00,runtime,high,"Greptile correctly identified that `PatchResample` is used in the `NattenCombineDiT` class (lines around 1147-1152) when `patch_processing == 'resample'`, but this class is never defined or imported anywhere in the file. This would cause a `NameError` at runtime when using resample processing mode.",2026-01-20T23:51:02.074522+00:00
+nvidia/earth2studio,634,Add Atlas model,https://github.com/NVIDIA/earth2studio/pull/634,,**logic:** `DateEmbedder` class is referenced but not defined or imported,https://github.com/NVIDIA/earth2studio/pull/634#discussion_r2710352138,,2026-01-20T22:52:06+00:00,runtime,medium,Greptile correctly identified that `DateEmbedder` is used on line 1234 (`self.date_embedder = DateEmbedder(hidden_channels)`) but is never defined or imported anywhere in the file. This would cause a `NameError` at runtime when `date_condition=True` is passed to `NattenCombineDiT`.,2026-01-20T23:51:02.074550+00:00
+nvidia/earth2studio,634,Add Atlas model,https://github.com/NVIDIA/earth2studio/pull/634,,"**syntax:** OptionalDependencyFailure should be raised, not called as a function - use `raise OptionalDependencyFailure(""atlas"")`
+
+```suggestion
+except:
+    raise OptionalDependencyFailure(""atlas"")
+```",https://github.com/NVIDIA/earth2studio/pull/634#discussion_r2710352221,,2026-01-20T22:52:07+00:00,runtime,high,"Greptile correctly identified that OptionalDependencyFailure is instantiated but never raised at line 39-40. Looking at the code, when the optional dependencies (timm, natten, physicsnemo, torch_harmonics) fail to import, the exception is caught but the error is silently swallowed instead of being raised, which would cause confusing NameError exceptions later when trying to use undefined classes like InverseRealSHT or NeighborhoodAttention2D. This is a real bug that would be easy to miss.",2026-01-20T23:51:02.074580+00:00
