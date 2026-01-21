@@ -192,3 +192,18 @@ nvidia/earth2studio,634,Add Atlas model,https://github.com/NVIDIA/earth2studio/p
 except:
     raise OptionalDependencyFailure(""atlas"")
 ```",https://github.com/NVIDIA/earth2studio/pull/634#discussion_r2710352221,,2026-01-20T22:52:07+00:00,runtime,high,"Greptile correctly identified that OptionalDependencyFailure is instantiated but never raised at line 39-40. Looking at the code, when the optional dependencies (timm, natten, physicsnemo, torch_harmonics) fail to import, the exception is caught but the error is silently swallowed instead of being raised, which would cause confusing NameError exceptions later when trying to use undefined classes like InverseRealSHT or NeighborhoodAttention2D. This is a real bug that would be easy to miss.",2026-01-20T23:51:02.074580+00:00
+assistant-ui/assistant-ui,3084,"Revert ""fix(react): accept URL-based images in sanitizeImageContent (#3069)""",https://github.com/assistant-ui/assistant-ui/pull/3084,,"**logic:** Reverting this breaks `CloudFileAttachmentAdapter` which uploads images to cloud storage and returns HTTPS URLs. On page reload, images stored via `CloudFileAttachmentAdapter.send()` (line 83 in CloudFileAttachmentAdapter.ts) will be filtered out since they don't match the base64 regex.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/react/src/legacy-runtime/runtime-cores/external-store/ThreadMessageLike.tsx
+Line: 88:93
+
+Comment:
+**logic:** Reverting this breaks `CloudFileAttachmentAdapter` which uploads images to cloud storage and returns HTTPS URLs. On page reload, images stored via `CloudFileAttachmentAdapter.send()` (line 83 in CloudFileAttachmentAdapter.ts) will be filtered out since they don't match the base64 regex.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/assistant-ui/assistant-ui/pull/3084#discussion_r2710488009,,2026-01-21T00:02:54+00:00,logic,high,"Greptile correctly identifies that reverting this change removes support for HTTPS URLs in image validation. The diff clearly shows the removal of the `isUrl` check (`/^https?:\/\//`) that previously allowed HTTP/HTTPS URLs, which would break any functionality relying on cloud-stored images. This is a non-obvious cross-component regression that a typical reviewer might miss when looking at what appears to be a simple revert PR.",2026-01-21T00:44:23.663757+00:00
