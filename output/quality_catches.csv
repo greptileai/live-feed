@@ -397,3 +397,42 @@ Comment:
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/Silimate/yosys/pull/95#discussion_r2710813579,,2026-01-21T03:19:56+00:00,runtime,medium,"Greptile correctly identified that when `blast` is true, if the cell name doesn't contain '[', `find('[')` returns `std::string::npos` (-1 as size_t), and `substr(0, npos)` would return the entire string (which is actually safe in C++), but the issue is real in that the code assumes there's always a '[' in the name when blasting, which may not be guaranteed. This is a subtle edge case that could cause unexpected naming behavior.",2026-01-21T04:33:00.225610+00:00
+eventual-inc/daft,6071,feat: Support default alias for non-column refs for sql select,https://github.com/Eventual-Inc/Daft/pull/6071,,"**logic:** test expects ""Expressions in aggregations"" error message, but the actual error message from `mod.rs:302` is ""Expected aggregation (or a foldable literal) in select() only when aggregation expressions are present without groupby.""
+
+```suggestion
+    with pytest.raises(ValueError, match=""Expected aggregation""):
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: tests/dataframe/test_select_global_agg.py
+Line: 58:58
+
+Comment:
+**logic:** test expects ""Expressions in aggregations"" error message, but the actual error message from `mod.rs:302` is ""Expected aggregation (or a foldable literal) in select() only when aggregation expressions are present without groupby.""
+
+```suggestion
+    with pytest.raises(ValueError, match=""Expected aggregation""):
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/Eventual-Inc/Daft/pull/6071#discussion_r2710979143,,2026-01-21T05:03:49+00:00,logic,medium,Greptile correctly identified that the test's expected error message 'Expressions in aggregations' doesn't match the actual error message from the Rust code which is 'Expected aggregation (or a foldable literal) in select() only when aggregation expressions are present without groupby.' This would cause the test to fail since pytest.raises with match parameter uses regex matching. This is a real bug that would cause test failures and is non-obvious since it requires cross-referencing the Rust source code.,2026-01-21T06:21:26.602652+00:00
+democratizedspace/dspace,2932,Stabilize process creation persistence and service worker e2e runs,https://github.com/democratizedspace/dspace/pull/2932,,"**logic:** calling `db.processes.add()` with an existing ID will cause a duplicate key error in IndexedDB because `createProcess` already called `db.processes.add()` with this ID
+
+The issue: `createProcess` (line 450-460 in customcontent.js) generates an ID and calls `db.processes.add()`. If that succeeds but the follow-up `getProcess` fails (e.g., timing issue), this retry attempts to add the *same ID again*, which will throw a constraint violation.
+
+```suggestion
+                if (!persistedProcess) {
+                    console.warn('Process was created but not immediately readable, retrying persistence check');
+                    // Wait briefly and retry the read instead of re-adding
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                    persistedProcess = await getProcess(createdId).catch(() => null);
+                    
+                    if (!persistedProcess) {
+                        console.error('Process creation may have failed - process not found after retry');
+                    }
+                }
+```",https://github.com/democratizedspace/dspace/pull/2932#discussion_r2711113991,,2026-01-21T06:13:13+00:00,data_integrity,medium,"Greptile correctly identifies that if createProcess() successfully adds a record with createdId but getProcess() fails for some reason (timing, transient error), the fallback code attempts db.processes.add() with the same ID, which will throw a duplicate key constraint error in IndexedDB. The suggested fix of retrying the read instead of re-adding is appropriate.",2026-01-21T06:21:26.602747+00:00
