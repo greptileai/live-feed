@@ -1110,3 +1110,299 @@ Comment:
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/Credal-ai/fern-docs/pull/300#discussion_r2713269435,,2026-01-21T16:07:27+00:00,logic,low,"Greptile correctly identified that the link text says 'uploadDocumentContents API endpoint' but points to the metadata endpoint. The PR was already fixing broken links by removing 'api-reference/' from paths, but this inconsistency between link text and destination remained. While documentation errors are typically less critical, this is a valid catch that could confuse users trying to find the correct API endpoint.",2026-01-21T16:25:30.193411+00:00
+posthog/posthog,45611,feat(data-table): Implement table views feature in persons list,https://github.com/PostHog/posthog/pull/45611,,"**logic:** `updatedView` could be undefined if view not found in the list, causing `applyView` to receive undefined
+
+```suggestion
+        updateViewSuccess: ({ payload }) => {
+            const updatedView = values.views.find((view) => view.id === payload?.id)
+            if (updatedView) {
+                actions.applyView(updatedView)
+                lemonToast.success(`View ""${updatedView.name}"" updated`)
+            }
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: frontend/src/queries/nodes/DataTable/TableView/tableViewLogic.ts
+Line: 199:202
+
+Comment:
+**logic:** `updatedView` could be undefined if view not found in the list, causing `applyView` to receive undefined
+
+```suggestion
+        updateViewSuccess: ({ payload }) => {
+            const updatedView = values.views.find((view) => view.id === payload?.id)
+            if (updatedView) {
+                actions.applyView(updatedView)
+                lemonToast.success(`View ""${updatedView.name}"" updated`)
+            }
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/45611#discussion_r2713707360,,2026-01-21T17:55:21+00:00,runtime,medium,"The code uses `values.views.find()` which can return undefined, then immediately passes the result to `applyView(updatedView)` without checking if it exists. This could cause runtime errors or unexpected behavior when applyView tries to access properties of undefined. The fix is straightforward - add an existence check before calling applyView.",2026-01-21T18:30:48.617834+00:00
+posthog/posthog,45611,feat(data-table): Implement table views feature in persons list,https://github.com/PostHog/posthog/pull/45611,,"**logic:** Destructively replaces `source` object, potentially losing other properties like `limit`, `offset`, `order`, etc. Preserve existing source properties:
+
+```suggestion
+        applyView: ({ view }) => {
+            // Apply view while preserving other source properties
+            const newQuery: DataTableNode = {
+                ...props.query,
+                source: {
+                    ...props.query.source,
+                    properties: view.filters,
+                    select: view.columns,
+                },
+            }
+            props.setQuery(newQuery)
+        },
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: frontend/src/queries/nodes/DataTable/TableView/tableViewLogic.ts
+Line: 177:188
+
+Comment:
+**logic:** Destructively replaces `source` object, potentially losing other properties like `limit`, `offset`, `order`, etc. Preserve existing source properties:
+
+```suggestion
+        applyView: ({ view }) => {
+            // Apply view while preserving other source properties
+            const newQuery: DataTableNode = {
+                ...props.query,
+                source: {
+                    ...props.query.source,
+                    properties: view.filters,
+                    select: view.columns,
+                },
+            }
+            props.setQuery(newQuery)
+        },
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/45611#discussion_r2713707400,,2026-01-21T17:55:21+00:00,data_integrity,medium,"Greptile correctly identified that the code explicitly constructs a new source object with only `kind`, `properties`, and `select` fields, which would discard any other existing properties like `limit`, `offset`, `orderBy`, etc. that may exist on `props.query.source`. The suggested fix using spread operator `...props.query.source` would preserve these properties while still applying the view's filters and columns.",2026-01-21T18:30:48.617916+00:00
+posthog/posthog,45611,feat(data-table): Implement table views feature in persons list,https://github.com/PostHog/posthog/pull/45611,,"**logic:** Views are never loaded - `lazyLoaders` requires explicit action calls to load data, unlike regular `loaders`. Add an `afterMount` hook at the end of the logic definition to call `loadViews()` on component initialization.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: frontend/src/queries/nodes/DataTable/TableView/tableViewLogic.ts
+Line: 39:89
+
+Comment:
+**logic:** Views are never loaded - `lazyLoaders` requires explicit action calls to load data, unlike regular `loaders`. Add an `afterMount` hook at the end of the logic definition to call `loadViews()` on component initialization.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/45611#discussion_r2713707494,,2026-01-21T17:55:22+00:00,logic,medium,"Greptile correctly identifies that `lazyLoaders` (unlike regular `loaders`) does not automatically load data on mount - it requires explicit action calls. The code defines `loadViews` as a lazy loader but never calls it on initialization, meaning the views list will remain empty until something explicitly triggers the load. This is a non-obvious framework-specific behavior that would cause the feature to appear broken on first render.",2026-01-21T18:30:48.617993+00:00
+posthog/posthog,45609,feat(data-table): Extend column configuration model to also save filters,https://github.com/PostHog/posthog/pull/45609,,"**logic:** `log_activity` is called with incorrect parameters. The function requires `organization_id`, `scope` (not `item_type`), `was_impersonated`, and `detail` as a `Detail` dataclass. See `products/data_warehouse/backend/api/saved_query.py:245-263` for correct usage pattern.
+
+```suggestion
+        try:
+            from posthog.models.activity_logging.activity_log import Detail, log_activity
+            from loginas.utils import is_impersonated_session
+
+            log_activity(
+                organization_id=self.organization.id,
+                team_id=self.team_id,
+                user=request.user,
+                was_impersonated=is_impersonated_session(request),
+                item_id=str(instance.id),
+                scope=""ColumnConfiguration"",
+                activity=""updated"",
+                detail=Detail(name=instance.name, changes=None),
+            )
+        except Exception:
+            pass
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: posthog/api/column_configuration.py
+Line: 96:111
+
+Comment:
+**logic:** `log_activity` is called with incorrect parameters. The function requires `organization_id`, `scope` (not `item_type`), `was_impersonated`, and `detail` as a `Detail` dataclass. See `products/data_warehouse/backend/api/saved_query.py:245-263` for correct usage pattern.
+
+```suggestion
+        try:
+            from posthog.models.activity_logging.activity_log import Detail, log_activity
+            from loginas.utils import is_impersonated_session
+
+            log_activity(
+                organization_id=self.organization.id,
+                team_id=self.team_id,
+                user=request.user,
+                was_impersonated=is_impersonated_session(request),
+                item_id=str(instance.id),
+                scope=""ColumnConfiguration"",
+                activity=""updated"",
+                detail=Detail(name=instance.name, changes=None),
+            )
+        except Exception:
+            pass
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/45609#discussion_r2713690136,,2026-01-21T17:50:30+00:00,logic,medium,"Greptile correctly identifies that the log_activity function is being called with incorrect parameters - the code uses 'item_type' instead of 'scope', passes 'detail' as a plain dict instead of a Detail dataclass, and is missing required parameters like 'organization_id' and 'was_impersonated'. The code even has a TODO comment acknowledging 'this is entirely wrong', validating Greptile's catch. This would cause the logging to silently fail (caught by the bare except).",2026-01-21T18:30:48.618049+00:00
+posthog/posthog,45609,feat(data-table): Extend column configuration model to also save filters,https://github.com/PostHog/posthog/pull/45609,,"**logic:** Legacy configurations have `created_by=None` and `visibility='private'` (the default). This permission check will block updates to all legacy configs since `None == request.user` is False and `'private' == 'shared'` is False.
+
+```suggestion
+        if instance.created_by is not None and instance.created_by != request.user and instance.visibility != ""shared"":
+            return Response({""error"": ""You don't have permission to edit this view""}, status=403)
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: posthog/api/column_configuration.py
+Line: 92:93
+
+Comment:
+**logic:** Legacy configurations have `created_by=None` and `visibility='private'` (the default). This permission check will block updates to all legacy configs since `None == request.user` is False and `'private' == 'shared'` is False.
+
+```suggestion
+        if instance.created_by is not None and instance.created_by != request.user and instance.visibility != ""shared"":
+            return Response({""error"": ""You don't have permission to edit this view""}, status=403)
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/45609#discussion_r2713690203,,2026-01-21T17:50:31+00:00,logic,medium,"Greptile correctly identifies that legacy configurations have `created_by=None` (since `perform_create` only sets this in the new code). The permission check `instance.created_by == request.user` will be False when `created_by` is None, and since legacy configs default to `visibility='private'`, the second condition also fails, blocking all updates to legacy configurations. This is a non-obvious edge case that could break existing functionality.",2026-01-21T18:30:48.618185+00:00
+posthog/posthog,45609,feat(data-table): Extend column configuration model to also save filters,https://github.com/PostHog/posthog/pull/45609,,"**logic:** The `update` method has permission checks, but there's no corresponding `destroy` override. Any team member can delete private views created by other users. Consider adding a `destroy` method with similar permission validation.
+
+**Context Used:** Context from `dashboard` - When implementing new features, ensure that ownership validation is included to prevent unauthorized... ([source](https://app.greptile.com/review/custom-context?memory=9655b466-451a-401a-9ba0-5bf3e7b7f9f8))
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: posthog/api/column_configuration.py
+Line: 89:113
+
+Comment:
+**logic:** The `update` method has permission checks, but there's no corresponding `destroy` override. Any team member can delete private views created by other users. Consider adding a `destroy` method with similar permission validation.
+
+**Context Used:** Context from `dashboard` - When implementing new features, ensure that ownership validation is included to prevent unauthorized... ([source](https://app.greptile.com/review/custom-context?memory=9655b466-451a-401a-9ba0-5bf3e7b7f9f8))
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/45609#discussion_r2713690242,,2026-01-21T17:50:32+00:00,security,high,"Greptile correctly identifies a security vulnerability: the `update` method at lines 89-113 checks if the user has permission (is the creator or visibility is 'shared'), but there's no corresponding `destroy` method override. This means the default ModelViewSet destroy behavior would allow any team member to delete any configuration, including private views owned by other users, bypassing the ownership validation pattern established in `update`.",2026-01-21T18:30:48.618254+00:00
+raycast/extensions,24727,Update typst-symbols extension,https://github.com/raycast/extensions/pull/24727,,"**logic:** `item.title === query` compares original case but `cmdLower === q` uses lowercase - inconsistent comparison will miss matches where query case differs from title
+
+```suggestion
+    if (cmdLower === q || item.title.toLowerCase() === q) {
+```",https://github.com/raycast/extensions/pull/24727#discussion_r2713305941,,2026-01-21T16:15:59+00:00,logic,low,"Greptile correctly identified an inconsistency: the code compares `cmdLower === q` (both lowercase) but `item.title === query` (original case), meaning title matches would fail if the user's query had different casing. This is a subtle logic bug that could cause missed search results.",2026-01-21T18:30:48.618320+00:00
+onyx-dot-app/onyx,7630,feat: file uplod,https://github.com/onyx-dot-app/onyx/pull/7630,,"**logic:** `validate_mime_type` always returns `True, None` regardless of input - MIME type validation is not enforced
+
+```suggestion
+def validate_mime_type(content_type: str | None) -> tuple[bool, str | None]:
+    """"""Validate MIME type against allowlist.
+
+    Args:
+        content_type: The Content-Type header value
+
+    Returns:
+        Tuple of (is_valid, error_message)
+    """"""
+    if not content_type:
+        # Allow missing content type - we'll validate by extension
+        return True, None
+
+    # Extract base MIME type (ignore charset etc.)
+    mime_type = content_type.split("";"")[0].strip().lower()
+
+    # Validate against allowlist (permissive for generic types)
+    if mime_type not in ALLOWED_MIME_TYPES and not mime_type.startswith(""text/""):
+        return False, f""MIME type '{mime_type}' is not allowed""
+
+    return True, None
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: backend/onyx/server/features/build/utils.py
+Line: 144:165
+
+Comment:
+**logic:** `validate_mime_type` always returns `True, None` regardless of input - MIME type validation is not enforced
+
+```suggestion
+def validate_mime_type(content_type: str | None) -> tuple[bool, str | None]:
+    """"""Validate MIME type against allowlist.
+
+    Args:
+        content_type: The Content-Type header value
+
+    Returns:
+        Tuple of (is_valid, error_message)
+    """"""
+    if not content_type:
+        # Allow missing content type - we'll validate by extension
+        return True, None
+
+    # Extract base MIME type (ignore charset etc.)
+    mime_type = content_type.split("";"")[0].strip().lower()
+
+    # Validate against allowlist (permissive for generic types)
+    if mime_type not in ALLOWED_MIME_TYPES and not mime_type.startswith(""text/""):
+        return False, f""MIME type '{mime_type}' is not allowed""
+
+    return True, None
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/7630#discussion_r2713794856,,2026-01-21T18:18:29+00:00,security,high,"Greptile correctly identified that the validate_mime_type function always returns True, None regardless of whether the MIME type is in the allowlist or not. Looking at lines 144-165, the function checks if mime_type is NOT in ALLOWED_MIME_TYPES, but then returns True, None anyway - the validation logic is completely non-functional. This is a security bug in file upload validation that could allow malicious file types to be uploaded.",2026-01-21T18:30:48.618341+00:00
+mellanox/libxlio,526,[CI] issue: HPCINFRA-4039 Multi pod tests,https://github.com/Mellanox/libxlio/pull/526,,"**logic:** client expects 101 zero-copy completions but test sends 100 messages (`-n 100` in `run_pod_pair_client_tests.sh:17`). should be 100 not 101
+
+```suggestion
+        if [[ ""$(grep -c ""Zero-copy send completed"" ""${ULTRA_API_LOGS_DIR}/ultra_api_ping_pong_client.log"")"" -ne 100 ]]; then
+```",https://github.com/Mellanox/libxlio/pull/526#discussion_r2713742467,,2026-01-21T18:04:56+00:00,logic,medium,"Greptile correctly identified an off-by-one error where the client check expects 101 zero-copy completions while the test configuration sends 100 messages (-n 100). This would cause the test to always fail incorrectly. The server side correctly checks for 100, making this inconsistency a real bug that's easy to miss during review.",2026-01-21T18:30:48.618412+00:00
+nvidia/dali,6165,Default `num_threads` and `stream` for dynamic API,https://github.com/NVIDIA/DALI/pull/6165,,"**logic:** missing assignment of order after ctypes_void_ptr call
+
+```suggestion
+    } else if (py::hasattr(cuda_stream, ""value"")) {
+      cudaStream_t stream = static_cast<cudaStream_t>(ctypes_void_ptr(cuda_stream));
+      order = AccessOrder(stream);
+```",https://github.com/NVIDIA/DALI/pull/6165#discussion_r2713595686,,2026-01-21T17:24:27+00:00,logic,high,"Looking at the diff, line 607 shows `order = AccessOrder(stream);` being added after `ctypes_void_ptr(cuda_stream)`. In the original code (before the diff's changes), the `py::hasattr(cuda_stream, ""value"")` branch computed a stream but never assigned it to `order`, meaning the function would return an uninitialized/default `order`. This is a real bug where the stream parameter would be silently ignored for ctypes objects, and it's non-obvious because it requires understanding the control flow and noticing a missing assignment.",2026-01-21T18:30:48.618449+00:00
+mellanox/hw-mgmt,2259,hw-mgmt: scripts: ThermalControl: Improve logging subsystem,https://github.com/Mellanox/hw-mgmt/pull/2259,,"**logic:** Logic error: The `else` block at line 1252-1253 logs a ""clear"" message every time the value is NOT exceeding max, including on every valid reading. This causes incorrect repeat message clearing and log spam. The notice should only be called when transitioning from error to OK state, not every time validation passes. Compare to old code which only reset errors when conditions cleared.
+
+Additionally, when `sensor_value < self.val_min`, the method returns `err_flag=False` even though the value is below minimum. The return value doesn't reflect this lower bound violation.",https://github.com/Mellanox/hw-mgmt/pull/2259#discussion_r2713592255,,2026-01-21T17:23:30+00:00,logic,medium,"Greptile correctly identifies that `self.log.notice(None, id=""{} value > max"".format(self.name))` at line 1252-1253 will be called on every valid reading (when sensor_value <= val_max), not just when transitioning from error to OK state. This causes unnecessary log spam and incorrect repeat message clearing behavior. The original code only logged when there was an actual condition change, making this a valid logic regression.",2026-01-21T18:30:48.618470+00:00
+bitcoinppl/cove,519,Android: Fix dark mode navigation flash (#510),https://github.com/bitcoinppl/cove/pull/519,,"**logic:** parent theme should be `android:Theme.Material.NoActionBar` (without `.Light`) for dark mode
+
+```suggestion
+    <style name=""Theme.Cove"" parent=""android:Theme.Material.NoActionBar"">
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: android/app/src/main/res/values-night/themes.xml
+Line: 3:3
+
+Comment:
+**logic:** parent theme should be `android:Theme.Material.NoActionBar` (without `.Light`) for dark mode
+
+```suggestion
+    <style name=""Theme.Cove"" parent=""android:Theme.Material.NoActionBar"">
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/bitcoinppl/cove/pull/519#discussion_r2713470361,,2026-01-21T16:53:17+00:00,logic,medium,"Greptile correctly identified that the dark mode theme file (values-night/themes.xml) incorrectly uses `Theme.Material.Light.NoActionBar` as its parent, which defeats the purpose of having a dark mode theme. The file should use `Theme.Material.NoActionBar` (the dark variant) to properly support dark mode. This is a non-obvious bug that could cause visual inconsistencies in dark mode.",2026-01-21T18:30:48.618493+00:00
