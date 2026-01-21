@@ -1590,3 +1590,208 @@ Comment:
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/Credal-ai/credal-typescript-sdk/pull/73#discussion_r2714176986,,2026-01-21T20:15:10+00:00,logic,medium,"Greptile correctly identified a backward compatibility issue. The old code used `key.startsWith('pagination.')` to filter keys like 'pagination.cursor' and 'pagination.limit', but the new code uses `ignoredFields.includes(key)` which only matches exact strings. If someone passes `ignoredFields: ['pagination.']`, nested fields like 'pagination.cursor' won't be filtered since 'pagination.' !== 'pagination.cursor'. This is a subtle but real behavioral regression in test infrastructure.",2026-01-21T20:24:21.798373+00:00
+simstudioai/sim,2924,fix(auth): improve reset password flow and consolidate brand detection,https://github.com/simstudioai/sim/pull/2924,,"**logic:** `EMAIL_NOT_VERIFIED` errors should set `errorHandled = true` to prevent the fallback error handler from showing a duplicate error message
+
+```suggestion
+            // EMAIL_NOT_VERIFIED is handled by the catch block which redirects to /verify
+            if (ctx.error.code?.includes('EMAIL_NOT_VERIFIED')) {
+              errorHandled = true
+              return
+            }
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: apps/sim/app/(auth)/login/login-form.tsx
+Line: 218:220
+
+Comment:
+**logic:** `EMAIL_NOT_VERIFIED` errors should set `errorHandled = true` to prevent the fallback error handler from showing a duplicate error message
+
+```suggestion
+            // EMAIL_NOT_VERIFIED is handled by the catch block which redirects to /verify
+            if (ctx.error.code?.includes('EMAIL_NOT_VERIFIED')) {
+              errorHandled = true
+              return
+            }
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/simstudioai/sim/pull/2924#discussion_r2714492841,,2026-01-21T21:54:59+00:00,logic,low,"Greptile correctly identified that when EMAIL_NOT_VERIFIED is handled, the code returns early without setting errorHandled = true. Later, the fallback error handler checks `if (!errorHandled)` and would show a duplicate error message since errorHandled remains false. The fix is straightforward but the bug is easy to miss in the control flow.",2026-01-21T22:20:14.434391+00:00
+infisical/infisical,5227,feature: add a new option on PKI ACME enrollment method to skip EAB validation,https://github.com/Infisical/infisical/pull/5227,,"**logic:** ⚠️ **Critical Security Validation Missing**
+
+The PR description states that ""skipping EAB validation cannot be combined with skipping domain validation"" for security reasons, but there's no schema validation to enforce this constraint. Both `skipDnsOwnershipVerification` and `skipEabBinding` can be set to `true` simultaneously, which could create significant security vulnerabilities.
+
+**Fix:** Add a `.refine()` validation after line 138 to prevent both flags from being `true`:
+
+```javascript
+.refine(
+  (data) => {
+    if (data.acmeConfig?.skipEabBinding && data.acmeConfig?.skipDnsOwnershipVerification) {
+      return false;
+    }
+    return true;
+  },
+  {
+    message: ""Cannot skip both EAB binding and DNS ownership verification for security reasons""
+  }
+)
+```
+
+```suggestion
+    acmeConfig: z
+      .object({
+        skipDnsOwnershipVerification: z.boolean().optional(),
+        skipEabBinding: z.boolean().optional()
+      })
+      .refine(
+        (config) => {
+          if (config.skipEabBinding && config.skipDnsOwnershipVerification) {
+            return false;
+          }
+          return true;
+        },
+        {
+          message: ""Cannot skip both EAB binding and DNS ownership verification for security reasons""
+        }
+      )
+      .optional()
+```",https://github.com/Infisical/infisical/pull/5227#discussion_r2714383609,,2026-01-21T21:21:26+00:00,security,high,"Greptile correctly identifies that the schema allows both skipDnsOwnershipVerification and skipEabBinding to be true simultaneously, despite the PR description stating this combination should be prevented for security reasons. This is a real security validation gap that could lead to bypassing both verification mechanisms, and the suggested .refine() solution is accurate and actionable.",2026-01-21T22:20:14.434470+00:00
+eventual-inc/daft,6073,feat: add custom date and timestamp formatting for CSV writes,https://github.com/Eventual-Inc/Daft/pull/6073,,"**logic:** Test expects `Date64` to use `timestamp_format`, but `csv_writer.rs:254-280` applies `date_format` to `Date64` types. The comment says ""Date64 is converted to Timestamp[ms] internally by Daft"", but the CSV writer has a separate match arm for `ArrowDataType::Date64` that uses `date_fmt`, not `timestamp_fmt`. Either the CSV writer logic needs updating or the test is incorrect.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: tests/io/test_csv.py
+Line: 327:347
+
+Comment:
+**logic:** Test expects `Date64` to use `timestamp_format`, but `csv_writer.rs:254-280` applies `date_format` to `Date64` types. The comment says ""Date64 is converted to Timestamp[ms] internally by Daft"", but the CSV writer has a separate match arm for `ArrowDataType::Date64` that uses `date_fmt`, not `timestamp_fmt`. Either the CSV writer logic needs updating or the test is incorrect.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/Eventual-Inc/Daft/pull/6073#discussion_r2714392736,,2026-01-21T21:24:50+00:00,logic,medium,"Greptile correctly identified a mismatch between the test expectation and implementation. The test at line 347 expects Date64 types to use `timestamp_format`, but according to Greptile's analysis of csv_writer.rs:254-280, Date64 has its own match arm that uses `date_format`. This is a real inconsistency that would cause the test to fail or document incorrect behavior, and it's non-obvious because it requires understanding both the test and the Rust implementation.",2026-01-21T22:20:14.434551+00:00
+nvidia/nvflare,4003,Ignore downloder no ref_id errors,https://github.com/NVIDIA/NVFlare/pull/4003,,"**logic:** Missing `task = None` assignment before the warning. The original code set `task = None` in this else branch to ensure None is returned for non-OK return codes. Without this, when an error return code is received (but no exception occurs), the function returns the task object instead of None, which may cause the caller to incorrectly process an error response.
+
+```suggestion
+        else:
+            task = None
+            self.logger.warning(f""Failed to get_task from {parent_fqcn}. Will try it again."")
+```",https://github.com/NVIDIA/NVFlare/pull/4003#discussion_r2714518866,,2026-01-21T22:04:25+00:00,logic,medium,"Greptile correctly identified that the original code had `task = None` in the else branch (line 411-412 in old code), but the diff removes this assignment while keeping the warning. Without `task = None`, when a non-OK return code is received (other than AUTHENTICATION_ERROR), the function returns the task object containing error data instead of None, potentially causing callers to incorrectly process error responses as valid tasks.",2026-01-21T22:20:14.434621+00:00
+opentech1/openchat,542,feat: allow users to change their name in settings,https://github.com/tryosschat/openchat/pull/542,,"**logic:** Missing authorization check - any authenticated user can change any other user's name by passing their `userId`.
+
+Compare with `updateTitle` in `chats.ts:418-420` which verifies ownership, and `deleteAccount` in `users.ts:467-469` which verifies the `externalId` matches.
+
+```suggestion
+export const updateName = mutation({
+	args: {
+		userId: v.id(""users""),
+		name: v.string(),
+	},
+	returns: v.object({ success: v.boolean() }),
+	handler: async (ctx, args) => {
+		// Verify the authenticated user owns this account
+		const user = await ctx.db.get(args.userId);
+		if (!user) {
+			throw new Error(""User not found"");
+		}
+		
+		// Get the current authenticated user to verify authorization
+		const authUser = await authComponent.getAuthUser(ctx as unknown as GenericCtx<DataModel>);
+		if (!authUser || user.externalId !== authUser.id) {
+			throw new Error(""Unauthorized: cannot update another user's name"");
+		}
+
+		// Validate name (1-100 chars, no excessive whitespace)
+		const trimmedName = args.name.trim();
+		if (trimmedName.length === 0 || trimmedName.length > 100) {
+			throw new Error(""Name must be between 1 and 100 characters"");
+		}
+
+		const now = Date.now();
+
+		// Update profile (primary location for name)
+		const profile = await getOrCreateProfile(ctx, args.userId);
+		await ctx.db.patch(profile._id, {
+			name: trimmedName,
+			updatedAt: now,
+		});
+
+		// Also update user table for backwards compatibility during migration
+		await ctx.db.patch(args.userId, {
+			name: trimmedName,
+			updatedAt: now,
+		});
+
+		return { success: true };
+	},
+});
+```",https://github.com/tryosschat/openchat/pull/542#discussion_r2714517187,,2026-01-21T22:03:44+00:00,security,critical,The code accepts a userId parameter and directly updates that user's name without verifying that the authenticated user has permission to modify that account. This is a classic Insecure Direct Object Reference (IDOR) vulnerability that allows any authenticated user to change any other user's name. Greptile correctly identifies this missing authorization check and provides a concrete fix with proper verification pattern.,2026-01-21T22:20:14.434687+00:00
+nvidia/physicsnemo,1339,Figconvnet refactor,https://github.com/NVIDIA/physicsnemo/pull/1339,,"**logic:** The `to()` method doesn't modify tensors in-place. Should use `self._neighbors_index = self._neighbors_index.to(device)` to actually move the tensors.
+
+```suggestion
+        self._neighbors_index = self._neighbors_index.to(device)
+        self._neighbors_row_splits = self._neighbors_row_splits.to(device)
+```",https://github.com/NVIDIA/physicsnemo/pull/1339#discussion_r2714450072,,2026-01-21T21:42:54+00:00,logic,medium,"Greptile correctly identified that `tensor.to(device)` returns a new tensor and does not modify in-place. The current code `self._neighbors_index.to(device)` discards the return value, so the method appears to move tensors but actually does nothing. This is a real bug that would cause silent failures when trying to move data between devices.",2026-01-21T22:20:14.434809+00:00
+nvidia/physicsnemo,1339,Figconvnet refactor,https://github.com/NVIDIA/physicsnemo/pull/1339,,"**syntax:** The `extend()` method expects an iterable, but you're passing a single module object. This should be wrapped in a list.
+
+```suggestion
+                down_block.extend([
+                    GridFeatureConv2DBlocksAndIntraCommunication(
+                        in_channels=hidden_channels[level + 1],
+                        out_channels=hidden_channels[level + 1],
+                        kernel_size=kernel_size,
+                        stride=1,
+                        compressed_spatial_dims=compressed_spatial_dims,
+                        communication_types=communication_types,
+                    )
+                ])
+```",https://github.com/NVIDIA/physicsnemo/pull/1339#discussion_r2714450166,,2026-01-21T21:42:56+00:00,runtime,high,Greptile correctly identified that `extend()` expects an iterable but is being passed a single `GridFeatureConv2DBlocksAndIntraCommunication` object. This would cause a TypeError at runtime since a module object is not iterable. The same bug appears twice in the diff - once for `down_block.extend()` and once for `up_block.extend()`. This is a subtle change from the original `append()` to `extend()` that introduces a bug.,2026-01-21T22:20:14.434850+00:00
+nvidia/physicsnemo,1339,Figconvnet refactor,https://github.com/NVIDIA/physicsnemo/pull/1339,,"**syntax:** Same issue here - `extend()` needs an iterable, not a single module object.
+
+```suggestion
+                up_block.extend([
+                    GridFeatureConv2DBlocksAndIntraCommunication(
+                        in_channels=hidden_channels[level],
+                        out_channels=hidden_channels[level],
+                        kernel_size=kernel_size,
+                        up_stride=1,
+                        compressed_spatial_dims=compressed_spatial_dims,
+                        communication_types=communication_types,
+                    )
+                ])
+```",https://github.com/NVIDIA/physicsnemo/pull/1339#discussion_r2714450199,,2026-01-21T21:42:57+00:00,runtime,high,"Greptile correctly identified that `extend()` is being called with a single `GridFeatureConv2DBlocksAndIntraCommunication` object instead of a list. The `extend()` method requires an iterable, and passing a single nn.Module object will cause a TypeError at runtime since it will try to iterate over the module's internal structure rather than adding it as a single element. The code should use `append()` or wrap the object in a list `[...]` for `extend()`.",2026-01-21T22:20:14.434893+00:00
+nvidia/physicsnemo,1339,Figconvnet refactor,https://github.com/NVIDIA/physicsnemo/pull/1339,,"**logic:** Potential bug: calling conv1 without the out_point_features argument, but out_point_features was just assigned on line 701-703.
+
+```suggestion
+            out = self.conv1(in_point_features, out_point_features)
+```
+
+ Should this be `self.conv1(in_point_features, out_point_features)` to pass the downsampled points as the second argument?",https://github.com/NVIDIA/physicsnemo/pull/1339#discussion_r2714450786,,2026-01-21T21:43:09+00:00,logic,medium,"Looking at the code, when `out_point_feature_type == ""downsample""`, `out_point_features` is computed via `voxel_down_sample()` on line 701-703, but then `self.conv1(in_point_features)` is called without passing this computed `out_point_features`. This means the downsampled output points are computed but never used in the convolution, which would cause incorrect behavior since conv1 would use 'same' logic instead of the intended downsampled points. This is a subtle logic bug that's easy to miss.",2026-01-21T22:20:14.434921+00:00
+nvidia-nemo/emerging-optimizers,89,"added hyperball update step, created a mixin to have different weight update",https://github.com/NVIDIA-NeMo/Emerging-Optimizers/pull/89,,"**logic:** When `R = 0` (parameter initialized to zeros), the update will always remain zero since `alpha=-lr * R = 0`. This prevents learning entirely if parameters start at zero.
+
+Consider adding a guard:
+```suggestion
+        elif weight_update_method == ""hyperball"":
+            # Norm-preserving update: W_{t+1} = R * normalize(W_t - lr * R * normalize(update))
+            # Compute R = ||W_t||_F (Frobenius norm)
+            R = p.norm()
+            
+            # Fall back to SGD if parameter norm is too small
+            if R < eps:
+                p.add_(update, alpha=-lr)
+                return
+
+            # Normalize the update (Frobenius norm over all elements)
+            normalized_update = update / (update.norm() + eps)
+
+            # Compute W_t - lr * R * normalize(update)
+            p.add_(normalized_update, alpha=-lr * R)
+
+            # Normalize the result and scale back by R: p = R * (p / ||p||)
+            p.mul_(R / (p.norm() + eps))
+```",https://github.com/NVIDIA-NeMo/Emerging-Optimizers/pull/89#discussion_r2714258106,,2026-01-21T20:38:14+00:00,logic,medium,"Greptile correctly identifies that when R (the Frobenius norm of p) is zero, the hyperball update becomes a no-op since `alpha=-lr * R = 0`, and the final multiplication `p.mul_(R / (p.norm() + eps))` will also zero out any update. This is a non-obvious edge case that would silently prevent learning for zero-initialized parameters, and the suggested fallback to SGD is a reasonable fix.",2026-01-21T22:20:14.434943+00:00
