@@ -207,3 +207,98 @@ Comment:
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/assistant-ui/assistant-ui/pull/3084#discussion_r2710488009,,2026-01-21T00:02:54+00:00,logic,high,"Greptile correctly identifies that reverting this change removes support for HTTPS URLs in image validation. The diff clearly shows the removal of the `isUrl` check (`/^https?:\/\//`) that previously allowed HTTP/HTTPS URLs, which would break any functionality relying on cloud-stored images. This is a non-obvious cross-component regression that a typical reviewer might miss when looking at what appears to be a simple revert PR.",2026-01-21T00:44:23.663757+00:00
+onyx-dot-app/onyx,7608,feat(desktop): Properly Sign Mac App,https://github.com/onyx-dot-app/onyx/pull/7608,,"**logic:** Missing `APPLE_ID` and `APPLE_PASSWORD` environment variables needed for macOS notarization
+
+```suggestion
+      - uses: tauri-apps/tauri-action@73fb865345c54760d875b94642314f8c0c894afa # ratchet:tauri-apps/tauri-action@action-v0.6.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          APPLE_ID: ${{ env.APPLE_ID }}
+          APPLE_PASSWORD: ${{ env.APPLE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ env.CERT_ID }}
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: .github/workflows/deployment.yml
+Line: 342:344
+
+Comment:
+**logic:** Missing `APPLE_ID` and `APPLE_PASSWORD` environment variables needed for macOS notarization
+
+```suggestion
+      - uses: tauri-apps/tauri-action@73fb865345c54760d875b94642314f8c0c894afa # ratchet:tauri-apps/tauri-action@action-v0.6.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          APPLE_ID: ${{ env.APPLE_ID }}
+          APPLE_PASSWORD: ${{ env.APPLE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ env.CERT_ID }}
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/7608#discussion_r2710634935,,2026-01-21T01:29:48+00:00,logic,high,"The PR adds steps to fetch Apple credentials from AWS Secrets Manager and import certificates, but the tauri-action step only has GITHUB_TOKEN in its env block. For macOS notarization to work, APPLE_ID, APPLE_PASSWORD, and APPLE_SIGNING_IDENTITY must be passed to the tauri-action. Without these, the notarization step will fail silently or error out, defeating the purpose of the entire PR which is to 'Properly Sign Mac App'.",2026-01-21T02:59:01.660416+00:00
+nvidia/fuser,5854,ir container composition,https://github.com/NVIDIA/Fuser/pull/5854,,"**logic:** Move constructor should check if container is null before calling setParent(). If other was in a moved-from state with null container, this will crash.
+
+```suggestion
+IrInterface::IrInterface(IrInterface&& other) noexcept
+    : container_(std::move(other.container_)) {
+  if (container_) {
+    container()->setParent(this);
+  }
+}
+```",https://github.com/NVIDIA/Fuser/pull/5854#discussion_r2710690151,,2026-01-21T02:04:00+00:00,runtime,medium,"Greptile correctly identifies that the move constructor doesn't check for null before calling container()->setParent(this). If 'other' was previously moved-from (leaving its container_ null), this would cause a null pointer dereference crash. The move assignment operator at line 48-55 already has this null check, demonstrating inconsistency in the code. This is a non-obvious defensive programming issue that could cause crashes in certain usage patterns.",2026-01-21T02:59:01.660520+00:00
+nvidia/nvflare,3993,[2.7] FedAvg Merge with FedAvgEarlyStopping + InTimeAggregation,https://github.com/NVIDIA/NVFlare/pull/3993,,"**logic:** Temporarily modifying model.params creates risk if an exception occurs between lines 124-126, leaving the model in an inconsistent state without restored parameters
+
+```suggestion
+        # Save FLModel metadata (metrics, params_type, etc.) separately
+        params = model.params
+        try:
+            model.params = {}  # Temporarily remove params to save only metadata
+            fobs.dumpf(model, f""{filepath}.metadata"")
+        finally:
+            model.params = params  # Restore params
+```",https://github.com/NVIDIA/NVFlare/pull/3993#discussion_r2710662081,,2026-01-21T01:47:08+00:00,data_integrity,medium,"Greptile correctly identifies that if fobs.dumpf() raises an exception on line 125, the model.params will remain as an empty dict since the restoration on line 126 won't execute. This leaves the FLModel in an inconsistent state with lost parameters. The try/finally pattern is the correct fix for this pattern of temporarily modifying then restoring object state.",2026-01-21T02:59:01.660563+00:00
+nvidia/nvflare,3994,[2.7] Cherry pick Add recipe for xgboost,https://github.com/NVIDIA/NVFlare/pull/3994,,"**syntax:** referencing `self.data_split_mode` but the attribute is `_data_split_mode` (with underscore)
+
+```suggestion
+        dtrain = xgb.DMatrix(X_train, label=y_train, data_split_mode=self._data_split_mode)
+```",https://github.com/NVIDIA/NVFlare/pull/3994#discussion_r2710644523,,2026-01-21T01:36:19+00:00,runtime,medium,Greptile correctly identified that line 73 uses `self.data_split_mode` but the attribute is defined as `_data_split_mode` (with underscore) on line 55. This would cause an AttributeError at runtime when the test tries to create the DMatrix. This is a real bug that could be easily missed since it's a subtle naming inconsistency.,2026-01-21T02:59:01.660607+00:00
+nvidia/nvflare,3994,[2.7] Cherry pick Add recipe for xgboost,https://github.com/NVIDIA/NVFlare/pull/3994,,"**syntax:** same issue - referencing `self.data_split_mode` but the attribute is `_data_split_mode` (with underscore)
+
+```suggestion
+        dval = xgb.DMatrix(X_val, label=y_val, data_split_mode=self._data_split_mode)
+```",https://github.com/NVIDIA/NVFlare/pull/3994#discussion_r2710644527,,2026-01-21T01:36:20+00:00,runtime,medium,Greptile correctly identified that line 74 uses `self.data_split_mode` but the attribute is defined as `self._data_split_mode` on line 53. This would cause an AttributeError at runtime when the test tries to create the DMatrix. This is a real bug that would cause test failures.,2026-01-21T02:59:01.660641+00:00
+generaltranslation/gt,960,chore: upload shared id for static content,https://github.com/generaltranslation/gt/pull/960,,"**logic:** If any hash is `undefined`, it will become string `""undefined""` in the joined result, potentially causing incorrect shared static IDs
+
+```suggestion
+    const hashes = staticUpdates
+      .map((update) => update.metadata.hash)
+      .filter((hash): hash is string => hash !== undefined)
+      .sort()
+      .join('-');
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/cli/src/react/parse/createInlineUpdates.ts
+Line: 185:188
+
+Comment:
+**logic:** If any hash is `undefined`, it will become string `""undefined""` in the joined result, potentially causing incorrect shared static IDs
+
+```suggestion
+    const hashes = staticUpdates
+      .map((update) => update.metadata.hash)
+      .filter((hash): hash is string => hash !== undefined)
+      .sort()
+      .join('-');
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/generaltranslation/gt/pull/960#discussion_r2710617817,,2026-01-21T01:19:18+00:00,logic,medium,"The code at line 185-186 maps hashes and joins them without filtering undefined values. In JavaScript, `undefined.toString()` in array join becomes the string 'undefined', which would create incorrect shared static IDs if any update lacks a hash. This is a non-obvious bug that could cause different static content groups to get the same or incorrect IDs, and the suggested fix with a type guard filter is correct and actionable.",2026-01-21T02:59:01.660659+00:00
