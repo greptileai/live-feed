@@ -302,3 +302,98 @@ Comment:
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/generaltranslation/gt/pull/960#discussion_r2710617817,,2026-01-21T01:19:18+00:00,logic,medium,"The code at line 185-186 maps hashes and joins them without filtering undefined values. In JavaScript, `undefined.toString()` in array join becomes the string 'undefined', which would create incorrect shared static IDs if any update lacks a hash. This is a non-obvious bug that could cause different static content groups to get the same or incorrect IDs, and the suggested fix with a type guard filter is correct and actionable.",2026-01-21T02:59:01.660659+00:00
+onyx-dot-app/onyx,7619,feat: improve prompt shortcuts with uniqueness constraints and enhancements,https://github.com/onyx-dot-app/onyx/pull/7619,,"**logic:** Missing null safety check on `user?.preferences.shortcut_enabled`. If `user` is null, this will crash. Add optional chaining or a fallback check.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: web/src/app/chat/components/input/ChatInputBar.tsx
+Line: 447:448
+
+Comment:
+**logic:** Missing null safety check on `user?.preferences.shortcut_enabled`. If `user` is null, this will crash. Add optional chaining or a fallback check.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/7619#discussion_r2710885490,Fixed.,2026-01-21T04:06:04+00:00,runtime,medium,"Looking at line 448, the code uses `user?.preferences?.shortcut_enabled` but in the diff context around line 491-494, only `user?.preferences?.shortcut_enabled` is shown with proper optional chaining. However, at line 448 shown in the original position, accessing `preferences.shortcut_enabled` without optional chaining on `preferences` could cause a crash if `user` exists but `preferences` is null/undefined. The developer confirmed and fixed the issue.",2026-01-21T04:33:00.225411+00:00
+onyx-dot-app/onyx,7612,Better connector permissioning,https://github.com/onyx-dot-app/onyx/pull/7612,,"**logic:** Raising an error here will break for ConnectorCredentialPairs created without a user (e.g., in seeding flows where `user=None` is passed to `add_credential_to_connector`). The `creator_id` field is nullable in the database schema (line 575 of `connector_credential_pair.py` shows `creator_id=user.id if user else None`).
+
+```suggestion
+                    creator_id = index_attempt.connector_credential_pair.creator_id
+                    if creator_id is None:
+                        logger.warning(
+                            f""ConnectorCredentialPair {index_attempt.connector_credential_pair.id} ""
+                            ""has no creator_id, using default user path for persistent document storage""
+                        )
+                        user_id_str: str = ""default""
+                    else:
+                        user_id_str: str = str(creator_id)
+```
+
+ Are there existing ConnectorCredentialPairs in production with null creator_id values from seeding flows?
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: backend/onyx/background/indexing/run_docfetching.py
+Line: 647:651
+
+Comment:
+**logic:** Raising an error here will break for ConnectorCredentialPairs created without a user (e.g., in seeding flows where `user=None` is passed to `add_credential_to_connector`). The `creator_id` field is nullable in the database schema (line 575 of `connector_credential_pair.py` shows `creator_id=user.id if user else None`).
+
+```suggestion
+                    creator_id = index_attempt.connector_credential_pair.creator_id
+                    if creator_id is None:
+                        logger.warning(
+                            f""ConnectorCredentialPair {index_attempt.connector_credential_pair.id} ""
+                            ""has no creator_id, using default user path for persistent document storage""
+                        )
+                        user_id_str: str = ""default""
+                    else:
+                        user_id_str: str = str(creator_id)
+```
+
+ Are there existing ConnectorCredentialPairs in production with null creator_id values from seeding flows?
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/7612#discussion_r2710766939,,2026-01-21T02:51:05+00:00,runtime,high,"Greptile correctly identifies that the new code raises a ValueError when creator_id is None, but the database schema explicitly allows null values for creator_id (as shown by 'creator_id=user.id if user else None' logic). This would cause runtime crashes for existing ConnectorCredentialPairs created through seeding flows or without a user, breaking production functionality. This is a non-obvious catch since a typical reviewer might not trace back to verify the nullability of the field.",2026-01-21T04:33:00.225507+00:00
+silimate/yosys,95,Register annotation,https://github.com/Silimate/yosys/pull/95,,"**logic:** Missing bounds check for find('[') - if no '[' is found, find() returns string::npos which could cause unexpected behavior with substr()
+
+```suggestion
+					if (blast) {
+					std::string base_name = cell->name.str();
+					size_t bracket_pos = base_name.find('[');
+					if (bracket_pos != std::string::npos) {
+						base_name = base_name.substr(0, bracket_pos);
+					}
+					slice_name = module->uniquify(base_name + stringf(
+						""%c%d%c"", format[0], slice_lsb, format[1]));
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: passes/cmds/splitcells.cc
+Line: 175:176
+
+Comment:
+**logic:** Missing bounds check for find('[') - if no '[' is found, find() returns string::npos which could cause unexpected behavior with substr()
+
+```suggestion
+					if (blast) {
+					std::string base_name = cell->name.str();
+					size_t bracket_pos = base_name.find('[');
+					if (bracket_pos != std::string::npos) {
+						base_name = base_name.substr(0, bracket_pos);
+					}
+					slice_name = module->uniquify(base_name + stringf(
+						""%c%d%c"", format[0], slice_lsb, format[1]));
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/Silimate/yosys/pull/95#discussion_r2710813579,,2026-01-21T03:19:56+00:00,runtime,medium,"Greptile correctly identified that when `blast` is true, if the cell name doesn't contain '[', `find('[')` returns `std::string::npos` (-1 as size_t), and `substr(0, npos)` would return the entire string (which is actually safe in C++), but the issue is real in that the code assumes there's always a '[' in the name when blasting, which may not be guaranteed. This is a subtle edge case that could cause unexpected naming behavior.",2026-01-21T04:33:00.225610+00:00
