@@ -436,3 +436,99 @@ The issue: `createProcess` (line 450-460 in customcontent.js) generates an ID an
                     }
                 }
 ```",https://github.com/democratizedspace/dspace/pull/2932#discussion_r2711113991,,2026-01-21T06:13:13+00:00,data_integrity,medium,"Greptile correctly identifies that if createProcess() successfully adds a record with createdId but getProcess() fails for some reason (timing, transient error), the fallback code attempts db.processes.add() with the same ID, which will throw a duplicate key constraint error in IndexedDB. The suggested fix of retrying the read instead of re-adding is appropriate.",2026-01-21T06:21:26.602747+00:00
+assistant-ui/assistant-ui,3088,docs: tap/docs (scaffolding),https://github.com/assistant-ui/assistant-ui/pull/3088,,"**logic:** incorrect path for tap-docs content - should be `tap-docs` not `docs`
+
+```suggestion
+  const path = `apps/docs/content/tap-docs/${page.path}`;
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: apps/docs/app/tap/docs/[[...slug]]/page.tsx
+Line: 40:40
+
+Comment:
+**logic:** incorrect path for tap-docs content - should be `tap-docs` not `docs`
+
+```suggestion
+  const path = `apps/docs/content/tap-docs/${page.path}`;
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/assistant-ui/assistant-ui/pull/3088#discussion_r2711621105,,2026-01-21T09:08:00+00:00,logic,medium,"The file is located at `apps/docs/app/tap/docs/[[...slug]]/page.tsx` which is the tap-docs section, and it uses `tapDocs` source. The path variable should point to `content/tap-docs/` to match the tap-docs content directory, but it incorrectly points to `content/docs/`. This would cause the GitHub edit URL to point to the wrong file location, breaking the 'edit on GitHub' functionality for tap-docs pages.",2026-01-21T10:18:52.552730+00:00
+democratizedspace/dspace,2971,Hide zero-count inventory items by default,https://github.com/democratizedspace/dspace/pull/2971,,"**logic:** Missing `fullItemList` in reactive dependencies - if it updates after `onMount`, `allItems` won't rebuild
+
+```suggestion
+    $: {
+        if (isClientSide && fullItemList) {
+            allItems = buildAllItems($state.inventory);
+            currentInventory = showAllItems
+                ? allItems
+                : filterNonZeroInventory($state.inventory);
+        }
+    }
+```",https://github.com/democratizedspace/dspace/pull/2971#discussion_r2711632757,,2026-01-21T09:10:42+00:00,logic,medium,"Greptile correctly identified that `buildAllItems` depends on `fullItemList` (which is set asynchronously in `onMount`), but the reactive block only tracks `isClientSide`, `$state.inventory`, and `showAllItems`. If `fullItemList` updates after the reactive block first runs, `allItems` won't rebuild with the complete item list. Adding `fullItemList` to the reactive dependencies ensures the inventory rebuilds when the full item catalog becomes available.",2026-01-21T10:18:52.552815+00:00
+alpic-ai/skybridge,351,feat: add repo option to create command,https://github.com/alpic-ai/skybridge/pull/351,,"**logic:** When downloading from a repo, the `package.json` name field isn't updated to match the user's chosen project name. The template path (lines 155-160) updates the name, but this path doesn't. Users scaffolding `my-app` from `ecom-carousel` will have `""name"": ""ecom-carousel""` in their `package.json` instead of `""name"": ""my-app""`.
+
+```suggestion
+  if (argRepo) {
+    prompts.log.step(`Downloading ${argRepo}...`);
+    try {
+      await downloadTemplate(argRepo, { dir: root });
+      // Update project name in package.json
+      const name = path.basename(root);
+      const pkgPath = path.join(root, ""package.json"");
+      if (fs.existsSync(pkgPath)) {
+        const pkg = fs.readFileSync(pkgPath, ""utf-8"");
+        const pkgJson = JSON.parse(pkg);
+        pkgJson.name = name;
+        fs.writeFileSync(pkgPath, JSON.stringify(pkgJson, null, 2) + ""\n"");
+      }
+      prompts.log.success(`Project created in ${root}`);
+    } catch (error) {
+      prompts.log.error(""Failed to download repository"");
+      console.error(error);
+      process.exit(1);
+    }
+  }
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/create-skybridge/src/index.ts
+Line: 129:138
+
+Comment:
+**logic:** When downloading from a repo, the `package.json` name field isn't updated to match the user's chosen project name. The template path (lines 155-160) updates the name, but this path doesn't. Users scaffolding `my-app` from `ecom-carousel` will have `""name"": ""ecom-carousel""` in their `package.json` instead of `""name"": ""my-app""`.
+
+```suggestion
+  if (argRepo) {
+    prompts.log.step(`Downloading ${argRepo}...`);
+    try {
+      await downloadTemplate(argRepo, { dir: root });
+      // Update project name in package.json
+      const name = path.basename(root);
+      const pkgPath = path.join(root, ""package.json"");
+      if (fs.existsSync(pkgPath)) {
+        const pkg = fs.readFileSync(pkgPath, ""utf-8"");
+        const pkgJson = JSON.parse(pkg);
+        pkgJson.name = name;
+        fs.writeFileSync(pkgPath, JSON.stringify(pkgJson, null, 2) + ""\n"");
+      }
+      prompts.log.success(`Project created in ${root}`);
+    } catch (error) {
+      prompts.log.error(""Failed to download repository"");
+      console.error(error);
+      process.exit(1);
+    }
+  }
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/alpic-ai/skybridge/pull/351#discussion_r2711777368,,2026-01-21T09:48:34+00:00,logic,medium,"Greptile correctly identified that the `else` branch (lines 145-168) updates the package.json name field to match the target directory, but the `if (argRepo)` branch (lines 129-138) does not perform this update. This means users creating projects with `--repo` flag will have mismatched package names. This is a non-obvious inconsistency that would likely be missed in review since the logic exists in one code path but not the parallel one.",2026-01-21T10:18:52.552865+00:00
