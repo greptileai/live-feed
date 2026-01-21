@@ -803,3 +803,310 @@ Comment:
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/elephant-xyz/Counties-trasform-scripts/pull/654#discussion_r2712368245,,2026-01-21T12:30:38+00:00,logic,medium,"Greptile correctly identified a regex escaping bug at line 125. The pattern `/(mid\s*century|mid-century|mcmod)/` uses double backslash which creates a literal backslash character followed by 's' instead of the whitespace metacharacter \s. This means 'mid century modern' style homes would not be detected correctly, causing incorrect architectural style classification.",2026-01-21T14:23:47.434542+00:00
+twentyhq/twenty,17306,[Apps] Get rid of .yarn binaries in apps,https://github.com/twentyhq/twenty/pull/17306,,"**logic:** `.yarn` directory not added to gitignore. The PR description says ""add .yarn to gitignore"" but only an empty line was added. This means developers will accidentally commit `.yarn` directories.
+
+```suggestion
+generated
+.yarn
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/twenty-apps/.gitignore
+Line: 1:2
+
+Comment:
+**logic:** `.yarn` directory not added to gitignore. The PR description says ""add .yarn to gitignore"" but only an empty line was added. This means developers will accidentally commit `.yarn` directories.
+
+```suggestion
+generated
+.yarn
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/twentyhq/twenty/pull/17306#discussion_r2712987528,,2026-01-21T15:06:16+00:00,logic,medium,"Greptile correctly identified that the PR description says 'add .yarn to gitignore' but the diff only shows an empty line being added, not the actual '.yarn' entry. This is a real oversight where the intended change wasn't actually made, which would lead to .yarn directories being accidentally committed to the repository.",2026-01-21T16:25:30.192758+00:00
+twentyhq/twenty,17305,Rework SDK watcher,https://github.com/twentyhq/twenty/pull/17305,,"**logic:** Missing regex pattern for aliased imports like `import { something as entryName }`. This was present in the old code but is missing here.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/twenty-sdk/src/cli/utilities/build/manifest/manifest-extract-from-file-server.ts
+Line: 127:129
+
+Comment:
+**logic:** Missing regex pattern for aliased imports like `import { something as entryName }`. This was present in the old code but is missing here.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/twentyhq/twenty/pull/17305#discussion_r2712993061,,2026-01-21T15:07:32+00:00,logic,medium,"The regex patterns at lines 120-123 only handle direct named imports `{entryName}` and default imports, but miss aliased imports like `import { something as entryName }`. This is a real functional gap that would cause the code to fail silently (returning null) when users use aliased imports, which is a common JavaScript/TypeScript pattern. This is non-obvious as it requires understanding both the regex patterns and import syntax edge cases.",2026-01-21T16:25:30.192838+00:00
+onyx-dot-app/onyx,7629,Fix email addresses to use mailto links instead of https redirects,https://github.com/onyx-dot-app/onyx/pull/7629,,"**logic:** The regex incorrectly matches URLs that already have `mailto:` prefix. For example, `isEmail(""mailto:test@example.com"")` returns `true` because `mailto:test` matches `[^\s@]+` before the `@`.
+
+When GFM autolinks a bare email like `support@example.com`, it creates `href=""mailto:support@example.com""`. This fix would then produce `mailto:mailto:support@example.com`.
+
+Consider checking for existing `mailto:` prefix first:
+
+```suggestion
+// Simple regex to detect valid email addresses
+const isEmail = (value: string | undefined): boolean => {
+  if (!value) return false;
+  if (value.startsWith(""mailto:"")) return false;
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+};
+```
+
+Alternatively, use the existing `ensureHrefProtocol` utility from `@/lib/utils` which already handles `mailto:` links correctly.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: web/src/app/chat/message/MemoizedTextComponents.tsx
+Line: 17:21
+
+Comment:
+**logic:** The regex incorrectly matches URLs that already have `mailto:` prefix. For example, `isEmail(""mailto:test@example.com"")` returns `true` because `mailto:test` matches `[^\s@]+` before the `@`.
+
+When GFM autolinks a bare email like `support@example.com`, it creates `href=""mailto:support@example.com""`. This fix would then produce `mailto:mailto:support@example.com`.
+
+Consider checking for existing `mailto:` prefix first:
+
+```suggestion
+// Simple regex to detect valid email addresses
+const isEmail = (value: string | undefined): boolean => {
+  if (!value) return false;
+  if (value.startsWith(""mailto:"")) return false;
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+};
+```
+
+Alternatively, use the existing `ensureHrefProtocol` utility from `@/lib/utils` which already handles `mailto:` links correctly.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/7629#discussion_r2713270509,,2026-01-21T16:07:42+00:00,logic,medium,"Greptile correctly identifies that the regex `/^[^\s@]+@[^\s@]+\.[^\s@]+$/` would match 'mailto:test@example.com' (where 'mailto:test' is the part before @), causing a double-prefixing bug resulting in 'mailto:mailto:support@example.com'. This is a real bug that would cause broken email links when GFM auto-links emails, and the edge case is non-obvious.",2026-01-21T16:25:30.192893+00:00
+mellanox/libxlio,554,[CI] issue: HPCINFRA-4019 Add CI chaos testing,https://github.com/Mellanox/libxlio/pull/554,,"**logic:** `readFile()` will fail if `check_chaos_results.sh` doesn't create `chaos_results.txt` (e.g., if the check step fails or is skipped). Pipeline will error trying to send email.
+
+```suggestion
+    def envFile = fileExists(""${env.WORKSPACE}/chaos_results.txt"") ? readFile(""${env.WORKSPACE}/chaos_results.txt"") : ""status=UNKNOWN\nexpected_failures=\nunexpected_passes=""
+```",https://github.com/Mellanox/libxlio/pull/554#discussion_r2712797885,,2026-01-21T14:21:54+00:00,runtime,medium,"Greptile correctly identifies that the pipeline_stop block uses readFile() on chaos_results.txt without checking if the file exists. If the 'Check Results' step fails or the script doesn't create the file, the readFile() call will throw an exception, preventing the notification email from being sent - which is precisely when you'd want notification the most. This is a non-obvious edge case in CI pipeline error handling.",2026-01-21T16:25:30.192983+00:00
+mellanox/libxlio,554,[CI] issue: HPCINFRA-4019 Add CI chaos testing,https://github.com/Mellanox/libxlio/pull/554,,"**logic:** `.ci/scripts/run_step.sh` does not exist in this PR. All CI steps will fail immediately when trying to execute this missing script. You must add this file to the PR.
+
+The README mentions ""Wrap CI steps with `run_step.sh`"" but the script was never included.",https://github.com/Mellanox/libxlio/pull/554#discussion_r2712939446,,2026-01-21T14:55:07+00:00,runtime,critical,"The diff shows all CI steps being modified to call `.ci/scripts/run_step.sh`, but this script is not included anywhere in the diff. If this file doesn't exist in the repository and wasn't added in this PR, every single CI step would fail immediately with a 'file not found' error, completely breaking the CI pipeline.",2026-01-21T16:25:30.193023+00:00
+delta-exchange/chatwoot,136,Background Jobs Optimisation and cleaup,https://github.com/delta-exchange/chatwoot/pull/136,,"**logic:** Missing `primary_actor_type` filter - this will delete notifications from other notification types (like SLA events) that happen to share the same `primary_actor_id`. Should filter by both `primary_actor_type` and `primary_actor_id`.
+
+```suggestion
+    Notification.where(
+      user_id: notification.user_id,
+      primary_actor_type: notification.primary_actor_type,
+      primary_actor_id: notification.primary_actor_id
+    ).where.not(id: notification.id).delete_all
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: app/jobs/notification/delivery_job.rb
+Line: 30:34
+
+Comment:
+**logic:** Missing `primary_actor_type` filter - this will delete notifications from other notification types (like SLA events) that happen to share the same `primary_actor_id`. Should filter by both `primary_actor_type` and `primary_actor_id`.
+
+```suggestion
+    Notification.where(
+      user_id: notification.user_id,
+      primary_actor_type: notification.primary_actor_type,
+      primary_actor_id: notification.primary_actor_id
+    ).where.not(id: notification.id).delete_all
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/delta-exchange/chatwoot/pull/136#discussion_r2712919668,,2026-01-21T14:50:22+00:00,data_integrity,high,"Greptile correctly identifies that the `remove_duplicate_notifications` method only filters by `user_id` and `primary_actor_id`, missing the `primary_actor_type` filter. This means if a user has notifications for different entity types (e.g., a Conversation with id=5 and an SLA event with id=5), this code would incorrectly delete the SLA notification when processing the Conversation notification, causing data loss. This is a non-obvious polymorphic association bug that could silently delete legitimate notifications.",2026-01-21T16:25:30.193057+00:00
+alpaca-network/railway-grafana-stack,85,"Improve alert provisioning, FastAPI schemas, and telemetry observability",https://github.com/Alpaca-Network/railway-grafana-stack/pull/85,,"**logic:** `host.docker.internal` doesn't work on Linux. In local Docker Compose, services should connect via service name `fastapi_app` (as defined in the original logic). This breaks local Linux setups.
+
+```suggestion
+    TARGET=""fastapi_app:8000""
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: prometheus/entrypoint.sh
+Line: 32:32
+
+Comment:
+**logic:** `host.docker.internal` doesn't work on Linux. In local Docker Compose, services should connect via service name `fastapi_app` (as defined in the original logic). This breaks local Linux setups.
+
+```suggestion
+    TARGET=""fastapi_app:8000""
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/Alpaca-Network/railway-grafana-stack/pull/85#discussion_r2712952298,,2026-01-21T14:58:07+00:00,logic,medium,"Greptile correctly identifies that `host.docker.internal` doesn't work on native Linux Docker (only Mac/Windows). The original code used `fastapi_app:8000` for local Docker Compose, which works across all platforms via Docker's internal DNS. This change would break local development on Linux, a common deployment platform, and the fix is straightforward - revert to the original service name approach.",2026-01-21T16:25:30.193145+00:00
+alpaca-network/railway-grafana-stack,84,"Created new abnormal alarm policy that will send alerts within anomalies such as latency, traffic, etc. Refactored current gateway page:",https://github.com/Alpaca-Network/railway-grafana-stack/pull/84,,"**logic:** Traffic spike warning route is missing severity matcher unlike the critical route - this will catch all traffic_spike alerts regardless of severity. Should this warning route only match alerts without a severity label, or should it include a severity matcher for consistency?
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: grafana/provisioning/alerting/notification_policies.yml
+Line: 39:51
+
+Comment:
+**logic:** Traffic spike warning route is missing severity matcher unlike the critical route - this will catch all traffic_spike alerts regardless of severity. Should this warning route only match alerts without a severity label, or should it include a severity matcher for consistency?
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/Alpaca-Network/railway-grafana-stack/pull/84#discussion_r2712891889,,2026-01-21T14:44:02+00:00,logic,medium,"Greptile correctly identified that the traffic spike warning route (lines 39-51) lacks a severity matcher while the critical route (lines 21-37) explicitly matches `severity: critical`. This means all traffic_spike alerts, including critical ones, will also match the warning route and potentially be routed to the wrong receiver. The same pattern issue exists for error_rate_spike, latency_anomaly, and availability_drop routes where warning routes don't filter by severity.",2026-01-21T16:25:30.193180+00:00
+alpaca-network/railway-grafana-stack,84,"Created new abnormal alarm policy that will send alerts within anomalies such as latency, traffic, etc. Refactored current gateway page:",https://github.com/Alpaca-Network/railway-grafana-stack/pull/84,,"**logic:** Division by $B (baseline) could cause issues if the baseline value is zero or very close to zero, potentially causing alert evaluation errors.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: grafana/provisioning/alerting/rules/latency_anomalies.yml
+Line: 62:62
+
+Comment:
+**logic:** Division by $B (baseline) could cause issues if the baseline value is zero or very close to zero, potentially causing alert evaluation errors.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/Alpaca-Network/railway-grafana-stack/pull/84#discussion_r2712891963,,2026-01-21T14:44:02+00:00,runtime,medium,"Greptile correctly identifies that the expression '($A / $B > 2) && ($A > 1.0)' at line 62 (and similar at line 110) performs division by $B (the baseline latency), which could be zero or near-zero during startup, data gaps, or low-traffic periods, causing alert evaluation errors or undefined behavior. This is a non-obvious edge case that could cause false alerts or alert system failures.",2026-01-21T16:25:30.193214+00:00
+alpaca-network/railway-grafana-stack,84,"Created new abnormal alarm policy that will send alerts within anomalies such as latency, traffic, etc. Refactored current gateway page:",https://github.com/Alpaca-Network/railway-grafana-stack/pull/84,,"**logic:** Division by zero could occur if baseline (B.Value) is 0. Consider adding a safety check like `(div (max $values.A.Value 0.001) (max $values.B.Value 0.001))`.
+
+```suggestion
+            This is {{ printf ""%.1f"" (div (max $values.A.Value 0.001) (max $values.B.Value 0.001)) }}x normal error rate.
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: grafana/provisioning/alerting/rules/error_rate_anomalies.yml
+Line: 65:65
+
+Comment:
+**logic:** Division by zero could occur if baseline (B.Value) is 0. Consider adding a safety check like `(div (max $values.A.Value 0.001) (max $values.B.Value 0.001))`.
+
+```suggestion
+            This is {{ printf ""%.1f"" (div (max $values.A.Value 0.001) (max $values.B.Value 0.001)) }}x normal error rate.
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/Alpaca-Network/railway-grafana-stack/pull/84#discussion_r2712892032,,2026-01-21T14:44:03+00:00,runtime,medium,"Greptile correctly identified a division by zero risk at line 65 where `(div $values.A.Value $values.B.Value)` is used in the annotation template. If the 24h average baseline ($values.B.Value) is 0 (which could happen for new deployments or services with historically zero errors), this division would fail or produce undefined behavior when the alert fires.",2026-01-21T16:25:30.193240+00:00
+alpaca-network/railway-grafana-stack,84,"Created new abnormal alarm policy that will send alerts within anomalies such as latency, traffic, etc. Refactored current gateway page:",https://github.com/Alpaca-Network/railway-grafana-stack/pull/84,,"**logic:** Division by zero could occur if $B is 0. Consider adding a safety check like `($B > 0) && ($A / $B > 3) && ($A <= 10)`.
+
+```suggestion
+              expression: '($B > 0) && ($A / $B > 3) && ($A <= 10)'
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: grafana/provisioning/alerting/rules/error_rate_anomalies.yml
+Line: 87:87
+
+Comment:
+**logic:** Division by zero could occur if $B is 0. Consider adding a safety check like `($B > 0) && ($A / $B > 3) && ($A <= 10)`.
+
+```suggestion
+              expression: '($B > 0) && ($A / $B > 3) && ($A <= 10)'
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/Alpaca-Network/railway-grafana-stack/pull/84#discussion_r2712892109,,2026-01-21T14:44:03+00:00,runtime,medium,"The expression '$A / $B > 3' on line 87 will cause a division by zero error if the 24-hour average error rate ($B) is 0, which is a realistic scenario when there have been no errors in the baseline period. This is a non-obvious bug that could cause the alert rule to fail or behave unexpectedly in production.",2026-01-21T16:25:30.193268+00:00
+useautumn/autumn,604,feat: 🎸 api customer v5 (stack layer 2: API V2.1),https://github.com/useautumn/autumn/pull/604,,"**logic:** Potential logic issue: using `||` operator means if `fromBreakdown` is 0 (valid value), it will fallback to `legacyData?.prepaid_quantity`. Use nullish coalescing (`??`) instead to only fallback when `fromBreakdown` is null/undefined
+
+```suggestion
+		prepaidQuantity = fromBreakdown ?? legacyData?.prepaid_quantity ?? 0;
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: shared/api/customers/cusFeatures/changes/V1.2_CusFeatureChange.ts
+Line: 128:128
+
+Comment:
+**logic:** Potential logic issue: using `||` operator means if `fromBreakdown` is 0 (valid value), it will fallback to `legacyData?.prepaid_quantity`. Use nullish coalescing (`??`) instead to only fallback when `fromBreakdown` is null/undefined
+
+```suggestion
+		prepaidQuantity = fromBreakdown ?? legacyData?.prepaid_quantity ?? 0;
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/useautumn/autumn/pull/604#discussion_r2713194929,,2026-01-21T15:50:34+00:00,logic,medium,Greptile correctly identifies that using `||` instead of `??` will cause `fromBreakdown` values of 0 (a perfectly valid prepaid quantity) to incorrectly fall back to `legacyData?.prepaid_quantity`. This is a subtle but real bug that could cause incorrect balance calculations when a user has exactly 0 prepaid quantity.,2026-01-21T16:25:30.193294+00:00
+alpic-ai/skybridge,357,Introduce two hooks for dev command : typescript check and nodemon,https://github.com/alpic-ai/skybridge/pull/357,,"**syntax:** `qsdqs` is not exported by `generateHelpers()` and appears to be test/debug code
+
+```suggestion
+export const { useToolInfo, useCallTool } = generateHelpers<AppType>();
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/create-skybridge/template/web/src/helpers.ts
+Line: 4:4
+
+Comment:
+**syntax:** `qsdqs` is not exported by `generateHelpers()` and appears to be test/debug code
+
+```suggestion
+export const { useToolInfo, useCallTool } = generateHelpers<AppType>();
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/alpic-ai/skybridge/pull/357#discussion_r2713234092,,2026-01-21T15:59:13+00:00,runtime,medium,"Greptile correctly identified that 'qsdqs' appears to be debug/test code that was accidentally left in - it's a nonsensical variable name being destructured from generateHelpers() which would either cause a runtime error or result in an undefined value. This is in a template file that gets generated for new projects, making it particularly important to catch.",2026-01-21T16:25:30.193358+00:00
+alpic-ai/skybridge,357,Introduce two hooks for dev command : typescript check and nodemon,https://github.com/alpic-ai/skybridge/pull/357,,"**logic:** New `Writable` stream created on every `readable` event without cleanup, causing potential memory leak. Set up stream once in useEffect instead. Is there a specific reason the stream needs to be recreated on each readable event rather than set up once?
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/core/src/cli/use-nodemon.ts
+Line: 30:45
+
+Comment:
+**logic:** New `Writable` stream created on every `readable` event without cleanup, causing potential memory leak. Set up stream once in useEffect instead. Is there a specific reason the stream needs to be recreated on each readable event rather than set up once?
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/alpic-ai/skybridge/pull/357#discussion_r2713234138,,2026-01-21T15:59:14+00:00,resource_leak,medium,"Greptile correctly identifies that a new Writable stream is created every time the 'readable' event fires (line 30-43), but these streams are never cleaned up or destroyed. The 'readable' event can fire multiple times during nodemon's lifecycle, and each time a new stream is piped to stdout without removing the previous one, causing accumulated memory usage. This is a non-obvious memory leak that a typical reviewer might miss.",2026-01-21T16:25:30.193385+00:00
+credal-ai/fern-docs,300,repair some broken links,https://github.com/Credal-ai/fern-docs/pull/300,,"**logic:** The link text says ""uploadDocumentContents API endpoint"" but the URL points to the `metadata` endpoint. Should be `/api-reference/v-0/document-catalog/upload-document-contents` instead.
+
+```suggestion
+   - The Name must match the name of a metadata field you have on the documents in your collection. That metadata can be set when uploading the data via the [uploadDocumentContents API endpoint](/api-reference/v-0/document-catalog/upload-document-contents) or patched in after the fact using the [metadata endpoint](/api-reference/v-0/document-catalog/metadata).
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: fern/docs/pages/platform/agents/in-depth-overview/agent-configure-sections/tools.mdx
+Line: 31:31
+
+Comment:
+**logic:** The link text says ""uploadDocumentContents API endpoint"" but the URL points to the `metadata` endpoint. Should be `/api-reference/v-0/document-catalog/upload-document-contents` instead.
+
+```suggestion
+   - The Name must match the name of a metadata field you have on the documents in your collection. That metadata can be set when uploading the data via the [uploadDocumentContents API endpoint](/api-reference/v-0/document-catalog/upload-document-contents) or patched in after the fact using the [metadata endpoint](/api-reference/v-0/document-catalog/metadata).
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/Credal-ai/fern-docs/pull/300#discussion_r2713269435,,2026-01-21T16:07:27+00:00,logic,low,"Greptile correctly identified that the link text says 'uploadDocumentContents API endpoint' but points to the metadata endpoint. The PR was already fixing broken links by removing 'api-reference/' from paths, but this inconsistency between link text and destination remained. While documentation errors are typically less critical, this is a valid catch that could confuse users trying to find the correct API endpoint.",2026-01-21T16:25:30.193411+00:00
