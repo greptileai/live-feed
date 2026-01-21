@@ -532,3 +532,15 @@ Comment:
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/alpic-ai/skybridge/pull/351#discussion_r2711777368,,2026-01-21T09:48:34+00:00,logic,medium,"Greptile correctly identified that the `else` branch (lines 145-168) updates the package.json name field to match the target directory, but the `if (argRepo)` branch (lines 129-138) does not perform this update. This means users creating projects with `--repo` flag will have mismatched package names. This is a non-obvious inconsistency that would likely be missed in review since the logic exists in one code path but not the parallel one.",2026-01-21T10:18:52.552865+00:00
+isaac-sim/isaaclab,4406,[Newton] Articulation & Rigid Object Full Tests,https://github.com/isaac-sim/IsaacLab/pull/4406,,"**logic:** `self._asset` is referenced before being assigned (line 39)
+
+```suggestion
+            raise ValueError(f""Unsupported asset type: {asset.__class__.__name__}"")
+```",https://github.com/isaac-sim/IsaacLab/pull/4406#discussion_r2712002500,,2026-01-21T10:46:07+00:00,runtime,medium,"Greptile correctly identified that on line 37, the error message references `self._asset` but `self._asset` is only assigned later on line 39. At the point of the exception, `self._asset` doesn't exist yet, which would cause an AttributeError. The fix to use `asset` instead is correct.",2026-01-21T12:23:31.942372+00:00
+mellanox/libxlio,554,[CI] issue: HPCINFRA-4019 Add CI chaos testing,https://github.com/Mellanox/libxlio/pull/554,,"**syntax:** Missing closing parenthesis for `build()` function call. Line 44 should be part of the `build()` call, not a separate statement.
+
+```suggestion
+        propagate: false
+      )
+      env.LINUX_BUILD_URL = build.absoluteUrl
+```",https://github.com/Mellanox/libxlio/pull/554#discussion_r2711979353,,2026-01-21T10:39:59+00:00,runtime,high,"Greptile correctly identified a missing closing parenthesis for the `build()` function call. Looking at the code, line 19 starts with `def build = build job:` and the parameters list ends at line 43 with `propagate: false` but there's no closing `)` before line 45's `env.LINUX_BUILD_URL = build.absoluteUrl`. This would cause a Groovy syntax error and the CI job would fail to run. This is non-obvious because the indentation is misleading and the file is relatively long.",2026-01-21T12:23:31.942436+00:00
