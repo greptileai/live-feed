@@ -544,3 +544,262 @@ mellanox/libxlio,554,[CI] issue: HPCINFRA-4019 Add CI chaos testing,https://gith
       )
       env.LINUX_BUILD_URL = build.absoluteUrl
 ```",https://github.com/Mellanox/libxlio/pull/554#discussion_r2711979353,,2026-01-21T10:39:59+00:00,runtime,high,"Greptile correctly identified a missing closing parenthesis for the `build()` function call. Looking at the code, line 19 starts with `def build = build job:` and the parameters list ends at line 43 with `propagate: false` but there's no closing `)` before line 45's `env.LINUX_BUILD_URL = build.absoluteUrl`. This would cause a Groovy syntax error and the CI job would fail to run. This is non-obvious because the indentation is misleading and the file is relatively long.",2026-01-21T12:23:31.942436+00:00
+twentyhq/twenty,17303,[Dashboards] fix line chart duplicate widget bleed by hashing series IDs,https://github.com/twentyhq/twenty/pull/17303,,"**logic:** `JSON.stringify` doesn't guarantee consistent key ordering across JavaScript engines, which could cause different hashes for the same configuration object
+
+Consider sorting the keys before stringifying to ensure deterministic hashing:
+```suggestion
+    .update(JSON.stringify(configuration, Object.keys(configuration).sort()))
+```
+
+Or use a deterministic serialization approach similar to `create-deterministic-uuid.util.ts` in this codebase
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/twenty-server/src/modules/dashboard/chart-data/utils/build-line-chart-series-id-prefix.util.ts
+Line: 12:12
+
+Comment:
+**logic:** `JSON.stringify` doesn't guarantee consistent key ordering across JavaScript engines, which could cause different hashes for the same configuration object
+
+Consider sorting the keys before stringifying to ensure deterministic hashing:
+```suggestion
+    .update(JSON.stringify(configuration, Object.keys(configuration).sort()))
+```
+
+Or use a deterministic serialization approach similar to `create-deterministic-uuid.util.ts` in this codebase
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/twentyhq/twenty/pull/17303#discussion_r2712767563,,2026-01-21T14:15:23+00:00,logic,medium,"Greptile correctly identifies that JSON.stringify doesn't guarantee consistent key ordering, which could cause the same configuration object to produce different hashes in different environments or after object manipulation. This is a real bug that could cause the 'duplicate widget bleed' issue mentioned in the PR title to resurface, and the non-deterministic nature makes it particularly hard to debug. The suggestion to use deterministic serialization is actionable and references existing code patterns in the codebase.",2026-01-21T14:23:47.434065+00:00
+assistant-ui/assistant-ui,3091,[WIP] feat: add tool ui runtime platform,https://github.com/assistant-ui/assistant-ui/pull/3091,,"**logic:** Calling `close()` twice will throw due to the ""closed"" → any transition being invalid. Make this method idempotent by checking current state first.
+
+```suggestion
+  public close(): void {
+    if (this._state.lifecycle === ""closed"" || this._state.lifecycle === ""closing"") {
+      return;
+    }
+    this.transition(""closing"");
+    this.transition(""closed"");
+  }
+```
+
+**Context Used:** Context from `dashboard` - Ensure that calling close() on controllers is safe from double-closing by checking if the controller... ([source](https://app.greptile.com/review/custom-context?memory=034c6f0b-0068-4fcb-a5b5-9be36d94d66e))
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/tool-ui-runtime/src/core/instance.ts
+Line: 73:76
+
+Comment:
+**logic:** Calling `close()` twice will throw due to the ""closed"" → any transition being invalid. Make this method idempotent by checking current state first.
+
+```suggestion
+  public close(): void {
+    if (this._state.lifecycle === ""closed"" || this._state.lifecycle === ""closing"") {
+      return;
+    }
+    this.transition(""closing"");
+    this.transition(""closed"");
+  }
+```
+
+**Context Used:** Context from `dashboard` - Ensure that calling close() on controllers is safe from double-closing by checking if the controller... ([source](https://app.greptile.com/review/custom-context?memory=034c6f0b-0068-4fcb-a5b5-9be36d94d66e))
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/assistant-ui/assistant-ui/pull/3091#discussion_r2712693898,,2026-01-21T13:57:34+00:00,logic,medium,"The close() method performs two transitions (closing → closed), and the assertValidToolUILifecycleTransition function would throw if close() is called again when already in 'closed' state since 'closed' → 'closing' would be invalid. This is a real bug that could cause runtime crashes in scenarios where close() might be called multiple times (common in cleanup/unmount scenarios), and the fix to make it idempotent is correct and actionable.",2026-01-21T14:23:47.434172+00:00
+posthog/posthog-js,2943,fix(rollup): fix plugin execution order,https://github.com/PostHog/posthog-js/pull/2943,,"**logic:** When `options.file` is used, `chunks` is never populated, so `chunk.code` isn't updated. This means the fix doesn't apply to single-file output configurations.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/rollup-plugin/src/index.ts
+Line: 68:71
+
+Comment:
+**logic:** When `options.file` is used, `chunks` is never populated, so `chunk.code` isn't updated. This means the fix doesn't apply to single-file output configurations.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog-js/pull/2943#discussion_r2712672684,,2026-01-21T13:52:13+00:00,logic,medium,"Greptile correctly identified that the code only populates the `chunks` object inside the `if (options.dir)` block's for-loop, but when `options.file` is set (single-file output), the old code used to handle it with `args.push('--file', filePath)` which was removed. Now the for-loop still runs but without `options.dir`, basePaths only has the dirname of `options.file`, yet chunks still needs proper population for the final `chunk.code` update to work correctly for single-file configurations.",2026-01-21T14:23:47.434263+00:00
+elephant-xyz/counties-trasform-scripts,649,Update hamilton transform scripts,https://github.com/elephant-xyz/Counties-trasform-scripts/pull/649,,"**logic:** `sales.indexOf(rec)` inside a forEach has O(n²) complexity and returns incorrect indices if duplicate sales exist. Use the loop index instead.
+
+```suggestion
+          companyRelationshipsMap.get(key).push({ type: 'sale', saleIndex: idx + 1 });
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: hamilton/scripts/data_extractor.js
+Line: 1516:1516
+
+Comment:
+**logic:** `sales.indexOf(rec)` inside a forEach has O(n²) complexity and returns incorrect indices if duplicate sales exist. Use the loop index instead.
+
+```suggestion
+          companyRelationshipsMap.get(key).push({ type: 'sale', saleIndex: idx + 1 });
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/elephant-xyz/Counties-trasform-scripts/pull/649#discussion_r2712374297,,2026-01-21T12:32:20+00:00,logic,medium,"Greptile correctly identifies that using `sales.indexOf(rec)` inside the forEach callback will return incorrect indices if there are duplicate sale objects in the array, since indexOf returns the first matching index. Using the loop index parameter would be more reliable. While the forEach loop does provide an index parameter that should be used instead, this is a subtle bug that could cause data integrity issues when duplicate sales exist.",2026-01-21T14:23:47.434301+00:00
+elephant-xyz/counties-trasform-scripts,649,Update hamilton transform scripts,https://github.com/elephant-xyz/Counties-trasform-scripts/pull/649,,"**logic:** Company names are now stored in UPPERCASE instead of their original case. The old code preserved original casing by using `(o.name || """").trim()` in the Set. Store the original name as the value in the map, not just the key.
+
+```suggestion
+  // Only create company files for companies that have relationships
+  companies = Array.from(companyRelationshipsMap.entries()).map(([_, data]) => ({
+    ...appendSourceInfo(seed),
+    name: data.originalName,
+  }));
+```
+
+ Should company names preserve their original casing from the source data, or is uppercase normalization intentional?
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: hamilton/scripts/data_extractor.js
+Line: 1547:1550
+
+Comment:
+**logic:** Company names are now stored in UPPERCASE instead of their original case. The old code preserved original casing by using `(o.name || """").trim()` in the Set. Store the original name as the value in the map, not just the key.
+
+```suggestion
+  // Only create company files for companies that have relationships
+  companies = Array.from(companyRelationshipsMap.entries()).map(([_, data]) => ({
+    ...appendSourceInfo(seed),
+    name: data.originalName,
+  }));
+```
+
+ Should company names preserve their original casing from the source data, or is uppercase normalization intentional?
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/elephant-xyz/Counties-trasform-scripts/pull/649#discussion_r2712374358,,2026-01-21T12:32:21+00:00,data_integrity,medium,"Greptile correctly identified that the new code stores company names using uppercase keys (`(o.name || """").trim().toUpperCase()`) in `companyRelationshipsMap`, and then uses `Array.from(companyRelationshipsMap.keys())` to create company records. This means company names will be stored in UPPERCASE rather than preserving their original casing from source data, which is a data integrity issue that could affect downstream systems expecting properly-cased company names.",2026-01-21T14:23:47.434333+00:00
+elephant-xyz/counties-trasform-scripts,649,Update hamilton transform scripts,https://github.com/elephant-xyz/Counties-trasform-scripts/pull/649,,"**logic:** Store the original company name to preserve casing, similar to how person names are handled in `personRelationshipsMap`.
+
+```suggestion
+        if ((o.name || """").trim()) {
+          const key = (o.name || """").trim().toUpperCase();
+          if (!companyRelationshipsMap.has(key)) {
+            companyRelationshipsMap.set(key, { originalName: (o.name || """").trim() });
+          }
+        }
+```
+
+<sub>Note: If this suggestion doesn't match your team's coding style, reply to this and let me know. I'll remember it for next time!</sub>
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: hamilton/scripts/data_extractor.js
+Line: 1511:1517
+
+Comment:
+**logic:** Store the original company name to preserve casing, similar to how person names are handled in `personRelationshipsMap`.
+
+```suggestion
+        if ((o.name || """").trim()) {
+          const key = (o.name || """").trim().toUpperCase();
+          if (!companyRelationshipsMap.has(key)) {
+            companyRelationshipsMap.set(key, { originalName: (o.name || """").trim() });
+          }
+        }
+```
+
+<sub>Note: If this suggestion doesn't match your team's coding style, reply to this and let me know. I'll remember it for next time!</sub>
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/elephant-xyz/Counties-trasform-scripts/pull/649#discussion_r2712374405,,2026-01-21T12:32:22+00:00,data_integrity,medium,"Greptile correctly identifies that `personRelationshipsMap` stores original names (first_name, last_name, etc.) while `companyRelationshipsMap` only stores the uppercase key. Later at line 1548, `companies` is created from `companyRelationshipsMap.keys()` which returns uppercase names, losing the original casing. This is inconsistent with person handling and could cause data quality issues in output files.",2026-01-21T14:23:47.434405+00:00
+elephant-xyz/counties-trasform-scripts,649,Update hamilton transform scripts,https://github.com/elephant-xyz/Counties-trasform-scripts/pull/649,,"**logic:** Store original company name here too to preserve casing.
+
+```suggestion
+        if (!alreadyOnFirstSale) {
+          if (!companyRelationshipsMap.has(key)) {
+            companyRelationshipsMap.set(key, { originalName: (owner.name || """").trim() });
+          }
+        }
+```
+
+<sub>Note: If this suggestion doesn't match your team's coding style, reply to this and let me know. I'll remember it for next time!</sub>
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: hamilton/scripts/data_extractor.js
+Line: 1537:1541
+
+Comment:
+**logic:** Store original company name here too to preserve casing.
+
+```suggestion
+        if (!alreadyOnFirstSale) {
+          if (!companyRelationshipsMap.has(key)) {
+            companyRelationshipsMap.set(key, { originalName: (owner.name || """").trim() });
+          }
+        }
+```
+
+<sub>Note: If this suggestion doesn't match your team's coding style, reply to this and let me know. I'll remember it for next time!</sub>
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/elephant-xyz/Counties-trasform-scripts/pull/649#discussion_r2712374442,,2026-01-21T12:32:23+00:00,data_integrity,medium,"Greptile correctly identifies that the first pass (lines 1507-1520) stores the original company name with `companyRelationshipsMap.set(key, [])`, but the second pass (lines 1537-1541) just stores an empty array without the original name. Later at line 1555, the code uses `Array.from(companyRelationshipsMap.keys())` which returns the uppercased keys, losing the original casing. This is inconsistent with how persons preserve their original names and would result in company names being stored in all uppercase.",2026-01-21T14:23:47.434472+00:00
+elephant-xyz/counties-trasform-scripts,651,Update brevard transform scripts,https://github.com/elephant-xyz/Counties-trasform-scripts/pull/651,,"**syntax:** `layoutsData` is assigned without declaration - the `const` declaration at line 3628 is commented out. This will cause a `ReferenceError` in strict mode or create an unintended global variable.
+
+```suggestion
+  let layoutsData = readJSON(layoutsPath);
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: brevard/scripts/data_extractor.js
+Line: 3646:3646
+
+Comment:
+**syntax:** `layoutsData` is assigned without declaration - the `const` declaration at line 3628 is commented out. This will cause a `ReferenceError` in strict mode or create an unintended global variable.
+
+```suggestion
+  let layoutsData = readJSON(layoutsPath);
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/elephant-xyz/Counties-trasform-scripts/pull/651#discussion_r2712370322,,2026-01-21T12:31:13+00:00,runtime,medium,"Greptile correctly identified that `layoutsData` is assigned at line 3646 but its declaration at line 3628 is commented out (`// const layoutsData = null;`). This will cause a ReferenceError in strict mode or create an implicit global variable, which is a real bug that could be easily missed during review since the commented-out declaration appears nearby.",2026-01-21T14:23:47.434511+00:00
+elephant-xyz/counties-trasform-scripts,654,Update hillsborough transform scripts,https://github.com/elephant-xyz/Counties-trasform-scripts/pull/654,,"**logic:** Regex pattern has double backslash escaping issue. `/(mid\\s*century|...)` creates a literal backslash-s sequence instead of matching whitespace. This will not match ""mid century"" with spaces in the text. Should use `/mid\s*century/` to properly match the optional space(s).
+
+```suggestion
+  if (/(mid\s*century|mid-century|mcmod)/.test(text)) return ""MidCenturyModern"";
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: hillsborough/scripts/structureMapping.js
+Line: 125:125
+
+Comment:
+**logic:** Regex pattern has double backslash escaping issue. `/(mid\\s*century|...)` creates a literal backslash-s sequence instead of matching whitespace. This will not match ""mid century"" with spaces in the text. Should use `/mid\s*century/` to properly match the optional space(s).
+
+```suggestion
+  if (/(mid\s*century|mid-century|mcmod)/.test(text)) return ""MidCenturyModern"";
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/elephant-xyz/Counties-trasform-scripts/pull/654#discussion_r2712368245,,2026-01-21T12:30:38+00:00,logic,medium,"Greptile correctly identified a regex escaping bug at line 125. The pattern `/(mid\s*century|mid-century|mcmod)/` uses double backslash which creates a literal backslash character followed by 's' instead of the whitespace metacharacter \s. This means 'mid century modern' style homes would not be detected correctly, causing incorrect architectural style classification.",2026-01-21T14:23:47.434542+00:00
