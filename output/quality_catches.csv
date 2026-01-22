@@ -2126,3 +2126,41 @@ democratizedspace/dspace,3017,"Fix docs links, add Testing Guide, and enforce ma
   const refToCheck = ref === 'v3' ? 'origin/v3' : (['main', 'master'].includes(ref) ? 'HEAD' : ref);
 ```",https://github.com/democratizedspace/dspace/pull/3017#discussion_r2715658354,,2026-01-22T07:30:24+00:00,logic,medium,"Greptile correctly identifies that mapping 'v3' to 'HEAD' is flawed - if the local checkout is on 'main' branch, HEAD won't contain v3's files, causing false positives for valid v3 branch links. The suggestion to use 'origin/v3' is a valid fix that would check against the actual remote branch state.",2026-01-22T08:21:00.341742+00:00
 democratizedspace/dspace,3016,"Add docs link integrity checks and Testing Guide, fix UI lifecycle links",https://github.com/democratizedspace/dspace/pull/3016,,"**logic:** `fetchStatus()` doesn't handle network errors, DNS failures, or timeouts. A failed fetch will throw an unhandled error and crash the test. Should wrap in try/catch to return error status or handle gracefully.",https://github.com/democratizedspace/dspace/pull/3016#discussion_r2715656376,,2026-01-22T07:29:38+00:00,runtime,medium,"The `fetchStatus()` function uses `fetch()` without any try/catch handling. If a network error, DNS failure, or timeout occurs, the function will throw an unhandled exception that propagates up and crashes the test with an unhelpful error message rather than properly reporting the broken link. This is a valid bug that affects test reliability.",2026-01-22T08:21:00.341785+00:00
+posthog/posthog,45659,chore(frontend): Add new capabilities for LemonInputSelect,https://github.com/PostHog/posthog/pull/45659,,"**logic:** `setInputValue` applies `inputTransform` (line 291-294), so when entering edit mode in single-select, the value will be transformed. If the stored value doesn't match the transformed format, this creates inconsistency - e.g., stored value ""Test Value"" becomes ""test-value"" when focused if `inputTransform` lowercases and replaces spaces.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: frontend/src/lib/lemon-ui/LemonInputSelect/LemonInputSelect.tsx
+Line: 426:427
+
+Comment:
+**logic:** `setInputValue` applies `inputTransform` (line 291-294), so when entering edit mode in single-select, the value will be transformed. If the stored value doesn't match the transformed format, this creates inconsistency - e.g., stored value ""Test Value"" becomes ""test-value"" when focused if `inputTransform` lowercases and replaces spaces.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/45659#discussion_r2715909122,,2026-01-22T08:53:08+00:00,logic,medium,"Greptile correctly identifies that in _onFocus (line 424-427), when mode is 'single' and a value exists, it calls setInputValue(getStringKey(values[0])). The setInputValue function (lines 288-294) applies inputTransform if provided, meaning the stored value gets transformed when entering edit mode. This creates an inconsistency where a value like 'Test Value' would become 'test-value' upon focus, which is unexpected behavior and could confuse users or cause data integrity issues.",2026-01-22T10:19:10.903455+00:00
+ever-co/ever-gauzy,9359,fix: upgrade cross-env to v10 and improve env replacement,https://github.com/ever-co/ever-gauzy/pull/9359,,"missing command after `&&` - this script will fail with a syntax error
+
+```suggestion
+		""build:package:ui-config"": ""cross-env NODE_ENV=development NODE_OPTIONS=--max-old-space-size=12288 yarn nx build ui-config --configuration=development"",
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: package.json
+Line: 132:132
+
+Comment:
+missing command after `&&` - this script will fail with a syntax error
+
+```suggestion
+		""build:package:ui-config"": ""cross-env NODE_ENV=development NODE_OPTIONS=--max-old-space-size=12288 yarn nx build ui-config --configuration=development"",
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/ever-co/ever-gauzy/pull/9359#discussion_r2716143666,,2026-01-22T09:52:10+00:00,runtime,medium,"Greptile correctly identified that line 132 has 'cross-env NODE_ENV=development NODE_OPTIONS=--max-old-space-size=12288 && yarn nx build ui-config' with an errant '&&' between the cross-env command and the yarn command. This is incorrect syntax - cross-env sets environment variables for the command that follows it (without &&), so this script would fail because there's nothing before '&&'. Other similar lines in the diff don't have this '&&', confirming this is an inconsistency/bug.",2026-01-22T10:19:10.903548+00:00
