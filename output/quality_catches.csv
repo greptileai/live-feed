@@ -1795,3 +1795,133 @@ Consider adding a guard:
             # Normalize the result and scale back by R: p = R * (p / ||p||)
             p.mul_(R / (p.norm() + eps))
 ```",https://github.com/NVIDIA-NeMo/Emerging-Optimizers/pull/89#discussion_r2714258106,,2026-01-21T20:38:14+00:00,logic,medium,"Greptile correctly identifies that when R (the Frobenius norm of p) is zero, the hyperball update becomes a no-op since `alpha=-lr * R = 0`, and the final multiplication `p.mul_(R / (p.norm() + eps))` will also zero out any update. This is a non-obvious edge case that would silently prevent learning for zero-initialized parameters, and the suggested fallback to SGD is a reasonable fix.",2026-01-21T22:20:14.434943+00:00
+posthog/posthog,45643,fix(comments/discussions): have email link go to correct page,https://github.com/PostHog/posthog/pull/45643,,"**logic:** slug missing `#panel=discussion` hash. should match the pattern in `utils.ts:discussionsSlug()` to auto-open discussion panel
+
+```suggestion
+                    slug: `/replay/${props.recordingId}#panel=discussion`,
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: frontend/src/scenes/session-recordings/player/commenting/playerFrameCommentOverlayLogic.ts
+Line: 134:134
+
+Comment:
+**logic:** slug missing `#panel=discussion` hash. should match the pattern in `utils.ts:discussionsSlug()` to auto-open discussion panel
+
+```suggestion
+                    slug: `/replay/${props.recordingId}#panel=discussion`,
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/45643#discussion_r2714700925,,2026-01-21T23:26:13+00:00,logic,medium,"The PR title says 'have email link go to correct page', and Greptile correctly identifies that the slug is missing the `#panel=discussion` hash fragment that would auto-open the discussion panel when users click the email link. This is a real logic bug that defeats the purpose of the fix - the email link would go to the replay page but wouldn't automatically show the discussion panel as intended.",2026-01-22T00:49:29.086205+00:00
+posthog/posthog,45643,fix(comments/discussions): have email link go to correct page,https://github.com/PostHog/posthog/pull/45643,,"**logic:** slug missing `#panel=discussion` hash. should match the pattern in `utils.ts:discussionsSlug()` to auto-open discussion panel
+
+```suggestion
+                    slug: `/replay/${props.recordingId}#panel=discussion`,
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: frontend/src/scenes/session-recordings/player/commenting/playerFrameCommentOverlayLogic.ts
+Line: 179:179
+
+Comment:
+**logic:** slug missing `#panel=discussion` hash. should match the pattern in `utils.ts:discussionsSlug()` to auto-open discussion panel
+
+```suggestion
+                    slug: `/replay/${props.recordingId}#panel=discussion`,
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/45643#discussion_r2714700947,,2026-01-21T23:26:13+00:00,logic,medium,"The PR title explicitly states the goal is to fix email links to go to the correct page. Greptile correctly identified that the slug is missing the `#panel=discussion` hash fragment, which according to the comment is needed to auto-open the discussion panel - this would directly undermine the PR's intended fix. The pattern should match `discussionsSlug()` utility function to ensure consistent behavior.",2026-01-22T00:49:29.086282+00:00
+posthog/posthog,45643,fix(comments/discussions): have email link go to correct page,https://github.com/PostHog/posthog/pull/45643,,"**logic:** fallback href missing `#panel=discussion` hash. email links won't auto-open discussion panel when slug not provided
+
+```suggestion
+                href = f""{settings.SITE_URL}/replay/{comment.item_id}#panel=discussion""
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: posthog/tasks/email.py
+Line: 754:754
+
+Comment:
+**logic:** fallback href missing `#panel=discussion` hash. email links won't auto-open discussion panel when slug not provided
+
+```suggestion
+                href = f""{settings.SITE_URL}/replay/{comment.item_id}#panel=discussion""
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/45643#discussion_r2714700972,,2026-01-21T23:26:14+00:00,logic,medium,"Greptile correctly identifies that the new fallback URLs for Replay and Notebook scopes are missing the `#panel=discussion` hash fragment that would auto-open the discussion panel. This is a subtle UX bug where email links would take users to the correct page but not automatically show the discussion they were mentioned in, making the mention notification less useful.",2026-01-22T00:49:29.086340+00:00
+posthog/posthog,45647,feat(insights): allow goal line color to be changed,https://github.com/PostHog/posthog/pull/45647,,"**logic:** The color picker UI correctly updates `borderColor`, but the new LineGraph implementation in `frontend/src/queries/nodes/DataVisualization/Components/Charts/LineGraph.tsx` (lines 214-272) doesn't use the `borderColor` property when rendering goal line annotations. The old LineGraph at `frontend/src/scenes/insights/views/LineGraph/LineGraph.tsx` (line 707) correctly uses `borderColor`, but if the new LineGraph is being used, color changes won't appear visually. The new LineGraph needs to add `borderColor` to its annotation configuration.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: frontend/src/lib/components/GoalLinesList.tsx
+Line: 31:46
+
+Comment:
+**logic:** The color picker UI correctly updates `borderColor`, but the new LineGraph implementation in `frontend/src/queries/nodes/DataVisualization/Components/Charts/LineGraph.tsx` (lines 214-272) doesn't use the `borderColor` property when rendering goal line annotations. The old LineGraph at `frontend/src/scenes/insights/views/LineGraph/LineGraph.tsx` (line 707) correctly uses `borderColor`, but if the new LineGraph is being used, color changes won't appear visually. The new LineGraph needs to add `borderColor` to its annotation configuration.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/45647#discussion_r2714671574,This makes sense! We have two implementations - for weird legacy reasons. It'd be interesting if you could update both to support this :),2026-01-21T23:11:51+00:00,logic,medium,"Greptile correctly identified that while the UI component updates the borderColor property, the new LineGraph implementation doesn't use it - meaning color changes would only work in the old graph but not the new one. The developer confirmed this is a valid catch by saying 'This makes sense!' and asking for both implementations to be updated.",2026-01-22T00:49:29.086394+00:00
+infisical/infisical,5230,docs: add rate limits section to API reference,https://github.com/Infisical/infisical/pull/5230,,"**logic:** The documented rate limit values don't match the actual implementation. According to the backend code:
+
+- Database schema defaults (`backend/src/db/schemas/rate-limit.ts`): `readRateLimit: 600`, `secretsRateLimit: 60`, `writeRateLimit: 200`
+- Self-hosted defaults (`backend/src/server/config/rateLimiter.ts`): `readLimit: 60`, `secretsLimit: 60`, `writeLimit: 200`
+- Cloud plan defaults (`backend/src/ee/services/license/license-fns.ts`): `readLimit: 60`, `secretsLimit: 40`, `writeLimit: 200`
+
+The statement ""300 for read and secret operations"" doesn't align with any of these values. Please verify which defaults should be documented (cloud vs self-hosted vs database schema) and update accordingly.",https://github.com/Infisical/infisical/pull/5230#discussion_r2714826464,,2026-01-22T00:14:23+00:00,data_integrity,medium,"Greptile correctly identified that the documented rate limits (300 for read/secret, 200 for write) don't match any of the actual implementation values in the codebase. This is a documentation accuracy issue that could mislead users about actual API behavior - the values cited (600, 60, 40, 200 across different configs) don't match what's being documented. While a docs issue, incorrect rate limit documentation can cause real operational problems for API consumers.",2026-01-22T00:49:29.086467+00:00
+nvidia/transformerengine,2477,"Add support for SWA (left, right) with FusedAttention ",https://github.com/NVIDIA/TransformerEngine/pull/2477,,"**syntax:** wrong variable - should be `use_flash_attention_2 = False`
+
+this disables all FlashAttention backends when only FlashAttention 2 should be disabled for sliding window with cross-attention
+
+```suggestion
+            use_flash_attention_2 = False
+```",https://github.com/NVIDIA/TransformerEngine/pull/2477#discussion_r2714819485,,2026-01-22T00:12:11+00:00,logic,medium,"Greptile correctly identified a typo bug - the code sets `use_flash_attention = False` but the variable used throughout the function is `use_flash_attention_2`. This typo means the intended disabling logic won't work, potentially allowing FlashAttention 2 to be used in unsupported configurations. The same bug appears twice in the diff (lines 911 and 935).",2026-01-22T00:49:29.086519+00:00
+nvidia/transformerengine,2477,"Add support for SWA (left, right) with FusedAttention ",https://github.com/NVIDIA/TransformerEngine/pull/2477,,"**syntax:** wrong variable - should be `use_flash_attention_2 = False`
+
+this disables all FlashAttention backends when only FlashAttention 2 should be disabled for ALiBi with cross-attention
+
+```suggestion
+                use_flash_attention_2 = False
+```",https://github.com/NVIDIA/TransformerEngine/pull/2477#discussion_r2714819533,,2026-01-22T00:12:12+00:00,logic,medium,"Greptile correctly identified a typo bug where `use_flash_attention = False` is used instead of `use_flash_attention_2 = False`. This appears in two places in the diff (lines 907 and 936) and would set an undefined/wrong variable, failing to properly disable FlashAttention 2 when intended. This is a subtle typo that could easily be missed by reviewers.",2026-01-22T00:49:29.086605+00:00
+opentech1/openchat,546,perf: speed up Railway builds by excluding unnecessary files,https://github.com/tryosschat/openchat/pull/546,4,"**logic:** `shiki` is listed as a production dependency in `apps/web/package.json:54`, so excluding it will break the runtime application if it's used. Verify if `shiki` is only needed at build time or if it's required at runtime.
+
+**Certainty: 4/5** - The package is definitively in production dependencies, but I cannot find runtime usage in the codebase (might be dynamically imported or used in compiled output).",https://github.com/tryosschat/openchat/pull/546#discussion_r2714778915,,2026-01-22T00:01:18+00:00,runtime,medium,"Greptile correctly identifies that shiki is listed as a production dependency but is being excluded via .railpackignore. This could break the runtime application if shiki is used for syntax highlighting at runtime (common for code display). While Greptile notes uncertainty about runtime usage, flagging the contradiction between production dependency status and exclusion is valuable and non-obvious.",2026-01-22T00:49:29.086646+00:00
+quiltdata/quilt,4700,Bump lodash and @graphql-codegen/cli in /catalog,https://github.com/quiltdata/quilt/pull/4700,,"**logic:** `@graphql-codegen/cli` was upgraded from v1.21.8 to v6.1.1 (skipping v2-v5), but all related plugins remain at v1:
+- `@graphql-codegen/near-operation-file-preset`: ^1.18.6
+- `@graphql-codegen/typed-document-node`: ^1.18.10
+- `@graphql-codegen/typescript`: ^1.23.0
+- `@graphql-codegen/typescript-operations`: ^1.18.4
+- `@graphql-codegen/urql-introspection`: ^1.3.1
+
+This version mismatch may cause compatibility issues when running `npm run gql:generate`. The v6 CLI introduced breaking changes including dropping `@graphql-tools/prisma-loader` and adding `allowPartialOutputs` flag.",https://github.com/quiltdata/quilt/pull/4700#discussion_r2714733114,,2026-01-21T23:41:48+00:00,runtime,high,"Greptile correctly identified that @graphql-codegen/cli was upgraded from v1 to v6 while all related plugins remain at v1.x versions. This is a real compatibility issue - GraphQL Codegen v6 introduced major breaking changes and typically requires matching major versions for its plugins, which would likely cause the gql:generate script to fail at runtime.",2026-01-22T00:49:29.086691+00:00
+nvidia/earth2studio,639,Data sources pygrib migration,https://github.com/NVIDIA/earth2studio/pull/639,,"**logic:** This datetime modification won't persist since `dt` is a local variable. The original `times[i]` in the list won't be updated.
+
+```suggestion
+        for i, dt in enumerate(times):
+            if dt.tzinfo is None:
+                # Enforce UTC timezone
+                times[i] = dt.replace(tzinfo=timezone.utc)
+                dt = times[i]
+```",https://github.com/NVIDIA/earth2studio/pull/639#discussion_r2714658849,,2026-01-21T23:05:35+00:00,logic,medium,"Greptile correctly identified that the loop variable `dt` is reassigned with `dt = dt.replace(tzinfo=timezone.utc)`, but this doesn't modify the original `times` list. The old code used `times[i] = times[i].replace(tzinfo=timezone.utc)` which correctly updated the list. This means timezone-naive datetimes won't actually get their timezone set, potentially causing comparison issues with timezone-aware datetimes later in the code. This is a subtle bug that could easily be missed during refactoring from index-based to iterator-based looping.",2026-01-22T00:49:29.086736+00:00
+nvidia-nemo/emerging-optimizers,89,"added hyperball update step, created a mixin to have different weight update",https://github.com/NVIDIA-NeMo/Emerging-Optimizers/pull/89,,"**logic:** `dim=0` normalizes only along first dimension, not over all elements as the comment says. For Frobenius norm over entire tensor, omit `dim` parameter
+
+```suggestion
+            normalized_update = F.normalize(update.flatten(), p=2, eps=eps).view_as(update)
+```",https://github.com/NVIDIA-NeMo/Emerging-Optimizers/pull/89#discussion_r2714646551,,2026-01-21T22:59:44+00:00,logic,medium,"Greptile correctly identified that `F.normalize(update, p=2, dim=0, eps=eps)` normalizes along dimension 0 only, not over all elements as the comment states ('Frobenius norm over all elements'). For a true Frobenius norm normalization, the tensor should be flattened first or dim should be omitted. This mismatch between code and documented intent would cause incorrect behavior for the hyperball weight update algorithm.",2026-01-22T00:49:29.086778+00:00
