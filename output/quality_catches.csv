@@ -2346,3 +2346,962 @@ Since Terraform passes `AWS_REGION` as an environment variable, remove the hardc
           region: process.env.AWS_REGION,
         });
 ```",https://github.com/axelarnetwork/axelarscan-api/pull/328#discussion_r2717026670,,2026-01-22T13:55:43+00:00,logic,high,"Greptile correctly identifies that hardcoding 'us-east-2' as a fallback region is problematic for multi-region Lambda deployments. If AWS_REGION is not set (which shouldn't happen in Lambda but could in edge cases) or if there's any configuration issue, the SDK would attempt to fetch secrets from us-east-2 instead of the Lambda's actual region, causing silent failures. This is a subtle deployment bug that could cause production issues in non-us-east-2 regions.",2026-01-22T14:27:08.924981+00:00
+mellanox/libxlio,554,[skip CI][CI] issue: HPCINFRA-4019 Add CI chaos testing,https://github.com/Mellanox/libxlio/pull/554,,"**logic:** Regex `(\w+)` only captures word characters, missing step names with spaces or special characters like ""Compiler (clang-9.0.1)"", ""Test (Worker thread mode)"", ""Valgrind (R2C)"". These steps will be excluded from expected failures even if configured in `chaos_config.yaml`.
+
+```suggestion
+      def expected_failures = (readFile('.ci/chaos/chaos_config.yaml') =~ /- step: (.+)/).collect { it[1].trim() } as Set
+```",https://github.com/Mellanox/libxlio/pull/554#discussion_r2717230129,,2026-01-22T14:48:40+00:00,logic,medium,"Greptile correctly identifies that the original regex `(\w+)` would only match word characters (alphanumeric and underscore), which would fail to capture step names containing spaces, parentheses, or other special characters like 'Compiler (clang-9.0.1)' or 'Test (Worker thread mode)'. The suggested fix using `(.+)` would correctly capture the entire step name. This is a non-obvious bug that would cause silent failures in the chaos testing logic by excluding legitimate expected failures from comparison.",2026-01-22T16:29:59.027677+00:00
+mellanox/libxlio,554,[skip CI][CI] issue: HPCINFRA-4019 Add CI chaos testing,https://github.com/Mellanox/libxlio/pull/554,,"**logic:** Awk pattern `substr($0, index($0,$3))==step` may not correctly match multi-word step names. The pattern extracts from `$3` onward but if step names contain spaces like ""Compiler (clang-9.0.1)"", this comparison may fail to match correctly.
+
+```suggestion
+    patches=$(awk -v step=""$step_name"" '/- file:/ {file=$3} /- step:/ { sub(/^[[:space:]]*- step:[[:space:]]*/, """"); if ($0 == step) print file }' ""${WORKSPACE}/.ci/chaos/chaos_config.yaml"")
+```
+
+ Have you tested this with step names containing parentheses or multiple words to verify the awk pattern matches correctly?",https://github.com/Mellanox/libxlio/pull/554#discussion_r2717230189,,2026-01-22T14:48:40+00:00,logic,medium,"Greptile correctly identifies that the awk pattern `substr($0, index($0,$3))==step` will fail for step names with spaces or special characters like 'Compiler (clang-9.0.1)' because `$3` only captures the first word after 'step:'. The suggested fix using `sub()` to strip the prefix and compare the full remaining line is a valid solution for this edge case that could cause chaos patches to silently fail to apply.",2026-01-22T16:29:59.027744+00:00
+mellanox/libxlio,554,[skip CI][CI] issue: HPCINFRA-4019 Add CI chaos testing,https://github.com/Mellanox/libxlio/pull/554,,**logic:** Hardcoded build number `2689` should be dynamic. This will always download artifacts from the same old build instead of the actual chaos test run. Need to retrieve the build number from the triggered job or use `${env.BUILD_NUMBER}`,https://github.com/Mellanox/libxlio/pull/554#discussion_r2717356951,,2026-01-22T15:17:37+00:00,logic,high,"Greptile correctly identified that the URL on line 22 has a hardcoded build number '2689' instead of using a dynamic variable like ${env.BUILD_NUMBER}. This means every chaos test run will always download artifacts from build 2689 rather than the current build's artifacts, completely breaking the intended functionality of checking the actual chaos test results.",2026-01-22T16:29:59.027790+00:00
+elephant-xyz/counties-trasform-scripts,666,Update nassau transform scripts,https://github.com/elephant-xyz/Counties-trasform-scripts/pull/666,,"**logic:** `first_name` and `last_name` can be null after validation, but schema requires non-null strings. The removed validation logic prevented creating person objects with null names, but now persons are always created even when names are invalid.
+
+```suggestion
+      const person = {
+        source_http_request: {
+          method: ""GET"",
+          url: seed.source_http_request.url
+        },
+        request_identifier: parcelIdentifier || seed.parcel_id || """",
+        birth_date: null,
+        first_name: firstName || """",
+        last_name: lastName || """",
+        middle_name: middleName,
+        prefix_name: parsed.prefix ? validatePrefix(parsed.prefix) : null,
+        suffix_name: parsed.suffix ? validateSuffix(parsed.suffix) : null,
+        us_citizenship_status: null,
+        veteran_status: null
+      };
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: nassau/scripts/data_extractor.js
+Line: 2254:2268
+
+Comment:
+**logic:** `first_name` and `last_name` can be null after validation, but schema requires non-null strings. The removed validation logic prevented creating person objects with null names, but now persons are always created even when names are invalid.
+
+```suggestion
+      const person = {
+        source_http_request: {
+          method: ""GET"",
+          url: seed.source_http_request.url
+        },
+        request_identifier: parcelIdentifier || seed.parcel_id || """",
+        birth_date: null,
+        first_name: firstName || """",
+        last_name: lastName || """",
+        middle_name: middleName,
+        prefix_name: parsed.prefix ? validatePrefix(parsed.prefix) : null,
+        suffix_name: parsed.suffix ? validateSuffix(parsed.suffix) : null,
+        us_citizenship_status: null,
+        veteran_status: null
+      };
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/elephant-xyz/Counties-trasform-scripts/pull/666#discussion_r2717311781,,2026-01-22T15:06:17+00:00,data_integrity,high,"Greptile correctly identifies that the refactored `validatePersonName` function now returns the original value (including null) instead of validating and rejecting invalid names. The old code had guards like `if (firstName && lastName && typeof firstName === 'string'...)` that prevented creating person objects with null names, but these were removed. Now persons are created with potentially null `first_name`/`last_name` fields, which would violate a schema requiring non-null strings and cause data integrity issues.",2026-01-22T16:29:59.027810+00:00
+elephant-xyz/counties-trasform-scripts,666,Update nassau transform scripts,https://github.com/elephant-xyz/Counties-trasform-scripts/pull/666,,"**logic:** `validatePersonName` no longer validates `first_name`, `last_name`, or `middle_name` against the name pattern, only logs warnings and returns the value unchanged (even if null/empty). This allows invalid names to pass through unchecked.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: nassau/scripts/data_extractor.js
+Line: 1499:1514
+
+Comment:
+**logic:** `validatePersonName` no longer validates `first_name`, `last_name`, or `middle_name` against the name pattern, only logs warnings and returns the value unchanged (even if null/empty). This allows invalid names to pass through unchecked.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/elephant-xyz/Counties-trasform-scripts/pull/666#discussion_r2717311815,,2026-01-22T15:06:18+00:00,logic,medium,"Greptile correctly identifies that the new `validatePersonName` function explicitly skips pattern validation for 'first_name', 'last_name', and 'middle_name' (line 1508-1511), only logging warnings for null/non-string values while returning invalid data unchanged. Combined with removal of downstream validation that previously rejected invalid names (lines 2287-2290 removed), this allows malformed or empty names to be written to output files, breaking data integrity guarantees.",2026-01-22T16:29:59.027855+00:00
+elephant-xyz/counties-trasform-scripts,666,Update nassau transform scripts,https://github.com/elephant-xyz/Counties-trasform-scripts/pull/666,,"**logic:** simplified `formatName` may produce names that don't match schema pattern. The previous version enforced `^[A-Z][a-z]*([ \-',.][A-Za-z][a-z]*)*$` but new version does basic title-casing which could create invalid formats like ""J.R."" becoming ""J R"" or ""O'Brien"" potentially having issues with special character handling.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: nassau/scripts/data_extractor.js
+Line: 1516:1522
+
+Comment:
+**logic:** simplified `formatName` may produce names that don't match schema pattern. The previous version enforced `^[A-Z][a-z]*([ \-',.][A-Za-z][a-z]*)*$` but new version does basic title-casing which could create invalid formats like ""J.R."" becoming ""J R"" or ""O'Brien"" potentially having issues with special character handling.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/elephant-xyz/Counties-trasform-scripts/pull/666#discussion_r2717311849,,2026-01-22T15:06:18+00:00,data_integrity,medium,"Greptile correctly identifies that the new simplified formatName function uses basic title-casing (`.replace(/\b([a-z])/g, (_, ch) => ch.toUpperCase())`) without enforcing the schema pattern. The old version had explicit validation against the pattern and would return null for invalid formats, while the new version could produce names like 'J R' from 'J.R.' due to the sanitization step that replaces '. ' with ' '. This could cause schema validation failures downstream.",2026-01-22T16:29:59.027882+00:00
+elephant-xyz/counties-trasform-scripts,666,Update nassau transform scripts,https://github.com/elephant-xyz/Counties-trasform-scripts/pull/666,,"**logic:** removed filtering of legal designations (L/E, JT/RS, JTWROS, etc.) and parenthetical content like (GUARDIAN), (TRUSTEE). This could result in creating person/company objects with invalid names containing these suffixes.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: nassau/scripts/data_extractor.js
+Line: 1584:1598
+
+Comment:
+**logic:** removed filtering of legal designations (L/E, JT/RS, JTWROS, etc.) and parenthetical content like (GUARDIAN), (TRUSTEE). This could result in creating person/company objects with invalid names containing these suffixes.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/elephant-xyz/Counties-trasform-scripts/pull/666#discussion_r2717311924,,2026-01-22T15:06:19+00:00,data_integrity,medium,"Greptile correctly identifies that the diff removes important name sanitization logic that stripped legal designations (L/E, JT/RS, JTWROS, etc.) and parenthetical content like (GUARDIAN), (TRUSTEE) from owner names. The removed code (lines 1607-1620 in the old version) cleaned these suffixes before creating person/company objects. Without this filtering, names like 'JOHN DOE L/E' or 'JANE SMITH (TRUSTEE)' will be stored as-is, creating invalid person records with legal terminology embedded in the names.",2026-01-22T16:29:59.027951+00:00
+elephant-xyz/counties-trasform-scripts,666,Update nassau transform scripts,https://github.com/elephant-xyz/Counties-trasform-scripts/pull/666,,"**logic:** removed check for company names before splitting by `&`, so company names like ""E3 LAND & MINERALS LLC"" will be incorrectly split into ""E3 LAND"" and ""MINERALS LLC"" as separate owners.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: nassau/scripts/data_extractor.js
+Line: 1584:1590
+
+Comment:
+**logic:** removed check for company names before splitting by `&`, so company names like ""E3 LAND & MINERALS LLC"" will be incorrectly split into ""E3 LAND"" and ""MINERALS LLC"" as separate owners.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/elephant-xyz/Counties-trasform-scripts/pull/666#discussion_r2717311977,,2026-01-22T15:06:20+00:00,logic,medium,"Greptile correctly identified that the code removed the check `if (companyIndicators.test(cleanName))` which previously prevented splitting company names containing '&' (like 'E3 LAND & MINERALS LLC'). The new code unconditionally splits on '&', which would incorrectly create two separate owners from a single company name. This is a real data integrity bug that would be non-obvious to catch in review.",2026-01-22T16:29:59.027983+00:00
+elephant-xyz/counties-trasform-scripts,666,Update nassau transform scripts,https://github.com/elephant-xyz/Counties-trasform-scripts/pull/666,,"**logic:** removed government entity keywords (STATE, COUNTY, CITY, GOVERNMENT, FEDERAL, PUBLIC, MUNICIPAL, DISTRICT, AUTHORITY, COMMISSION, AGENCY, DEPARTMENT, BOARD, LANDS) from company detection, so government-owned parcels will be misclassified as person names.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: nassau/scripts/data_extractor.js
+Line: 1584:1584
+
+Comment:
+**logic:** removed government entity keywords (STATE, COUNTY, CITY, GOVERNMENT, FEDERAL, PUBLIC, MUNICIPAL, DISTRICT, AUTHORITY, COMMISSION, AGENCY, DEPARTMENT, BOARD, LANDS) from company detection, so government-owned parcels will be misclassified as person names.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/elephant-xyz/Counties-trasform-scripts/pull/666#discussion_r2717312005,,2026-01-22T15:06:21+00:00,logic,medium,"Greptile correctly identified that the companyIndicators regex was changed from including government-related keywords (STATE, COUNTY, CITY, GOVERNMENT, FEDERAL, PUBLIC, MUNICIPAL, DISTRICT, AUTHORITY, COMMISSION, AGENCY, DEPARTMENT, BOARD, LANDS) to excluding them. This means government-owned properties like 'CITY OF NASSAU' or 'STATE OF NEW YORK' will now be incorrectly parsed as person names instead of being recognized as companies/organizations, causing data integrity issues.",2026-01-22T16:29:59.028010+00:00
+elephant-xyz/counties-trasform-scripts,666,Update nassau transform scripts,https://github.com/elephant-xyz/Counties-trasform-scripts/pull/666,,"**logic:** removed validation for single-letter names and special parsing logic for 2-token uppercase names. This could result in parsing ""MARY A"" as a complete name when it's likely ""FIRST MIDDLE"" without a last name.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: nassau/scripts/ownerMapping.js
+Line: 197:214
+
+Comment:
+**logic:** removed validation for single-letter names and special parsing logic for 2-token uppercase names. This could result in parsing ""MARY A"" as a complete name when it's likely ""FIRST MIDDLE"" without a last name.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/elephant-xyz/Counties-trasform-scripts/pull/666#discussion_r2717312177,,2026-01-22T15:06:24+00:00,logic,medium,"Greptile correctly identifies that the removed validation logic (lines 203-225 in old code) prevented parsing 2-token uppercase names like 'MARY A' as valid person names when they're likely incomplete (FIRST MIDDLE without last name). The new simplified code at lines 197-203 would incorrectly parse 'MARY A' as last='MARY', first='A', producing invalid person records with single-letter first names.",2026-01-22T16:29:59.028039+00:00
+elephant-xyz/counties-trasform-scripts,666,Update nassau transform scripts,https://github.com/elephant-xyz/Counties-trasform-scripts/pull/666,,"**logic:** changed current owner extraction to use `.text()` instead of parsing HTML with `<br>` splits. This could miss multiple owners on the same line that were separated by `<br>` tags.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: nassau/scripts/ownerMapping.js
+Line: 247:260
+
+Comment:
+**logic:** changed current owner extraction to use `.text()` instead of parsing HTML with `<br>` splits. This could miss multiple owners on the same line that were separated by `<br>` tags.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/elephant-xyz/Counties-trasform-scripts/pull/666#discussion_r2717312215,,2026-01-22T15:06:24+00:00,logic,medium,"Greptile correctly identified that the old code split HTML by `<br>` tags to extract multiple owner lines separately, while the new code uses `.text()` which collapses all text into a single string. This means if multiple owners are listed with `<br>` separators in the HTML, they will now be concatenated into one string rather than being processed as separate owners, potentially causing data loss or incorrect owner parsing.",2026-01-22T16:29:59.028064+00:00
+elephant-xyz/counties-trasform-scripts,692,Update osceola transform scripts,https://github.com/elephant-xyz/Counties-trasform-scripts/pull/692,,"**syntax:** Typo: 'MANSFORD/GAMBLE' should likely be 'MANSARD/GAMBREL'
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: osceola/scripts/structureMapping.js
+Line: 41:41
+
+Comment:
+**syntax:** Typo: 'MANSFORD/GAMBLE' should likely be 'MANSARD/GAMBREL'
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/elephant-xyz/Counties-trasform-scripts/pull/692#discussion_r2717304849,,2026-01-22T15:04:31+00:00,data_integrity,medium,"Greptile correctly identified a typo in the mapping key 'MANSFORD/GAMBLE' which should be 'MANSARD/GAMBREL' - these are standard architectural terms for roof designs. This would cause data transformation failures when the source data contains the correct spelling, leading to incorrect null values being returned instead of the proper mapping.",2026-01-22T16:29:59.028088+00:00
+elephant-xyz/counties-trasform-scripts,690,Update highlands transform scripts,https://github.com/elephant-xyz/Counties-trasform-scripts/pull/690,,"**logic:** This logic always sets exterior2 to null regardless of the exterior2Raw value. The condition checks if exterior2Raw contains 'none' but both branches return null.
+
+```suggestion
+  const exterior2 = /none/i.test(exterior2Raw) ? null : mapExteriorWallMaterial(exterior2Raw);
+```
+
+ Should exterior2 map to a specific material when exterior2Raw doesn't contain 'none'?
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: highlands/scripts/structureMapping.js
+Line: 147:148
+
+Comment:
+**logic:** This logic always sets exterior2 to null regardless of the exterior2Raw value. The condition checks if exterior2Raw contains 'none' but both branches return null.
+
+```suggestion
+  const exterior2 = /none/i.test(exterior2Raw) ? null : mapExteriorWallMaterial(exterior2Raw);
+```
+
+ Should exterior2 map to a specific material when exterior2Raw doesn't contain 'none'?
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/elephant-xyz/Counties-trasform-scripts/pull/690#discussion_r2717304460,,2026-01-22T15:04:26+00:00,logic,medium,"Greptile correctly identified that line 148 `const exterior2 = /none/i.test(exterior2Raw) ? null : null;` always evaluates to null regardless of the condition result - both the truthy and falsy branches return null. This is clearly a logic bug where the developer likely meant to map the value when it's not 'none', causing data loss for exterior wall secondary materials.",2026-01-22T16:29:59.028118+00:00
+elephant-xyz/counties-trasform-scripts,690,Update highlands transform scripts,https://github.com/elephant-xyz/Counties-trasform-scripts/pull/690,,"**logic:** The ampersand handling assumes `&` indicates joint ownership but treats the entire remainder after the first token as a single last name, which may not work correctly for names like 'John & Jane Smith'. How should joint ownership cases like 'John Smith & Jane Doe' be handled?
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: highlands/scripts/ownerMapping.js
+Line: 193:211
+
+Comment:
+**logic:** The ampersand handling assumes `&` indicates joint ownership but treats the entire remainder after the first token as a single last name, which may not work correctly for names like 'John & Jane Smith'. How should joint ownership cases like 'John Smith & Jane Doe' be handled?
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/elephant-xyz/Counties-trasform-scripts/pull/690#discussion_r2717304600,,2026-01-22T15:04:28+00:00,logic,medium,"Greptile correctly identifies a logic flaw in the ampersand handling code. When processing 'John & Jane Smith', the code replaces '&' with space to get 'John Jane Smith', then takes parts[0]='John' as first_name and parts.slice(1).join(' ')='Jane Smith' as last_name - treating 'Jane Smith' as a single last name rather than recognizing Jane as a separate person or middle name. This would produce incorrect owner records for joint ownership scenarios which are common in property records.",2026-01-22T16:29:59.028148+00:00
+elephant-xyz/counties-trasform-scripts,682,Update hendry transform scripts,https://github.com/elephant-xyz/Counties-trasform-scripts/pull/682,,"**logic:** Undefined variables assigned but never returned or used
+
+```suggestion
+  if (cooling_system_type === ""CentralAir"") {
+    return {
+      cooling_system_type,
+      heating_system_type,
+      hvac_system_configuration: ""SplitSystem"",
+      hvac_equipment_component: ""CondenserAndAirHandler"",
+      hvac_condensing_unit_present: ""Yes""
+    };
+  }
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: hendry/scripts/utilityMapping.js
+Line: 93:97
+
+Comment:
+**logic:** Undefined variables assigned but never returned or used
+
+```suggestion
+  if (cooling_system_type === ""CentralAir"") {
+    return {
+      cooling_system_type,
+      heating_system_type,
+      hvac_system_configuration: ""SplitSystem"",
+      hvac_equipment_component: ""CondenserAndAirHandler"",
+      hvac_condensing_unit_present: ""Yes""
+    };
+  }
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/elephant-xyz/Counties-trasform-scripts/pull/682#discussion_r2717302811,,2026-01-22T15:04:04+00:00,logic,medium,"Greptile correctly identified that in the `inferHVAC` function, `hvac_system_configuration`, `hvac_equipment_component`, and `hvac_condensing_unit_present` are assigned without `let`/`const`/`var` declarations (making them implicit globals) and are never returned or used. The function only returns `cooling_system_type` and `heating_system_type`, so the HVAC configuration data is lost. This is a real logic bug that causes data loss and would be easy to miss.",2026-01-22T16:29:59.028176+00:00
+elephant-xyz/counties-trasform-scripts,682,Update hendry transform scripts,https://github.com/elephant-xyz/Counties-trasform-scripts/pull/682,,"**syntax:** `street_number_candidate` not declared with const/let/var
+
+```suggestion
+    const street_number_candidate = parts[0];
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: hendry/scripts/data_extractor.js
+Line: 1624:1624
+
+Comment:
+**syntax:** `street_number_candidate` not declared with const/let/var
+
+```suggestion
+    const street_number_candidate = parts[0];
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/elephant-xyz/Counties-trasform-scripts/pull/682#discussion_r2717303916,,2026-01-22T15:04:18+00:00,runtime,medium,"Greptile correctly identified that `street_number_candidate` on line 1624 is used without being declared with `const`, `let`, or `var`. In strict mode this would cause a ReferenceError, and in non-strict mode it creates an implicit global variable - both are bugs. This is a non-obvious issue that could easily be missed during review.",2026-01-22T16:29:59.028205+00:00
+elephant-xyz/counties-trasform-scripts,682,Update hendry transform scripts,https://github.com/elephant-xyz/Counties-trasform-scripts/pull/682,,"**syntax:** `suffix_candidate` not declared with const/let/var
+
+```suggestion
+    const suffix_candidate = parts[parts.length - 1];
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: hendry/scripts/data_extractor.js
+Line: 1631:1631
+
+Comment:
+**syntax:** `suffix_candidate` not declared with const/let/var
+
+```suggestion
+    const suffix_candidate = parts[parts.length - 1];
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/elephant-xyz/Counties-trasform-scripts/pull/682#discussion_r2717303970,,2026-01-22T15:04:19+00:00,runtime,medium,"Greptile correctly identified that `suffix_candidate` is used without being declared with const/let/var on line 1631. In non-strict mode this creates a global variable, and in strict mode this would throw a ReferenceError. This is a real bug that could cause unexpected behavior or crashes, and is easy to miss during review as it's a subtle syntax issue.",2026-01-22T16:29:59.028226+00:00
+elephant-xyz/counties-trasform-scripts,702,Update lafayette transform scripts,https://github.com/elephant-xyz/Counties-trasform-scripts/pull/702,,"**logic:** URL should reference Lafayette County domain, not Bradford County
+
+```suggestion
+    url: propertySeed?.source_http_request?.url || ""https://www.lafayettepa.com/gis"",
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: lafayette/scripts/data_extractor.js
+Line: 993:993
+
+Comment:
+**logic:** URL should reference Lafayette County domain, not Bradford County
+
+```suggestion
+    url: propertySeed?.source_http_request?.url || ""https://www.lafayettepa.com/gis"",
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/elephant-xyz/Counties-trasform-scripts/pull/702#discussion_r2717302419,,2026-01-22T15:03:59+00:00,data_integrity,medium,"Greptile correctly identified that the code at line 993 uses 'https://www.bradfordappraiser.com/gis' as a fallback URL, but this is a Lafayette County transform script, so it should reference 'https://www.lafayettepa.com/gis'. This is a copy-paste error that would cause incorrect source attribution in the output data. This is non-obvious as it requires understanding the context (the file path indicates Lafayette County scripts) and noticing the hardcoded Bradford County URL.",2026-01-22T16:29:59.028248+00:00
+elephant-xyz/counties-trasform-scripts,702,Update lafayette transform scripts,https://github.com/elephant-xyz/Counties-trasform-scripts/pull/702,,"**logic:** URL should reference Lafayette County domain, not Bradford County
+
+```suggestion
+      propertySeed?.entry_http_request?.url ||
+      ""https://www.lafayettepa.com/gis"",
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: lafayette/scripts/data_extractor.js
+Line: 1002:1003
+
+Comment:
+**logic:** URL should reference Lafayette County domain, not Bradford County
+
+```suggestion
+      propertySeed?.entry_http_request?.url ||
+      ""https://www.lafayettepa.com/gis"",
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/elephant-xyz/Counties-trasform-scripts/pull/702#discussion_r2717302465,,2026-01-22T15:04:00+00:00,logic,medium,"The PR is titled 'Update lafayette transform scripts' and the file is in the lafayette directory, but line 1003 incorrectly references 'https://www.bradfordappraiser.com/gis' instead of 'https://www.lafayettepa.com/gis'. This is a copy-paste error that would cause incorrect source attribution for Lafayette County data, and is non-obvious since it's buried in a fallback URL path.",2026-01-22T16:29:59.028282+00:00
+elephant-xyz/counties-trasform-scripts,709,Update citrus transform scripts,https://github.com/elephant-xyz/Counties-trasform-scripts/pull/709,,"**logic:** `parseInt` with radix 10 can return `NaN` if the string contains only non-numeric characters after replacement, but the ternary operator doesn't check for `NaN`. This means `NaN` values could be assigned instead of `null`.
+
+```suggestion
+    lot_length_feet: (() => {
+      if (!frontage) return null;
+      const parsed = parseInt(String(frontage).replace(/[^0-9.]/g, """"), 10);
+      return isNaN(parsed) ? null : parsed;
+    })(),
+    lot_width_feet: (() => {
+      if (!depth) return null;
+      const parsed = parseInt(String(depth).replace(/[^0-9.]/g, """"), 10);
+      return isNaN(parsed) ? null : parsed;
+    })(),
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: citrus/scripts/data_extractor.js
+Line: 1373:1378
+
+Comment:
+**logic:** `parseInt` with radix 10 can return `NaN` if the string contains only non-numeric characters after replacement, but the ternary operator doesn't check for `NaN`. This means `NaN` values could be assigned instead of `null`.
+
+```suggestion
+    lot_length_feet: (() => {
+      if (!frontage) return null;
+      const parsed = parseInt(String(frontage).replace(/[^0-9.]/g, """"), 10);
+      return isNaN(parsed) ? null : parsed;
+    })(),
+    lot_width_feet: (() => {
+      if (!depth) return null;
+      const parsed = parseInt(String(depth).replace(/[^0-9.]/g, """"), 10);
+      return isNaN(parsed) ? null : parsed;
+    })(),
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/elephant-xyz/Counties-trasform-scripts/pull/709#discussion_r2717301035,,2026-01-22T15:03:42+00:00,data_integrity,medium,"Greptile correctly identifies that the new simplified code removes the NaN check that existed in the original version. The old code had `return parsed >= 1 ? parsed : null` which handled NaN (since NaN >= 1 is false), but the new code `frontage ? parseInt(...) : null` only checks if frontage is truthy, not if the parsed result is valid. If frontage contains only non-numeric characters like 'N/A', parseInt would return NaN which would be stored instead of null, causing data integrity issues.",2026-01-22T16:29:59.028305+00:00
+elephant-xyz/counties-trasform-scripts,663,Update columbia transform scripts,https://github.com/elephant-xyz/Counties-trasform-scripts/pull/663,,"**logic:** inconsistency with `ownerMapping.js` - this no longer strips dots before lookup, but `ownerMapping.js:129` still does. inputs like ""Mr."" won't match here but will in ownerMapping
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: columbia/scripts/data_extractor.js
+Line: 915:915
+
+Comment:
+**logic:** inconsistency with `ownerMapping.js` - this no longer strips dots before lookup, but `ownerMapping.js:129` still does. inputs like ""Mr."" won't match here but will in ownerMapping
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/elephant-xyz/Counties-trasform-scripts/pull/663#discussion_r2717298148,,2026-01-22T15:02:59+00:00,logic,medium,"Greptile correctly identified that the refactored `mapPrefixName` and `mapSuffixName` functions removed the `.replace(/\./g, """")` call that stripped dots before lookup. The old code explicitly handled inputs like ""Mr."" by stripping the dot before the lookup, but the new code using `name?.toUpperCase()` will fail to match ""Mr."" against the key ""MR"" in the prefixes object. This is a real behavioral inconsistency that would cause data processing failures.",2026-01-22T16:29:59.028343+00:00
+elephant-xyz/counties-trasform-scripts,663,Update columbia transform scripts,https://github.com/elephant-xyz/Counties-trasform-scripts/pull/663,,"**logic:** inconsistency with `ownerMapping.js` - this no longer strips dots before lookup, but `ownerMapping.js:157` still does. inputs like ""Jr."" won't match here but will in ownerMapping
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: columbia/scripts/data_extractor.js
+Line: 925:925
+
+Comment:
+**logic:** inconsistency with `ownerMapping.js` - this no longer strips dots before lookup, but `ownerMapping.js:157` still does. inputs like ""Jr."" won't match here but will in ownerMapping
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/elephant-xyz/Counties-trasform-scripts/pull/663#discussion_r2717298183,,2026-01-22T15:02:59+00:00,logic,medium,"Greptile correctly identified that the old code used `name.replace(/\./g, """").toUpperCase()` to strip dots before lookup, but the new code only does `name?.toUpperCase()`. This means inputs like 'Jr.' or 'Dr.' with dots will no longer match their corresponding entries in the suffixes/prefixes objects ('JR', 'DR'), causing a behavioral regression that could lead to data inconsistency between this file and ownerMapping.js.",2026-01-22T16:29:59.028368+00:00
+elephant-xyz/counties-trasform-scripts,703,Update st. lucie transform scripts,https://github.com/elephant-xyz/Counties-trasform-scripts/pull/703,,"**logic:** newly created `currentOwnerRecord` is not added to `currentOwnerRecordsList`
+
+this prevents mailing address creation at line 2204 when owner is parsed from HTML rather than `owner_data.json`. the deleted code block (previously at ~line 2088-2117) added the record to the list, but now this step is missing.
+
+```suggestion
+    if (!currentOwnerRecord && currentOwnerName) {
+      currentOwnerRecord = ensureOwnerRecordFromName(currentOwnerName);
+      registerPropertyRole(currentOwnerRecord, ""current"");
+      // Add to currentOwnerRecordsList to ensure relationships are created
+      if (!currentOwnerRecordIds.has(currentOwnerRecord.id)) {
+        currentOwnerRecordIds.add(currentOwnerRecord.id);
+        currentOwnerRecordsList.push(currentOwnerRecord);
+      }
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: st. lucie/scripts/data_extractor.js
+Line: 2195:2197
+
+Comment:
+**logic:** newly created `currentOwnerRecord` is not added to `currentOwnerRecordsList`
+
+this prevents mailing address creation at line 2204 when owner is parsed from HTML rather than `owner_data.json`. the deleted code block (previously at ~line 2088-2117) added the record to the list, but now this step is missing.
+
+```suggestion
+    if (!currentOwnerRecord && currentOwnerName) {
+      currentOwnerRecord = ensureOwnerRecordFromName(currentOwnerName);
+      registerPropertyRole(currentOwnerRecord, ""current"");
+      // Add to currentOwnerRecordsList to ensure relationships are created
+      if (!currentOwnerRecordIds.has(currentOwnerRecord.id)) {
+        currentOwnerRecordIds.add(currentOwnerRecord.id);
+        currentOwnerRecordsList.push(currentOwnerRecord);
+      }
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/elephant-xyz/Counties-trasform-scripts/pull/703#discussion_r2717295243,,2026-01-22T15:02:18+00:00,logic,medium,"Greptile correctly identifies that the deleted code block (lines 2088-2117 in the old code) was responsible for adding newly created currentOwnerRecord to currentOwnerRecordsList. Without this, when an owner is parsed from HTML and a new record is created, it won't be added to the list, which would prevent downstream operations like mailing address creation that depend on currentOwnerRecordsList containing all owner records.",2026-01-22T16:29:59.028392+00:00
+elephant-xyz/counties-trasform-scripts,703,Update st. lucie transform scripts,https://github.com/elephant-xyz/Counties-trasform-scripts/pull/703,,"**logic:** validation is less strict than before, which could allow non-numeric truthy values
+
+the old code used `typeof value === ""number"" && Number.isFinite(value) && value > 0`, while the new code only checks `value && value > 0`. if `assessedVal`, `justVal`, `buildingVal`, or `landVal` are non-numeric truthy values (e.g., strings, objects), they'll pass through.
+
+```suggestion
+        property_assessed_value_amount:
+          typeof assessedVal === ""number"" && Number.isFinite(assessedVal) && assessedVal > 0 ? assessedVal : null,
+        property_market_value_amount: 
+          typeof justVal === ""number"" && Number.isFinite(justVal) && justVal > 0 ? justVal : null,
+        property_building_amount:
+          typeof buildingVal === ""number"" && Number.isFinite(buildingVal) && buildingVal > 0 ? buildingVal : null,
+        property_land_amount: 
+          typeof landVal === ""number"" && Number.isFinite(landVal) && landVal > 0 ? landVal : null,
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: st. lucie/scripts/data_extractor.js
+Line: 2859:2864
+
+Comment:
+**logic:** validation is less strict than before, which could allow non-numeric truthy values
+
+the old code used `typeof value === ""number"" && Number.isFinite(value) && value > 0`, while the new code only checks `value && value > 0`. if `assessedVal`, `justVal`, `buildingVal`, or `landVal` are non-numeric truthy values (e.g., strings, objects), they'll pass through.
+
+```suggestion
+        property_assessed_value_amount:
+          typeof assessedVal === ""number"" && Number.isFinite(assessedVal) && assessedVal > 0 ? assessedVal : null,
+        property_market_value_amount: 
+          typeof justVal === ""number"" && Number.isFinite(justVal) && justVal > 0 ? justVal : null,
+        property_building_amount:
+          typeof buildingVal === ""number"" && Number.isFinite(buildingVal) && buildingVal > 0 ? buildingVal : null,
+        property_land_amount: 
+          typeof landVal === ""number"" && Number.isFinite(landVal) && landVal > 0 ? landVal : null,
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/elephant-xyz/Counties-trasform-scripts/pull/703#discussion_r2717295317,,2026-01-22T15:02:19+00:00,data_integrity,medium,"Greptile correctly identified that the old code used strict type checking (`typeof value === ""number"" && Number.isFinite(value) && value > 0`) while the new code only uses `value && value > 0`. This regression allows non-numeric truthy values (like strings or objects) to pass through validation and be written to the output JSON, potentially causing data integrity issues in downstream processing.",2026-01-22T16:29:59.028440+00:00
+elephant-xyz/counties-trasform-scripts,677,Update pasco transform scripts,https://github.com/elephant-xyz/Counties-trasform-scripts/pull/677,,"**logic:** `livable_floor_area` field has been removed from the property output despite being extracted from the HTML (lines 1759-1769). This represents data loss - living area information is valuable property data that downstream consumers may depend on. If removal is intentional per schema changes, this should be documented in commit message.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: pasco/scripts/data_extractor.js
+Line: 1789:1791
+
+Comment:
+**logic:** `livable_floor_area` field has been removed from the property output despite being extracted from the HTML (lines 1759-1769). This represents data loss - living area information is valuable property data that downstream consumers may depend on. If removal is intentional per schema changes, this should be documented in commit message.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/elephant-xyz/Counties-trasform-scripts/pull/677#discussion_r2717294494,,2026-01-22T15:02:07+00:00,data_integrity,medium,"Greptile correctly identified that `livable_floor_area` was removed from the property output object (line 1791 in the diff shows the removal) while the extraction logic for `livableSqft` (lines 1759-1769 referenced) still exists in the code. This is a data loss issue where extracted data is computed but never written to output, potentially breaking downstream consumers that depend on this field.",2026-01-22T16:29:59.028486+00:00
+elephant-xyz/counties-trasform-scripts,677,Update pasco transform scripts,https://github.com/elephant-xyz/Counties-trasform-scripts/pull/677,,"**logic:** Latitude and longitude fields have been removed from the address object. While mailing_address (lines 2157-2158) retains these fields (set to null), the primary address loses them entirely. This removes geocoding data that was previously available and may break consumers that depend on these fields.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: pasco/scripts/data_extractor.js
+Line: 2125:2131
+
+Comment:
+**logic:** Latitude and longitude fields have been removed from the address object. While mailing_address (lines 2157-2158) retains these fields (set to null), the primary address loses them entirely. This removes geocoding data that was previously available and may break consumers that depend on these fields.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/elephant-xyz/Counties-trasform-scripts/pull/677#discussion_r2717294564,,2026-01-22T15:02:08+00:00,data_integrity,medium,"Greptile correctly identified that the diff removes latitude and longitude fields from the address object (lines 2115-2122 in old code vs lines 2124-2131 in new code). The old code explicitly included these fields with conditional logic from addrSeed, but the new address object completely omits them, which could break downstream consumers expecting geocoding data in the address output.",2026-01-22T16:29:59.028515+00:00
+elephant-xyz/counties-trasform-scripts,671,Update suwannee transform scripts,https://github.com/elephant-xyz/Counties-trasform-scripts/pull/671,,"**logic:** Missing error handling will crash if files don't exist. Other counties (alachua, dixie, liberty) wrap these in try-catch blocks since these files are optional.
+
+```suggestion
+    // Owners/utilities/layout must be built from their JSONs
+    let ownerData = {};
+    let utilitiesData = {};
+    let structuresData = {};
+    let layoutData = {};
+    try {
+      ownerData = readJson(path.join(""owners"", ""owner_data.json""));
+    } catch (e) {}
+    try {
+      utilitiesData = readJson(path.join(""owners"", ""utilities_data.json""));
+    } catch (e) {}
+    try {
+      structuresData = readJson(path.join(""owners"", ""structure_data.json""));
+    } catch (e) {}
+    try {
+      layoutData = readJson(path.join(""owners"", ""layout_data.json""));
+    } catch (e) {}
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: suwannee/scripts/data_extractor.js
+Line: 1579:1582
+
+Comment:
+**logic:** Missing error handling will crash if files don't exist. Other counties (alachua, dixie, liberty) wrap these in try-catch blocks since these files are optional.
+
+```suggestion
+    // Owners/utilities/layout must be built from their JSONs
+    let ownerData = {};
+    let utilitiesData = {};
+    let structuresData = {};
+    let layoutData = {};
+    try {
+      ownerData = readJson(path.join(""owners"", ""owner_data.json""));
+    } catch (e) {}
+    try {
+      utilitiesData = readJson(path.join(""owners"", ""utilities_data.json""));
+    } catch (e) {}
+    try {
+      structuresData = readJson(path.join(""owners"", ""structure_data.json""));
+    } catch (e) {}
+    try {
+      layoutData = readJson(path.join(""owners"", ""layout_data.json""));
+    } catch (e) {}
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/elephant-xyz/Counties-trasform-scripts/pull/671#discussion_r2717292859,,2026-01-22T15:01:46+00:00,runtime,medium,"Greptile correctly identified that the new code directly calls readJson() on optional files without try-catch blocks, which will crash if files don't exist. The diff shows the old code had try-catch blocks with fs.existsSync() checks for these same files, and the new code removes all that safety. This is a real regression that would cause runtime crashes when optional owner/utilities/structures/layout files are missing.",2026-01-22T16:29:59.028542+00:00
+elephant-xyz/counties-trasform-scripts,671,Update suwannee transform scripts,https://github.com/elephant-xyz/Counties-trasform-scripts/pull/671,,"**logic:** Removed conditional check that only wrote owners when sales exist. Now `writeOwners` is always called, but if `ownerData` is empty (due to missing try-catch above), this will create empty owner files.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: suwannee/scripts/data_extractor.js
+Line: 1669:1674
+
+Comment:
+**logic:** Removed conditional check that only wrote owners when sales exist. Now `writeOwners` is always called, but if `ownerData` is empty (due to missing try-catch above), this will create empty owner files.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/elephant-xyz/Counties-trasform-scripts/pull/671#discussion_r2717293051,,2026-01-22T15:01:48+00:00,logic,medium,"Greptile correctly identifies two related issues: (1) The try-catch blocks for reading owner/utility/structure/layout JSON files were removed, so if those files don't exist, readJson will throw and crash the script. (2) The conditional check `if (sales.length > 0)` before calling writeOwners was removed, meaning writeOwners is now always called even when ownerData may be empty (or undefined if readJson failed). This creates potential runtime errors and data integrity issues with empty owner files being written.",2026-01-22T16:29:59.028626+00:00
+elephant-xyz/counties-trasform-scripts,701,Update franklin transform scripts,https://github.com/elephant-xyz/Counties-trasform-scripts/pull/701,,"**logic:** File name can now be empty string if both `instAbbr` and `bookPage` are falsy (previously had fallback to ""Deed Document"").
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: franklin/scripts/data_extractor.js
+Line: 3176:3176
+
+Comment:
+**logic:** File name can now be empty string if both `instAbbr` and `bookPage` are falsy (previously had fallback to ""Deed Document"").
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/elephant-xyz/Counties-trasform-scripts/pull/701#discussion_r2717292603,,2026-01-22T15:01:43+00:00,data_integrity,medium,"Greptile correctly identified that the diff removes the fallback logic (lines 3212-3217 in the old code) that ensured the file name defaulted to 'Deed Document' when both instAbbr and bookPage were falsy. Now line 3176 can produce an empty string, which could cause issues downstream when processing or displaying files with no name.",2026-01-22T16:29:59.028658+00:00
+elephant-xyz/counties-trasform-scripts,678,Update miami dade transform scripts,https://github.com/elephant-xyz/Counties-trasform-scripts/pull/678,,"**logic:** Replacing the comprehensive `propertyTypeMapping` table with a simple switch statement loses critical data. The old mapping returned objects with `ownership_estate_type`, `build_status`, `structure_form`, and `property_usage_type`, but the new code only returns simple strings like `""SingleFamily""` or `""VacantLand""`.
+
+This breaks lines 807-810 where the code tries to access `.ownership_estate_type`, `.build_status`, `.structure_form`, and `.property_usage_type` from `mappedType`, which will be undefined since `mappedType` is now just a string.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: miami dade/scripts/data_extractor.js
+Line: 73:183
+
+Comment:
+**logic:** Replacing the comprehensive `propertyTypeMapping` table with a simple switch statement loses critical data. The old mapping returned objects with `ownership_estate_type`, `build_status`, `structure_form`, and `property_usage_type`, but the new code only returns simple strings like `""SingleFamily""` or `""VacantLand""`.
+
+This breaks lines 807-810 where the code tries to access `.ownership_estate_type`, `.build_status`, `.structure_form`, and `.property_usage_type` from `mappedType`, which will be undefined since `mappedType` is now just a string.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/elephant-xyz/Counties-trasform-scripts/pull/678#discussion_r2717292457,,2026-01-22T15:01:41+00:00,logic,critical,"Greptile correctly identified that the new `mapDorToPropertyType` function returns simple strings like 'SingleFamily' instead of objects, but the code at lines 807-810 (property object creation) still tries to access properties like `.property_type`, `.ownership_estate_type`, `.build_status`, `.structure_form`, and `.property_usage_type` from `mappedType`. This will result in undefined values being written to the property output, breaking the data transformation pipeline.",2026-01-22T16:29:59.028680+00:00
+elephant-xyz/counties-trasform-scripts,678,Update miami dade transform scripts,https://github.com/elephant-xyz/Counties-trasform-scripts/pull/678,,"**logic:** All commercial, industrial, agricultural, and institutional property codes (prefixes 11-99) now return errors instead of being mapped to proper types. The old mapping handled 100+ specific use codes with detailed property classifications - this will cause transformation failures for most non-residential properties.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: miami dade/scripts/data_extractor.js
+Line: 110:180
+
+Comment:
+**logic:** All commercial, industrial, agricultural, and institutional property codes (prefixes 11-99) now return errors instead of being mapped to proper types. The old mapping handled 100+ specific use codes with detailed property classifications - this will cause transformation failures for most non-residential properties.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/elephant-xyz/Counties-trasform-scripts/pull/678#discussion_r2717292499,,2026-01-22T15:01:41+00:00,logic,high,"Greptile correctly identified that the refactored `mapDorToPropertyType` function now returns error objects for prefixes 11-49 (commercial, industrial, agricultural codes) instead of mapping them to proper property types. The old code had a comprehensive 100+ entry `propertyTypeMapping` array that handled all these codes, but the new switch statement only handles residential prefixes (00-10) and returns errors for everything else, causing transformation failures for non-residential properties.",2026-01-22T16:29:59.028715+00:00
+elephant-xyz/counties-trasform-scripts,678,Update miami dade transform scripts,https://github.com/elephant-xyz/Counties-trasform-scripts/pull/678,,"**logic:** Removed middle name space removal pattern `/[^A-Za-z\-' ]/g` and replaced with `/[^A-Za-z\-']/g` (no space). This removes all spaces from middle names.
+
+Middle names with spaces (e.g., ""Mary Ann"") will become ""MaryAnn""
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: miami dade/scripts/ownerMapping.js
+Line: 135:137
+
+Comment:
+**logic:** Removed middle name space removal pattern `/[^A-Za-z\-' ]/g` and replaced with `/[^A-Za-z\-']/g` (no space). This removes all spaces from middle names.
+
+Middle names with spaces (e.g., ""Mary Ann"") will become ""MaryAnn""
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/elephant-xyz/Counties-trasform-scripts/pull/678#discussion_r2717292539,,2026-01-22T15:01:42+00:00,data_integrity,medium,"Greptile correctly identified that the regex change from `/[^A-Za-z\-' ]/g` to `/[^A-Za-z\-']/g` removes the space character from the allowed characters, meaning middle names with spaces like 'Mary Ann' will be concatenated to 'MaryAnn'. This is a subtle data integrity issue that could easily be missed during review.",2026-01-22T16:29:59.028744+00:00
+elephant-xyz/counties-trasform-scripts,706,Update hernando transform scripts,https://github.com/elephant-xyz/Counties-trasform-scripts/pull/706,,"**syntax:** Syntax error: space between `unnorm.` and `longitude` will cause runtime error
+
+```suggestion
+    longitude: unnorm.longitude ||null,
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: hernando/scripts/data_extractor.js
+Line: 759:759
+
+Comment:
+**syntax:** Syntax error: space between `unnorm.` and `longitude` will cause runtime error
+
+```suggestion
+    longitude: unnorm.longitude ||null,
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/elephant-xyz/Counties-trasform-scripts/pull/706#discussion_r2717291293,,2026-01-22T15:01:23+00:00,runtime,high,"Looking at line 759, the code shows `longitude: unnorm. longitude ||null,` with an errant space between `unnorm.` and `longitude`. This is a genuine syntax error that would cause a runtime crash when JavaScript tries to parse this invalid property access. While simple, this is easy to miss in a large diff with many changes.",2026-01-22T16:29:59.028768+00:00
+elephant-xyz/counties-trasform-scripts,668,Update lee transform scripts,https://github.com/elephant-xyz/Counties-trasform-scripts/pull/668,,"**syntax:** ES6 module syntax (`import`) incompatible with CommonJS used in other files and counties. This will cause runtime errors since Node.js requires either `""type"": ""module""` in `package.json` or `.mjs` extension.
+
+```suggestion
+const fs = require('fs');
+const path = require('path');
+const cheerio = require('cheerio');
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: lee/scripts/structureMapping.js
+Line: 4:6
+
+Comment:
+**syntax:** ES6 module syntax (`import`) incompatible with CommonJS used in other files and counties. This will cause runtime errors since Node.js requires either `""type"": ""module""` in `package.json` or `.mjs` extension.
+
+```suggestion
+const fs = require('fs');
+const path = require('path');
+const cheerio = require('cheerio');
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/elephant-xyz/Counties-trasform-scripts/pull/668#discussion_r2717290847,,2026-01-22T15:01:16+00:00,runtime,high,"The PR changes CommonJS require() syntax to ES6 import syntax. Without 'type': 'module' in package.json or .mjs extension, Node.js will throw 'SyntaxError: Cannot use import statement outside a module' at runtime. This is a real compatibility issue that could easily be missed during code review since the code looks syntactically correct in isolation.",2026-01-22T16:29:59.028799+00:00
+elephant-xyz/counties-trasform-scripts,673,Update bradford transform scripts,https://github.com/elephant-xyz/Counties-trasform-scripts/pull/673,,"**logic:** simplified formatting loses important edge cases - no longer handles trailing periods, abbreviations (e.g., `J.R.`), or validates output format
+
+```suggestion
+function formatNameToPattern(name) {
+  if (!name) return null;
+
+  // Clean and normalize whitespace
+  let cleaned = name.trim().replace(/\s+/g, ' ');
+
+  // Remove trailing periods
+  cleaned = cleaned.replace(/\.+$/, '');
+
+  // Handle abbreviations: ensure letters after periods, hyphens, apostrophes are uppercase
+  // Pattern: letter + special char + letter should be: Upper + special + Upper
+  cleaned = cleaned.replace(/([A-Za-z])([.\-',])([A-Za-z])/g, (match, before, sep, after) => {
+    return before.charAt(0).toUpperCase() + sep + after.charAt(0).toUpperCase();
+  });
+
+  // Split by spaces and format each word part
+  const result = cleaned.split(' ').map(part => {
+    // For parts with special characters (abbreviations), handle carefully
+    if (/[.\-',]/.test(part)) {
+      // Split by special characters and capitalize each segment
+      return part.split(/([.\-',])/).map((segment, idx) => {
+        // If it's a separator, keep it
+        if (/[.\-',]/.test(segment)) return segment;
+        // If it's a letter segment, capitalize first letter
+        if (segment.length > 0) {
+          return segment.charAt(0).toUpperCase() + segment.slice(1).toLowerCase();
+        }
+        return segment;
+      }).join('');
+    } else {
+      // Normal word: capitalize first letter, lowercase rest
+      return part.charAt(0).toUpperCase() + part.slice(1).toLowerCase();
+    }
+  }).join(' ');
+
+  // Validate result matches required pattern: must start with uppercase letter
+  // and only contain letters, spaces, hyphens, apostrophes, commas, periods
+  if (!result || result.length === 0 || !/^[A-Z][a-zA-Z\s\-',.]*$/.test(result)) {
+    return null;
+  }
+
+  return result;
+}
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: bradford/scripts/data_extractor.js
+Line: 64:70
+
+Comment:
+**logic:** simplified formatting loses important edge cases - no longer handles trailing periods, abbreviations (e.g., `J.R.`), or validates output format
+
+```suggestion
+function formatNameToPattern(name) {
+  if (!name) return null;
+
+  // Clean and normalize whitespace
+  let cleaned = name.trim().replace(/\s+/g, ' ');
+
+  // Remove trailing periods
+  cleaned = cleaned.replace(/\.+$/, '');
+
+  // Handle abbreviations: ensure letters after periods, hyphens, apostrophes are uppercase
+  // Pattern: letter + special char + letter should be: Upper + special + Upper
+  cleaned = cleaned.replace(/([A-Za-z])([.\-',])([A-Za-z])/g, (match, before, sep, after) => {
+    return before.charAt(0).toUpperCase() + sep + after.charAt(0).toUpperCase();
+  });
+
+  // Split by spaces and format each word part
+  const result = cleaned.split(' ').map(part => {
+    // For parts with special characters (abbreviations), handle carefully
+    if (/[.\-',]/.test(part)) {
+      // Split by special characters and capitalize each segment
+      return part.split(/([.\-',])/).map((segment, idx) => {
+        // If it's a separator, keep it
+        if (/[.\-',]/.test(segment)) return segment;
+        // If it's a letter segment, capitalize first letter
+        if (segment.length > 0) {
+          return segment.charAt(0).toUpperCase() + segment.slice(1).toLowerCase();
+        }
+        return segment;
+      }).join('');
+    } else {
+      // Normal word: capitalize first letter, lowercase rest
+      return part.charAt(0).toUpperCase() + part.slice(1).toLowerCase();
+    }
+  }).join(' ');
+
+  // Validate result matches required pattern: must start with uppercase letter
+  // and only contain letters, spaces, hyphens, apostrophes, commas, periods
+  if (!result || result.length === 0 || !/^[A-Z][a-zA-Z\s\-',.]*$/.test(result)) {
+    return null;
+  }
+
+  return result;
+}
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/elephant-xyz/Counties-trasform-scripts/pull/673#discussion_r2717289971,,2026-01-22T15:01:04+00:00,logic,medium,"Greptile correctly identified that the simplified `formatNameToPattern` function removes important functionality: 1) no longer removes trailing periods, 2) no longer handles abbreviations like 'J.R.' properly (the new code would convert 'J.R.' to 'J.r.' instead of 'J.R.'), and 3) removes output validation. This is a real regression that could cause incorrect name formatting in production data.",2026-01-22T16:29:59.028827+00:00
+elephant-xyz/counties-trasform-scripts,670,Update seminole transform scripts,https://github.com/elephant-xyz/Counties-trasform-scripts/pull/670,,"**logic:** These files are now required but may not exist, which will cause runtime errors if they're missing
+
+```suggestion
+  const unaddr = fs.existsSync(""unnormalized_address.json"")
+    ? readJSON(""unnormalized_address.json"")
+    : {};
+  const propSeed = fs.existsSync(""property_seed.json"")
+    ? readJSON(""property_seed.json"")
+    : {};
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: seminole/scripts/data_extractor.js
+Line: 2907:2908
+
+Comment:
+**logic:** These files are now required but may not exist, which will cause runtime errors if they're missing
+
+```suggestion
+  const unaddr = fs.existsSync(""unnormalized_address.json"")
+    ? readJSON(""unnormalized_address.json"")
+    : {};
+  const propSeed = fs.existsSync(""property_seed.json"")
+    ? readJSON(""property_seed.json"")
+    : {};
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/elephant-xyz/Counties-trasform-scripts/pull/670#discussion_r2717290074,,2026-01-22T15:01:06+00:00,runtime,high,"The diff shows the code changed from using `fs.existsSync()` checks with fallback to empty objects, to directly calling `readJSON()` without checking if files exist. If these files don't exist, `readJSON()` will throw an error since `fs.readFileSync` fails on missing files. This is a real regression that will cause runtime crashes in cases where these optional files aren't present.",2026-01-22T16:29:59.028898+00:00
+elephant-xyz/counties-trasform-scripts,691,Update duval transform scripts,https://github.com/elephant-xyz/Counties-trasform-scripts/pull/691,,"**logic:** `titleCaseNamePart` now returns null for empty inputs, but the simplified logic removed the validation that checked if first/last names exist before creating person records. If `owner.first_name` or `owner.last_name` are null/empty after `titleCaseNamePart`, invalid person records with null required fields will be written.
+
+```suggestion
+          const firstName = titleCaseNamePart(owner.first_name);
+          const lastName = titleCaseNamePart(owner.last_name);
+          if (!firstName || !lastName) return;
+          const payload = {
+            first_name: firstName,
+            middle_name: titleCaseNamePart(owner.middle_name),
+            last_name: lastName,
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: duval/scripts/data_extractor.js
+Line: 2306:2310
+
+Comment:
+**logic:** `titleCaseNamePart` now returns null for empty inputs, but the simplified logic removed the validation that checked if first/last names exist before creating person records. If `owner.first_name` or `owner.last_name` are null/empty after `titleCaseNamePart`, invalid person records with null required fields will be written.
+
+```suggestion
+          const firstName = titleCaseNamePart(owner.first_name);
+          const lastName = titleCaseNamePart(owner.last_name);
+          if (!firstName || !lastName) return;
+          const payload = {
+            first_name: firstName,
+            middle_name: titleCaseNamePart(owner.middle_name),
+            last_name: lastName,
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/elephant-xyz/Counties-trasform-scripts/pull/691#discussion_r2717289787,,2026-01-22T15:01:02+00:00,data_integrity,medium,"Greptile correctly identified that the old code (lines 2304-2308 in the removed section) validated that firstName and lastName existed before creating person records, but the new code directly uses titleCaseNamePart results in the payload without validation. This could write invalid person records with null first_name or last_name fields when the owner data is missing or empty.",2026-01-22T16:29:59.028926+00:00
+elephant-xyz/counties-trasform-scripts,680,Update st. johns transform scripts,https://github.com/elephant-xyz/Counties-trasform-scripts/pull/680,,"**syntax:** cannot reassign `inputCounty` declared with `const` on line 1931
+
+```suggestion
+  let inputCounty = (unnorm.county_jurisdiction || """").trim();
+  if (!inputCounty) {
+    inputCounty = (unnorm.county_name || """").trim();
+  }
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: st. johns/scripts/data_extractor.js
+Line: 1931:1934
+
+Comment:
+**syntax:** cannot reassign `inputCounty` declared with `const` on line 1931
+
+```suggestion
+  let inputCounty = (unnorm.county_jurisdiction || """").trim();
+  if (!inputCounty) {
+    inputCounty = (unnorm.county_name || """").trim();
+  }
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/elephant-xyz/Counties-trasform-scripts/pull/680#discussion_r2717288898,,2026-01-22T15:00:48+00:00,runtime,critical,"Greptile correctly identified a real JavaScript syntax error at lines 1931-1934. The code declares `inputCounty` with `const` and then tries to reassign it in the if block, which will throw a TypeError at runtime. This would crash the script when attempting to write an address.",2026-01-22T16:29:59.028974+00:00
+elephant-xyz/counties-trasform-scripts,687,Update marion transform scripts,https://github.com/elephant-xyz/Counties-trasform-scripts/pull/687,,"**logic:** This will throw `TypeError: Cannot read properties of null` when `utilsData` or `structuresData` is null. These variables can be null when the corresponding files don't exist (see lines 1042-1043).
+
+```suggestion
+  const util = utilsData ? utilsData[key] : null;
+  const struct = structuresData ? structuresData[key] : null;
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: marion/scripts/data_extractor.js
+Line: 1073:1074
+
+Comment:
+**logic:** This will throw `TypeError: Cannot read properties of null` when `utilsData` or `structuresData` is null. These variables can be null when the corresponding files don't exist (see lines 1042-1043).
+
+```suggestion
+  const util = utilsData ? utilsData[key] : null;
+  const struct = structuresData ? structuresData[key] : null;
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/elephant-xyz/Counties-trasform-scripts/pull/687#discussion_r2717287753,,2026-01-22T15:00:31+00:00,runtime,high,"The diff clearly shows the removal of null checks for `utilsData` and `structuresData`. Looking at the diff, the original code had `utilsData ? utilsData[key] : null` which safely handled null cases. The change removes these guards, making the code vulnerable to TypeError when these variables are null (which can happen when corresponding files don't exist). This is a real regression bug that would cause crashes and is non-obvious since it requires understanding the data flow from earlier file loading logic.",2026-01-22T16:29:59.028999+00:00
