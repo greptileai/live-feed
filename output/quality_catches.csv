@@ -2200,3 +2200,149 @@ Comment:
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/useautumn/autumn/pull/613#discussion_r2716521773,,2026-01-22T11:32:38+00:00,logic,medium,"Greptile correctly identified that the PR adds a `successUrl` parameter to the interface but never uses `mergedParams.successUrl` in the logic - instead it goes straight to checking `org?.success_url`. This means any explicit `successUrl` passed to the function will be completely ignored, which contradicts the PR's stated purpose of 'attach on dashboard respects success url'. This is a real functional bug that's easy to miss.",2026-01-22T12:26:40.689739+00:00
+posthog/posthog,45693,feat(ph-ai): edit survey,https://github.com/PostHog/posthog/pull/45693,,"**logic:** These two lines are leftover from the removed `test_arun_impl_handles_llm_failure` test and don't belong in `test_edit_survey_stop_and_archive`. This test is for editing surveys, not analyzing them, so checking for `analysis_failed` error doesn't make sense here.
+
+```suggestion
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: products/surveys/backend/test_max_tools.py
+Line: 1086:1087
+
+Comment:
+**logic:** These two lines are leftover from the removed `test_arun_impl_handles_llm_failure` test and don't belong in `test_edit_survey_stop_and_archive`. This test is for editing surveys, not analyzing them, so checking for `analysis_failed` error doesn't make sense here.
+
+```suggestion
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/45693#discussion_r2717076137,,2026-01-22T14:09:00+00:00,logic,low,"Greptile correctly identified that the last two lines (checking for 'analysis_failed' error) are leftover from a deleted test `test_arun_impl_handles_llm_failure` that was removed in this diff. These lines make no sense in `test_edit_survey_stop_and_archive` which tests survey editing, not analysis. This is a real code artifact that would cause test confusion and potentially mask real failures.",2026-01-22T14:27:08.924616+00:00
+posthog/posthog,45687,feat(data-imports): Add warehouse pipeline load consumer service (pipelineV3),https://github.com/PostHog/posthog/pull/45687,,"**logic:** Silent failure on Redis unavailability leads to potential data duplication. When Redis is unavailable, the function returns `False`, causing all batches to be reprocessed. This violates the idempotency guarantee and could lead to duplicate data in Delta Lake.
+
+```suggestion
+@contextmanager
+def _get_redis_client():
+    """"""Get a Redis client for the data warehouse Redis instance.""""""
+    if not settings.DATA_WAREHOUSE_REDIS_HOST or not settings.DATA_WAREHOUSE_REDIS_PORT:
+        raise Exception(
+            ""Missing env vars for warehouse pipelines: DATA_WAREHOUSE_REDIS_HOST or DATA_WAREHOUSE_REDIS_PORT""
+        )
+
+    redis_client = get_client(f""redis://{settings.DATA_WAREHOUSE_REDIS_HOST}:{settings.DATA_WAREHOUSE_REDIS_PORT}/"")
+    
+    try:
+        redis_client.ping()
+    except Exception as e:
+        logger.exception(""redis_connection_failed"")
+        capture_exception(e)
+        raise Exception(""Redis unavailable - cannot guarantee idempotency"") from e
+
+    try:
+        yield redis_client
+    finally:
+        pass
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: posthog/temporal/data_imports/pipelines/pipeline_v3/load/idempotency.py
+Line: 16:31
+
+Comment:
+**logic:** Silent failure on Redis unavailability leads to potential data duplication. When Redis is unavailable, the function returns `False`, causing all batches to be reprocessed. This violates the idempotency guarantee and could lead to duplicate data in Delta Lake.
+
+```suggestion
+@contextmanager
+def _get_redis_client():
+    """"""Get a Redis client for the data warehouse Redis instance.""""""
+    if not settings.DATA_WAREHOUSE_REDIS_HOST or not settings.DATA_WAREHOUSE_REDIS_PORT:
+        raise Exception(
+            ""Missing env vars for warehouse pipelines: DATA_WAREHOUSE_REDIS_HOST or DATA_WAREHOUSE_REDIS_PORT""
+        )
+
+    redis_client = get_client(f""redis://{settings.DATA_WAREHOUSE_REDIS_HOST}:{settings.DATA_WAREHOUSE_REDIS_PORT}/"")
+    
+    try:
+        redis_client.ping()
+    except Exception as e:
+        logger.exception(""redis_connection_failed"")
+        capture_exception(e)
+        raise Exception(""Redis unavailable - cannot guarantee idempotency"") from e
+
+    try:
+        yield redis_client
+    finally:
+        pass
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/45687#discussion_r2716812174,,2026-01-22T12:58:24+00:00,data_integrity,high,"Greptile correctly identifies that when Redis connection fails, the exception is caught and swallowed (lines 30-31), yielding `redis_client = None`. Then in `is_batch_already_processed()` (line 46), when `redis_client is None`, it returns `False`, which means batches will be reprocessed even if they were already processed - violating the idempotency guarantee and causing data duplication. The TODO comment on line 46 even acknowledges this design decision is questionable.",2026-01-22T14:27:08.924702+00:00
+posthog/posthog,45687,feat(data-imports): Add warehouse pipeline load consumer service (pipelineV3),https://github.com/PostHog/posthog/pull/45687,,"**logic:** First batch overwrites table only when `not is_resume`, but if a previous run failed after writing some batches and Redis lost the idempotency keys (after TTL expiry), reprocessing would skip overwriting and append to corrupted data.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: posthog/temporal/data_imports/pipelines/pipeline_v3/load/processor.py
+Line: 209:211
+
+Comment:
+**logic:** First batch overwrites table only when `not is_resume`, but if a previous run failed after writing some batches and Redis lost the idempotency keys (after TTL expiry), reprocessing would skip overwriting and append to corrupted data.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/45687#discussion_r2716812676,,2026-01-22T12:58:34+00:00,data_integrity,high,"Greptile correctly identifies a real edge case: if a previous run failed after writing batches and Redis idempotency keys expire (TTL), reprocessing batch_index=0 with is_resume=False would overwrite, but if is_resume=True persists incorrectly or batch_index > 0 processes first after key expiry, it would append to potentially corrupted state. This is a subtle data integrity issue in the idempotency/recovery logic that could lead to corrupted data warehouse tables.",2026-01-22T14:27:08.924808+00:00
+twentyhq/twenty,17310,Refactor workspace migration runner exception handling,https://github.com/twentyhq/twenty/pull/17310,,"**logic:** `actions.reverse()` mutates the original array. If the rollback fails partway through, retrying could execute actions in wrong order.
+
+```suggestion
+      const invertedActions = [...actions].reverse();
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/twenty-server/src/engine/workspace-manager/workspace-migration/workspace-migration-runner/services/workspace-migration-runner.service.ts
+Line: 235:235
+
+Comment:
+**logic:** `actions.reverse()` mutates the original array. If the rollback fails partway through, retrying could execute actions in wrong order.
+
+```suggestion
+      const invertedActions = [...actions].reverse();
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/twentyhq/twenty/pull/17310#discussion_r2716843628,,2026-01-22T13:07:19+00:00,logic,medium,"Greptile correctly identified that `actions.reverse()` mutates the original array. The diff shows the fix was indeed applied (line 235 shows `const invertedActions = [...actions].reverse();`), confirming this was a real bug. If a retry occurred after a partial rollback failure, the mutated array would be in the wrong order, potentially causing data integrity issues during workspace migrations.",2026-01-22T14:27:08.924842+00:00
+mellanox/libxlio,554,[skip CI][CI] issue: HPCINFRA-4019 Add CI chaos testing,https://github.com/Mellanox/libxlio/pull/554,,**logic:** Missing the actual step that triggers the main CI job with `do_chaos=true`. The chaos launcher should have a step that calls `build job: env.chaos_ci_job` before checking results. Currently this only checks results but never triggers the chaos test run,https://github.com/Mellanox/libxlio/pull/554#discussion_r2717050202,,2026-01-22T14:01:30+00:00,logic,high,"Greptile correctly identifies that this CI job only has a 'Check Results and Send Email' step that downloads and analyzes results from a hardcoded build URL (2688), but never actually triggers the chaos test run itself. The job references `env.chaos_ci_job` but never uses it to launch a build. This is a critical logic bug that would cause the chaos testing pipeline to never actually run tests.",2026-01-22T14:27:08.924871+00:00
+mellanox/libxlio,554,[skip CI][CI] issue: HPCINFRA-4019 Add CI chaos testing,https://github.com/Mellanox/libxlio/pull/554,,"**logic:** Hardcoded build number `2688` should use a variable like `${env.BUILD_NUMBER}` or be retrieved dynamically from the triggered CI job.
+
+<sub>Note: If this suggestion doesn't match your team's coding style, reply to this and let me know. I'll remember it for next time!</sub>",https://github.com/Mellanox/libxlio/pull/554#discussion_r2717064065,,2026-01-22T14:05:27+00:00,logic,high,"Greptile correctly identified that the URL contains a hardcoded build number '2688' which would always fetch artifacts from that specific build instead of the current build. This is clearly a bug that would cause the chaos test to always check results from an old build rather than the current one, making the entire test meaningless. This is non-obvious because it's buried in a long URL string and could easily be overlooked.",2026-01-22T14:27:08.924927+00:00
+axelarnetwork/axelarscan-api,328,"Automate deployments, use secrets for Indexer credentials",https://github.com/axelarnetwork/axelarscan-api/pull/328,,"**logic:** `AWS_REGION` defaults to `us-east-2` if the environment variable is not set. However, Lambda is deployed to multiple regions via Terraform. If Lambda runs in a different region (e.g., eu-west-1), the Secrets Manager SDK will attempt to fetch secrets from the wrong region, causing GetSecretValue to fail.
+
+Since Terraform passes `AWS_REGION` as an environment variable (see Terraform `main.tf` line 102-103), remove the hardcoded fallback to ensure the Lambda's actual region is always used.
+
+```suggestion
+        const client = new SecretsManagerClient({
+          region: process.env.AWS_REGION,
+        });
+```
+
+If `AWS_REGION` is truly missing in some cases, that's a separate Terraform configuration issue that should be fixed at the source.",https://github.com/axelarnetwork/axelarscan-api/pull/328#discussion_r2716996694,,2026-01-22T13:48:18+00:00,logic,high,"Greptile correctly identifies a multi-region deployment bug: when Lambda runs in eu-west-1 but AWS_REGION isn't set, the hardcoded 'us-east-2' fallback would cause secrets retrieval to fail since secrets are stored regionally. This is a real operational bug that's non-obvious and requires understanding the deployment architecture.",2026-01-22T14:27:08.924951+00:00
+axelarnetwork/axelarscan-api,328,"Automate deployments, use secrets for Indexer credentials",https://github.com/axelarnetwork/axelarscan-api/pull/328,,"**logic:** `AWS_REGION` defaults to `us-east-2`, but Lambda is deployed to multiple regions via Terraform. If Lambda runs in a different region (e.g., `eu-west-1`), the Secrets Manager SDK will attempt to fetch secrets from the wrong region, causing `GetSecretValue` to fail.
+
+Since Terraform passes `AWS_REGION` as an environment variable, remove the hardcoded fallback to ensure the Lambda's actual region is always used. If `AWS_REGION` is not set, that's a Terraform configuration issue that should be fixed at the source.
+
+```suggestion
+        const client = new SecretsManagerClient({
+          region: process.env.AWS_REGION,
+        });
+```",https://github.com/axelarnetwork/axelarscan-api/pull/328#discussion_r2717026670,,2026-01-22T13:55:43+00:00,logic,high,"Greptile correctly identifies that hardcoding 'us-east-2' as a fallback region is problematic for multi-region Lambda deployments. If AWS_REGION is not set (which shouldn't happen in Lambda but could in edge cases) or if there's any configuration issue, the SDK would attempt to fetch secrets from us-east-2 instead of the Lambda's actual region, causing silent failures. This is a subtle deployment bug that could cause production issues in non-us-east-2 regions.",2026-01-22T14:27:08.924981+00:00
