@@ -3305,3 +3305,219 @@ Comment:
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/elephant-xyz/Counties-trasform-scripts/pull/687#discussion_r2717287753,,2026-01-22T15:00:31+00:00,runtime,high,"The diff clearly shows the removal of null checks for `utilsData` and `structuresData`. Looking at the diff, the original code had `utilsData ? utilsData[key] : null` which safely handled null cases. The change removes these guards, making the code vulnerable to TypeError when these variables are null (which can happen when corresponding files don't exist). This is a real regression bug that would cause crashes and is non-obvious since it requires understanding the data flow from earlier file loading logic.",2026-01-22T16:29:59.028999+00:00
+posthog/posthog,45726,chore: Clear all existing temporary tokens,https://github.com/PostHog/posthog/pull/45726,,"**syntax:** retrieve User model using apps parameter
+
+The User model should be retrieved using apps.get_model within the function instead of importing from django.db.models at the top. This ensures the migration uses the correct historical state of the model. See other migrations like 0906 or 0929 for the correct pattern.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: posthog/migrations/0983_clear_temporary_tokens.py
+Line: 9:9
+
+Comment:
+**syntax:** retrieve User model using apps parameter
+
+The User model should be retrieved using apps.get_model within the function instead of importing from django.db.models at the top. This ensures the migration uses the correct historical state of the model. See other migrations like 0906 or 0929 for the correct pattern.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/45726#discussion_r2717971537,,2026-01-22T17:47:37+00:00,data_integrity,medium,"Greptile correctly identifies that the migration imports User directly from posthog.models.user instead of using apps.get_model('posthog', 'User'). This is a well-known Django migration anti-pattern that can cause issues if the model schema changes between when the migration was written and when it runs, potentially leading to migration failures or incorrect behavior. This is non-obvious to developers unfamiliar with Django migration best practices.",2026-01-22T18:20:55.086650+00:00
+posthog/posthog,45724,SUPPORT SUPERDAY - Update link to web vitals settings page,https://github.com/PostHog/posthog/pull/45724,,"**logic:** hardcoding `https://us.posthog.com` breaks self-hosted and EU cloud instances - use `uiHost` like line 76 does
+
+```suggestion
+                            <Link to={`${uiHost}${urls.settings('project', 'web-vitals-autocapture')}`}>settings page</Link> to start capturing web vitals.
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: frontend/src/toolbar/web-vitals/WebVitalsToolbarMenu.tsx
+Line: 34:34
+
+Comment:
+**logic:** hardcoding `https://us.posthog.com` breaks self-hosted and EU cloud instances - use `uiHost` like line 76 does
+
+```suggestion
+                            <Link to={`${uiHost}${urls.settings('project', 'web-vitals-autocapture')}`}>settings page</Link> to start capturing web vitals.
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/45724#discussion_r2717902287,,2026-01-22T17:27:50+00:00,logic,medium,"Greptile correctly identified that hardcoding 'us.posthog.com' would break functionality for self-hosted instances and EU cloud users. The suggestion to use `uiHost` is validated by the existing pattern elsewhere in the codebase (referenced at line 76), making this a real bug that would cause incorrect behavior for a significant portion of users.",2026-01-22T18:20:55.086730+00:00
+posthog/posthog,45719,fix: gemini timeout in milliseconds not seconds,https://github.com/PostHog/posthog/pull/45719,,"**syntax:** The test in `products/llm_analytics/backend/providers/test/test_gemini.py:16` expects `TIMEOUT == 300` and needs to be updated to `300_000`
+
+```suggestion
+    TIMEOUT: int = 300_000
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: products/llm_analytics/backend/llm/providers/gemini.py
+Line: 34:34
+
+Comment:
+**syntax:** The test in `products/llm_analytics/backend/providers/test/test_gemini.py:16` expects `TIMEOUT == 300` and needs to be updated to `300_000`
+
+```suggestion
+    TIMEOUT: int = 300_000
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/45719#discussion_r2717816460,Of course I then forget to update the test 🤦 ,2026-01-22T17:07:13+00:00,logic,low,"Greptile correctly identified that a test file needs to be updated to match the new timeout value change from 300 to 300_000. The developer confirmed this was a valid catch they had overlooked with '🤦'. While this is technically test maintenance rather than a production bug, catching test-code inconsistencies before merge prevents CI failures and confusion.",2026-01-22T18:20:55.086787+00:00
+infisical/infisical,5238,feat(pki): add default TTL setting to certificate profiles,https://github.com/Infisical/infisical/pull/5238,,"**logic:** Empty string fallback could cause issues downstream. If both `certificateRequest.validity.ttl` and `profile.defaultTtlDays` are missing, this passes an empty string to the CA service.
+
+```suggestion
+        ttl: certificateRequest.validity.ttl || (profile.defaultTtlDays ? `${profile.defaultTtlDays}d` : undefined),
+```",https://github.com/Infisical/infisical/pull/5238#discussion_r2718048455,,2026-01-22T18:11:26+00:00,logic,medium,Greptile correctly identifies that passing an empty string to the CA service when both TTL sources are missing could cause unexpected behavior downstream. The suggestion to use `undefined` instead is more appropriate as it clearly signals 'no value' rather than an ambiguous empty string that might be interpreted differently by the signing service.,2026-01-22T18:20:55.086848+00:00
+nvidia/fuser,5863,Add kernel based alltoallv and cuda backend for MoE dispatch and combine,https://github.com/NVIDIA/Fuser/pull/5863,,"**logic:** checking wrong backend constant - should check `backend` parameter, not hardcoded `kNccl`
+
+```suggestion
+  if (!communicator_->isBackendAvailable(backend)) {
+    GTEST_SKIP() << ""Backend "" << backend << "" not available."";
+  }
+```",https://github.com/NVIDIA/Fuser/pull/5863#discussion_r2717943730,,2026-01-22T17:39:17+00:00,logic,medium,"Greptile correctly identified that the code retrieves `backend` from `GetParam()` but then checks availability of the hardcoded `CommunicatorBackend::kNccl` instead of the actual `backend` parameter. This means when the test runs with `kCuda` backend, it would incorrectly check if `kNccl` is available rather than `kCuda`, causing incorrect test skip behavior. The test is parameterized over both backends, making this a real bug.",2026-01-22T18:20:55.086890+00:00
+nvidia-nemo/curator,1415,Ray Pool Executor,https://github.com/NVIDIA-NeMo/Curator/pull/1415,,"**logic:** inconsistent maturity claim - `RayActorPoolExecutor` is marked as ""Stable"" but still in `experimental` directory
+
+The executor is located in `nemo_curator.backends.experimental.ray_actor_pool`, contradicting the ""Stable"" maturity claim in the comparison table. Has RayActorPoolExecutor been moved out of experimental, or should the maturity status be updated to reflect its experimental nature?",https://github.com/NVIDIA-NeMo/Curator/pull/1415#discussion_r2717967018,,2026-01-22T17:46:08+00:00,logic,medium,"Greptile correctly identified a documentation inconsistency - the comparison table claims RayActorPoolExecutor is 'Stable' but the code example shows the import path as `nemo_curator.backends.ray_actor_pool` (not experimental), while RayDataExecutor remains in experimental. Looking at the diff, RayActorPoolExecutor was actually moved OUT of experimental (import changed from `nemo_curator.backends.experimental.ray_actor_pool` to `nemo_curator.backends.ray_actor_pool`), so the 'Stable' claim is consistent with the new import path. This appears to be a valid documentation update, not an error - Greptile may have misread the new import path.",2026-01-22T18:20:55.086929+00:00
+mellanox/libxlio,558,[CI] issue: HPCINFRA-4182 Add Coverity analysis for examples dir,https://github.com/Mellanox/libxlio/pull/558,,"**logic:** The linker flag `-libverbs` should be `-lxlio -libverbs` or placed after the source file. The example code includes `<mellanox/xlio_extra.h>` (line 50 of the C file) which requires linking against libxlio.
+
+```suggestion
+    gcc -I${cov_dir}/install/include -L${cov_dir}/install/lib -o ${cov_dir}/xlio_ultra_api_ping_pong ${WORKSPACE}/examples/xlio_ultra_api_ping_pong.c -lxlio -libverbs >> ${cov_dir}/cov.log 2>&1""
+```",https://github.com/Mellanox/libxlio/pull/558#discussion_r2717799615,,2026-01-22T17:02:37+00:00,logic,medium,"Greptile correctly identifies that the example code includes xlio headers and likely uses xlio functions, meaning it should be linked against libxlio (not just libibverbs). The suggestion to add -L flag for library path and -lxlio is correct for a proper build. Additionally, the original has a typo: '-libverbs' should be '-libibverbs' (with double 'ib').",2026-01-22T18:20:55.086978+00:00
+browseros-ai/browseros-server,272,feat: onboarding fixes ,https://github.com/browseros-ai/BrowserOS-agent/pull/272,,"**logic:** `publishConfig` is incomplete — missing `main`, `module`, and `types` overrides
+
+The `publishConfig` only overrides the `exports` field, but the top-level `main`, `module`, and `types` fields still point to `./src/index.ts`. Since the `files` array only includes `[""dist""]`, the published package won't contain `src/`, causing legacy tools and TypeScript to fail with missing file errors.
+
+```suggestion
+  ""publishConfig"": {
+    ""main"": ""./dist/index.cjs"",
+    ""module"": ""./dist/index.js"",
+    ""types"": ""./dist/index.d.ts"",
+    ""exports"": {
+      ""."": {
+        ""types"": ""./dist/index.d.ts"",
+        ""import"": ""./dist/index.js"",
+        ""require"": ""./dist/index.cjs""
+      },
+      ""./api.json"": ""./dist/api.json""
+    }
+  },
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/agent-sdk/package.json
+Line: 43:52
+
+Comment:
+**logic:** `publishConfig` is incomplete — missing `main`, `module`, and `types` overrides
+
+The `publishConfig` only overrides the `exports` field, but the top-level `main`, `module`, and `types` fields still point to `./src/index.ts`. Since the `files` array only includes `[""dist""]`, the published package won't contain `src/`, causing legacy tools and TypeScript to fail with missing file errors.
+
+```suggestion
+  ""publishConfig"": {
+    ""main"": ""./dist/index.cjs"",
+    ""module"": ""./dist/index.js"",
+    ""types"": ""./dist/index.d.ts"",
+    ""exports"": {
+      ""."": {
+        ""types"": ""./dist/index.d.ts"",
+        ""import"": ""./dist/index.js"",
+        ""require"": ""./dist/index.cjs""
+      },
+      ""./api.json"": ""./dist/api.json""
+    }
+  },
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/browseros-ai/BrowserOS-agent/pull/272#discussion_r2717754105,,2026-01-22T16:50:48+00:00,logic,high,"Greptile correctly identifies that the `files` array only includes `dist/` but the top-level `main`, `module`, and `types` fields point to `./src/index.ts`. While `publishConfig.exports` is set correctly, npm's `publishConfig` doesn't override the root `main`/`module`/`types` fields, so legacy tools that don't use the exports map will try to resolve `./src/index.ts` which won't exist in the published package. This would cause the published package to be broken for many consumers.",2026-01-22T18:20:55.087054+00:00
+browseros-ai/browseros-agent,272,feat: onboarding fixes ,https://github.com/browseros-ai/BrowserOS-agent/pull/272,,"**logic:** `publishConfig` is incomplete — missing `main`, `module`, and `types` overrides
+
+The `publishConfig` only overrides the `exports` field, but the top-level `main`, `module`, and `types` fields still point to `./src/index.ts`. Since the `files` array only includes `[""dist""]`, the published package won't contain `src/`, causing legacy tools and TypeScript to fail with missing file errors.
+
+```suggestion
+  ""publishConfig"": {
+    ""main"": ""./dist/index.cjs"",
+    ""module"": ""./dist/index.js"",
+    ""types"": ""./dist/index.d.ts"",
+    ""exports"": {
+      ""."": {
+        ""types"": ""./dist/index.d.ts"",
+        ""import"": ""./dist/index.js"",
+        ""require"": ""./dist/index.cjs""
+      },
+      ""./api.json"": ""./dist/api.json""
+    }
+  },
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/agent-sdk/package.json
+Line: 43:52
+
+Comment:
+**logic:** `publishConfig` is incomplete — missing `main`, `module`, and `types` overrides
+
+The `publishConfig` only overrides the `exports` field, but the top-level `main`, `module`, and `types` fields still point to `./src/index.ts`. Since the `files` array only includes `[""dist""]`, the published package won't contain `src/`, causing legacy tools and TypeScript to fail with missing file errors.
+
+```suggestion
+  ""publishConfig"": {
+    ""main"": ""./dist/index.cjs"",
+    ""module"": ""./dist/index.js"",
+    ""types"": ""./dist/index.d.ts"",
+    ""exports"": {
+      ""."": {
+        ""types"": ""./dist/index.d.ts"",
+        ""import"": ""./dist/index.js"",
+        ""require"": ""./dist/index.cjs""
+      },
+      ""./api.json"": ""./dist/api.json""
+    }
+  },
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/browseros-ai/BrowserOS-agent/pull/272#discussion_r2717754105,,2026-01-22T16:50:48+00:00,logic,high,"Greptile correctly identified that the `files` array only includes `dist`, but the top-level `main`, `module`, and `types` fields point to `./src/index.ts`. While `publishConfig.exports` is set correctly, npm's `publishConfig` doesn't override `main`, `module`, and `types` fields - only certain fields like `registry` and `access` are supported. This would cause the published package to have broken references since src/ won't be included. This is a non-obvious npm publishing bug that would break consumers of the package.",2026-01-22T18:20:55.087150+00:00
+openucx/ucc,1245,UCC/CORE: Added local rank from topo if not provided by user,https://github.com/openucx/ucc/pull/1245,,"**logic:** `ctx->topo` is NULL when `params->oob.n_oob_eps <= 1`. The inner block (lines 733-761) initializes `ctx->topo` on line 746, but it only executes if `params->oob.n_oob_eps > 1`. When this condition is false, line 770 will call `ucc_topo_init()` with a NULL `ctx->topo`, causing a crash.
+
+```suggestion
+        if (ctx->topo) {
+            status = ucc_topo_init(set, ctx->topo, &topo);
+```",https://github.com/openucx/ucc/pull/1245#discussion_r2717622121,,2026-01-22T16:18:20+00:00,null,high,"Greptile correctly identifies that when `params->oob.n_oob_eps <= 1`, the inner block that initializes `ctx->topo` (line 746) is skipped, but `ucc_topo_init(set, ctx->topo, &topo)` on line 770 is still called with an uninitialized/NULL `ctx->topo`, which would cause a crash. This is a non-obvious control flow bug that a typical reviewer could miss.",2026-01-22T18:20:55.087241+00:00
+openucx/ucc,1245,UCC/CORE: Added local rank from topo if not provided by user,https://github.com/openucx/ucc/pull/1245,,"**logic:** returning `1` when the node subgroup doesn't exist is inconsistent - should return `0` for single-rank scenarios
+
+```suggestion
+        return 0;
+```
+
+ is the local rank intended to be 1-indexed or 0-indexed in the context where this function is called?",https://github.com/openucx/ucc/pull/1245#discussion_r2717622163,,2026-01-22T16:18:21+00:00,logic,medium,"Greptile correctly identifies an inconsistency - when the node subgroup exists, `sbgp->group_rank` returns a 0-indexed rank, but when it doesn't exist (single-rank scenario), returning 1 is inconsistent with 0-indexed semantics. A single-rank process should have local rank 0, not 1. This could cause off-by-one errors in code that uses this function.",2026-01-22T18:20:55.087283+00:00
+openucx/ucc,1245,UCC/CORE: Added local rank from topo if not provided by user,https://github.com/openucx/ucc/pull/1245,,"**logic:** When `params->oob.n_oob_eps <= 1`, the block on lines 733-761 doesn't execute, leaving `ctx->topo` uninitialized (NULL). Passing NULL `ctx->topo` to `ucc_topo_init()` causes `topo->topo = NULL` to be set (ucc_topo.c:171). When `ucc_topo_get_sbgp()` is called in `ucc_topo_node_local_rank()`, it may invoke `ucc_sbgp_create()`, which uses the `UCC_TOPO_IS_BOUND` macro that dereferences `topo->topo->sock_bound` or `topo->topo->numa_bound`, causing a NULL pointer dereference.
+
+```suggestion
+        status = ucc_topo_init(set, ctx->topo ? ctx->topo : NULL, &topo);
+```
+
+Better fix: Either ensure `ctx->topo` is initialized before this point, or handle the NULL case in `ucc_topo_init()` / `ucc_sbgp_create()`.",https://github.com/openucx/ucc/pull/1245#discussion_r2717845816,,2026-01-22T17:14:14+00:00,null,high,"Greptile correctly identifies that when `params->oob.n_oob_eps <= 1`, the code block initializing `ctx->topo` (lines 733-761) is skipped, but the code then unconditionally calls `ucc_topo_init(set, ctx->topo, &topo)` at line 770 with an uninitialized `ctx->topo`. This can lead to NULL pointer dereference when the topo subsystem attempts to access members through `ctx->topo`. The suggested fix is trivial (already passes NULL) but the real issue - potential NULL dereference in downstream code - is a valid bug.",2026-01-22T18:20:55.087306+00:00
+openucx/ucc,1245,UCC/CORE: Added local rank from topo if not provided by user,https://github.com/openucx/ucc/pull/1245,,"**logic:** Returning `1` when the node subgroup doesn't exist is inconsistent. All other ranks would return their 0-indexed `sbgp->group_rank`. For single-rank scenarios, this should return `0` to maintain consistency with 0-indexed ranking.
+
+```suggestion
+    if (sbgp->status == UCC_SBGP_NOT_EXISTS) {
+        return 0;
+    }
+```
+
+ Is the node local rank intended to be 0-indexed or 1-indexed when passed to UCX?",https://github.com/openucx/ucc/pull/1245#discussion_r2717845924,,2026-01-22T17:14:14+00:00,logic,medium,"Greptile correctly identifies an inconsistency: when the node subgroup exists, the function returns `sbgp->group_rank` which is 0-indexed, but when it doesn't exist (single-rank scenario), it returns 1 instead of 0. This breaks the expected 0-indexed semantics and could cause off-by-one errors in callers expecting consistent 0-indexed ranks.",2026-01-22T18:20:55.087345+00:00
