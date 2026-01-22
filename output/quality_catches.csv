@@ -2164,3 +2164,39 @@ missing command after `&&` - this script will fail with a syntax error
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/ever-co/ever-gauzy/pull/9359#discussion_r2716143666,,2026-01-22T09:52:10+00:00,runtime,medium,"Greptile correctly identified that line 132 has 'cross-env NODE_ENV=development NODE_OPTIONS=--max-old-space-size=12288 && yarn nx build ui-config' with an errant '&&' between the cross-env command and the yarn command. This is incorrect syntax - cross-env sets environment variables for the command that follows it (without &&), so this script would fail because there's nothing before '&&'. Other similar lines in the diff don't have this '&&', confirming this is an inconsistency/bug.",2026-01-22T10:19:10.903548+00:00
+mellanox/hw-mgmt,2262,Update changelog and release notes for V.7.0040.4248,https://github.com/Mellanox/hw-mgmt/pull/2262,,**logic:** Verify that this feature is actually included in this release. No commits in the branch history mention GB3000 or mp2891 changes. The only changes between V.7.0040.4247 and this release are the two xdpe1a2g7b patches (commits 21a8d75 and 17d2054). Was this feature merged separately or is it planned for a different release?,https://github.com/Mellanox/hw-mgmt/pull/2262#discussion_r2716603394,,2026-01-22T11:57:42+00:00,data_integrity,medium,"Greptile correctly identified a potential documentation inconsistency - the release notes claim a GB3000/mp2891 feature but only xdpe1a2g7b patches are mentioned in the kernel patches section. This mismatch between claimed features and actual changes could indicate either incorrect release notes or missing commits, which is a legitimate concern for release documentation accuracy.",2026-01-22T12:26:40.689674+00:00
+useautumn/autumn,613,fix: 🐛 attach on dashboard respects success url,https://github.com/useautumn/autumn/pull/613,,"**logic:** the logic doesn't check `mergedParams.successUrl` before using `org.success_url`, so explicit `successUrl` parameters passed to the function are ignored
+
+```suggestion
+				successUrl:
+					mergedParams.successUrl ||
+					(org?.success_url && !isOrgLoading && !orgError
+						? org.success_url
+						: env === AppEnv.Sandbox
+							? `${import.meta.env.VITE_FRONTEND_URL}${redirectUrl}`
+							: undefined),
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: vite/src/components/forms/attach-product/use-attach-body-builder.ts
+Line: 99:107
+
+Comment:
+**logic:** the logic doesn't check `mergedParams.successUrl` before using `org.success_url`, so explicit `successUrl` parameters passed to the function are ignored
+
+```suggestion
+				successUrl:
+					mergedParams.successUrl ||
+					(org?.success_url && !isOrgLoading && !orgError
+						? org.success_url
+						: env === AppEnv.Sandbox
+							? `${import.meta.env.VITE_FRONTEND_URL}${redirectUrl}`
+							: undefined),
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/useautumn/autumn/pull/613#discussion_r2716521773,,2026-01-22T11:32:38+00:00,logic,medium,"Greptile correctly identified that the PR adds a `successUrl` parameter to the interface but never uses `mergedParams.successUrl` in the logic - instead it goes straight to checking `org?.success_url`. This means any explicit `successUrl` passed to the function will be completely ignored, which contradicts the PR's stated purpose of 'attach on dashboard respects success url'. This is a real functional bug that's easy to miss.",2026-01-22T12:26:40.689739+00:00
