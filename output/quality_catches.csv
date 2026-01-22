@@ -1925,3 +1925,182 @@ nvidia-nemo/emerging-optimizers,89,"added hyperball update step, created a mixin
 ```suggestion
             normalized_update = F.normalize(update.flatten(), p=2, eps=eps).view_as(update)
 ```",https://github.com/NVIDIA-NeMo/Emerging-Optimizers/pull/89#discussion_r2714646551,,2026-01-21T22:59:44+00:00,logic,medium,"Greptile correctly identified that `F.normalize(update, p=2, dim=0, eps=eps)` normalizes along dimension 0 only, not over all elements as the comment states ('Frobenius norm over all elements'). For a true Frobenius norm normalization, the tensor should be flattened first or dim should be omitted. This mismatch between code and documented intent would cause incorrect behavior for the hyperball weight update algorithm.",2026-01-22T00:49:29.086778+00:00
+posthog/posthog,45656,feat(product tours): enable linking existing feature flag,https://github.com/PostHog/posthog/pull/45656,,"**logic:** Missing ownership validation for `linked_flag_id`. A user could potentially link to a feature flag from a different team. Add a `validate()` method similar to the one in `/posthog/api/survey.py:406-431` that verifies the feature flag belongs to the same team and validates the variant if `linkedFlagVariant` is specified in conditions.
+
+```suggestion
+    linked_flag_id = serializers.IntegerField(required=False, write_only=True, allow_null=True)
+
+    def validate(self, data):
+        linked_flag_id = data.get(""linked_flag_id"")
+        linked_flag = None
+        if linked_flag_id:
+            try:
+                from posthog.models import FeatureFlag
+                linked_flag = FeatureFlag.objects.get(pk=linked_flag_id, team_id=self.context[""team_id""])
+            except FeatureFlag.DoesNotExist:
+                raise serializers.ValidationError(""Feature Flag with this ID does not exist"")
+
+        # Validate linkedFlagVariant if provided
+        conditions = (data.get(""content"") or {}).get(""conditions"") or {}
+        linked_flag_variant = conditions.get(""linkedFlagVariant"")
+        if linked_flag_variant and linked_flag and linked_flag_variant != ""any"":
+            # Get available variants from the linked feature flag
+            available_variants = [variant[""key""] for variant in (linked_flag.filters.get(""multivariate"") or {}).get(""variants"", [])]
+            if linked_flag_variant not in available_variants:
+                if available_variants:
+                    raise serializers.ValidationError(
+                        f""Feature flag variant '{linked_flag_variant}' does not exist. Available variants: {', '.join(available_variants)}""
+                    )
+                else:
+                    raise serializers.ValidationError(
+                        f""Feature flag variant '{linked_flag_variant}' specified but the linked feature flag has no variants""
+                    )
+        elif linked_flag_variant and not linked_flag_id:
+            raise serializers.ValidationError(""linkedFlagVariant can only be used when a linked_flag_id is specified"")
+
+        return data
+
+
+**Context Used:** Context from `dashboard` - When implementing new features, ensure that ownership validation is included to prevent unauthorized... ([source](https://app.greptile.com/review/custom-context?memory=9655b466-451a-401a-9ba0-5bf3e7b7f9f8))
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: products/product_tours/backend/api/product_tour.py
+Line: 139:139
+
+Comment:
+**logic:** Missing ownership validation for `linked_flag_id`. A user could potentially link to a feature flag from a different team. Add a `validate()` method similar to the one in `/posthog/api/survey.py:406-431` that verifies the feature flag belongs to the same team and validates the variant if `linkedFlagVariant` is specified in conditions.
+
+```suggestion
+    linked_flag_id = serializers.IntegerField(required=False, write_only=True, allow_null=True)
+
+    def validate(self, data):
+        linked_flag_id = data.get(""linked_flag_id"")
+        linked_flag = None
+        if linked_flag_id:
+            try:
+                from posthog.models import FeatureFlag
+                linked_flag = FeatureFlag.objects.get(pk=linked_flag_id, team_id=self.context[""team_id""])
+            except FeatureFlag.DoesNotExist:
+                raise serializers.ValidationError(""Feature Flag with this ID does not exist"")
+
+        # Validate linkedFlagVariant if provided
+        conditions = (data.get(""content"") or {}).get(""conditions"") or {}
+        linked_flag_variant = conditions.get(""linkedFlagVariant"")
+        if linked_flag_variant and linked_flag and linked_flag_variant != ""any"":
+            # Get available variants from the linked feature flag
+            available_variants = [variant[""key""] for variant in (linked_flag.filters.get(""multivariate"") or {}).get(""variants"", [])]
+            if linked_flag_variant not in available_variants:
+                if available_variants:
+                    raise serializers.ValidationError(
+                        f""Feature flag variant '{linked_flag_variant}' does not exist. Available variants: {', '.join(available_variants)}""
+                    )
+                else:
+                    raise serializers.ValidationError(
+                        f""Feature flag variant '{linked_flag_variant}' specified but the linked feature flag has no variants""
+                    )
+        elif linked_flag_variant and not linked_flag_id:
+            raise serializers.ValidationError(""linkedFlagVariant can only be used when a linked_flag_id is specified"")
+
+        return data
+
+
+**Context Used:** Context from `dashboard` - When implementing new features, ensure that ownership validation is included to prevent unauthorized... ([source](https://app.greptile.com/review/custom-context?memory=9655b466-451a-401a-9ba0-5bf3e7b7f9f8))
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/45656#discussion_r2715080660,,2026-01-22T02:34:10+00:00,security,high,"The code adds a `linked_flag_id` field that allows users to link a feature flag to a product tour, but there's no validation that the feature flag belongs to the same team. This is a cross-tenant data access vulnerability - a user could link to any feature flag ID from a different team. The diff shows only the field definition without any ownership validation, and similar validation exists in the codebase for surveys (referenced at `/posthog/api/survey.py:406-431`).",2026-01-22T03:00:21.805455+00:00
+posthog/posthog,45654,feat(test): add diagnostic logging for Storybook loader timeouts,https://github.com/PostHog/posthog/pull/45654,,"**logic:** `filter({ hasText: /./ })` doesn't check visibility - it checks if elements contain text. This means the visible count will incorrectly exclude loaders without text content (like spinners or skeleton loaders). Use `.filter({ visible: true })` instead.
+
+```suggestion
+        const visibleLoaderCount = await page.locator(loaderSelectors).filter({ visible: true }).count()
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: common/storybook/.storybook/test-runner.ts
+Line: 196:196
+
+Comment:
+**logic:** `filter({ hasText: /./ })` doesn't check visibility - it checks if elements contain text. This means the visible count will incorrectly exclude loaders without text content (like spinners or skeleton loaders). Use `.filter({ visible: true })` instead.
+
+```suggestion
+        const visibleLoaderCount = await page.locator(loaderSelectors).filter({ visible: true }).count()
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/45654#discussion_r2714937914,Fixed in 4b7a29b40e - replaced `filter({ hasText: /./ })` with `filter({ visible: true })` to correctly check visibility instead of text content.,2026-01-22T01:12:58+00:00,logic,medium,"Looking at the diff, line 196 shows `.filter({ visible: true })` which matches Greptile's suggestion - but this is because the fix was already applied. The developer confirmed in their reply that Greptile caught a real bug where `filter({ hasText: /./ })` was incorrectly used instead of `filter({ visible: true })`, which would have excluded text-less loaders like spinners from the visibility count. This is a non-obvious logical error that the developer validated and fixed.",2026-01-22T03:00:21.805627+00:00
+browserbase/stagehand,1593,update the extract tool in v2 agent,https://github.com/browserbase/stagehand/pull/1593,,"**logic:** `z.enum()` requires at least 1 enum value, but `schema.enum` could be empty
+
+```suggestion
+      if (schema.enum && schema.enum.length > 0) return z.enum(schema.enum as [string, ...string[]]);
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: lib/agent/tools/extract.ts
+Line: 31:31
+
+Comment:
+**logic:** `z.enum()` requires at least 1 enum value, but `schema.enum` could be empty
+
+```suggestion
+      if (schema.enum && schema.enum.length > 0) return z.enum(schema.enum as [string, ...string[]]);
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/browserbase/stagehand/pull/1593#discussion_r2715030849,,2026-01-22T02:02:15+00:00,runtime,medium,"Greptile correctly identified that line 31 checks `if (schema.enum)` but doesn't verify the array has elements. Zod's `z.enum()` requires at least one value, so passing an empty array would cause a runtime error. The fix adds `schema.enum.length > 0` check which was actually implemented in the final code, confirming this was a valid bug that was fixed.",2026-01-22T03:00:21.805667+00:00
+browserbase/stagehand,1592,update extract,https://github.com/browserbase/stagehand/pull/1592,,"**syntax:** removed `logger` parameter breaks call site at `packages/core/lib/v3/agent/tools/index.ts:90` which still passes `options?.logger`
+
+```suggestion
+export const extractTool = (v3: V3, executionModel?: string, logger?: (message: LogLine) => void) =>
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/core/lib/v3/agent/tools/extract.ts
+Line: 46:46
+
+Comment:
+**syntax:** removed `logger` parameter breaks call site at `packages/core/lib/v3/agent/tools/index.ts:90` which still passes `options?.logger`
+
+```suggestion
+export const extractTool = (v3: V3, executionModel?: string, logger?: (message: LogLine) => void) =>
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/browserbase/stagehand/pull/1592#discussion_r2715015289,,2026-01-22T01:53:13+00:00,runtime,medium,"The diff shows the `logger` parameter was removed from the `extractTool` function signature. Greptile correctly identifies this will break the call site at `packages/core/lib/v3/agent/tools/index.ts:90` which still passes `options?.logger` as a third argument. This is a valid breaking change that would cause issues at the call site, though TypeScript might catch it depending on the configuration. The analysis is specific and actionable with a concrete fix suggestion.",2026-01-22T03:00:21.805724+00:00
+browserbase/stagehand,1592,update extract,https://github.com/browserbase/stagehand/pull/1592,,"**logic:** if `schema.enum` is empty array, `z.enum()` requires at least one element and will throw runtime error
+
+```suggestion
+      if (schema.enum && schema.enum.length > 0) return z.enum(schema.enum as [string, ...string[]]);
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/core/lib/v3/agent/tools/extract.ts
+Line: 31:31
+
+Comment:
+**logic:** if `schema.enum` is empty array, `z.enum()` requires at least one element and will throw runtime error
+
+```suggestion
+      if (schema.enum && schema.enum.length > 0) return z.enum(schema.enum as [string, ...string[]]);
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/browserbase/stagehand/pull/1592#discussion_r2715015304,,2026-01-22T01:53:14+00:00,runtime,medium,"Greptile correctly identified that line 31 in the original code (`if (schema.enum) return z.enum(schema.enum as [string, ...string[]]);`) would cause a runtime error if `schema.enum` is an empty array, since `z.enum()` requires at least one element. The suggested fix adds `schema.enum.length > 0` check to prevent this crash. This is a non-obvious edge case that could cause production failures.",2026-01-22T03:00:21.805754+00:00
