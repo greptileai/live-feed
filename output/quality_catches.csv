@@ -4233,3 +4233,215 @@ __all__ = [
     ""WindgustAFNO"",
 ]
 ```",https://github.com/NVIDIA/earth2studio/pull/645#discussion_r2721171453,,2026-01-23T13:20:53+00:00,runtime,medium,"Looking at the diff, the code adds 'TempestExtremes' to __all__ but only shows imports up to line 57. Greptile correctly identifies that if TempestExtremes and AsyncTempestExtremes are listed in __all__ without being imported, attempting to use `from earth2studio.models.dx import TempestExtremes` would fail with an ImportError. This is a real bug that would cause runtime failures and is easy to miss when adding new exports.",2026-01-23T14:20:20.645647+00:00
+posthog/posthog,45820,chore(experiments): Move default stats method to Team model,https://github.com/PostHog/posthog/pull/45820,,"**logic:** potential issue with null handling - `default_experiment_stats_method` can be `None` for existing teams before backfill runs
+
+```suggestion
+            default_method = team.default_experiment_stats_method or ""bayesian""
+            stats_config[""method""] = default_method
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: ee/clickhouse/views/experiments.py
+Line: 301:302
+
+Comment:
+**logic:** potential issue with null handling - `default_experiment_stats_method` can be `None` for existing teams before backfill runs
+
+```suggestion
+            default_method = team.default_experiment_stats_method or ""bayesian""
+            stats_config[""method""] = default_method
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/45820#discussion_r2721872267,,2026-01-23T16:11:19+00:00,null,medium,"The code changed from using organization's default to team's default, and the diff shows no null handling was added. For existing teams before any backfill migration runs, the `default_experiment_stats_method` field could be None, which would result in `stats_config['method']` being set to None instead of a valid method. This is a legitimate null-handling issue that could cause downstream problems when the stats method is expected to be a valid string value.",2026-01-23T16:20:36.584671+00:00
+posthog/posthog,45820,chore(experiments): Move default stats method to Team model,https://github.com/PostHog/posthog/pull/45820,,"**logic:** potential issue with null handling - `default_experiment_stats_method` can be `None` for existing teams before backfill runs
+
+```suggestion
+        default_method = team.default_experiment_stats_method or ""bayesian""
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: posthog/api/web_experiment.py
+Line: 169:169
+
+Comment:
+**logic:** potential issue with null handling - `default_experiment_stats_method` can be `None` for existing teams before backfill runs
+
+```suggestion
+        default_method = team.default_experiment_stats_method or ""bayesian""
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/45820#discussion_r2721872300,,2026-01-23T16:11:19+00:00,null,medium,"The code is moving from organization-level to team-level default_experiment_stats_method. For existing teams that haven't been backfilled yet, this field could be None, which would then propagate into stats_config causing potential issues downstream. This is a migration edge case that a typical reviewer could miss.",2026-01-23T16:20:36.584757+00:00
+posthog/posthog,45819,feat(insight-ai): check billing addons,https://github.com/PostHog/posthog/pull/45819,,"**logic:** need to also check `billingLoading` state from `billingLogic` to avoid incorrectly disabling the button while billing data is loading
+
+```suggestion
+    const { currentPlatformAddon, billingLoading } = useValues(billingLogic)
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: frontend/src/scenes/insights/InsightAIAnalysis.tsx
+Line: 25:25
+
+Comment:
+**logic:** need to also check `billingLoading` state from `billingLogic` to avoid incorrectly disabling the button while billing data is loading
+
+```suggestion
+    const { currentPlatformAddon, billingLoading } = useValues(billingLogic)
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/45819#discussion_r2721846946,,2026-01-23T16:05:40+00:00,logic,medium,"Greptile correctly identifies a race condition where `currentPlatformAddon` will be undefined/null while billing data is loading, causing `hasBoostOrHigher` to be false and incorrectly disabling the button with an upgrade message even for users who have the required addon. This is a real UX bug that affects paid users and is non-obvious since it involves async state timing.",2026-01-23T16:20:36.584793+00:00
+posthog/posthog,45819,feat(insight-ai): check billing addons,https://github.com/PostHog/posthog/pull/45819,,"**logic:** should also check `billingLoading` to prevent disabling the button while billing data loads
+
+```suggestion
+                        disabledReason={
+                            billingLoading
+                                ? 'Loading billing information...'
+                                : !hasBoostOrHigher
+                                  ? 'Upgrade to at least the Boost add-on to use AI analysis'
+                                  : insightDataLoading
+                                    ? 'Please wait for the insight to finish loading'
+                                    : undefined
+                        }
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: frontend/src/scenes/insights/InsightAIAnalysis.tsx
+Line: 62:68
+
+Comment:
+**logic:** should also check `billingLoading` to prevent disabling the button while billing data loads
+
+```suggestion
+                        disabledReason={
+                            billingLoading
+                                ? 'Loading billing information...'
+                                : !hasBoostOrHigher
+                                  ? 'Upgrade to at least the Boost add-on to use AI analysis'
+                                  : insightDataLoading
+                                    ? 'Please wait for the insight to finish loading'
+                                    : undefined
+                        }
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/45819#discussion_r2721846997,,2026-01-23T16:05:40+00:00,logic,medium,"Greptile correctly identifies a race condition: when billing data is still loading, `currentPlatformAddon` will be undefined/null, causing `hasBoostOrHigher` to be false and incorrectly showing the upgrade message to users who may already have the addon. This is a real UX bug that would briefly show misleading disabled states during page load.",2026-01-23T16:20:36.584819+00:00
+posthog/posthog,45805,feat(llma): add generation-level clustering and summarization,https://github.com/PostHog/posthog/pull/45805,,"**logic:** The `provider` field is missing from `inputs_with_window` construction, which could cause issues since `max_length` lookup depends on it
+
+```suggestion
+            provider=inputs.provider,
+            model=inputs.model,
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: posthog/temporal/llm_analytics/trace_summarization/workflow.py
+Line: 182:182
+
+Comment:
+**logic:** The `provider` field is missing from `inputs_with_window` construction, which could cause issues since `max_length` lookup depends on it
+
+```suggestion
+            provider=inputs.provider,
+            model=inputs.model,
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/45805#discussion_r2721392070,,2026-01-23T14:19:31+00:00,logic,medium,"Looking at the diff, the `inputs_with_window` construction (around line 182) includes `model=inputs.model` but omits `provider=inputs.provider`. This is a real bug since `inputs_with_window` is passed to activities that may need the provider information, and the original `inputs` object has a `provider` field that should be preserved. The max_length lookup uses `inputs.provider` directly, but any activity receiving `inputs_with_window` would lose the provider context.",2026-01-23T16:20:36.584859+00:00
+raycast/extensions,24801,Add Contributor Covenant Code of Conduct,https://github.com/raycast/extensions/pull/24801,,"**syntax:** missing actual contact information - line 63 currently says `CODE_OF_CONDUCT.md` instead of an email address or contact method
+
+```suggestion
+reported to the community leaders responsible for enforcement at
+[INSERT CONTACT EMAIL OR METHOD HERE].
+```",https://github.com/raycast/extensions/pull/24801#discussion_r2721521821,,2026-01-23T14:50:22+00:00,data_integrity,medium,"Greptile correctly identified that line 63 says reports should be sent to 'CODE_OF_CONDUCT.md' which is the filename itself, not a valid contact method. This is a real functional issue - people who need to report incidents would have no way to actually contact community leaders. While not a code bug, this is a clear copy-paste error that renders the enforcement section non-functional.",2026-01-23T16:20:36.584886+00:00
+twentyhq/twenty,17403,fix(twenty-server): add SSRF protection to webhook requests,https://github.com/twentyhq/twenty/pull/17403,,"the `error` field is not defined in the `webhookResponseSchema` at `packages/twenty-server/src/engine/core-modules/audit/utils/events/workspace-event/webhook/webhook-response.ts`. The schema uses `z.strictObject` which rejects unknown properties, causing a Zod validation error when `makeTrackEvent` parses the event.
+
+Add `error: z.string().optional()` to the schema's properties object.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/twenty-server/src/engine/core-modules/webhook/jobs/call-webhook.job.ts
+Line: 117:124
+
+Comment:
+the `error` field is not defined in the `webhookResponseSchema` at `packages/twenty-server/src/engine/core-modules/audit/utils/events/workspace-event/webhook/webhook-response.ts`. The schema uses `z.strictObject` which rejects unknown properties, causing a Zod validation error when `makeTrackEvent` parses the event.
+
+Add `error: z.string().optional()` to the schema's properties object.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/twentyhq/twenty/pull/17403#discussion_r2721410633,,2026-01-23T14:23:41+00:00,runtime,medium,"The code adds an `error` field to the audit event payload when SSRF is blocked, but if the webhookResponseSchema uses z.strictObject (which rejects unknown properties), this will cause a Zod validation error at runtime. This is a non-obvious cross-file bug where the new field wasn't added to the schema definition, causing the audit logging to fail silently or throw errors.",2026-01-23T16:20:36.584942+00:00
+nvidia/nvflare,4028,Increase link check timeout,https://github.com/NVIDIA/NVFlare/pull/4028,,"Duplicate `--timeout` parameters conflict with each other. Line 38's `--timeout 100` will override line 36's `--timeout=30`, making the intended change ineffective. Remove line 38.
+
+```suggestion
+          --timeout=30
+          --verbose
+```",https://github.com/NVIDIA/NVFlare/pull/4028#discussion_r2721750117,,2026-01-23T15:41:07+00:00,logic,medium,"Greptile correctly identifies that the PR adds `--timeout=30` on line 36 but fails to remove the existing `--timeout 100` on line 38, creating duplicate conflicting parameters where the later value (100) will override the intended new value (30). The PR title states 'Increase link check timeout' but the actual effect is no change since 100 already wins. This is a non-obvious configuration error that defeats the purpose of the PR.",2026-01-23T16:20:36.584981+00:00
+alpaca-network/gatewayz-frontend,891,feat(subscriptions): update UI to display tiered subscription credits,https://github.com/Alpaca-Network/gatewayz-frontend/pull/891,,"displays cents as dollars - should divide by 100 first
+
+```suggestion
+                  ${(subscriptionAllowance / 100).toFixed(0)}
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: src/components/layout/credits-display.tsx
+Line: 196:196
+
+Comment:
+displays cents as dollars - should divide by 100 first
+
+```suggestion
+                  ${(subscriptionAllowance / 100).toFixed(0)}
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/Alpaca-Network/gatewayz-frontend/pull/891#discussion_r2721429085,,2026-01-23T14:27:56+00:00,logic,medium,"The code shows that `monthlyAllowance` is calculated by dividing `TIER_CONFIG[tier].monthlyAllowance` by 100 (line 157), indicating values are stored in cents. However, `subscriptionAllowance` from userData is displayed directly on line 196 without the same division, causing the UI to show cents as dollars (e.g., $1000 instead of $10). This is a real bug that would cause incorrect financial amounts to be displayed to users.",2026-01-23T16:20:36.585003+00:00
+alpaca-network/gatewayz-frontend,891,feat(subscriptions): update UI to display tiered subscription credits,https://github.com/Alpaca-Network/gatewayz-frontend/pull/891,,"displays cents as dollars - should divide by 100 first
+
+```suggestion
+                  +${(purchasedCredits / 100).toFixed(0)}
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: src/components/layout/credits-display.tsx
+Line: 202:202
+
+Comment:
+displays cents as dollars - should divide by 100 first
+
+```suggestion
+                  +${(purchasedCredits / 100).toFixed(0)}
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/Alpaca-Network/gatewayz-frontend/pull/891#discussion_r2721429194,,2026-01-23T14:27:57+00:00,logic,medium,"The code comment on line 157 explicitly states 'in cents, convert to dollars' and shows division by 100 for monthlyAllowance. The subscriptionAllowance on line 195 is also divided by 100 before display, but purchasedCredits on line 202 is displayed directly without this conversion, creating an inconsistent display where purchased credits would appear 100x larger than intended.",2026-01-23T16:20:36.585028+00:00
