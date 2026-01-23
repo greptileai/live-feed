@@ -4176,3 +4176,60 @@ silently returns the original value when encryption fails. If `APP_SECRET` is mi
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/twentyhq/twenty/pull/17394#discussion_r2720750705,,2026-01-23T11:03:11+00:00,security,high,"Greptile correctly identifies that the encrypt method silently falls back to returning the original unencrypted value when encryption fails (lines 31-35). This is a security vulnerability because secrets could be stored in plaintext without any notification to the caller, especially if APP_SECRET is misconfigured. The debug-level logging makes this failure easy to miss in production.",2026-01-23T12:22:59.934909+00:00
+twentyhq/twenty,17400,Files v2 - FILES field update/create in common API,https://github.com/twentyhq/twenty/pull/17400,,"Duplicate check only validates `addFiles` but the same `fileId` could appear in both `addFiles` and `updateFiles` across different records. Check for duplicates across all file operations (addFiles, updateFiles, removeFiles).
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/twenty-server/src/engine/api/common/common-args-processors/data-arg-processor/services/files-field-sync.service.ts
+Line: 94:102
+
+Comment:
+Duplicate check only validates `addFiles` but the same `fileId` could appear in both `addFiles` and `updateFiles` across different records. Check for duplicates across all file operations (addFiles, updateFiles, removeFiles).
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/twentyhq/twenty/pull/17400#discussion_r2721148126,,2026-01-23T13:13:49+00:00,data_integrity,medium,"Greptile correctly identifies that lines 94-102 only check for duplicates within `toAddFileIds`, but a fileId could appear in both `addFiles` and `updateFiles` (or other combinations) across different records without being caught. This could lead to data integrity issues where the same file is processed multiple times in conflicting operations (e.g., both added and removed simultaneously).",2026-01-23T14:20:20.645517+00:00
+twentyhq/twenty,17400,Files v2 - FILES field update/create in common API,https://github.com/twentyhq/twenty/pull/17400,,"File sync operations run after the database transaction completes. If file operations fail (e.g., file move fails), the database will have inconsistent state with references to files that weren't moved. Consider wrapping this in a transaction or implementing rollback logic.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/twenty-server/src/engine/api/common/common-query-runners/common-create-many-query-runner/common-create-many-query-runner.service.ts
+Line: 109:115
+
+Comment:
+File sync operations run after the database transaction completes. If file operations fail (e.g., file move fails), the database will have inconsistent state with references to files that weren't moved. Consider wrapping this in a transaction or implementing rollback logic.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/twentyhq/twenty/pull/17400#discussion_r2721148267,True ! Need to discuss it,2026-01-23T13:13:51+00:00,data_integrity,medium,"Greptile correctly identified that `processFilesFieldSyncOperationsIfNeeded` runs after the database upsert operations complete (line 107-113), meaning if file sync fails, the database will contain references to files that weren't properly synced. The developer acknowledged this is a valid concern with 'True ! Need to discuss it', confirming the issue.",2026-01-23T14:20:20.645591+00:00
+nvidia/earth2studio,645,In-Situ Cyclone Tracking pipeline,https://github.com/NVIDIA/earth2studio/pull/645,,"`TempestExtremes` and `AsyncTempestExtremes` are exported in `__all__` but never imported
+
+```suggestion
+from earth2studio.models.dx.tempest_extremes import (
+    AsyncTempestExtremes,
+    TempestExtremes,
+)
+from earth2studio.models.dx.tc_tracking import (
+    TCTrackerVitart,
+    TCTrackerWuDuan,
+)
+from earth2studio.models.dx.wind_gust import WindgustAFNO  # noqa
+
+__all__ = [
+    ""AsyncTempestExtremes"",
+    ""ClimateNet"",
+    ""CorrDiff"",
+    ""CorrDiffCMIP6"",
+    ""CorrDiffTaiwan"",
+    ""PrecipitationAFNO"",
+    ""PrecipitationAFNOv2"",
+    ""SolarRadiationAFNO1H"",
+    ""SolarRadiationAFNO6H"",
+    ""TempestExtremes"",
+    ""WindgustAFNO"",
+]
+```",https://github.com/NVIDIA/earth2studio/pull/645#discussion_r2721171453,,2026-01-23T13:20:53+00:00,runtime,medium,"Looking at the diff, the code adds 'TempestExtremes' to __all__ but only shows imports up to line 57. Greptile correctly identifies that if TempestExtremes and AsyncTempestExtremes are listed in __all__ without being imported, attempting to use `from earth2studio.models.dx import TempestExtremes` would fail with an ImportError. This is a real bug that would cause runtime failures and is easy to miss when adding new exports.",2026-01-23T14:20:20.645647+00:00
