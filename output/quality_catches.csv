@@ -4601,3 +4601,75 @@ Or use double-checked locking with a module-level lock.
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/traceroot-ai/traceroot/pull/367#discussion_r2722490747,,2026-01-23T19:10:19+00:00,concurrency,medium,"Greptile correctly identifies a real race condition - the check-then-act pattern on _client is not thread-safe, so concurrent threads could both see _client as None and create multiple TracerootClient instances. This is a non-obvious bug in auto-initialization code that could cause duplicate tracer providers to be set up, leading to unexpected behavior in multi-threaded applications.",2026-01-23T20:17:53.282079+00:00
+posthog/posthog,45838,fix(workflows): make workflows scenes tab aware,https://github.com/PostHog/posthog/pull/45838,,"**logic:** Form should use the dynamic `logic` instance instead of static `messageTemplateLogic` to maintain consistency with the rest of the component
+
+```suggestion
+        <Form logic={logic} formKey=""template"" props={props}>
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: products/workflows/frontend/TemplateLibrary/MessageTemplate.tsx
+Line: 38:38
+
+Comment:
+**logic:** Form should use the dynamic `logic` instance instead of static `messageTemplateLogic` to maintain consistency with the rest of the component
+
+```suggestion
+        <Form logic={logic} formKey=""template"" props={props}>
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/45838#discussion_r2722877920,,2026-01-23T21:18:37+00:00,logic,medium,"Greptile correctly identifies an inconsistency: the component creates a dynamic `logic` instance with props (line 30) and uses it for `useActions` and `useValues`, but the Form component still references the static `messageTemplateLogic` instead of the dynamic `logic` instance. This could cause the Form to connect to a different logic instance than the rest of the component, leading to state synchronization issues.",2026-01-23T22:14:38.748397+00:00
+onyx-dot-app/onyx,7709,feat: google ai studio (gemini api keys),https://github.com/onyx-dot-app/onyx/pull/7709,,"Setting `GEMINI_API_KEY` as an environment variable creates potential security and concurrency issues in multi-tenant environments. Environment variables are process-wide and can leak across requests/tenants.
+
+Pass the API key directly to litellm via the `api_key` parameter instead of using environment variables, similar to how other providers handle authentication.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: backend/onyx/llm/multi_llm.py
+Line: 159:160
+
+Comment:
+Setting `GEMINI_API_KEY` as an environment variable creates potential security and concurrency issues in multi-tenant environments. Environment variables are process-wide and can leak across requests/tenants.
+
+Pass the API key directly to litellm via the `api_key` parameter instead of using environment variables, similar to how other providers handle authentication.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/7709#discussion_r2722922580,,2026-01-23T21:35:25+00:00,security,high,"Greptile correctly identifies that setting GEMINI_API_KEY as a process-wide environment variable in a multi-tenant application creates a real security vulnerability where API keys from one tenant could leak to another during concurrent requests. This is a non-obvious issue since the same pattern exists for OLLAMA_API_BASE (though API bases are less sensitive than API keys), and the fix is actionable - litellm supports passing api_key directly as a parameter.",2026-01-23T22:14:38.748486+00:00
+onyx-dot-app/onyx,7706,feat: onyx discord bot - supervisord and kube deployment,https://github.com/onyx-dot-app/onyx/pull/7706,,"Missing Helm deployment template for Discord bot. The `discordbot` values are defined here but there's no corresponding `deployment/helm/charts/onyx/templates/discordbot.yaml` file to actually deploy the Discord bot pod in Kubernetes. Compare with `slackbot.yaml` template which exists for the Slack bot configuration.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: deployment/helm/charts/onyx/values.yaml
+Line: 707:741
+
+Comment:
+Missing Helm deployment template for Discord bot. The `discordbot` values are defined here but there's no corresponding `deployment/helm/charts/onyx/templates/discordbot.yaml` file to actually deploy the Discord bot pod in Kubernetes. Compare with `slackbot.yaml` template which exists for the Slack bot configuration.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/7706#discussion_r2722758225,,2026-01-23T20:36:49+00:00,logic,high,"The diff shows new discordbot configuration values being added to values.yaml, but without a corresponding deployment template, these values are useless - the Discord bot would never actually be deployed to Kubernetes. This is a real functional bug that would cause the feature to silently not work, and it's non-obvious since the values.yaml changes look complete on their own.",2026-01-23T22:14:38.748522+00:00
+onyx-dot-app/onyx,7706,feat: onyx discord bot - supervisord and kube deployment,https://github.com/onyx-dot-app/onyx/pull/7706,,"Missing `API_SERVER_PROTOCOL` and `API_SERVER_HOST` in configMap. These are required for the Discord bot to communicate with the API server (referenced in `backend/onyx/configs/app_configs.py`). The Docker Compose files set these, but they're missing from the Helm configMap section.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: deployment/helm/charts/onyx/values.yaml
+Line: 1201:1204
+
+Comment:
+Missing `API_SERVER_PROTOCOL` and `API_SERVER_HOST` in configMap. These are required for the Discord bot to communicate with the API server (referenced in `backend/onyx/configs/app_configs.py`). The Docker Compose files set these, but they're missing from the Helm configMap section.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/7706#discussion_r2722758289,,2026-01-23T20:36:51+00:00,logic,medium,"Greptile correctly identifies that the Discord bot configuration in the Helm values.yaml is missing API_SERVER_PROTOCOL and API_SERVER_HOST environment variables that are required for the bot to communicate with the API server. The diff shows DISCORD_BOT_TOKEN and DISCORD_BOT_INVOKE_CHAR were added but not the API server connection variables, which would cause the Discord bot deployment to fail to connect to the API. This is a real configuration bug that would cause runtime failures and is easy to miss when reviewing deployment configs.",2026-01-23T22:14:38.748552+00:00
