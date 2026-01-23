@@ -3824,3 +3824,132 @@ nvidia/nvflare,4020,[2.7] Enhance weighted agg helper,https://github.com/NVIDIA/
 valian-ca/firebase-functions,15,feat: add @valian/pino-logger,https://github.com/valian-ca/firebase-functions/pull/15,,"**logic:** unconditional import at module load time conflicts with `firebase-functions` being marked as optional peer dependency - module will fail to load if `firebase-functions` isn't installed, even in dev environments where it's never used
 
 consider either: making it a required peer dependency, or using dynamic import when in production mode",https://github.com/valian-ca/firebase-functions/pull/15#discussion_r2719404442,,2026-01-23T03:00:56+00:00,runtime,medium,"Greptile correctly identifies that `firebase-functions` is imported unconditionally at the top of the module, but based on the logic, it's only used in production (non-local) environments. If firebase-functions is an optional peer dependency, the module will crash on import in dev environments where firebase-functions isn't installed, even though it would never actually be used there. This is a real runtime bug that's non-obvious and requires understanding the relationship between the import, the peer dependency configuration, and the conditional usage.",2026-01-23T04:30:08.249841+00:00
+posthog/posthog,45764,fix(data-modeling): don't pause matview temporal schedules with empty results,https://github.com/PostHog/posthog/pull/45764,,"**logic:** Removing `a_pause_saved_query_schedule` from the generic error handler changes behavior for all unexpected errors. Previously, any unexpected error would pause the schedule. Now only timeouts pause schedules. This means unexpected errors might continue retrying indefinitely.
+
+```suggestion
+        else:
+            saved_query.latest_error = f""Query failed to materialize: {error_message}""
+            saved_query.sync_frequency_interval = None
+            await logger.aerror(""Failed to materialize model with unexpected error: %s"", str(e))
+            await database_sync_to_async(saved_query.save)()
+            await a_pause_saved_query_schedule(saved_query)
+            await mark_job_as_failed(job, error_message, logger)
+```
+
+ Was the removal of schedule pausing for unexpected errors intentional, or should unexpected errors still pause schedules?
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: posthog/temporal/data_modeling/run_workflow.py
+Line: 640:645
+
+Comment:
+**logic:** Removing `a_pause_saved_query_schedule` from the generic error handler changes behavior for all unexpected errors. Previously, any unexpected error would pause the schedule. Now only timeouts pause schedules. This means unexpected errors might continue retrying indefinitely.
+
+```suggestion
+        else:
+            saved_query.latest_error = f""Query failed to materialize: {error_message}""
+            saved_query.sync_frequency_interval = None
+            await logger.aerror(""Failed to materialize model with unexpected error: %s"", str(e))
+            await database_sync_to_async(saved_query.save)()
+            await a_pause_saved_query_schedule(saved_query)
+            await mark_job_as_failed(job, error_message, logger)
+```
+
+ Was the removal of schedule pausing for unexpected errors intentional, or should unexpected errors still pause schedules?
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/45764#discussion_r2719750331,,2026-01-23T06:10:54+00:00,logic,medium,"Greptile correctly identified that the removal of `await a_pause_saved_query_schedule(saved_query)` from the generic error handler (the `else` branch) changes behavior for all unexpected errors. In the old code, unexpected errors would pause the schedule, but in the new code only timeouts pause schedules (and QueryReturnedNoResultsException explicitly doesn't pause). This could lead to unexpected errors continuously retrying without stopping, which may not be intentional given the PR title focuses specifically on 'empty results'.",2026-01-23T06:22:08.614156+00:00
+posthog/posthog,45763,feat(workflows): add wait for event action,https://github.com/PostHog/posthog/pull/45763,,"**logic:** `ConditionalBranchHandler` expects actions with `config.condition` or `config.conditions`, but `wait_for_event` has `config.event_filters`. This will cause runtime errors when the handler tries to access `action.config.condition` which doesn't exist for this action type.
+
+The handler's type signature at line 18 of `conditional_branch.ts` explicitly excludes `wait_for_event`:
+```typescript
+ActionHandlerOptions<Extract<HogFlowAction, { type: 'conditional_branch' | 'wait_until_condition' }>>
+```
+
+You need to either:
+1. Update `ConditionalBranchHandler.execute()` to handle `wait_for_event` actions by checking for `config.event_filters` and transforming it appropriately, or
+2. Create a dedicated handler for `wait_for_event` that adapts the data structure before delegating to the conditional logic
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: nodejs/src/cdp/services/hogflows/hogflow-executor.service.ts
+Line: 96:96
+
+Comment:
+**logic:** `ConditionalBranchHandler` expects actions with `config.condition` or `config.conditions`, but `wait_for_event` has `config.event_filters`. This will cause runtime errors when the handler tries to access `action.config.condition` which doesn't exist for this action type.
+
+The handler's type signature at line 18 of `conditional_branch.ts` explicitly excludes `wait_for_event`:
+```typescript
+ActionHandlerOptions<Extract<HogFlowAction, { type: 'conditional_branch' | 'wait_until_condition' }>>
+```
+
+You need to either:
+1. Update `ConditionalBranchHandler.execute()` to handle `wait_for_event` actions by checking for `config.event_filters` and transforming it appropriately, or
+2. Create a dedicated handler for `wait_for_event` that adapts the data structure before delegating to the conditional logic
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/45763#discussion_r2719641753,,2026-01-23T05:15:41+00:00,type_error,high,"Greptile correctly identifies that `wait_for_event` uses `config.event_filters` based on the PR title context, while `ConditionalBranchHandler` is designed for actions with `config.condition`/`config.conditions`. The type signature explicitly only handles `conditional_branch` and `wait_until_condition` types. This type mismatch would cause runtime errors when the handler tries to access non-existent properties.",2026-01-23T06:22:08.614310+00:00
+onyx-dot-app/onyx,7695,Kube deploy v2,https://github.com/onyx-dot-app/onyx/pull/7695,,"Remove debugging sleep - this will block tests for 1000 seconds (16+ minutes)
+
+```suggestion
+```
+
+**Context Used:** Rule from `dashboard` - Remove temporary debugging code before merging to production, especially tenant-specific debugging l... ([source](https://app.greptile.com/review/custom-context?memory=b39fa59b-2568-4dd3-9576-83b46251a7b8))
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: backend/onyx/server/features/build/sandbox/kubernetes/test_kubernetes_sandbox_provision.py
+Line: 321:321
+
+Comment:
+Remove debugging sleep - this will block tests for 1000 seconds (16+ minutes)
+
+```suggestion
+```
+
+**Context Used:** Rule from `dashboard` - Remove temporary debugging code before merging to production, especially tenant-specific debugging l... ([source](https://app.greptile.com/review/custom-context?memory=b39fa59b-2568-4dd3-9576-83b46251a7b8))
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/7695#discussion_r2719602006,,2026-01-23T04:55:20+00:00,performance,high,"Greptile correctly identified a `time.sleep(1000)` call on line 321 that would block the test for over 16 minutes. This is clearly leftover debugging code that was accidentally left in the PR. While this is in a test file, it would cause CI/CD pipelines to hang or timeout, making it a significant issue that could easily be missed during review.",2026-01-23T06:22:08.614396+00:00
+onyx-dot-app/onyx,7695,Kube deploy v2,https://github.com/onyx-dot-app/onyx/pull/7695,,"`entrypoint.sh` file is not included in this PR - the Docker build will fail
+
+The Dockerfile copies and references this file, but it doesn't exist in the repository or the changeset.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: backend/onyx/server/features/build/sandbox/kubernetes/docker/Dockerfile
+Line: 59:60
+
+Comment:
+`entrypoint.sh` file is not included in this PR - the Docker build will fail
+
+The Dockerfile copies and references this file, but it doesn't exist in the repository or the changeset.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/7695#discussion_r2719602029,,2026-01-23T04:55:21+00:00,runtime,high,"The Dockerfile references `COPY entrypoint.sh /entrypoint.sh` but based on Greptile's analysis, this file is not included in the PR changeset. This would cause the Docker build to fail immediately with a 'file not found' error. This is a non-obvious catch since it requires checking what files were included in the PR against what the Dockerfile expects.",2026-01-23T06:22:08.614430+00:00
+nvidia/nvflare,4020,[2.7] Enhance weighted agg helper,https://github.com/NVIDIA/NVFlare/pull/4020,,"stores reference to caller's NumPy array instead of creating copy. If `weigh_by_local_iter=False` and caller passes NumPy array, modifications to caller's array after `add()` will affect accumulated values
+
+```suggestion
+                        else:
+                            self.total[k] = v.copy() if hasattr(v, 'copy') else v
+```",https://github.com/NVIDIA/NVFlare/pull/4020#discussion_r2719615204,,2026-01-23T05:02:23+00:00,data_integrity,medium,"Greptile correctly identified that when `weigh_by_local_iter=False` and a NumPy array is passed (non-PyTorch tensor without in-place ops), the code stores `v` directly without copying. The else branch at line 68 does `self.total[k] = v` for the first contribution, creating a reference alias. If the caller later modifies their array, it corrupts the accumulated values. The suggested fix using `v.copy() if hasattr(v, 'copy') else v` properly addresses this aliasing bug.",2026-01-23T06:22:08.614520+00:00
+nvidia/nvflare,4020,[2.7] Enhance weighted agg helper,https://github.com/NVIDIA/NVFlare/pull/4020,,"stores reference to caller's NumPy array, not a copy. When `weigh_by_local_iter=False`, if caller passes NumPy array, subsequent modifications to the caller's array will affect the accumulated values in `self.total[k]`
+
+```suggestion
+                            self.total[k] = v.copy() if hasattr(v, 'copy') else v
+```",https://github.com/NVIDIA/NVFlare/pull/4020#discussion_r2719635906,,2026-01-23T05:12:34+00:00,data_integrity,medium,"Looking at line 80 in the diff, when `weigh_by_local_iter=False` and the tensor is not a PyTorch tensor, the code does `self.total[k] = v` which stores a direct reference to the caller's array. This means if the caller modifies their array later, it will corrupt the accumulated values in the aggregator. The suggested fix to use `v.copy()` for NumPy arrays is correct and prevents this aliasing bug.",2026-01-23T06:22:08.614545+00:00
+democratizedspace/dspace,3051,Add NPC select options to quest creation,https://github.com/democratizedspace/dspace/pull/3051,,"**style:** Test `QuestFormDefaultSubmission.test.js:94` expects `savedQuest.npc` to be `DEFAULT_NPC_NAME` ('Mission Control'), but this change sets the default to `/assets/npc/dChat.jpg`. The test will fail. Either update the test to expect the new avatar path, or consider whether the old test assertion was incorrect (since `quest.npc` is used as an `<img src>` in `QuestChat.svelte:100`).",https://github.com/democratizedspace/dspace/pull/3051#discussion_r2719591638,,2026-01-23T04:49:26+00:00,logic,medium,"Greptile correctly identifies that the default NPC value is changing from DEFAULT_NPC_NAME to npcOptions[0]?.avatar, which will break the existing test expecting DEFAULT_NPC_NAME ('Mission Control'). The comment also insightfully points out that since npc is used as an img src, the old test assertion may have been incorrect anyway. This catches a test failure that would occur and highlights a semantic inconsistency in the codebase.",2026-01-23T06:22:08.614567+00:00
+democratizedspace/dspace,3045,Support custom quest dependencies and custom content in quest editor,https://github.com/democratizedspace/dspace/pull/3045,,"**logic:** Premature image release: `releaseRewardImages()` is called immediately after fetching items (line 39), before the items are used. This will decrement ref counts for all reward images right after loading them, potentially causing URLs to be revoked before they're actually displayed. Remove this call since `onDestroy` already handles cleanup.",https://github.com/democratizedspace/dspace/pull/3045#discussion_r2719588645,,2026-01-23T04:48:03+00:00,resource_leak,medium,"Greptile correctly identifies that `releaseRewardImages()` is called at line 39 right after fetching new items but before the new `rewardItems` array is assigned (line 40-52). This releases the OLD items' images (which is correct), but the comment is slightly misleading - it's actually trying to clean up previous items. However, there's still a bug: the `releaseRewardImages()` call at line 39 operates on the current `rewardItems` which could be empty on first load, making it a no-op, but if `onMount` somehow runs twice (or reactivity triggers reloads), it would release images before they're used. The concern about premature release is valid for edge cases.",2026-01-23T06:22:08.614593+00:00
