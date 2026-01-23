@@ -3953,3 +3953,120 @@ nvidia/nvflare,4020,[2.7] Enhance weighted agg helper,https://github.com/NVIDIA/
 ```",https://github.com/NVIDIA/NVFlare/pull/4020#discussion_r2719635906,,2026-01-23T05:12:34+00:00,data_integrity,medium,"Looking at line 80 in the diff, when `weigh_by_local_iter=False` and the tensor is not a PyTorch tensor, the code does `self.total[k] = v` which stores a direct reference to the caller's array. This means if the caller modifies their array later, it will corrupt the accumulated values in the aggregator. The suggested fix to use `v.copy()` for NumPy arrays is correct and prevents this aliasing bug.",2026-01-23T06:22:08.614545+00:00
 democratizedspace/dspace,3051,Add NPC select options to quest creation,https://github.com/democratizedspace/dspace/pull/3051,,"**style:** Test `QuestFormDefaultSubmission.test.js:94` expects `savedQuest.npc` to be `DEFAULT_NPC_NAME` ('Mission Control'), but this change sets the default to `/assets/npc/dChat.jpg`. The test will fail. Either update the test to expect the new avatar path, or consider whether the old test assertion was incorrect (since `quest.npc` is used as an `<img src>` in `QuestChat.svelte:100`).",https://github.com/democratizedspace/dspace/pull/3051#discussion_r2719591638,,2026-01-23T04:49:26+00:00,logic,medium,"Greptile correctly identifies that the default NPC value is changing from DEFAULT_NPC_NAME to npcOptions[0]?.avatar, which will break the existing test expecting DEFAULT_NPC_NAME ('Mission Control'). The comment also insightfully points out that since npc is used as an img src, the old test assertion may have been incorrect anyway. This catches a test failure that would occur and highlights a semantic inconsistency in the codebase.",2026-01-23T06:22:08.614567+00:00
 democratizedspace/dspace,3045,Support custom quest dependencies and custom content in quest editor,https://github.com/democratizedspace/dspace/pull/3045,,"**logic:** Premature image release: `releaseRewardImages()` is called immediately after fetching items (line 39), before the items are used. This will decrement ref counts for all reward images right after loading them, potentially causing URLs to be revoked before they're actually displayed. Remove this call since `onDestroy` already handles cleanup.",https://github.com/democratizedspace/dspace/pull/3045#discussion_r2719588645,,2026-01-23T04:48:03+00:00,resource_leak,medium,"Greptile correctly identifies that `releaseRewardImages()` is called at line 39 right after fetching new items but before the new `rewardItems` array is assigned (line 40-52). This releases the OLD items' images (which is correct), but the comment is slightly misleading - it's actually trying to clean up previous items. However, there's still a bug: the `releaseRewardImages()` call at line 39 operates on the current `rewardItems` which could be empty on first load, making it a no-op, but if `onMount` somehow runs twice (or reactivity triggers reloads), it would release images before they're used. The concern about premature release is valid for edge cases.",2026-01-23T06:22:08.614593+00:00
+posthog/posthog,45771,feat(experiments): new action to pause experiments,https://github.com/PostHog/posthog/pull/45771,,"**logic:** pause/resume buttons will show for completed experiments if `experiment.feature_flag` exists, since this block is wrapped in `isExperimentRunning` (line 465) which returns `true` for any experiment with a `start_date`, including completed ones
+
+```suggestion
+                        {experiment.feature_flag && !experiment.end_date &&
+                            (experiment.feature_flag.active ? (
+                                <ButtonPrimitive
+                                    variant=""danger""
+                                    menuItem
+                                    data-attr=""pause-experiment""
+                                    onClick={() => openPauseExperimentModal()}
+                                >
+                                    <IconPause /> Pause experiment
+                                </ButtonPrimitive>
+                            ) : (
+                                <ButtonPrimitive
+                                    menuItem
+                                    data-attr=""resume-experiment""
+                                    onClick={() => resumeExperiment()}
+                                >
+                                    <IconPlay /> Resume experiment
+                                </ButtonPrimitive>
+                            ))}
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: frontend/src/scenes/experiments/ExperimentView/components.tsx
+Line: 524:542
+
+Comment:
+**logic:** pause/resume buttons will show for completed experiments if `experiment.feature_flag` exists, since this block is wrapped in `isExperimentRunning` (line 465) which returns `true` for any experiment with a `start_date`, including completed ones
+
+```suggestion
+                        {experiment.feature_flag && !experiment.end_date &&
+                            (experiment.feature_flag.active ? (
+                                <ButtonPrimitive
+                                    variant=""danger""
+                                    menuItem
+                                    data-attr=""pause-experiment""
+                                    onClick={() => openPauseExperimentModal()}
+                                >
+                                    <IconPause /> Pause experiment
+                                </ButtonPrimitive>
+                            ) : (
+                                <ButtonPrimitive
+                                    menuItem
+                                    data-attr=""resume-experiment""
+                                    onClick={() => resumeExperiment()}
+                                >
+                                    <IconPlay /> Resume experiment
+                                </ButtonPrimitive>
+                            ))}
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/45771#discussion_r2720533667,,2026-01-23T10:00:00+00:00,logic,medium,"Greptile correctly identifies that the pause/resume buttons will appear for completed experiments. The new code block only checks `experiment.feature_flag` but doesn't check `!experiment.end_date`, while the adjacent 'Stop' button does include that check. This would allow users to pause/resume experiments that have already ended, which is logically incorrect behavior. The fix to add `&& !experiment.end_date` is correct and consistent with the Stop button's condition.",2026-01-23T10:17:05.030044+00:00
+gptme/gptme,1142,feat(cli): add visible prompt type-ahead using patch_stdout,https://github.com/gptme/gptme/pull/1142,,"**logic:** Thread-safety issue: `prompt_queue` is a regular Python list accessed from both the background thread (here) and the main thread in `chat.py` (lines 183, 280, 288) without synchronization. The `self._lock` only protects access within this method, but doesn't protect against concurrent access from the main thread. This can cause race conditions like:
+- Main thread pops while background thread appends
+- Corrupted queue state
+- Lost or duplicate messages
+
+Use `queue.Queue` or ensure all `prompt_queue` access in `chat.py` also uses the same lock.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: gptme/util/async_input.py
+Line: 113:124
+
+Comment:
+**logic:** Thread-safety issue: `prompt_queue` is a regular Python list accessed from both the background thread (here) and the main thread in `chat.py` (lines 183, 280, 288) without synchronization. The `self._lock` only protects access within this method, but doesn't protect against concurrent access from the main thread. This can cause race conditions like:
+- Main thread pops while background thread appends
+- Corrupted queue state
+- Lost or duplicate messages
+
+Use `queue.Queue` or ensure all `prompt_queue` access in `chat.py` also uses the same lock.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/gptme/gptme/pull/1142#discussion_r2720377811,"✅ Fixed in commit 5a218e1f2
+
+Replaced list with  which is thread-safe for producer-consumer patterns. The collector now owns its queue internally and provides thread-safe accessor methods: `get_message()`, `has_messages()`, `clear_queue()`.",2026-01-23T09:19:09+00:00,concurrency,medium,"The developer confirmed and fixed this issue by replacing the list with queue.Queue. While the final diff shows the fixed code using queue.Queue, Greptile correctly identified a thread-safety problem in the original code where a list was being accessed from multiple threads without proper synchronization, which could cause race conditions and data corruption.",2026-01-23T10:17:05.030194+00:00
+cedarjs/cedar,1024,chore(test-project): AboutPage Redwood -> Cedar,https://github.com/cedarjs/cedar/pull/1024,,"missing assertion - the `await` and `expect()` were removed, so this line no longer verifies that the text exists on the page
+
+```suggestion
+  await expect(
+    page.getByText(
+      'This site was created to demonstrate my mastery of Cedar: Look on my works, ye',
+    ),
+  ).toBeVisible()
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: tasks/smoke-tests/shared/common.ts
+Line: 41:43
+
+Comment:
+missing assertion - the `await` and `expect()` were removed, so this line no longer verifies that the text exists on the page
+
+```suggestion
+  await expect(
+    page.getByText(
+      'This site was created to demonstrate my mastery of Cedar: Look on my works, ye',
+    ),
+  ).toBeVisible()
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/cedarjs/cedar/pull/1024#discussion_r2720370038,,2026-01-23T09:17:05+00:00,logic,medium,"Greptile correctly identified that the original code had `await page.getByText(...)` which would wait for the element, but the change removed both the `await` and any `expect()` assertion, leaving a dead line that doesn't verify anything. This would cause the smoke test to pass even if the expected text is missing from the page, defeating the purpose of the test.",2026-01-23T10:17:05.030268+00:00
