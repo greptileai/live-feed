@@ -3521,3 +3521,102 @@ openucx/ucc,1245,UCC/CORE: Added local rank from topo if not provided by user,ht
 ```
 
  Is the node local rank intended to be 0-indexed or 1-indexed when passed to UCX?",https://github.com/openucx/ucc/pull/1245#discussion_r2717845924,,2026-01-22T17:14:14+00:00,logic,medium,"Greptile correctly identifies an inconsistency: when the node subgroup exists, the function returns `sbgp->group_rank` which is 0-indexed, but when it doesn't exist (single-rank scenario), it returns 1 instead of 0. This breaks the expected 0-indexed semantics and could cause off-by-one errors in callers expecting consistent 0-indexed ranks.",2026-01-22T18:20:55.087345+00:00
+posthog/posthog,45758,feat(web-analytics): serve favicons from static CDN and add to domain selector,https://github.com/PostHog/posthog/pull/45758,,"**logic:** `window.JS_URL` can be undefined according to the type declaration in `globals.d.ts`
+
+if undefined, this produces URLs like `undefined/static/favicons/${domain}`, which will fail. add a fallback or handle the undefined case
+
+```suggestion
+export const faviconUrl = (domain: string): string => `${window.JS_URL || ''}/static/favicons/${domain}.png`
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: frontend/src/scenes/web-analytics/common.ts
+Line: 557:557
+
+Comment:
+**logic:** `window.JS_URL` can be undefined according to the type declaration in `globals.d.ts`
+
+if undefined, this produces URLs like `undefined/static/favicons/${domain}`, which will fail. add a fallback or handle the undefined case
+
+```suggestion
+export const faviconUrl = (domain: string): string => `${window.JS_URL || ''}/static/favicons/${domain}.png`
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/45758#discussion_r2719116632,,2026-01-23T00:11:35+00:00,runtime,medium,"Greptile correctly identifies that `window.JS_URL` can be undefined according to type declarations, which would result in malformed URLs like 'undefined/static/favicons/domain' that would fail to load favicons. This is a non-obvious edge case that could cause broken images in production environments where JS_URL isn't set.",2026-01-23T00:47:41.715495+00:00
+onyx-dot-app/onyx,7680,THINKING PACKETS :BIG_GRIN:,https://github.com/onyx-dot-app/onyx/pull/7680,,"verification assertions don't match implementation
+
+All these assertions expect `config[""options""]` but the implementation stores thinking/reasoning config at `config[""provider""][provider][""models""][model_name][""config""]`. These assertions will all fail.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: backend/onyx/server/features/build/sandbox/internal/verify_opencode_config.py
+Line: 198:201
+
+Comment:
+verification assertions don't match implementation
+
+All these assertions expect `config[""options""]` but the implementation stores thinking/reasoning config at `config[""provider""][provider][""models""][model_name][""config""]`. These assertions will all fail.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/7680#discussion_r2718981986,,2026-01-22T23:13:20+00:00,logic,medium,"Greptile correctly identified that the assertions at the end of the file are accessing `config[""options""]` but based on the implementation in DirectoryManager.setup_opencode_config (not shown but referenced), the thinking/reasoning configuration is stored in a nested provider/model structure, not at the top-level options key. This is a real bug that would cause all these verification assertions to fail with KeyError when the script is run.",2026-01-23T00:47:41.715582+00:00
+onyx-dot-app/onyx,7680,THINKING PACKETS :BIG_GRIN:,https://github.com/onyx-dot-app/onyx/pull/7680,,"`select.select()` doesn't work with pipes on Windows - only with sockets. When running on Windows, line 298 will raise an exception, caught at line 320, and return empty string. The Windows fallback path (lines 317-318) is never reached.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: backend/onyx/server/features/build/sandbox/internal/agent_client.py
+Line: 298:318
+
+Comment:
+`select.select()` doesn't work with pipes on Windows - only with sockets. When running on Windows, line 298 will raise an exception, caught at line 320, and return empty string. The Windows fallback path (lines 317-318) is never reached.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/7680#discussion_r2719091092,,2026-01-22T23:59:59+00:00,runtime,medium,"Greptile correctly identifies that select.select() doesn't work with pipes on Windows (only sockets), which would cause an OSError at line 298 before reaching the fcntl ImportError fallback at lines 317-318. The Windows fallback code path is unreachable because the exception occurs earlier in the try block. This is a non-obvious cross-platform compatibility bug that would cause stderr reading to silently fail on Windows.",2026-01-23T00:47:41.715641+00:00
+helixdb/helix-db,821,"impr(cli): improving cli dx, docker builds check for cli availability before building",https://github.com/HelixDB/helix-db/pull/821,,"Port checking before build may cause race condition. The build process (line 151-152) regenerates `docker-compose.yml` with the original requested port via `generate_docker_files()`. If the port becomes unavailable between the check (line 141) and the actual docker start (line 166), or if the build overwrites the port-adjusted compose file, the deployment could fail.",https://github.com/HelixDB/helix-db/pull/821#discussion_r2718930824,,2026-01-22T22:56:41+00:00,concurrency,medium,"Greptile correctly identifies a race condition: port availability is checked at line 141, then build runs at line 151-152 which likely regenerates docker-compose with the original port (via generate_docker_files()), and only afterward (lines 155-163) is the compose file regenerated with the new port if changed. This means the build step could overwrite the port adjustment, and even if not, the port could become unavailable between check and actual docker start at line 166. The time window between check and use creates a TOCTOU vulnerability.",2026-01-23T00:47:41.715695+00:00
+getarcaneapp/arcane,1561,feat: arcane specific labels for icons and custom urls,https://github.com/getarcaneapp/arcane/pull/1561,,"**logic:** Potential XSS risk: `javascript:` URLs bypass this check and could execute arbitrary code
+
+```suggestion
+	function toHref(raw: string): string {
+		const trimmed = raw.trim();
+		if (!trimmed) return '#';
+		// Block javascript: and data: URLs
+		if (/^(javascript|data|vbscript):/i.test(trimmed)) return '#';
+		if (/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(trimmed)) return trimmed;
+		return `http://${trimmed}`;
+	}
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: frontend/src/routes/(app)/projects/[projectId]/+page.svelte
+Line: 278:282
+
+Comment:
+**logic:** Potential XSS risk: `javascript:` URLs bypass this check and could execute arbitrary code
+
+```suggestion
+	function toHref(raw: string): string {
+		const trimmed = raw.trim();
+		if (!trimmed) return '#';
+		// Block javascript: and data: URLs
+		if (/^(javascript|data|vbscript):/i.test(trimmed)) return '#';
+		if (/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(trimmed)) return trimmed;
+		return `http://${trimmed}`;
+	}
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/getarcaneapp/arcane/pull/1561#discussion_r2718863255,,2026-01-22T22:27:42+00:00,security,high,"The `toHref` function correctly identifies that strings with any protocol scheme (like `javascript:`) are passed through unchanged via the regex `/^[a-zA-Z][a-zA-Z0-9+.-]*:/`. This URL is then used in an `<a href={toHref(url)}>` tag, allowing potential XSS attacks if project URLs are user-controlled. This is a real, non-obvious security vulnerability that could lead to arbitrary JavaScript execution.",2026-01-23T00:47:41.715728+00:00
