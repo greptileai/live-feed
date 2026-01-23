@@ -3620,3 +3620,164 @@ Comment:
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/getarcaneapp/arcane/pull/1561#discussion_r2718863255,,2026-01-22T22:27:42+00:00,security,high,"The `toHref` function correctly identifies that strings with any protocol scheme (like `javascript:`) are passed through unchanged via the regex `/^[a-zA-Z][a-zA-Z0-9+.-]*:/`. This URL is then used in an `<a href={toHref(url)}>` tag, allowing potential XSS attacks if project URLs are user-controlled. This is a real, non-obvious security vulnerability that could lead to arbitrary JavaScript execution.",2026-01-23T00:47:41.715728+00:00
+onyx-dot-app/onyx,7686,feat: IDEAL OUTPUT PANEL,https://github.com/onyx-dot-app/onyx/pull/7686,,"security vulnerability: removed path traversal security check
+
+the removed code validated that `file_path` doesn't escape `sandbox_path` using `.resolve()`. without this check, a malicious user could use `../` in the path parameter to access files outside their sandbox
+
+```suggestion
+        sandbox_path = Path(SANDBOX_BASE_PATH) / str(sandbox.session_id)
+        file_path = sandbox_path / path
+
+        # Security check: ensure path doesn't escape sandbox
+        try:
+            file_path = file_path.resolve()
+            sandbox_path_resolved = sandbox_path.resolve()
+            if not str(file_path).startswith(str(sandbox_path_resolved)):
+                raise ValueError(""Access denied - path traversal"")
+        except ValueError:
+            raise
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: backend/onyx/server/features/build/session/manager.py
+Line: 1011:1012
+
+Comment:
+security vulnerability: removed path traversal security check
+
+the removed code validated that `file_path` doesn't escape `sandbox_path` using `.resolve()`. without this check, a malicious user could use `../` in the path parameter to access files outside their sandbox
+
+```suggestion
+        sandbox_path = Path(SANDBOX_BASE_PATH) / str(sandbox.session_id)
+        file_path = sandbox_path / path
+
+        # Security check: ensure path doesn't escape sandbox
+        try:
+            file_path = file_path.resolve()
+            sandbox_path_resolved = sandbox_path.resolve()
+            if not str(file_path).startswith(str(sandbox_path_resolved)):
+                raise ValueError(""Access denied - path traversal"")
+        except ValueError:
+            raise
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/7686#discussion_r2719273971,,2026-01-23T01:44:46+00:00,security,critical,"The diff clearly shows the removal of a path traversal security check that prevented users from accessing files outside their sandbox using '../' sequences. Without this validation, a malicious user could potentially read arbitrary files from the server filesystem, which is a critical security vulnerability. This is a non-obvious catch since the removal might have seemed intentional during refactoring.",2026-01-23T02:56:29.230983+00:00
+onyx-dot-app/onyx,7685,Kubernetes deployment,https://github.com/onyx-dot-app/onyx/pull/7685,,"path sanitization only removes `..` from anywhere in the string, but doesn't prevent path traversal attacks using sequences like `/workspace/outputs/../../../etc/passwd`
+
+```suggestion
+        clean_path = str(Path(path.lstrip(""/"")).resolve().relative_to(Path(""."")))
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: backend/onyx/server/features/build/sandbox/kubernetes/manager.py
+Line: 728:729
+
+Comment:
+path sanitization only removes `..` from anywhere in the string, but doesn't prevent path traversal attacks using sequences like `/workspace/outputs/../../../etc/passwd`
+
+```suggestion
+        clean_path = str(Path(path.lstrip(""/"")).resolve().relative_to(Path(""."")))
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/7685#discussion_r2719276936,,2026-01-23T01:46:39+00:00,security,critical,"The path sanitization using `.replace("".."", """")` on line 729 is ineffective because it only removes the literal string "".."" once, not recursively. An attacker could use paths like ""....//"" which after replacement becomes ""../"" or encoded variants. This allows path traversal to read arbitrary files from the sandbox container (e.g., `/etc/passwd`). This is a real security vulnerability in file access operations that could expose sensitive data.",2026-01-23T02:56:29.231092+00:00
+onyx-dot-app/onyx,7685,Kubernetes deployment,https://github.com/onyx-dot-app/onyx/pull/7685,,"same path traversal vulnerability as in `list_directory` - the `.replace("".."", """")` approach is insufficient
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: backend/onyx/server/features/build/sandbox/kubernetes/manager.py
+Line: 829:829
+
+Comment:
+same path traversal vulnerability as in `list_directory` - the `.replace("".."", """")` approach is insufficient
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/7685#discussion_r2719276981,,2026-01-23T01:46:41+00:00,security,critical,"The path sanitization using `.replace("".."", """")` is indeed insufficient for preventing path traversal attacks. An attacker could use patterns like `....//` which after replacing `..` becomes `../`, or URL-encoded variants like `%2e%2e/`. This vulnerability could allow reading arbitrary files outside the intended outputs directory, which is a serious security issue in a sandbox environment.",2026-01-23T02:56:29.231165+00:00
+onyx-dot-app/onyx,7685,Kubernetes deployment,https://github.com/onyx-dot-app/onyx/pull/7685,,"uses `sandbox-file-sync` service account which has S3 IRSA permissions - verify the main `sandbox` container doesn't inherit these credentials after the init container completes
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: backend/onyx/server/features/build/sandbox/kubernetes/manager.py
+Line: 311:311
+
+Comment:
+uses `sandbox-file-sync` service account which has S3 IRSA permissions - verify the main `sandbox` container doesn't inherit these credentials after the init container completes
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/7685#discussion_r2719277015,,2026-01-23T01:46:42+00:00,security,high,"Greptile correctly identifies a security concern - the pod spec at line 311 sets `service_account_name=self._file_sync_service_account` for the entire pod, meaning both the init container AND the main sandbox container will have S3 IRSA credentials. This violates the principle of least privilege since the main sandbox container (which runs user code) shouldn't have S3 write access that was only meant for the file-sync init container. This is a non-obvious security issue that could allow sandbox escapes to access/modify S3 data.",2026-01-23T02:56:29.231205+00:00
+greptileai/react-mirror,409,[compiler][wip] Support `finally` clauses,https://github.com/greptileai/react-mirror/pull/409,,"**logic:** finalizer block not added to `activeTryBlocks`, so JSX in finally won't be validated
+
+```suggestion
+    if (block.terminal.kind === 'try') {
+      // Add the try block itself to activeTryBlocks
+      activeTryBlocks.push(block.terminal.block);
+      // Also add handler if present
+      if (block.terminal.handler !== null) {
+        activeTryBlocks.push(block.terminal.handler);
+      }
+      // Also add finalizer if present
+      if (block.terminal.finalizer !== null) {
+        activeTryBlocks.push(block.terminal.finalizer);
+      }
+    }
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: compiler/packages/babel-plugin-react-compiler/src/Validation/ValidateNoJSXInTryStatement.ts
+Line: 57:64
+
+Comment:
+**logic:** finalizer block not added to `activeTryBlocks`, so JSX in finally won't be validated
+
+```suggestion
+    if (block.terminal.kind === 'try') {
+      // Add the try block itself to activeTryBlocks
+      activeTryBlocks.push(block.terminal.block);
+      // Also add handler if present
+      if (block.terminal.handler !== null) {
+        activeTryBlocks.push(block.terminal.handler);
+      }
+      // Also add finalizer if present
+      if (block.terminal.finalizer !== null) {
+        activeTryBlocks.push(block.terminal.finalizer);
+      }
+    }
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/greptileai/react-mirror/pull/409#discussion_r2719275513,,2026-01-23T01:45:44+00:00,logic,medium,"The PR title explicitly mentions 'Support `finally` clauses', yet the code only adds handler blocks to activeTryBlocks without adding finalizer blocks. This means JSX in finally blocks won't be validated, which directly contradicts the purpose of this PR. Greptile correctly identified this omission in the validation logic.",2026-01-23T02:56:29.231232+00:00
+nvidia/fuser,5865,[IR Refactor] Phase 1: IrContainer/IrStorage Composition Pattern,https://github.com/NVIDIA/Fuser/pull/5865,,"**logic:** `parent_` is `nullptr` when copy constructor is invoked, but `IrStorage::copy()` calls `to->parent()` (line 40) which triggers `NVF_ERROR` when `parent_` is `nullptr` (storage.h:225-226).
+
+```suggestion
+IrStorage::IrStorage(const IrStorage& other) {
+  FUSER_PERF_SCOPE(""IrStorage copy"");
+  parent_ = other.parent_;  // Initialize parent before calling copy
+  IrStorage::copy(&other, this);
+}
+```",https://github.com/NVIDIA/Fuser/pull/5865#discussion_r2719360698,,2026-01-23T02:35:12+00:00,runtime,high,"The comment correctly identifies that IrStorage's copy constructor calls IrStorage::copy() which uses to->parent() on line 40, but parent_ is never initialized before this call. Looking at the code, parent() likely has an NVF_ERROR check when parent_ is nullptr (as referenced in storage.h:225-226), meaning the copy constructor would crash. This is a non-obvious initialization order bug that would cause runtime errors when copying IrStorage objects.",2026-01-23T02:56:29.231301+00:00
+nvidia/nvflare,4019,[2.7] AddFedAvgMemEfficient,https://github.com/NVIDIA/NVFlare/pull/4019,,"Integer tensors are not weighted correctly - adds raw values without normalization, breaking FedAvg semantics. With 2 clients sending `[1]` and `[3]` with equal weights, produces `[4]` instead of expected average `[2]`.
+
+```suggestion
+                    else:
+                        # Integer/bool tensors: scale then add (cast to float, aggregate, round back)
+                        target_param.add_((result.params[k].float() * normalized_weight).to(target_param.dtype))
+```",https://github.com/NVIDIA/NVFlare/pull/4019#discussion_r2719201210,,2026-01-23T01:01:14+00:00,logic,high,"Greptile correctly identifies that integer tensors skip normalization (lines 155-157), breaking FedAvg weighted averaging. The code explicitly adds integer tensor values without the `alpha=normalized_weight` parameter, so two clients sending [1] and [3] with equal weights would produce [4] instead of the correct weighted average [2]. This is a subtle but significant logic bug in a federated averaging algorithm.",2026-01-23T02:56:29.231325+00:00
