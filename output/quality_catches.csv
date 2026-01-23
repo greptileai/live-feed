@@ -4070,3 +4070,109 @@ missing assertion - the `await` and `expect()` were removed, so this line no lon
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/cedarjs/cedar/pull/1024#discussion_r2720370038,,2026-01-23T09:17:05+00:00,logic,medium,"Greptile correctly identified that the original code had `await page.getByText(...)` which would wait for the element, but the change removed both the `await` and any `expect()` assertion, leaving a dead line that doesn't verify anything. This would cause the smoke test to pass even if the expected text is missing from the page, defeating the purpose of the test.",2026-01-23T10:17:05.030268+00:00
+posthog/posthog,45785,feat(hogql): postgres style casts,https://github.com/PostHog/posthog/pull/45785,,"**logic:** field name mismatch - C++ uses `type_name` but Python AST expects `to_type` (see `posthog/hogql/ast.py:36`). This will cause deserialization to fail when using cpp-json backend.
+
+```suggestion
+  VISIT(ColumnExprPgCast) {
+    Json expr_json = visitAsJSON(ctx->columnExpr());
+    string type_name = to_lower_copy(visitAsString(ctx->identifier()));
+
+    Json json = Json::object();
+    json[""node""] = ""PGCast"";
+    if (!is_internal) addPositionInfo(json, ctx);
+    json[""expr""] = expr_json;
+    json[""to_type""] = type_name;
+    return json;
+  }
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: common/hogql_parser/parser_json.cpp
+Line: 1478:1489
+
+Comment:
+**logic:** field name mismatch - C++ uses `type_name` but Python AST expects `to_type` (see `posthog/hogql/ast.py:36`). This will cause deserialization to fail when using cpp-json backend.
+
+```suggestion
+  VISIT(ColumnExprPgCast) {
+    Json expr_json = visitAsJSON(ctx->columnExpr());
+    string type_name = to_lower_copy(visitAsString(ctx->identifier()));
+
+    Json json = Json::object();
+    json[""node""] = ""PGCast"";
+    if (!is_internal) addPositionInfo(json, ctx);
+    json[""expr""] = expr_json;
+    json[""to_type""] = type_name;
+    return json;
+  }
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/45785#discussion_r2720850309,,2026-01-23T11:35:38+00:00,data_integrity,high,This is a cross-language serialization bug where the C++ parser uses 'type_name' as the JSON field name but the Python AST class likely expects 'to_type' for deserialization. This mismatch would cause the PGCast feature to fail when using the cpp-json backend. The bug is non-obvious because it requires knowledge of both the C++ and Python codebases and their interaction.,2026-01-23T12:22:59.934677+00:00
+posthog/posthog,45775,refactor(comments): move comment model to directory structure,https://github.com/PostHog/posthog/pull/45775,,"**logic:** self-mentions will produce events when they shouldn't. test `test_self_mentions_do_not_produce_events` expects self-mentions to be filtered, but there's no filtering logic here.
+
+```suggestion
+        for mentioned_user in mentioned_users:
+            # Skip self-mentions
+            if mentioned_user.id == commenter.id:
+                continue
+                
+            produce_internal_event(
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: posthog/models/comment/utils.py
+Line: 96:122
+
+Comment:
+**logic:** self-mentions will produce events when they shouldn't. test `test_self_mentions_do_not_produce_events` expects self-mentions to be filtered, but there's no filtering logic here.
+
+```suggestion
+        for mentioned_user in mentioned_users:
+            # Skip self-mentions
+            if mentioned_user.id == commenter.id:
+                continue
+                
+            produce_internal_event(
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/45775#discussion_r2720641698,,2026-01-23T10:30:34+00:00,logic,medium,"Greptile correctly identifies that the code has no filtering for self-mentions. The function iterates through all mentioned_users and produces events for each one, including when the commenter mentions themselves. If a test named 'test_self_mentions_do_not_produce_events' exists and expects this behavior to be filtered, this is clearly a missing logic bug that would cause unwanted notification events.",2026-01-23T12:22:59.934791+00:00
+twentyhq/twenty,17394,Encrypt/decrypt app secret variables,https://github.com/twentyhq/twenty/pull/17394,,"when updating existing variables in `upsertManyApplicationVariableEntities`, only the metadata fields are updated, but not the variable value itself. This means if the variable already exists, its value won't change even when a new value is provided.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/twenty-server/src/engine/core-modules/applicationVariable/application-variable.service.ts
+Line: 111:128
+
+Comment:
+when updating existing variables in `upsertManyApplicationVariableEntities`, only the metadata fields are updated, but not the variable value itself. This means if the variable already exists, its value won't change even when a new value is provided.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/twentyhq/twenty/pull/17394#discussion_r2720750653,,2026-01-23T11:03:10+00:00,logic,high,"Greptile correctly identified that in the upsertManyApplicationVariableEntities method, when an existing variable is found (lines 117-124), the update only changes 'description' and 'isSecret' fields, but NOT the 'value' field. The encryptedValue is computed but never used in the update path, meaning existing variables won't have their values updated - a clear upsert logic bug.",2026-01-23T12:22:59.934857+00:00
+twentyhq/twenty,17394,Encrypt/decrypt app secret variables,https://github.com/twentyhq/twenty/pull/17394,,"silently returns the original value when encryption fails. If `APP_SECRET` is missing or invalid, this could lead to secrets being stored unencrypted without the caller knowing. Consider throwing an error or logging at a higher level than debug.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/twenty-server/src/engine/core-modules/secret-encryption/secret-encryption.service.ts
+Line: 28:38
+
+Comment:
+silently returns the original value when encryption fails. If `APP_SECRET` is missing or invalid, this could lead to secrets being stored unencrypted without the caller knowing. Consider throwing an error or logging at a higher level than debug.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/twentyhq/twenty/pull/17394#discussion_r2720750705,,2026-01-23T11:03:11+00:00,security,high,"Greptile correctly identifies that the encrypt method silently falls back to returning the original unencrypted value when encryption fails (lines 31-35). This is a security vulnerability because secrets could be stored in plaintext without any notification to the caller, especially if APP_SECRET is misconfigured. The debug-level logging makes this failure easy to miss in production.",2026-01-23T12:22:59.934909+00:00
