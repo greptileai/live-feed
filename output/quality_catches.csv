@@ -3781,3 +3781,46 @@ nvidia/nvflare,4019,[2.7] AddFedAvgMemEfficient,https://github.com/NVIDIA/NVFlar
                         # Integer/bool tensors: scale then add (cast to float, aggregate, round back)
                         target_param.add_((result.params[k].float() * normalized_weight).to(target_param.dtype))
 ```",https://github.com/NVIDIA/NVFlare/pull/4019#discussion_r2719201210,,2026-01-23T01:01:14+00:00,logic,high,"Greptile correctly identifies that integer tensors skip normalization (lines 155-157), breaking FedAvg weighted averaging. The code explicitly adds integer tensor values without the `alpha=normalized_weight` parameter, so two clients sending [1] and [3] with equal weights would produce [4] instead of the correct weighted average [2]. This is a subtle but significant logic bug in a federated averaging algorithm.",2026-01-23T02:56:29.231325+00:00
+onyx-dot-app/onyx,7691,feat(opensearch): Implement complete retrieval filtering,https://github.com/onyx-dot-app/onyx/pull/7691,,"`list.remove()` will raise `ValueError` if `PUBLIC_DOC_PAT` is not in the list, which happens when `access.is_public` is `False`
+
+```suggestion
+def _generate_filtered_access_control_list(access: DocumentAccess) -> list[str]:
+    """"""Filters the access control list to remove PUBLIC_DOC_PAT.
+
+    In the OpenSearch schema this is represented by PUBLIC_FIELD_NAME.
+    """"""
+    filtered_access_control_list = [acl for acl in access.to_acl() if acl != PUBLIC_DOC_PAT]
+    return filtered_access_control_list
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: backend/onyx/document_index/opensearch/opensearch_document_index.py
+Line: 73:80
+
+Comment:
+`list.remove()` will raise `ValueError` if `PUBLIC_DOC_PAT` is not in the list, which happens when `access.is_public` is `False`
+
+```suggestion
+def _generate_filtered_access_control_list(access: DocumentAccess) -> list[str]:
+    """"""Filters the access control list to remove PUBLIC_DOC_PAT.
+
+    In the OpenSearch schema this is represented by PUBLIC_FIELD_NAME.
+    """"""
+    filtered_access_control_list = [acl for acl in access.to_acl() if acl != PUBLIC_DOC_PAT]
+    return filtered_access_control_list
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/7691#discussion_r2719418316,,2026-01-23T03:09:54+00:00,runtime,high,"The code calls `filtered_access_control_list.remove(PUBLIC_DOC_PAT)` unconditionally, but when `access.is_public` is False, PUBLIC_DOC_PAT won't be in the list returned by `to_acl()`, causing a ValueError crash. This is a real runtime bug that would occur whenever processing non-public documents, and the suggested list comprehension fix is correct and actionable.",2026-01-23T04:30:08.249706+00:00
+nvidia/nvflare,4020,[2.7] Enhance weighted agg helper,https://github.com/NVIDIA/NVFlare/pull/4020,,"in-place modification of caller's input tensor can cause unexpected side effects if caller retains reference to `v`
+
+```suggestion
+                                self.total[k] = v.mul(weight)
+```",https://github.com/NVIDIA/NVFlare/pull/4020#discussion_r2719392572,,2026-01-23T02:54:55+00:00,data_integrity,high,"The code uses `v.mul_(weight)` which is an in-place PyTorch operation that modifies the original tensor. If the caller retains a reference to the data passed to `add()`, their data will be unexpectedly modified. The code comment claims this is safe for 'InTime aggregation' but this assumption may not hold for all use cases, making this a subtle but real bug that could cause data corruption.",2026-01-23T04:30:08.249803+00:00
+valian-ca/firebase-functions,15,feat: add @valian/pino-logger,https://github.com/valian-ca/firebase-functions/pull/15,,"**logic:** unconditional import at module load time conflicts with `firebase-functions` being marked as optional peer dependency - module will fail to load if `firebase-functions` isn't installed, even in dev environments where it's never used
+
+consider either: making it a required peer dependency, or using dynamic import when in production mode",https://github.com/valian-ca/firebase-functions/pull/15#discussion_r2719404442,,2026-01-23T03:00:56+00:00,runtime,medium,"Greptile correctly identifies that `firebase-functions` is imported unconditionally at the top of the module, but based on the logic, it's only used in production (non-local) environments. If firebase-functions is an optional peer dependency, the module will crash on import in dev environments where firebase-functions isn't installed, even though it would never actually be used there. This is a real runtime bug that's non-obvious and requires understanding the relationship between the import, the peer dependency configuration, and the conditional usage.",2026-01-23T04:30:08.249841+00:00
