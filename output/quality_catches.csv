@@ -4478,3 +4478,126 @@ nvidia/topograph,200,initial commit for lambda provider simulator,https://github
 	for indx = from; indx < from+c.pageSize && indx < len(c.instanceIDs); indx++ {
 		node, exists := c.model.Nodes[c.instanceIDs[indx]]
 ```",https://github.com/NVIDIA/topograph/pull/200#discussion_r2722236164,,2026-01-23T17:48:40+00:00,runtime,high,"The loop iterates from `from` to `from + c.pageSize` without checking if `indx` exceeds `len(c.instanceIDs)`. When pagination is used, if `from + pageSize > len(instanceIDs)`, accessing `c.instanceIDs[indx]` will cause an index out-of-bounds panic. This is a real bug that could crash the application during normal pagination operations, and the suggested fix is correct and actionable.",2026-01-23T18:21:26.206314+00:00
+alpaca-network/gatewayz-frontend,896,feat(models): add grouped table view with per-provider pricing,https://github.com/Alpaca-Network/gatewayz-frontend/pull/896,,"The best price calculation compares raw string values as floats without normalizing them first. Different gateways return prices in different formats (per-token vs per-million), so comparing `parseFloat(gatewayPricing[gw]?.prompt)` directly can lead to incorrect results.
+
+For example:
+- OpenRouter returns `0.00000015` (per-token)
+- OneRouter returns `0.15` (per-million)
+
+Both represent the same price, but the comparison would incorrectly choose OpenRouter as ""cheaper"" because `0.00000015 < 0.15`.
+
+```suggestion
+  // For display, use the best pricing (lowest input cost)
+  const bestGateway = useMemo(() => {
+    if (gateways.length === 0) return sourceGateway;
+    let best = gateways[0];
+    let bestInputPrice = Infinity;
+    for (const gw of gateways) {
+      // Normalize prices to per-million format for fair comparison
+      const normalizedPrice = parseFloat(formatPricingForDisplay(gatewayPricing[gw]?.prompt, gw) || '999999');
+      if (normalizedPrice < bestInputPrice) {
+        bestInputPrice = normalizedPrice;
+        best = gw;
+      }
+    }
+    return best;
+  }, [gateways, gatewayPricing, sourceGateway]);
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: src/app/models/models-client.tsx
+Line: 253:265
+
+Comment:
+The best price calculation compares raw string values as floats without normalizing them first. Different gateways return prices in different formats (per-token vs per-million), so comparing `parseFloat(gatewayPricing[gw]?.prompt)` directly can lead to incorrect results.
+
+For example:
+- OpenRouter returns `0.00000015` (per-token)
+- OneRouter returns `0.15` (per-million)
+
+Both represent the same price, but the comparison would incorrectly choose OpenRouter as ""cheaper"" because `0.00000015 < 0.15`.
+
+```suggestion
+  // For display, use the best pricing (lowest input cost)
+  const bestGateway = useMemo(() => {
+    if (gateways.length === 0) return sourceGateway;
+    let best = gateways[0];
+    let bestInputPrice = Infinity;
+    for (const gw of gateways) {
+      // Normalize prices to per-million format for fair comparison
+      const normalizedPrice = parseFloat(formatPricingForDisplay(gatewayPricing[gw]?.prompt, gw) || '999999');
+      if (normalizedPrice < bestInputPrice) {
+        bestInputPrice = normalizedPrice;
+        best = gw;
+      }
+    }
+    return best;
+  }, [gateways, gatewayPricing, sourceGateway]);
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/Alpaca-Network/gatewayz-frontend/pull/896#discussion_r2722681041,,2026-01-23T20:11:06+00:00,logic,medium,"The code at line 253-265 directly compares raw price strings as floats without normalization. Looking at line 256, `parseFloat(gatewayPricing[gw]?.prompt || '999999')` is used for comparison, while line 261 uses `formatPricingForDisplay()` which normalizes pricing. If different gateways use different pricing formats (per-token vs per-million), this would incorrectly identify the 'best' price. The suggested fix to use `formatPricingForDisplay()` for comparison is correct and actionable.",2026-01-23T20:17:53.281854+00:00
+alpaca-network/gatewayz-frontend,896,feat(models): add grouped table view with per-provider pricing,https://github.com/Alpaca-Network/gatewayz-frontend/pull/896,,"When `bestGateway` is not in `gatewayPricing` (e.g., when it falls back to `sourceGateway`), this code uses `model.pricing` which may not exist or may be from a different gateway. This can display incorrect pricing if the model's primary pricing doesn't match the best gateway's pricing.
+
+Check if `gatewayPricing[bestGateway]` exists before falling back, and handle the case where neither exists to avoid displaying mismatched pricing.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: src/app/models/models-client.tsx
+Line: 267:269
+
+Comment:
+When `bestGateway` is not in `gatewayPricing` (e.g., when it falls back to `sourceGateway`), this code uses `model.pricing` which may not exist or may be from a different gateway. This can display incorrect pricing if the model's primary pricing doesn't match the best gateway's pricing.
+
+Check if `gatewayPricing[bestGateway]` exists before falling back, and handle the case where neither exists to avoid displaying mismatched pricing.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/Alpaca-Network/gatewayz-frontend/pull/896#discussion_r2722681097,,2026-01-23T20:11:07+00:00,logic,medium,"Greptile correctly identifies that when `bestGateway` falls back to `sourceGateway` (which happens when `gateways.length === 0`), the code then tries to access `gatewayPricing[bestGateway]` which will be undefined since `gatewayPricing` is empty, causing a fallback to `model.pricing` which may represent pricing from a different gateway than `bestGateway`, displaying potentially incorrect/mismatched pricing information to users.",2026-01-23T20:17:53.282017+00:00
+traceroot-ai/traceroot,367,[AgentOps][Python SDK] Simplify sdk user experience,https://github.com/traceroot-ai/traceroot/pull/367,,"**logic:** Race condition in concurrent scenarios. If multiple threads call decorated functions simultaneously before initialization, both could see `_client is None` and create multiple `TracerootClient` instances, each calling `trace.set_tracer_provider()`.
+
+Consider using thread-safe initialization:
+```suggestion
+    global _client
+    if _client is None:
+        import threading
+        with threading.Lock():
+            if _client is None:
+                _client = TracerootClient()
+    return _client
+```
+
+Or use double-checked locking with a module-level lock.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: traceroot-py/traceroot/__init__.py
+Line: 86:89
+
+Comment:
+**logic:** Race condition in concurrent scenarios. If multiple threads call decorated functions simultaneously before initialization, both could see `_client is None` and create multiple `TracerootClient` instances, each calling `trace.set_tracer_provider()`.
+
+Consider using thread-safe initialization:
+```suggestion
+    global _client
+    if _client is None:
+        import threading
+        with threading.Lock():
+            if _client is None:
+                _client = TracerootClient()
+    return _client
+```
+
+Or use double-checked locking with a module-level lock.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/traceroot-ai/traceroot/pull/367#discussion_r2722490747,,2026-01-23T19:10:19+00:00,concurrency,medium,"Greptile correctly identifies a real race condition - the check-then-act pattern on _client is not thread-safe, so concurrent threads could both see _client as None and create multiple TracerootClient instances. This is a non-obvious bug in auto-initialization code that could cause duplicate tracer providers to be set up, leading to unexpected behavior in multi-threaded applications.",2026-01-23T20:17:53.282079+00:00
