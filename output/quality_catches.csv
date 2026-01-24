@@ -5190,3 +5190,86 @@ How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>
 </details>",https://github.com/cedarjs/cedar/pull/1027#issuecomment-3795060123,,2026-01-24T16:48:12+00:00,logic,medium,"Given the PR title explicitly states the goal is to replace 'rw' bin with 'cedar' bin, Greptile correctly identified multiple missed instances in coherenceHandler.js where the old 'rw' command was not updated, which would cause the deployment commands to fail or behave incorrectly. This is a real bug - incomplete refactoring that a reviewer could easily miss across a large codebase.",2026-01-24T18:18:13.478089+00:00
+simstudioai/sim,2979,fix(landing): ui,https://github.com/simstudioai/sim/pull/2979,,"**logic:** hardcoding `isProd = true` breaks all development and test environments
+
+```suggestion
+export const isProd = env.NODE_ENV === 'production'
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: apps/sim/lib/core/config/feature-flags.ts
+Line: 9:9
+
+Comment:
+**logic:** hardcoding `isProd = true` breaks all development and test environments
+
+```suggestion
+export const isProd = env.NODE_ENV === 'production'
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/simstudioai/sim/pull/2979#discussion_r2724604247,,2026-01-24T20:54:48+00:00,logic,high,"The diff clearly shows `isProd` being changed from a dynamic check (`env.NODE_ENV === 'production'`) to a hardcoded `true` value. This would make all environments (development, test, staging) behave as if they were production, breaking environment-specific functionality like debug logging, feature flags, and safety checks. This is a real bug that could easily slip through in a UI-focused PR.",2026-01-24T22:14:38.862970+00:00
+simstudioai/sim,2979,fix(landing): ui,https://github.com/simstudioai/sim/pull/2979,,"**logic:** hardcoding `isHosted = true` breaks self-hosted deployments and disables `isAuthDisabled` flag
+
+```suggestion
+export const isHosted =
+  getEnv('NEXT_PUBLIC_APP_URL') === 'https://www.sim.ai' ||
+  getEnv('NEXT_PUBLIC_APP_URL') === 'https://www.staging.sim.ai'
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: apps/sim/lib/core/config/feature-flags.ts
+Line: 24:24
+
+Comment:
+**logic:** hardcoding `isHosted = true` breaks self-hosted deployments and disables `isAuthDisabled` flag
+
+```suggestion
+export const isHosted =
+  getEnv('NEXT_PUBLIC_APP_URL') === 'https://www.sim.ai' ||
+  getEnv('NEXT_PUBLIC_APP_URL') === 'https://www.staging.sim.ai'
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/simstudioai/sim/pull/2979#discussion_r2724604253,,2026-01-24T20:54:49+00:00,logic,high,"Greptile correctly identifies that hardcoding `isHosted = true` would break self-hosted deployments since this flag likely gates hosted-specific features like authentication requirements. The original logic properly detected hosted environments via URL comparison, and removing this breaks the deployment model for self-hosted users.",2026-01-24T22:14:38.863056+00:00
+simstudioai/sim,2979,fix(landing): ui,https://github.com/simstudioai/sim/pull/2979,,"**logic:** simplified label splitting logic loses flexibility
+
+The current implementation always splits on the first colon, which means labels like `""Time: 09:00AM: Daily""` would split incorrectly. Consider using `split(':', 2)` pattern or limit to first occurrence only.
+
+```suggestion
+  const colonIndex = label.indexOf(':')
+  const [title, displayValue] = colonIndex !== -1
+    ? [label.slice(0, colonIndex).trim(), label.slice(colonIndex + 1).trim()]
+    : [label, value]
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: apps/sim/app/(landing)/components/hero/components/landing-canvas/landing-block/tag.tsx
+Line: 26:30
+
+Comment:
+**logic:** simplified label splitting logic loses flexibility
+
+The current implementation always splits on the first colon, which means labels like `""Time: 09:00AM: Daily""` would split incorrectly. Consider using `split(':', 2)` pattern or limit to first occurrence only.
+
+```suggestion
+  const colonIndex = label.indexOf(':')
+  const [title, displayValue] = colonIndex !== -1
+    ? [label.slice(0, colonIndex).trim(), label.slice(colonIndex + 1).trim()]
+    : [label, value]
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/simstudioai/sim/pull/2979#discussion_r2724607956,,2026-01-24T21:01:41+00:00,logic,medium,"Greptile correctly identified that `label.split(':')` will split on ALL colons, so a label like 'Time: 09:00AM' would incorrectly parse as title='Time' and displayValue='09' instead of 'Time' and '09:00AM'. The suggested fix using indexOf and slice properly handles only the first colon occurrence. This is a non-obvious edge case bug that could cause incorrect display of time values or other colon-containing data.",2026-01-24T22:14:38.863105+00:00
