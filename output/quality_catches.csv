@@ -4911,3 +4911,38 @@ Comment:
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/joby-aviation/noodles.gl/pull/288#discussion_r2723849874,,2026-01-24T07:43:52+00:00,runtime,high,"Greptile correctly identifies that IconClusterLayerOp references 'IconClusterLayer' as a type string, but there's no implementation of this custom layer visible in the diff or codebase. The PR title mentions 'Supercluster-based clustering' suggesting a custom layer is needed, but without the layer implementation registered in deck.gl's layer registry, this operator will fail at runtime when deck.gl tries to instantiate the non-existent layer type. This is a non-obvious catch since the operator code itself looks complete.",2026-01-24T08:16:51.898006+00:00
+twentyhq/twenty,17410,Do not delete archived messages,https://github.com/twentyhq/twenty/pull/17410,,"if `connectedAccount` is null (when no connected account is found for the workspace member), `connectedAccount?.id` will be `undefined`, and `findBy` will return all message channels (or possibly error)
+
+```suggestion
+        if (!connectedAccount) {
+          return;
+        }
+
+        const relatedMessageChannels = await messageChannelRepository.findBy({
+          connectedAccountId: connectedAccount.id,
+        });
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/twenty-server/src/modules/connected-account/jobs/delete-workspace-member-connected-accounts.job.ts
+Line: 54:56
+
+Comment:
+if `connectedAccount` is null (when no connected account is found for the workspace member), `connectedAccount?.id` will be `undefined`, and `findBy` will return all message channels (or possibly error)
+
+```suggestion
+        if (!connectedAccount) {
+          return;
+        }
+
+        const relatedMessageChannels = await messageChannelRepository.findBy({
+          connectedAccountId: connectedAccount.id,
+        });
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/twentyhq/twenty/pull/17410#discussion_r2723992363,,2026-01-24T10:06:53+00:00,data_integrity,high,"Greptile correctly identifies that if `connectedAccount` is null, `connectedAccount?.id` evaluates to `undefined`, and passing `undefined` to `findBy({ connectedAccountId: undefined })` could return unintended results (all channels with null/undefined connectedAccountId, or potentially all channels depending on ORM behavior). This could lead to incorrectly disabling sync on message channels that shouldn't be affected. The null check is a necessary guard that prevents unintended data modifications.",2026-01-24T10:15:45.758908+00:00
