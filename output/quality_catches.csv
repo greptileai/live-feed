@@ -4763,3 +4763,22 @@ Comment:
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/ironyh/VueSIP/pull/178#discussion_r2723206020,,2026-01-23T23:51:32+00:00,resource_leak,medium,"Greptile correctly identified that the AudioContext created in testSpeaker() is never closed. Looking at the code, while the oscillator is stopped, audioContext.close() is never called, which will leak browser audio resources. Unlike the microphone test which has cleanup in onUnmounted, there's no cleanup for the AudioContext. The fix to call audioContext.close() in the setTimeout is correct and actionable.",2026-01-24T00:46:23.626878+00:00
+onyx-dot-app/onyx,7736,fix(chat): Internal search enablement matches source enablement,https://github.com/onyx-dot-app/onyx/pull/7736,,"When toggling the search tool on, this doesn't persist the restored sources. If `previous.length > 0`, it uses `setSelectedSources(previous)` instead of `enableSources(previous)`. This means the sources won't be saved to localStorage.
+
+Same issue when enabling all sources - `setSelectedSources(configuredSources)` doesn't persist.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: web/src/refresh-components/popovers/ActionsPopover/index.tsx
+Line: 633:647
+
+Comment:
+When toggling the search tool on, this doesn't persist the restored sources. If `previous.length > 0`, it uses `setSelectedSources(previous)` instead of `enableSources(previous)`. This means the sources won't be saved to localStorage.
+
+Same issue when enabling all sources - `setSelectedSources(configuredSources)` doesn't persist.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/7736#discussion_r2723431214,,2026-01-24T02:12:02+00:00,data_integrity,medium,"Greptile correctly identified that `setSelectedSources(previous)` and `setSelectedSources(configuredSources)` in the `handleToggleTool` function don't persist to localStorage, while other similar operations use `enableSources()` or `enableAllSources()` which do persist. This is a real inconsistency that could cause user preferences to be lost on page refresh - a non-obvious bug that requires understanding the difference between the raw setter and the persistence-aware helper functions.",2026-01-24T02:51:50.544954+00:00
