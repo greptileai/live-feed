@@ -5052,3 +5052,141 @@ import { SHARED_METRICS_PER_PAGE, sharedMetricsLogic } from './sharedMetricsLogi
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/PostHog/posthog/pull/45873#discussion_r2724285214,,2026-01-24T15:56:46+00:00,runtime,high,"Greptile correctly identified that `userLogic` is used in line 40 (`const { hasAvailableFeature } = useValues(userLogic)`) but is never imported anywhere in the file. This would cause a runtime error (ReferenceError: userLogic is not defined) when the component renders, breaking the entire page.",2026-01-24T16:16:04.423526+00:00
+cedarjs/cedar,1027,fix(cli): Use 'cedar' bin instead of deprecated 'rw' bin,https://github.com/cedarjs/cedar/pull/1027,,"<details>
+<summary>Additional Comments (5)</summary>
+
+**`packages/cli/src/commands/setup/deploy/providers/coherenceHandler.js`**
+Missed update from `rw` to `cedar` bin
+
+```suggestion
+    command: [""yarn"", ""cedar"", ""build"", ""api"", ""&&"", ""yarn"", ""cedar"", ""dev"", ""api"", ""--apiRootPath=/api""]
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/cli/src/commands/setup/deploy/providers/coherenceHandler.js
+Line: 219:219
+
+Comment:
+Missed update from `rw` to `cedar` bin
+
+```suggestion
+    command: [""yarn"", ""cedar"", ""build"", ""api"", ""&&"", ""yarn"", ""cedar"", ""dev"", ""api"", ""--apiRootPath=/api""]
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>
+
+---
+
+**`packages/cli/src/commands/setup/deploy/providers/coherenceHandler.js`**
+Missed update from `rw` to `cedar` bin in both commented and active migration commands
+
+```suggestion
+  # migration: [""yarn"", ""cedar"", ""prisma"", ""migrate"", ""deploy"", ""&&"", ""yarn"", ""cedar"", ""data-migrate"", ""up""]
+  migration: [""yarn"", ""cedar"", ""prisma"", ""migrate"", ""deploy""]
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/cli/src/commands/setup/deploy/providers/coherenceHandler.js
+Line: 235:236
+
+Comment:
+Missed update from `rw` to `cedar` bin in both commented and active migration commands
+
+```suggestion
+  # migration: [""yarn"", ""cedar"", ""prisma"", ""migrate"", ""deploy"", ""&&"", ""yarn"", ""cedar"", ""data-migrate"", ""up""]
+  migration: [""yarn"", ""cedar"", ""prisma"", ""migrate"", ""deploy""]
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>
+
+---
+
+**`packages/cli/src/commands/setup/deploy/providers/coherenceHandler.js`**
+Missed update from `rw` to `cedar` bin
+
+```suggestion
+    command: [""yarn"", ""cedar"", ""serve"", ""web""]
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/cli/src/commands/setup/deploy/providers/coherenceHandler.js
+Line: 242:242
+
+Comment:
+Missed update from `rw` to `cedar` bin
+
+```suggestion
+    command: [""yarn"", ""cedar"", ""serve"", ""web""]
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>
+
+---
+
+**`packages/cli/src/commands/setup/deploy/providers/coherenceHandler.js`**
+Missed update from `rw` to `cedar` bin
+
+```suggestion
+    command: [""yarn"", ""cedar"", ""dev"", ""web"", ""--fwd=\""--allowed-hosts all\""""]
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/cli/src/commands/setup/deploy/providers/coherenceHandler.js
+Line: 244:244
+
+Comment:
+Missed update from `rw` to `cedar` bin
+
+```suggestion
+    command: [""yarn"", ""cedar"", ""dev"", ""web"", ""--fwd=\""--allowed-hosts all\""""]
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>
+
+---
+
+**`packages/cli/src/commands/setup/deploy/providers/coherenceHandler.js`**
+Missed update from `rw` to `cedar` bin
+
+```suggestion
+  build: [""yarn"", ""cedar"", ""build"", ""web"", ""--no-prerender""]
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/cli/src/commands/setup/deploy/providers/coherenceHandler.js
+Line: 248:248
+
+Comment:
+Missed update from `rw` to `cedar` bin
+
+```suggestion
+  build: [""yarn"", ""cedar"", ""build"", ""web"", ""--no-prerender""]
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>
+</details>",https://github.com/cedarjs/cedar/pull/1027#issuecomment-3795060123,,2026-01-24T16:48:12+00:00,logic,medium,"Given the PR title explicitly states the goal is to replace 'rw' bin with 'cedar' bin, Greptile correctly identified multiple missed instances in coherenceHandler.js where the old 'rw' command was not updated, which would cause the deployment commands to fail or behave incorrectly. This is a real bug - incomplete refactoring that a reviewer could easily miss across a large codebase.",2026-01-24T18:18:13.478089+00:00
