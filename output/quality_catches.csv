@@ -4673,3 +4673,93 @@ Missing `API_SERVER_PROTOCOL` and `API_SERVER_HOST` in configMap. These are requ
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/onyx-dot-app/onyx/pull/7706#discussion_r2722758289,,2026-01-23T20:36:51+00:00,logic,medium,"Greptile correctly identifies that the Discord bot configuration in the Helm values.yaml is missing API_SERVER_PROTOCOL and API_SERVER_HOST environment variables that are required for the bot to communicate with the API server. The diff shows DISCORD_BOT_TOKEN and DISCORD_BOT_INVOKE_CHAR were added but not the API server connection variables, which would cause the Discord bot deployment to fail to connect to the API. This is a real configuration bug that would cause runtime failures and is easy to miss when reviewing deployment configs.",2026-01-23T22:14:38.748552+00:00
+democratizedspace/dspace,3062,Add category detail to inventory item cards,https://github.com/democratizedspace/dspace/pull/3062,,"**logic:** displaying `item.category` without checking if it exists will show ""undefined"" for items missing the category field (e.g., all items in `tools.json`)
+
+```suggestion
+                {#if item.category}
+                    <p><strong>Category:</strong> {item.category}</p>
+                {/if}
+```",https://github.com/democratizedspace/dspace/pull/3062#discussion_r2723152838,,2026-01-23T23:14:16+00:00,logic,low,Greptile correctly identifies that displaying item.category without a null check will show 'undefined' in the UI for items that don't have a category field. This is a real bug that would cause poor user experience with literal 'undefined' text appearing. The suggestion to add a conditional check is correct and actionable.,2026-01-24T00:46:23.626706+00:00
+nvidia/matx,1122,cuBLASDx support,https://github.com/NVIDIA/MatX/pull/1122,,"**logic:** For RANK &gt; 4, all batch dimensions are flattened into blocks.x only, ignoring blocks.y and blocks.z. This could exceed CUDA grid limits (65535) for large batch sizes.",https://github.com/NVIDIA/MatX/pull/1122#discussion_r2723158847,,2026-01-23T23:18:40+00:00,runtime,medium,"Greptile correctly identifies that for RANK > 4, the code flattens all batch dimensions into blocks.x only (line 336), while blocks.y and blocks.z remain 1. This could easily exceed CUDA's grid dimension limit of 65535 for blocks.x when total_batches is large, causing runtime failures. This is non-obvious because RANK 3-4 cases properly distribute across multiple grid dimensions, but the higher-rank fallback doesn't follow the same pattern.",2026-01-24T00:46:23.626765+00:00
+nvidia/matx,1122,cuBLASDx support,https://github.com/NVIDIA/MatX/pull/1122,,"**logic:** Using `CUDA_VERSION` check but referencing `CUDART_VERSION` in the string. If `CUDA_VERSION` is undefined, `CUDART_VERSION` may also be undefined, potentially causing compilation issues.
+
+```suggestion
+#if defined(CUDART_VERSION)
+        symbol_name += ""_CUDA"";
+        symbol_name += std::to_string(CUDART_VERSION);
+#else
+        symbol_name += ""_CUDAUNKNOWN"";
+#endif
+```",https://github.com/NVIDIA/MatX/pull/1122#discussion_r2723159013,,2026-01-23T23:18:48+00:00,logic,low,"Greptile correctly identifies an inconsistency where the code checks `#if defined(CUDA_VERSION)` but then uses `CUDART_VERSION` in the string concatenation. While both macros are typically defined together in CUDA environments, this is technically inconsistent and could cause issues in edge cases where one is defined but not the other. The fix to check `CUDART_VERSION` directly is correct and makes the code more robust.",2026-01-24T00:46:23.626802+00:00
+nvidia/matx,1122,cuBLASDx support,https://github.com/NVIDIA/MatX/pull/1122,,"**logic:** Output indexing logic assumes `threadIdx.x` maps directly to output elements, but this may not align with the 2D block dimensions suggested by cuBLASDx. The logic doesn't account for `threadIdx.y` or `threadIdx.z`. How should the output indexing work with 2D/3D block dimensions from cuBLASDx?",https://github.com/NVIDIA/MatX/pull/1122#discussion_r2723159027,,2026-01-23T23:18:48+00:00,logic,high,"Greptile correctly identifies a real bug: the output indexing code only uses `threadIdx.x` to compute `output_idx`, but cuBLASDx returns 2D/3D block dimensions via `GetBlockDim()`. This means threads with different `threadIdx.y` or `threadIdx.z` values would compute the same `output_idx`, causing incorrect/duplicate writes and missing elements in the output matrix. This is a non-obvious concurrency bug that would cause incorrect results.",2026-01-24T00:46:23.626841+00:00
+ironyh/vuesip,178,feat(pwa-softphone): improve settings menu UX,https://github.com/ironyh/VueSIP/pull/178,,"**logic:** `AudioContext` is created but never closed, causing resource leak.
+
+```suggestion
+  try {
+    isTestingSpeaker.value = true
+    // Create a test tone
+    const audioContext = new AudioContext()
+    const oscillator = audioContext.createOscillator()
+    const gainNode = audioContext.createGain()
+    const destination = audioContext.destination
+
+    oscillator.connect(gainNode)
+    gainNode.connect(destination)
+
+    oscillator.frequency.value = 440 // A4 note
+    gainNode.gain.value = 0.1
+
+    oscillator.start()
+    oscillator.stop(audioContext.currentTime + 0.5)
+
+    setTimeout(() => {
+      audioContext.close()
+      isTestingSpeaker.value = false
+    }, 500)
+  } catch (error) {
+    console.error('Speaker test failed:', error)
+    isTestingSpeaker.value = false
+  }
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: templates/pwa-softphone/src/components/SettingsMenu.vue
+Line: 113:134
+
+Comment:
+**logic:** `AudioContext` is created but never closed, causing resource leak.
+
+```suggestion
+  try {
+    isTestingSpeaker.value = true
+    // Create a test tone
+    const audioContext = new AudioContext()
+    const oscillator = audioContext.createOscillator()
+    const gainNode = audioContext.createGain()
+    const destination = audioContext.destination
+
+    oscillator.connect(gainNode)
+    gainNode.connect(destination)
+
+    oscillator.frequency.value = 440 // A4 note
+    gainNode.gain.value = 0.1
+
+    oscillator.start()
+    oscillator.stop(audioContext.currentTime + 0.5)
+
+    setTimeout(() => {
+      audioContext.close()
+      isTestingSpeaker.value = false
+    }, 500)
+  } catch (error) {
+    console.error('Speaker test failed:', error)
+    isTestingSpeaker.value = false
+  }
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/ironyh/VueSIP/pull/178#discussion_r2723206020,,2026-01-23T23:51:32+00:00,resource_leak,medium,"Greptile correctly identified that the AudioContext created in testSpeaker() is never closed. Looking at the code, while the oscillator is stopped, audioContext.close() is never called, which will leak browser audio resources. Unlike the microphone test which has cleanup in onUnmounted, there's no cleanup for the AudioContext. The fix to call audioContext.close() in the setTimeout is correct and actionable.",2026-01-24T00:46:23.626878+00:00
