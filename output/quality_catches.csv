@@ -4946,3 +4946,26 @@ if `connectedAccount` is null (when no connected account is found for the worksp
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/twentyhq/twenty/pull/17410#discussion_r2723992363,,2026-01-24T10:06:53+00:00,data_integrity,high,"Greptile correctly identifies that if `connectedAccount` is null, `connectedAccount?.id` evaluates to `undefined`, and passing `undefined` to `findBy({ connectedAccountId: undefined })` could return unintended results (all channels with null/undefined connectedAccountId, or potentially all channels depending on ORM behavior). This could lead to incorrectly disabling sync on message channels that shouldn't be affected. The null check is a necessary guard that prevents unintended data modifications.",2026-01-24T10:15:45.758908+00:00
+ever-co/ever-teams,4229,Feat/solo,https://github.com/ever-co/ever-teams/pull/4229,,"Direct mutation of `formValues.team` bypasses React state management
+
+```suggestion
+			setFormValues(prev => ({ ...prev, team: generateDefaultTeamName(prev.name) }));
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: apps/web/core/hooks/auth/use-authentication-team.ts
+Line: 99:99
+
+Comment:
+Direct mutation of `formValues.team` bypasses React state management
+
+```suggestion
+			setFormValues(prev => ({ ...prev, team: generateDefaultTeamName(prev.name) }));
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/ever-co/ever-teams/pull/4229#discussion_r2724047633,,2026-01-24T11:08:51+00:00,data_integrity,medium,"Greptile correctly identified that `formValues.team = generateDefaultTeamName(formValues.name)` directly mutates React state instead of using `setFormValues`. This bypasses React's state management, which can cause the component to not re-render properly and lead to stale state issues. While experienced React developers might catch this, it's a subtle bug that could easily be missed in review, especially since the code appears to work initially but causes inconsistent behavior.",2026-01-24T12:18:50.086517+00:00
