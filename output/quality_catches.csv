@@ -4812,3 +4812,10 @@ synnaxlabs/synnax,1873,SY-3596: Increase NI sample Rate Limit to 1 MHz,https://g
 ```suggestion
     sample_rate: conint(gt=0, le=1000000)
 ```",https://github.com/synnaxlabs/synnax/pull/1873#discussion_r2723502141,,2026-01-24T02:54:56+00:00,logic,medium,"Greptile correctly identifies an inconsistency - using `ge=0` allows a sample_rate of 0, which is semantically invalid for a hardware sampling rate (you can't sample at 0 Hz). The suggestion to use `gt=0` ensures the validation matches the logical requirement that sample rates must be positive, catching a potential edge case that could cause unexpected behavior in downstream NI hardware operations.",2026-01-24T04:26:43.832643+00:00
+raycast/extensions,24818,Update myanimelist-search extension,https://github.com/raycast/extensions/pull/24818,,"**syntax:** The original `ViewType` type (`""list"" | ""list-detailed"" | ""grid""`) was removed and replaced with these new types. However, `ViewType` is still imported by `ViewTypeCtx.tsx` and `useSearch.ts`, which will cause build failures.
+
+```suggestion
+export type ViewType = ""list"" | ""list-detailed"" | ""grid"";
+
+export type AnimeData = {
+```",https://github.com/raycast/extensions/pull/24818#discussion_r2723636389,,2026-01-24T05:00:41+00:00,type_error,high,"Greptile correctly identified that the `ViewType` type export was removed from this file. If other files (`ViewTypeCtx.tsx` and `useSearch.ts`) still import `ViewType`, this will cause TypeScript compilation/build failures. This is a real breaking change that could easily be missed when focusing on the new type additions.",2026-01-24T06:17:54.304923+00:00
