@@ -4969,3 +4969,86 @@ Direct mutation of `formValues.team` bypasses React state management
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/ever-co/ever-teams/pull/4229#discussion_r2724047633,,2026-01-24T11:08:51+00:00,data_integrity,medium,"Greptile correctly identified that `formValues.team = generateDefaultTeamName(formValues.name)` directly mutates React state instead of using `setFormValues`. This bypasses React's state management, which can cause the component to not re-render properly and lead to stale state issues. While experienced React developers might catch this, it's a subtle bug that could easily be missed in review, especially since the code appears to work initially but causes inconsistent behavior.",2026-01-24T12:18:50.086517+00:00
+posthog/posthog,45873,feat(experiments): add search and pagination to shared metrics,https://github.com/PostHog/posthog/pull/45873,,"**syntax:** Missing import for `userLogic` - this will cause a runtime error
+
+```suggestion
+    import { useActions, useValues } from 'kea'
+import { router } from 'kea-router'
+
+import { IconCopy, IconPencil } from '@posthog/icons'
+import {
+    LemonBanner,
+    LemonButton,
+    LemonInput,
+    LemonTable,
+    LemonTableColumn,
+    LemonTableColumns,
+    LemonTag,
+    Tooltip,
+} from '@posthog/lemon-ui'
+
+import { AppShortcut } from 'lib/components/AppShortcuts/AppShortcut'
+import { keyBinds } from 'lib/components/AppShortcuts/shortcuts'
+import { ObjectTags } from 'lib/components/ObjectTags/ObjectTags'
+import { LemonTableLink } from 'lib/lemon-ui/LemonTable/LemonTableLink'
+import { createdAtColumn, createdByColumn } from 'lib/lemon-ui/LemonTable/columnUtils'
+import { pluralize } from 'lib/utils'
+import stringWithWBR from 'lib/utils/stringWithWBR'
+import { Scene, SceneExport } from 'scenes/sceneTypes'
+import { urls } from 'scenes/urls'
+import { userLogic } from 'scenes/userLogic'
+
+import { NodeKind } from '~/queries/schema/schema-general'
+
+import { isLegacySharedMetric } from '../utils'
+import { SharedMetric } from './sharedMetricLogic'
+import { SHARED_METRICS_PER_PAGE, sharedMetricsLogic } from './sharedMetricsLogic'
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: frontend/src/scenes/experiments/SharedMetrics/SharedMetrics.tsx
+Line: 40:40
+
+Comment:
+**syntax:** Missing import for `userLogic` - this will cause a runtime error
+
+```suggestion
+    import { useActions, useValues } from 'kea'
+import { router } from 'kea-router'
+
+import { IconCopy, IconPencil } from '@posthog/icons'
+import {
+    LemonBanner,
+    LemonButton,
+    LemonInput,
+    LemonTable,
+    LemonTableColumn,
+    LemonTableColumns,
+    LemonTag,
+    Tooltip,
+} from '@posthog/lemon-ui'
+
+import { AppShortcut } from 'lib/components/AppShortcuts/AppShortcut'
+import { keyBinds } from 'lib/components/AppShortcuts/shortcuts'
+import { ObjectTags } from 'lib/components/ObjectTags/ObjectTags'
+import { LemonTableLink } from 'lib/lemon-ui/LemonTable/LemonTableLink'
+import { createdAtColumn, createdByColumn } from 'lib/lemon-ui/LemonTable/columnUtils'
+import { pluralize } from 'lib/utils'
+import stringWithWBR from 'lib/utils/stringWithWBR'
+import { Scene, SceneExport } from 'scenes/sceneTypes'
+import { urls } from 'scenes/urls'
+import { userLogic } from 'scenes/userLogic'
+
+import { NodeKind } from '~/queries/schema/schema-general'
+
+import { isLegacySharedMetric } from '../utils'
+import { SharedMetric } from './sharedMetricLogic'
+import { SHARED_METRICS_PER_PAGE, sharedMetricsLogic } from './sharedMetricsLogic'
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/45873#discussion_r2724285214,,2026-01-24T15:56:46+00:00,runtime,high,"Greptile correctly identified that `userLogic` is used in line 40 (`const { hasAvailableFeature } = useValues(userLogic)`) but is never imported anywhere in the file. This would cause a runtime error (ReferenceError: userLogic is not defined) when the component renders, breaking the entire page.",2026-01-24T16:16:04.423526+00:00
