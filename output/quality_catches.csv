@@ -5662,3 +5662,60 @@ democratizedspace/dspace,3109,Split custom item price into amount + currency sel
 ```suggestion
         if (String(priceAmount || '').trim()) {
 ```",https://github.com/democratizedspace/dspace/pull/3109#discussion_r2724988564,,2026-01-25T06:32:14+00:00,runtime,medium,"Greptile correctly identifies that `priceAmount` is bound to a `type=""number""` input (line 300), which means it will be a number type, not a string. Calling `.trim()` on a number in JavaScript will cause a runtime TypeError since numbers don't have a trim method. This is a non-obvious bug that could easily be missed in code review.",2026-01-25T08:21:08.032501+00:00
+raycast/extensions,24840,Add clawdbot extension,https://github.com/raycast/extensions/pull/24840,,"Hardcoded `/opt/homebrew/bin/clawdbot` path won't work on non-M1/M2 Macs (Intel uses `/usr/local/bin`), Linux, or Windows
+
+```suggestion
+    const { stdout } = await execAsync(
+      `clawdbot agent --local --session-id raycast -m '${escapedMessage}' ${agentFlag} --timeout 120`,
+      {
+        encoding: ""utf-8"",
+        timeout: 130000,
+        maxBuffer: 10 * 1024 * 1024,
+      },
+    );
+```",https://github.com/raycast/extensions/pull/24840#discussion_r2725365076,,2026-01-25T10:45:10+00:00,runtime,medium,"Greptile correctly identifies that the hardcoded path `/opt/homebrew/bin/clawdbot` is specific to Apple Silicon Macs (M1/M2). Intel Macs use `/usr/local/bin` for Homebrew, so this code would fail on those systems. The fix to rely on PATH resolution is appropriate and would make the extension work across different system configurations.",2026-01-25T12:20:33.362758+00:00
+raycast/extensions,24840,Add clawdbot extension,https://github.com/raycast/extensions/pull/24840,,"Hardcoded `/opt/homebrew/bin/clawdbot` path won't work on non-M1/M2 Macs (Intel uses `/usr/local/bin`), Linux, or Windows
+
+```suggestion
+        const result = execSync(
+          `clawdbot agent --local --session-id raycast -m '${escapedMessage}' ${agentFlag} --timeout 120`,
+          {
+            encoding: ""utf-8"",
+            timeout: 130000,
+            maxBuffer: 10 * 1024 * 1024,
+          },
+        );
+```",https://github.com/raycast/extensions/pull/24840#discussion_r2725365105,,2026-01-25T10:45:10+00:00,runtime,medium,"Greptile correctly identifies that hardcoding `/opt/homebrew/bin/clawdbot` will cause the extension to fail on Intel Macs (which use `/usr/local/bin`) and other platforms. This is a real portability bug that would cause runtime failures for a significant portion of users, and the suggestion to rely on PATH resolution is the correct fix.",2026-01-25T12:20:33.362843+00:00
+raycast/extensions,24840,Add clawdbot extension,https://github.com/raycast/extensions/pull/24840,,"Hardcoded `/opt/homebrew/bin/clawdbot` path won't work on non-M1/M2 Macs (Intel uses `/usr/local/bin`), Linux, or Windows
+
+```suggestion
+                const result = execSync(
+                  ""clawdbot status 2>&1"",
+                  {
+                    encoding: ""utf-8"",
+                    timeout: 15000,
+                  },
+                );
+```",https://github.com/raycast/extensions/pull/24840#discussion_r2725365174,,2026-01-25T10:45:13+00:00,runtime,medium,Greptile correctly identifies that hardcoding `/opt/homebrew/bin/clawdbot` will cause the extension to fail on Intel Macs (which use `/usr/local/bin`) and other platforms. This is a real portability bug that would affect a significant portion of users - Raycast extensions should work across different Mac architectures. The suggestion to rely on PATH resolution instead is the correct fix.,2026-01-25T12:20:33.362900+00:00
+mellanox/hw-mgmt,2263,hw-mgmt: scripts: generate dump: cleanup and optimize size,https://github.com/Mellanox/hw-mgmt/pull/2263,,"Pattern changed from `hw?management*` to `hw-management*` - the wildcard `?` previously matched any single character (e.g., `hw_management`, `hw-management`). Verify this doesn't exclude intended binaries.
+
+```suggestion
+cp /usr/bin/hw?management* ""$DUMP_FOLDER/bin/"" 2>/dev/null || true
+```",https://github.com/Mellanox/hw-mgmt/pull/2263#discussion_r2725372189,,2026-01-25T10:52:31+00:00,logic,medium,"Greptile correctly identifies that changing `hw?management*` to `hw-management*` reduces the glob pattern's matching scope. The `?` wildcard matches any single character (like `_` or `-`), so the original pattern could match files like `hw_management*` or `hw-management*`, while the new pattern only matches `hw-management*`. This could cause the dump to miss binaries if any exist with `hw_management` naming, resulting in incomplete diagnostics data.",2026-01-25T12:20:33.362954+00:00
+mellanox/hw-mgmt,2263,hw-mgmt: scripts: generate dump: cleanup and optimize size,https://github.com/Mellanox/hw-mgmt/pull/2263,,"Pattern changed from `hw?management*` to `hw-management*` - this excludes files like `hw_management_*.py` (thermal control, PSU update, etc.) that exist in `/usr/bin/`.
+
+```suggestion
+cp /usr/local/bin/hw?management* ""$DUMP_FOLDER/bin/"" 2>/dev/null || true
+```",https://github.com/Mellanox/hw-mgmt/pull/2263#discussion_r2725372206,,2026-01-25T10:52:32+00:00,logic,medium,"Greptile correctly identifies that changing from `hw?management*` (glob pattern where ? matches any single character) to `hw-management*` (literal dash) would exclude files like `hw_management_*.py` from being copied to the dump. This is a subtle glob pattern change that could result in incomplete diagnostic dumps, missing important files.",2026-01-25T12:20:33.363003+00:00
+mellanox/hw-mgmt,2263,hw-mgmt: scripts: generate dump: cleanup and optimize size,https://github.com/Mellanox/hw-mgmt/pull/2263,,"Pattern `hw-management*` excludes critical Python scripts like `hw_management_thermal_control.py`, `hw_management_psu_fw_update*.py`, and other `hw_management_*.py` files that exist in `/usr/bin/`. The previous pattern `hw?management*` matched both `hw-management*` and `hw_management*`.
+
+```suggestion
+cp /usr/bin/hw-management* /usr/bin/hw_management* ""$DUMP_FOLDER/bin/"" 2>/dev/null || true
+cp /usr/local/bin/hw-management* /usr/local/bin/hw_management* ""$DUMP_FOLDER/bin/"" 2>/dev/null || true
+```",https://github.com/Mellanox/hw-mgmt/pull/2263#discussion_r2725377956,,2026-01-25T11:01:30+00:00,logic,medium,"Greptile correctly identified that changing from `hw?management*` to `hw-management*` breaks glob pattern matching. The `?` wildcard matches any single character (including `_`), so the old pattern matched both `hw-management*` and `hw_management*` files. The new pattern only matches hyphenated filenames, silently excluding Python scripts like `hw_management_thermal_control.py` from the diagnostic dump - a subtle but real bug that would cause incomplete dumps.",2026-01-25T12:20:33.363040+00:00
+gtbitsofgood/hope-sustains-life,234,[Snyk] Fix for 4 vulnerabilities,https://github.com/GTBitsOfGood/hope-sustains-life/pull/234,,"<details>
+<summary>Additional Comments (1)</summary>
+
+**`package.json`**
+Next.js 12 requires React 17.0.2 or newer, but this project uses React 16.13.1. This version mismatch will cause build failures. Update React to 17.0.2+ or 18.x along with this Next.js upgrade.
+</details>",https://github.com/GTBitsOfGood/hope-sustains-life/pull/234#issuecomment-3796413964,,2026-01-25T10:38:11+00:00,runtime,high,"This is a valid catch - Next.js 12 does require React 17+ and using React 16.13.1 would cause build failures. This is a non-obvious dependency compatibility issue that could break the build after the Snyk security upgrade, and catching incompatible peer dependencies across major version upgrades requires specific knowledge of the framework requirements.",2026-01-25T12:20:33.363087+00:00
