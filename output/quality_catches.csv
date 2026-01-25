@@ -5307,3 +5307,132 @@ if user navigates history with up arrow, then starts typing, then presses down a
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/davis7dotsh/better-context/pull/119#discussion_r2724706420,,2026-01-24T23:40:41+00:00,logic,medium,"Greptile correctly identifies a UX bug: when the user navigates history with up/down arrows, the history index is tracked, but if they then type new content and press down arrow, the navigation will continue from the old index rather than resetting. The code only calls `inputHistory.reset()` on Ctrl+C clear, but not when the user types or modifies input through normal means. This is a non-obvious state management issue that would cause confusing behavior.",2026-01-25T00:48:28.607194+00:00
+nvidia/transformerengine,2622,[PyTorch] Add grouped linear op and experimental fusion for grouped MLP,https://github.com/NVIDIA/TransformerEngine/pull/2622,,"`group_idx` is undefined in this scope - loop variable is `w, quantizer` from the zip on line 415. Should use `quantizer` directly (already assigned) or add enumeration to the loop.
+
+```suggestion
+                # quantizer is already assigned from the zip, use it directly
+```",https://github.com/NVIDIA/TransformerEngine/pull/2622#discussion_r2724749047,,2026-01-25T01:03:27+00:00,runtime,high,"Looking at lines 415-419, the loop iterates with `for w, quantizer in zip(weights, weight_quantizers):` but inside the loop at line 417, the code references `group_idx` which is not defined in this loop scope. The previous loop ended at a different point, so `group_idx` would have a stale value from a prior loop, causing incorrect quantizer assignment. This is a real bug that would cause incorrect behavior and is non-obvious because it requires tracking variable scoping across multiple loops.",2026-01-25T03:02:02.388560+00:00
+nvidia/transformerengine,2622,[PyTorch] Add grouped linear op and experimental fusion for grouped MLP,https://github.com/NVIDIA/TransformerEngine/pull/2622,,"checking `fc1.in_features % 256 != 0` twice instead of checking both `in_features` and `out_features`
+
+```suggestion
+        if fc1.in_features % 256 != 0 or fc1.out_features % 256 != 0:
+```",https://github.com/NVIDIA/TransformerEngine/pull/2622#discussion_r2724749061,,2026-01-25T01:03:28+00:00,logic,medium,"Greptile correctly identified a copy-paste bug on line 68: the condition checks `fc1.in_features % 256 != 0` twice instead of checking both `in_features` and `out_features`. This would allow invalid FC1 configurations where `out_features` is not divisible by 256 to pass validation, potentially causing runtime errors in the fused kernel. The same bug appears on line 72 for FC2.",2026-01-25T03:02:02.388625+00:00
+nvidia/transformerengine,2622,[PyTorch] Add grouped linear op and experimental fusion for grouped MLP,https://github.com/NVIDIA/TransformerEngine/pull/2622,,"checking `fc2.in_features % 256 != 0` twice instead of checking both `in_features` and `out_features`
+
+```suggestion
+        if fc2.in_features % 256 != 0 or fc2.out_features % 256 != 0:
+```",https://github.com/NVIDIA/TransformerEngine/pull/2622#discussion_r2724749067,,2026-01-25T01:03:29+00:00,logic,medium,"Greptile correctly identified a copy-paste bug on line 73 where `fc2.in_features % 256 != 0` is checked twice instead of checking both `fc2.in_features` and `fc2.out_features`. This is a real validation bug that would allow invalid FC2 configurations to pass validation when `out_features` isn't divisible by 256, potentially causing runtime errors or incorrect behavior. The same pattern is correctly implemented for fc1 on line 68, making this an easy-to-miss typo.",2026-01-25T03:02:02.388666+00:00
+nvidia/transformerengine,2622,[PyTorch] Add grouped linear op and experimental fusion for grouped MLP,https://github.com/NVIDIA/TransformerEngine/pull/2622,,"`group_idx` is undefined in this scope - loop uses `w, quantizer` from zip. Should use `quantizer` directly
+
+```suggestion
+                quantizer.set_usage(rowwise=True, columnwise=input_requires_grad)
+```",https://github.com/NVIDIA/TransformerEngine/pull/2622#discussion_r2724749740,,2026-01-25T01:05:19+00:00,logic,medium,"Greptile correctly identified a bug at line 419. The code iterates with `for w, quantizer in zip(weights, weight_quantizers)` but then uses `weight_quantizers[group_idx]` where `group_idx` is not defined in this loop scope - it was last defined in a previous loop (line 377). This would cause incorrect quantizer selection, using the last value of `group_idx` from the previous loop instead of the current iteration's quantizer. The fix to use `quantizer` directly is correct.",2026-01-25T03:02:02.388703+00:00
+nvidia/transformerengine,2622,[PyTorch] Add grouped linear op and experimental fusion for grouped MLP,https://github.com/NVIDIA/TransformerEngine/pull/2622,,"duplicate condition checks `fc1.in_features % 256` twice instead of checking `fc1.out_features`
+
+```suggestion
+        if fc1.in_features % 256 != 0 or fc1.out_features % 256 != 0:
+            raise ValueError(
+                f""Unsupported dims for FC1 (group_size={fc1.group_size}, ""
+                f""in_features={fc1.in_features}, out_features={fc1.out_features}).""
+            )
+```",https://github.com/NVIDIA/TransformerEngine/pull/2622#discussion_r2724749742,,2026-01-25T01:05:20+00:00,logic,medium,"Greptile correctly identified that line 72 checks `fc1.in_features % 256 != 0` twice instead of checking both `fc1.in_features` and `fc1.out_features`. This is a copy-paste bug that would allow invalid configurations to pass validation when `fc1.out_features` is not divisible by 256, potentially causing runtime failures or incorrect behavior in the fused kernel.",2026-01-25T03:02:02.388747+00:00
+nvidia/transformerengine,2622,[PyTorch] Add grouped linear op and experimental fusion for grouped MLP,https://github.com/NVIDIA/TransformerEngine/pull/2622,,"duplicate condition checks `fc2.in_features % 256` twice instead of checking `fc2.out_features`
+
+```suggestion
+        if fc2.in_features % 256 != 0 or fc2.out_features % 256 != 0:
+            raise ValueError(
+                f""Unsupported dims for FC2 (group_size={fc2.group_size}, ""
+                f""in_features={fc2.in_features}, out_features={fc2.out_features}).""
+            )
+```",https://github.com/NVIDIA/TransformerEngine/pull/2622#discussion_r2724749746,,2026-01-25T01:05:21+00:00,logic,medium,"Greptile correctly identified a copy-paste bug on line 77 where the condition checks `fc2.in_features % 256 != 0` twice instead of checking both `fc2.in_features` and `fc2.out_features`. This would allow invalid configurations with `fc2.out_features` not divisible by 256 to pass validation, potentially causing runtime errors or incorrect behavior in the fused kernel. The same bug exists on line 74 for fc1, which checks `fc1.in_features` twice instead of both dimensions.",2026-01-25T03:02:02.388783+00:00
+browserbase/stagehand,1607,feat(cli): add network capture to filesystem for agent inspection,https://github.com/browserbase/stagehand/pull/1607,,"Response status and headers from `Network.responseReceived` are being lost. The `responseData` object is initialized with default values (`status: 0`, empty headers) but never populated with the actual response info that was stored in the `Network.responseReceived` handler.
+
+The `responseReceived` handler stores response data in `params._responseInfo` (line 240), but this `loadingFinished` handler doesn't retrieve it. This means all saved `response.json` files will have `status: 0` and empty headers/mimeType instead of the actual HTTP response data.
+
+```suggestion
+      const startTime = requestStartTimes.get(params.requestId) || Date.now();
+      const duration = Date.now() - startTime;
+
+      // Try to get response body
+      let responseData = {
+        id: params.requestId,
+        status: 0,
+        statusText: """",
+        headers: {} as Record<string, string>,
+        mimeType: """",
+        body: null as string | null,
+        duration,
+      };
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/cli/src/index.ts
+Line: 267:275
+
+Comment:
+Response status and headers from `Network.responseReceived` are being lost. The `responseData` object is initialized with default values (`status: 0`, empty headers) but never populated with the actual response info that was stored in the `Network.responseReceived` handler.
+
+The `responseReceived` handler stores response data in `params._responseInfo` (line 240), but this `loadingFinished` handler doesn't retrieve it. This means all saved `response.json` files will have `status: 0` and empty headers/mimeType instead of the actual HTTP response data.
+
+```suggestion
+      const startTime = requestStartTimes.get(params.requestId) || Date.now();
+      const duration = Date.now() - startTime;
+
+      // Try to get response body
+      let responseData = {
+        id: params.requestId,
+        status: 0,
+        statusText: """",
+        headers: {} as Record<string, string>,
+        mimeType: """",
+        body: null as string | null,
+        duration,
+      };
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/browserbase/stagehand/pull/1607#discussion_r2724796833,,2026-01-25T02:46:07+00:00,data_integrity,medium,"Greptile correctly identified that the `Network.responseReceived` handler stores response info in `params._responseInfo` (lines 236-240), but the `Network.loadingFinished` handler creates a new `responseData` object with default values (status: 0, empty headers) and never retrieves the stored response info. This results in all captured network responses losing their actual HTTP status codes, headers, and mimeType - a real bug that would cause incorrect data to be written to the filesystem.",2026-01-25T03:02:02.388807+00:00
+browserbase/stagehand,1607,feat(cli): add network capture to filesystem for agent inspection,https://github.com/browserbase/stagehand/pull/1607,,"<details>
+<summary>Additional Comments (1)</summary>
+
+**`packages/cli/src/index.ts`**
+Network capture directory is not cleaned up on daemon shutdown. The `cleanupStaleFiles` function removes socket, PID, and WebSocket files but doesn't remove the network capture directory created by `getNetworkDir()`. This could accumulate temp directories over time.
+
+```suggestion
+async function cleanupStaleFiles(session: string): Promise<void> {
+  try { await fs.unlink(getSocketPath(session)); } catch {}
+  try { await fs.unlink(getPidPath(session)); } catch {}
+  try { await fs.unlink(getWsPath(session)); } catch {}
+  try { await fs.unlink(getChromePidPath(session)); } catch {}
+  try { await fs.rm(getNetworkDir(session), { recursive: true }); } catch {}
+}
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/cli/src/index.ts
+Line: 66:71
+
+Comment:
+Network capture directory is not cleaned up on daemon shutdown. The `cleanupStaleFiles` function removes socket, PID, and WebSocket files but doesn't remove the network capture directory created by `getNetworkDir()`. This could accumulate temp directories over time.
+
+```suggestion
+async function cleanupStaleFiles(session: string): Promise<void> {
+  try { await fs.unlink(getSocketPath(session)); } catch {}
+  try { await fs.unlink(getPidPath(session)); } catch {}
+  try { await fs.unlink(getWsPath(session)); } catch {}
+  try { await fs.unlink(getChromePidPath(session)); } catch {}
+  try { await fs.rm(getNetworkDir(session), { recursive: true }); } catch {}
+}
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>
+</details>",https://github.com/browserbase/stagehand/pull/1607#issuecomment-3795862567,,2026-01-25T02:46:13+00:00,resource_leak,medium,"This is a valid resource leak issue - the PR adds network capture functionality that creates directories via getNetworkDir(), but the cleanupStaleFiles function doesn't clean up these directories. Without the diff visible, Greptile's analysis is logically sound: if a new directory is created for network capture but not cleaned up during shutdown, temp directories will accumulate over time. The fix is specific and actionable.",2026-01-25T03:02:02.388891+00:00
