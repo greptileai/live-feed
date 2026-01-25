@@ -5273,3 +5273,37 @@ The current implementation always splits on the first colon, which means labels 
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/simstudioai/sim/pull/2979#discussion_r2724607956,,2026-01-24T21:01:41+00:00,logic,medium,"Greptile correctly identified that `label.split(':')` will split on ALL colons, so a label like 'Time: 09:00AM' would incorrectly parse as title='Time' and displayValue='09' instead of 'Time' and '09:00AM'. The suggested fix using indexOf and slice properly handles only the first colon occurrence. This is a non-obvious edge case bug that could cause incorrect display of time values or other colon-containing data.",2026-01-24T22:14:38.863105+00:00
+bstewart2255/speddy,560,Add Attendance tab to student details modal,https://github.com/bstewart2255/speddy/pull/560,,"Missing authorization check - verify user has access to this student's data. The endpoint only checks if a user is authenticated, but doesn't verify they're authorized to view this specific student's attendance. The RLS policy on the `attendance` table only checks session access (lines 33-45 in the migration), but there's no explicit check here that the user has access to this `studentId`. Consider adding a check that the user is associated with this student through sessions, similar to how `attendance/summary/route.ts` filters sessions by `provider_id`, `assigned_to_specialist_id`, or `assigned_to_sea_id`.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: app/api/students/[studentId]/attendance/route.ts
+Line: 22:45
+
+Comment:
+Missing authorization check - verify user has access to this student's data. The endpoint only checks if a user is authenticated, but doesn't verify they're authorized to view this specific student's attendance. The RLS policy on the `attendance` table only checks session access (lines 33-45 in the migration), but there's no explicit check here that the user has access to this `studentId`. Consider adding a check that the user is associated with this student through sessions, similar to how `attendance/summary/route.ts` filters sessions by `provider_id`, `assigned_to_specialist_id`, or `assigned_to_sea_id`.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/bstewart2255/speddy/pull/560#discussion_r2724718775,,2026-01-25T00:04:30+00:00,security,high,"The code only checks if a user is authenticated (line 22-24) but never verifies if that user has permission to access this specific student's attendance data. Any authenticated user could access any student's attendance records by manipulating the studentId parameter, which is a serious authorization bypass vulnerability. The comment correctly identifies this as an Insecure Direct Object Reference (IDOR) issue.",2026-01-25T00:48:28.607100+00:00
+davis7dotsh/better-context,119,feat(cli): add input history with up/down arrow navigation,https://github.com/davis7dotsh/better-context/pull/119,,"history navigation not reset when user types
+
+if user navigates history with up arrow, then starts typing, then presses down arrow, navigation continues from wrong index. need to call `inputHistory.reset()` when input changes (e.g. in `setInputState` or when user types)
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: apps/cli/src/tui/components/input-section.tsx
+Line: 194:202
+
+Comment:
+history navigation not reset when user types
+
+if user navigates history with up arrow, then starts typing, then presses down arrow, navigation continues from wrong index. need to call `inputHistory.reset()` when input changes (e.g. in `setInputState` or when user types)
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/davis7dotsh/better-context/pull/119#discussion_r2724706420,,2026-01-24T23:40:41+00:00,logic,medium,"Greptile correctly identifies a UX bug: when the user navigates history with up/down arrows, the history index is tracked, but if they then type new content and press down arrow, the navigation will continue from the old index rather than resetting. The code only calls `inputHistory.reset()` on Ctrl+C clear, but not when the user types or modifies input through normal means. This is a non-obvious state management issue that would cause confusing behavior.",2026-01-25T00:48:28.607194+00:00
