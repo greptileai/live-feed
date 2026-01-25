@@ -5565,3 +5565,100 @@ Same escape detection issue as line 57 - doesn't handle `""\\""` correctly (esca
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/RunanywhereAI/runanywhere-sdks/pull/293#discussion_r2724818479,,2026-01-25T03:30:04+00:00,logic,medium,"At line 140, the code checks `normalizedJson[valueEnd - 1] != '\\'` to detect escaped quotes, but this fails for the input `""\\""` where a backslash is itself escaped - the quote after `\\` is NOT escaped but the check would incorrectly think it is. This is a real parsing bug that could cause incorrect JSON value extraction, particularly for strings containing escaped backslashes followed by quotes.",2026-01-25T04:37:00.096775+00:00
+nvidia/nvflare,4036,Add server-side memory management with server_memory_gc_rounds parameter,https://github.com/NVIDIA/NVFlare/pull/4036,,"Missing validation for `server_memory_gc_rounds` parameter. Other similar parameters like `persist_every_n_rounds` and `snapshot_every_n_rounds` are validated using `_check_non_neg_int()` on lines 112-113, but `server_memory_gc_rounds` is not validated.
+
+```suggestion
+        server_memory_gc_rounds: int = 1,
+    ):
+        """"""The controller for ScatterAndGather Workflow.
+
+        The ScatterAndGather workflow defines FederatedAveraging on all clients.
+        The model persistor (persistor_id) is used to load the initial global model which is sent to all clients.
+        Each client sends it's updated weights after local training which is aggregated (aggregator_id). The
+        shareable generator is used to convert the aggregated weights to shareable and shareable back to weight.
+        The model_persistor also saves the model after training.
+
+        Args:
+            min_clients (int, optional): The minimum number of clients responses before
+                SAG starts to wait for `wait_time_after_min_received`. Note that SAG will move forward when all
+                available clients have responded regardless of this value. Defaults to 1000.
+            num_rounds (int, optional): The total number of training rounds. Defaults to 5.
+            start_round (int, optional): Start round for training. Defaults to 0.
+            wait_time_after_min_received (int, optional): Time to wait before beginning aggregation after
+                minimum number of clients responses has been received. Defaults to 10.
+            aggregator_id (str, optional): ID of the aggregator component. Defaults to ""aggregator"".
+            persistor_id (str, optional): ID of the persistor component. Defaults to """".
+            shareable_generator_id (str, optional): ID of the shareable generator. Defaults to ""shareable_generator"".
+            train_task_name (str, optional): Name of the train task. Defaults to ""train"".
+            train_timeout (int, optional): Time to wait for clients to do local training.
+            ignore_result_error (bool, optional): whether this controller can proceed if client result has errors.
+                Defaults to False.
+            allow_empty_global_weights (bool, optional): whether to allow empty global weights. Some pipelines can have
+                empty global weights at first round, such that clients start training from scratch without any global info.
+                Defaults to False.
+            task_check_period (float, optional): interval for checking status of tasks. Defaults to 0.5.
+            persist_every_n_rounds (int, optional): persist the global model every n rounds. Defaults to 1.
+                If n is 0 then no persist.
+            snapshot_every_n_rounds (int, optional): persist the server state every n rounds. Defaults to 1.
+                If n is 0 then no persist.
+            server_memory_gc_rounds (int, optional): Run memory cleanup (gc.collect + malloc_trim) every N rounds.
+                Set to 0 to disable. Defaults to 1 (every round).
+
+        Raises:
+            TypeError: when any of input arguments does not have correct type
+            ValueError: when any of input arguments is out of range
+        """"""
+        super().__init__(task_check_period=task_check_period)
+
+        # Check arguments
+        if not isinstance(min_clients, int):
+            raise TypeError(""min_clients must be int but got {}"".format(type(min_clients)))
+        elif min_clients <= 0:
+            raise ValueError(""min_clients must be greater than 0."")
+
+        _check_non_neg_int(num_rounds, ""num_rounds"")
+        _check_non_neg_int(start_round, ""start_round"")
+        _check_non_neg_int(wait_time_after_min_received, ""wait_time_after_min_received"")
+        _check_non_neg_int(train_timeout, ""train_timeout"")
+        _check_non_neg_int(persist_every_n_rounds, ""persist_every_n_rounds"")
+        _check_non_neg_int(snapshot_every_n_rounds, ""snapshot_every_n_rounds"")
+        _check_non_neg_int(server_memory_gc_rounds, ""server_memory_gc_rounds"")
+```",https://github.com/NVIDIA/NVFlare/pull/4036#discussion_r2724987057,,2026-01-25T06:29:07+00:00,runtime,medium,"Greptile correctly identifies that `server_memory_gc_rounds` lacks validation while similar parameters `persist_every_n_rounds` and `snapshot_every_n_rounds` are validated with `_check_non_neg_int()`. Without validation, passing a negative value or non-integer would cause unexpected behavior in the `_maybe_cleanup_memory()` method's modulo operation. This is non-obvious consistency issue that maintains code quality and prevents potential runtime errors.",2026-01-25T08:21:08.032208+00:00
+alpaca-network/gatewayz-backend,923,fix(credits): fallback to legacy credits field for tiered display,https://github.com/Alpaca-Network/gatewayz-backend/pull/923,,"this fallback fixes the **display** issue, but users with legacy credits still can't **use** them for API calls. the `deduct_credits` function (line 696) only reads from `subscription_allowance` and `purchased_credits`, ignoring the legacy `credits` field entirely.
+
+if there are users who haven't been migrated yet, they'll see credits in the UI but get ""Insufficient credits"" errors when trying to use the API.
+
+consider either:
+1. ensure the migration script runs for all remaining users, or
+2. also add fallback logic in `deduct_credits` to read from legacy `credits` when both tiered fields are 0
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: src/db/users.py
+Line: 1638:1644
+
+Comment:
+this fallback fixes the **display** issue, but users with legacy credits still can't **use** them for API calls. the `deduct_credits` function (line 696) only reads from `subscription_allowance` and `purchased_credits`, ignoring the legacy `credits` field entirely.
+
+if there are users who haven't been migrated yet, they'll see credits in the UI but get ""Insufficient credits"" errors when trying to use the API.
+
+consider either:
+1. ensure the migration script runs for all remaining users, or
+2. also add fallback logic in `deduct_credits` to read from legacy `credits` when both tiered fields are 0
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/Alpaca-Network/gatewayz-backend/pull/923#discussion_r2724981121,,2026-01-25T06:19:20+00:00,logic,high,"Greptile correctly identifies a critical inconsistency: the PR adds fallback logic to display legacy credits in the UI, but the `deduct_credits` function at line 696 (not shown in diff but referenced) likely doesn't have matching fallback logic. This would cause users to see credits they can't actually spend - a frustrating UX bug that creates a display/functionality mismatch. This is non-obvious because it requires understanding the relationship between display and deduction logic across different parts of the codebase.",2026-01-25T08:21:08.032377+00:00
+democratizedspace/dspace,3134,feat: Add new v3 images,https://github.com/democratizedspace/dspace/pull/3134,,"Filename typo: comma instead of period - should be `restored_sponge_filter_flow_bubbling.json`
+
+```suggestion
+// File should be renamed to: restored_sponge_filter_flow_bubbling.json
+```",https://github.com/democratizedspace/dspace/pull/3134#discussion_r2725067801,,2026-01-25T08:01:47+00:00,runtime,medium,"The filename clearly contains a comma instead of a period ('restored_sponge_filter_flow_bubbling,json' vs '.json'), which would cause file loading failures since the file wouldn't be recognized as a JSON file and any code trying to reference it with the correct extension would fail. This typo is easy to miss in a PR review but would cause real runtime issues.",2026-01-25T08:21:08.032420+00:00
+democratizedspace/dspace,3106,Split item price into numeric amount + currency dropdown,https://github.com/democratizedspace/dspace/pull/3106,,"E2e tests in `custom-content.spec.ts` still use `await page.fill('#price', '100 dUSD')` which will fail since the `#price` selector no longer exists - it's been replaced with `#price-amount` and `#price-currency`.",https://github.com/democratizedspace/dspace/pull/3106#discussion_r2724985455,,2026-01-25T06:26:16+00:00,runtime,medium,"The code diff clearly shows the `#price` input was replaced with `#price-amount` and `#price-currency` inputs. Greptile correctly identifies that E2E tests referencing the old `#price` selector will fail. While I cannot see the test file itself, this is a concrete, actionable catch about breaking test compatibility that a typical reviewer might miss when focused on the component changes.",2026-01-25T08:21:08.032438+00:00
+democratizedspace/dspace,3109,Split custom item price into amount + currency selector,https://github.com/democratizedspace/dspace/pull/3109,,"`priceAmount.trim()` will cause a runtime error when `priceAmount` is a number from the `type=""number""` input
+
+```suggestion
+        if (String(priceAmount || '').trim()) {
+```",https://github.com/democratizedspace/dspace/pull/3109#discussion_r2724988564,,2026-01-25T06:32:14+00:00,runtime,medium,"Greptile correctly identifies that `priceAmount` is bound to a `type=""number""` input (line 300), which means it will be a number type, not a string. Calling `.trim()` on a number in JavaScript will cause a runtime TypeError since numbers don't have a trim method. This is a non-obvious bug that could easily be missed in code review.",2026-01-25T08:21:08.032501+00:00
