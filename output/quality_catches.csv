@@ -5719,3 +5719,111 @@ gtbitsofgood/hope-sustains-life,234,[Snyk] Fix for 4 vulnerabilities,https://git
 **`package.json`**
 Next.js 12 requires React 17.0.2 or newer, but this project uses React 16.13.1. This version mismatch will cause build failures. Update React to 17.0.2+ or 18.x along with this Next.js upgrade.
 </details>",https://github.com/GTBitsOfGood/hope-sustains-life/pull/234#issuecomment-3796413964,,2026-01-25T10:38:11+00:00,runtime,high,"This is a valid catch - Next.js 12 does require React 17+ and using React 16.13.1 would cause build failures. This is a non-obvious dependency compatibility issue that could break the build after the Snyk security upgrade, and catching incompatible peer dependencies across major version upgrades requires specific knowledge of the framework requirements.",2026-01-25T12:20:33.363087+00:00
+posthog/posthog,45875,feat(insights): All insights page massive filters upgrade,https://github.com/PostHog/posthog/pull/45875,,"`json.loads()` calls should be wrapped in try-catch blocks to handle invalid JSON gracefully. The existing codebase pattern in `feature_flag.py`, `hog_function.py`, and `hog_flow.py` wraps similar `json.loads()` calls with `try/except (json.JSONDecodeError, TypeError)` to avoid server errors from malformed input.
+
+```suggestion
+            elif key == ""tags"":
+                tags_filter = request.GET[""tags""]
+                if tags_filter:
+                    try:
+                        tags_list = json.loads(tags_filter)
+                        if tags_list:
+                            queryset = queryset.filter(tagged_items__tag__name__in=tags_list).distinct()
+                    except (json.JSONDecodeError, TypeError):
+                        # If the JSON is invalid, ignore the filter
+                        pass
+            elif key == ""created_by"":
+                created_by_filter = request.GET[""created_by""]
+                if created_by_filter:
+                    try:
+                        created_by_ids = json.loads(created_by_filter)
+                        if created_by_ids:
+                            queryset = queryset.filter(created_by__id__in=created_by_ids)
+                    except (json.JSONDecodeError, TypeError):
+                        # If the JSON is invalid, ignore the filter
+                        pass
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: posthog/api/insight.py
+Line: 1153:1164
+
+Comment:
+`json.loads()` calls should be wrapped in try-catch blocks to handle invalid JSON gracefully. The existing codebase pattern in `feature_flag.py`, `hog_function.py`, and `hog_flow.py` wraps similar `json.loads()` calls with `try/except (json.JSONDecodeError, TypeError)` to avoid server errors from malformed input.
+
+```suggestion
+            elif key == ""tags"":
+                tags_filter = request.GET[""tags""]
+                if tags_filter:
+                    try:
+                        tags_list = json.loads(tags_filter)
+                        if tags_list:
+                            queryset = queryset.filter(tagged_items__tag__name__in=tags_list).distinct()
+                    except (json.JSONDecodeError, TypeError):
+                        # If the JSON is invalid, ignore the filter
+                        pass
+            elif key == ""created_by"":
+                created_by_filter = request.GET[""created_by""]
+                if created_by_filter:
+                    try:
+                        created_by_ids = json.loads(created_by_filter)
+                        if created_by_ids:
+                            queryset = queryset.filter(created_by__id__in=created_by_ids)
+                    except (json.JSONDecodeError, TypeError):
+                        # If the JSON is invalid, ignore the filter
+                        pass
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/45875#discussion_r2725485887,,2026-01-25T12:50:15+00:00,runtime,medium,"The code adds two `json.loads()` calls on user-provided query parameters (tags and created_by) without any exception handling. If a user passes malformed JSON in these parameters, it will cause an unhandled JSONDecodeError that would result in a 500 server error. This is a real bug that could cause crashes and follows the codebase pattern of wrapping json.loads in try/except blocks.",2026-01-25T14:13:25.909510+00:00
+green-coding-solutions/green-metrics-tool,1523,Acl volume loading,https://github.com/green-coding-solutions/green-metrics-tool/pull/1523,,"Duplicate parameter `allowed_run_args` - line 67 overwrites line 66
+
+```suggestion
+            allowed_run_args=user._capabilities['measurement']['orchestrators']['docker']['allowed_run_args'], # They are specific to the orchestrator. However currently we only have one. As soon as we support more orchestrators we will sub-class Runner with dedicated child classes (DockerRunner, PodmanRunner etc.)
+            allowed_volume_mounts=user._capabilities['measurement']['allowed_volume_mounts'],
+```",https://github.com/green-coding-solutions/green-metrics-tool/pull/1523#discussion_r2725496146,,2026-01-25T13:01:42+00:00,logic,high,"Greptile correctly identified that line 67 adds a duplicate `allowed_run_args` parameter, which would overwrite line 66's value. This is clearly a bug - based on the PR title 'Acl volume loading' and the suggestion, this should likely be `allowed_volume_mounts` instead. This is a non-obvious copy-paste error that could cause incorrect ACL/permission behavior in production.",2026-01-25T14:13:25.909675+00:00
+green-coding-solutions/green-metrics-tool,1523,Acl volume loading,https://github.com/green-coding-solutions/green-metrics-tool/pull/1523,,"Logic error: comparing `mount_option` (which is `,readonly` or empty string) to `'ro'` will always be False. Should compare to `,readonly` or check if empty.
+
+```suggestion
+                            if mount_option != ',readonly' and mount_option != '':
+```",https://github.com/green-coding-solutions/green-metrics-tool/pull/1523#discussion_r2725496155,,2026-01-25T13:01:42+00:00,logic,high,"Greptile correctly identified that `mount_option` is set to `,readonly` (with leading comma) or empty string, but the comparison `if mount_option != 'ro'` checks against 'ro' without the comma. This condition will always be True, causing the code to always raise a RuntimeError for non-allowlisted volumes, even when they have valid readonly mounts.",2026-01-25T14:13:25.909731+00:00
+green-coding-solutions/green-metrics-tool,1523,Acl volume loading,https://github.com/green-coding-solutions/green-metrics-tool/pull/1523,,"Missing comma validation for allowed volume mounts - users could inject additional mount options via commas in `mount_src` or `mount_target`
+
+```suggestion
+                            if '/' not in mount_src: # volume case. should exist
+                                if ',' in mount_src:
+                                    raise ValueError(f""Volume name may not contain commas (,): {mount_src}"")
+                                if ',' in mount_target:
+                                    raise ValueError(f""Mount target path may not contain commas (,): {mount_target}"")
+                                ps = subprocess.run(
+                                    [""docker"", ""volume"", ""inspect"", mount_src],
+                                    check=False,
+                                    stdout=subprocess.DEVNULL,
+                                    stderr=subprocess.PIPE,
+                                    encoding='UTF-8',
+                                    errors='replace'
+                                )
+                                if ps.returncode != 0:
+                                    raise RuntimeError(f""Could not find volume '{mount_src}' locally from service: {service_name}. The volume must be created manually before it can be loaded. GMT does not create named volumes. - Error from Docker: {ps.stderr}"")
+                                docker_run_string.append('--mount')
+                                docker_run_string.append(f""type=volume,source={mount_src},target={mount_target}{mount_option}"")
+```",https://github.com/green-coding-solutions/green-metrics-tool/pull/1523#discussion_r2725496189,,2026-01-25T13:01:44+00:00,security,high,"Greptile correctly identified a security vulnerability: the code adds comma validation for non-allowlisted volume mounts (lines 1304-1307) but the allowlisted branch (starting line 1279) lacks this validation. An attacker could inject additional mount options via commas in mount_src or mount_target to alter the Docker mount behavior, potentially mounting unintended directories. This is a real injection vulnerability that's easy to miss.",2026-01-25T14:13:25.909773+00:00
+green-coding-solutions/green-metrics-tool,1523,Acl volume loading,https://github.com/green-coding-solutions/green-metrics-tool/pull/1523,,"Missing comma validation for allowed bind mounts - users could inject additional mount options
+
+```suggestion
+                            else: # path case. Check path if on machine as -v will create folder otherwise
+                                if ',' in mount_src:
+                                    raise ValueError(f""Mount source path may not contain commas (,): {mount_src}"")
+                                if ',' in mount_target:
+                                    raise ValueError(f""Mount target path may not contain commas (,): {mount_target}"")
+                                try:
+                                    mount_src_absolute = Path(mount_src).resolve(strict=True)
+                                except FileNotFoundError as exc:
+                                    raise RuntimeError(f""Allowed volume mount path '{mount_src}' does not exist"") from exc
+                                docker_run_string.append('--mount')
+                                docker_run_string.append(f""type=bind,source={mount_src_absolute},target={mount_target}{mount_option}"")
+```",https://github.com/green-coding-solutions/green-metrics-tool/pull/1523#discussion_r2725496197,,2026-01-25T13:01:45+00:00,security,high,"Greptile correctly identified a security vulnerability where the allowed volume mount path case (lines 1282-1291) lacks comma validation that exists elsewhere in the code. Without this check, users could inject additional mount options via commas in mount_src or mount_target to alter the Docker mount command, potentially mounting unintended paths. The code validates commas for non-allowed mounts (lines 1303-1306) but misses this validation for allowed mounts.",2026-01-25T14:13:25.909849+00:00
