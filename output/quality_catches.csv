@@ -6105,3 +6105,111 @@ Comment:
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/alpic-ai/skybridge/pull/390#discussion_r2725702641,,2026-01-25T16:34:41+00:00,runtime,medium,"Greptile correctly identified that `JSON.parse(e.target.value)` on line 116 will throw an exception when the user types invalid JSON (which happens frequently during typing, e.g., after typing just '{'), causing the component to crash. This is a real runtime bug that's easy to miss but will definitely occur during normal use of the JSON editor.",2026-01-25T18:19:51.512450+00:00
+raycast/extensions,24857,Update cloudflare-email-routing extension,https://github.com/raycast/extensions/pull/24857,,"splitting on `@` only once could miss edge cases with multiple `@` symbols
+
+```suggestion
+    if (trimmed.includes(""@"")) {
+      const atIndex = trimmed.lastIndexOf(""@"");
+      const localPart = trimmed.substring(0, atIndex);
+      const inputDomain = trimmed.substring(atIndex + 1);
+      if (!localPart || !inputDomain) {
+        throw new Error(""Alias must include a valid domain"");
+      }
+      if (inputDomain.toLowerCase() !== aliasDomain.toLowerCase()) {
+        throw new Error(`Alias domain must match ${aliasDomain}`);
+      }
+      return `${localPart}@${aliasDomain}`;
+    }
+```",https://github.com/raycast/extensions/pull/24857#discussion_r2725934733,,2026-01-25T21:24:11+00:00,logic,medium,"Greptile correctly identified that `split('@')` on an email with multiple @ symbols (e.g., 'test@test@domain.com') would create an array with more than 2 elements, causing the destructuring `[localPart, inputDomain]` to only capture the first two parts, losing the actual domain. Using `lastIndexOf('@')` is the correct approach for RFC-compliant email parsing since the local part can contain @ symbols when quoted.",2026-01-25T22:14:03.471062+00:00
+alpaca-network/gatewayz-backend,929,feat(users): add settings column for auto top-up configuration,https://github.com/Alpaca-Network/gatewayz-backend/pull/929,,"balance calculation incorrectly multiplies by 100 - credits are already in dollars in DB
+
+The database stores credits as DECIMAL in dollars (e.g., 15.00 for $15), but this query multiplies by 100 before comparing to the threshold. This means a user with $5.00 balance would be calculated as 500 cents, but compared against a threshold like 1000 cents ($10), incorrectly triggering auto top-up when their actual balance ($5) is above the threshold in dollars.
+
+The comparison should be in the same units. Since thresholds are documented as cents, convert to cents without the extra *100:
+
+```suggestion
+        AND (COALESCE(u.subscription_allowance, 0) + COALESCE(u.purchased_credits, 0)) <
+            COALESCE((u.settings->>'auto_topup_threshold')::integer, 0) / 100.0;
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: supabase/migrations/20260125000000_add_user_settings_column.sql
+Line: 86:87
+
+Comment:
+balance calculation incorrectly multiplies by 100 - credits are already in dollars in DB
+
+The database stores credits as DECIMAL in dollars (e.g., 15.00 for $15), but this query multiplies by 100 before comparing to the threshold. This means a user with $5.00 balance would be calculated as 500 cents, but compared against a threshold like 1000 cents ($10), incorrectly triggering auto top-up when their actual balance ($5) is above the threshold in dollars.
+
+The comparison should be in the same units. Since thresholds are documented as cents, convert to cents without the extra *100:
+
+```suggestion
+        AND (COALESCE(u.subscription_allowance, 0) + COALESCE(u.purchased_credits, 0)) <
+            COALESCE((u.settings->>'auto_topup_threshold')::integer, 0) / 100.0;
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/Alpaca-Network/gatewayz-backend/pull/929#discussion_r2725908599,,2026-01-25T20:48:03+00:00,logic,high,"The code multiplies the balance by 100 before comparing to the threshold, but according to Greptile's analysis and the comment on line 53 stating 'Threshold and amount are in cents', this creates a unit mismatch. If credits are stored in dollars and thresholds in cents, the comparison would be incorrect - a $5.00 balance becomes 500 and compared against a 1000 cent threshold incorrectly. This is a subtle unit conversion bug that could cause incorrect auto top-up triggers, affecting billing.",2026-01-25T22:14:03.471152+00:00
+gptme/gptme-contrib,192,refactor(packages): rename packages per gptme- prefix convention,https://github.com/gptme/gptme-contrib/pull/192,,"<details>
+<summary>Additional Comments (2)</summary>
+
+**`packages/gptme-contrib-lib/pyproject.toml`**
+Build config points to wrong directory. Should be `[""src/gptme_contrib_lib""]` not `[""src/lib""]`.
+
+```suggestion
+[tool.hatch.build.targets.wheel]
+packages = [""src/gptme_contrib_lib""]
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/gptme-contrib-lib/pyproject.toml
+Line: 27:28
+
+Comment:
+Build config points to wrong directory. Should be `[""src/gptme_contrib_lib""]` not `[""src/lib""]`.
+
+```suggestion
+[tool.hatch.build.targets.wheel]
+packages = [""src/gptme_contrib_lib""]
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>
+
+---
+
+**`packages/gptme-runloops/pyproject.toml`**
+Script entrypoint references old module name. Should be `gptme_runloops.cli:main` not `run_loops.cli:main`.
+
+```suggestion
+[project.scripts]
+run-loops = ""gptme_runloops.cli:main""
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/gptme-runloops/pyproject.toml
+Line: 18:19
+
+Comment:
+Script entrypoint references old module name. Should be `gptme_runloops.cli:main` not `run_loops.cli:main`.
+
+```suggestion
+[project.scripts]
+run-loops = ""gptme_runloops.cli:main""
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>
+</details>",https://github.com/gptme/gptme-contrib/pull/192#issuecomment-3797274759,,2026-01-25T21:37:38+00:00,runtime,high,"These are real bugs that would cause runtime failures - incorrect build paths and module references after a rename refactor would prevent the packages from building/installing correctly. During package rename refactors, these mismatches between old and new module names are easy to miss but cause immediate failures when trying to build or run the package.",2026-01-25T22:14:03.471245+00:00
