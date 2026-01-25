@@ -5874,3 +5874,234 @@ ISO format strings sort chronologically ascending (oldest first). The docstring 
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/gptme/gptme-contrib/pull/178#discussion_r2725667912,,2026-01-25T16:11:13+00:00,logic,low,"Greptile correctly identifies that ISO format strings sort ascending (oldest first) when sorted naturally, but the docstring explicitly states hooks should be sorted 'by updated_at (recent first)'. This is a real logic bug where the implementation contradicts the documented behavior, though impact is limited to display ordering.",2026-01-25T16:16:02.462988+00:00
+alpaca-network/gatewayz-frontend,909,feat(pricing): show upgrade/downgrade buttons based on user's current plan,https://github.com/Alpaca-Network/gatewayz-frontend/pull/909,,"`getUserData()` called inside `useMemo` dependency array but not listed as dependency
+
+Calling `getUserData()` directly inside the memoized function but relying on `currentTier` and `hasSubscription` from `useTier()` hook. If user data changes, the function won't recalculate because `getUserData()` result isn't tracked. This can show stale button states after login/logout.
+
+Use `userData` from `useTier()` hook (already available as `const { tier: currentTier, hasSubscription, userData } = useTier()`) and add it to dependencies.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: src/components/pricing/pricing-section.tsx
+Line: 119:123
+
+Comment:
+`getUserData()` called inside `useMemo` dependency array but not listed as dependency
+
+Calling `getUserData()` directly inside the memoized function but relying on `currentTier` and `hasSubscription` from `useTier()` hook. If user data changes, the function won't recalculate because `getUserData()` result isn't tracked. This can show stale button states after login/logout.
+
+Use `userData` from `useTier()` hook (already available as `const { tier: currentTier, hasSubscription, userData } = useTier()`) and add it to dependencies.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/Alpaca-Network/gatewayz-frontend/pull/909#discussion_r2725760899,,2026-01-25T17:37:23+00:00,logic,medium,"Greptile correctly identifies that `getUserData()` is called inside the `useMemo` callback (line 119) but its result is not tracked as a dependency. The memo only depends on `[currentTier, hasSubscription]`, so if a user logs in/out, the memoized function will return stale button states because React won't know to recalculate. This is a non-obvious React hooks bug that could cause incorrect UI states after authentication changes.",2026-01-25T18:19:51.512058+00:00
+alpaca-network/gatewayz-frontend,909,feat(pricing): show upgrade/downgrade buttons based on user's current plan,https://github.com/Alpaca-Network/gatewayz-frontend/pull/909,,"Redundant `getUserData()` call - already retrieved in `getButtonAction`
+
+`getUserData()` is called twice: once in `getButtonAction` (line 120) and again here (line 173). Since `getButtonAction` already checked authentication, this second call is unnecessary and the starter tier downgrade redirect to `/settings/credits?action=manage` is unreachable (authenticated users on starter tier would get `action === 'your_plan'` not `'downgrade'`).
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: src/components/pricing/pricing-section.tsx
+Line: 171:185
+
+Comment:
+Redundant `getUserData()` call - already retrieved in `getButtonAction`
+
+`getUserData()` is called twice: once in `getButtonAction` (line 120) and again here (line 173). Since `getButtonAction` already checked authentication, this second call is unnecessary and the starter tier downgrade redirect to `/settings/credits?action=manage` is unreachable (authenticated users on starter tier would get `action === 'your_plan'` not `'downgrade'`).
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/Alpaca-Network/gatewayz-frontend/pull/909#discussion_r2725760912,,2026-01-25T17:37:24+00:00,logic,medium,"Greptile correctly identifies that the starter tier downgrade code path (lines 179-183) is unreachable dead code. Looking at getButtonAction: when a user is on 'starter' tier and clicks on 'starter', targetLevel === currentLevel (both 0), so it returns 'your_plan' not 'downgrade'. A user on a higher tier clicking starter would get 'downgrade', but then the condition `tier.id === 'starter' || action === 'get_started'` wouldn't be satisfied since action would be 'downgrade'. This is a real logic bug where intended downgrade-to-starter functionality won't work as expected.",2026-01-25T18:19:51.512187+00:00
+alpaca-network/gatewayz-frontend,909,feat(pricing): show upgrade/downgrade buttons based on user's current plan,https://github.com/Alpaca-Network/gatewayz-frontend/pull/909,,"<details>
+<summary>Additional Comments (1)</summary>
+
+**`src/components/pricing/pricing-section.tsx`**
+Stripe Product ID mismatch with `pricing-config.ts`
+
+Max tier uses `prod_TKOraBpWMxMAIu` here but `prod_TMHUXL8p0onwwO` in `pricing-config.ts:94`. This will cause checkout to use different product IDs depending on which file is referenced, breaking subscription consistency.
+
+```suggestion
+    stripePriceId: process.env.NEXT_PUBLIC_STRIPE_PRO_PRICE_ID,
+    stripeProductId: 'prod_TKOqQPhVRxNp4Q', // Pro product ID for database
+  },
+  {
+    id: 'max',
+    name: 'Max',
+    description: 'Higher limits, priority access',
+    price: '$75',
+    originalPrice: '$150/month',
+    discount: 'Save 50%',
+    ctaText: 'Get Started',
+    ctaVariant: 'secondary',
+    popular: true,
+    features: [
+      '50% discount on $150 credits',
+      '10x more usage than Pro',
+      'Higher output limits for all tasks',
+      'Early access to advanced features',
+    ],
+    stripePriceId: process.env.NEXT_PUBLIC_STRIPE_MAX_PRICE_ID,
+    stripeProductId: 'prod_TMHUXL8p0onwwO', // Max product ID for database
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: src/components/pricing/pricing-section.tsx
+Line: 58:77
+
+Comment:
+Stripe Product ID mismatch with `pricing-config.ts`
+
+Max tier uses `prod_TKOraBpWMxMAIu` here but `prod_TMHUXL8p0onwwO` in `pricing-config.ts:94`. This will cause checkout to use different product IDs depending on which file is referenced, breaking subscription consistency.
+
+```suggestion
+    stripePriceId: process.env.NEXT_PUBLIC_STRIPE_PRO_PRICE_ID,
+    stripeProductId: 'prod_TKOqQPhVRxNp4Q', // Pro product ID for database
+  },
+  {
+    id: 'max',
+    name: 'Max',
+    description: 'Higher limits, priority access',
+    price: '$75',
+    originalPrice: '$150/month',
+    discount: 'Save 50%',
+    ctaText: 'Get Started',
+    ctaVariant: 'secondary',
+    popular: true,
+    features: [
+      '50% discount on $150 credits',
+      '10x more usage than Pro',
+      'Higher output limits for all tasks',
+      'Early access to advanced features',
+    ],
+    stripePriceId: process.env.NEXT_PUBLIC_STRIPE_MAX_PRICE_ID,
+    stripeProductId: 'prod_TMHUXL8p0onwwO', // Max product ID for database
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>
+</details>",https://github.com/Alpaca-Network/gatewayz-frontend/pull/909#issuecomment-3796997594,,2026-01-25T17:37:29+00:00,data_integrity,high,"Greptile correctly identified a Stripe Product ID mismatch between two configuration files - the Max tier uses 'prod_TKOraBpWMxMAIu' in pricing-section.tsx but 'prod_TMHUXL8p0onwwO' in pricing-config.ts. This inconsistency would cause subscription tracking and billing issues since different product IDs would be used depending on which file handles the checkout, a non-obvious cross-file bug that could break payment functionality.",2026-01-25T18:19:51.512259+00:00
+gptme/gptme-contrib,180,feat(plugins): add ACE context optimization plugin,https://github.com/gptme/gptme-contrib/pull/180,,"This code will raise `IndexError` if `lesson_id` exists in metadata but is not in the FAISS index (e.g., if index was rebuilt but metadata wasn't). The skip on line 196 doesn't prevent the index lookup on line 200.
+
+```suggestion
+            # Skip if no embedding
+            if lesson_id not in self.embedder.metadata:
+                continue
+
+            # Get embedding from FAISS index
+            try:
+                idx = list(self.embedder.metadata.keys()).index(lesson_id)
+                lesson_embed = self.embedder.index.reconstruct(idx)
+            except (ValueError, RuntimeError):
+                # Lesson not in index or index error
+                continue
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: plugins/ace/src/gptme_ace/hybrid_retriever.py
+Line: 196:201
+
+Comment:
+This code will raise `IndexError` if `lesson_id` exists in metadata but is not in the FAISS index (e.g., if index was rebuilt but metadata wasn't). The skip on line 196 doesn't prevent the index lookup on line 200.
+
+```suggestion
+            # Skip if no embedding
+            if lesson_id not in self.embedder.metadata:
+                continue
+
+            # Get embedding from FAISS index
+            try:
+                idx = list(self.embedder.metadata.keys()).index(lesson_id)
+                lesson_embed = self.embedder.index.reconstruct(idx)
+            except (ValueError, RuntimeError):
+                # Lesson not in index or index error
+                continue
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/gptme/gptme-contrib/pull/180#discussion_r2725793177,,2026-01-25T18:11:31+00:00,runtime,medium,"Greptile correctly identifies a potential runtime error: line 196 checks if `lesson_id` is in `self.embedder.metadata`, but line 200 uses `list(self.embedder.metadata.keys()).index(lesson_id)` which finds the position in the metadata keys - this assumes the FAISS index has the same number of entries in the same order as the metadata dictionary. If the FAISS index gets out of sync (rebuilt/corrupted), `index.reconstruct(idx)` could raise an error or return wrong data. The suggestion to wrap in try/except is a reasonable defensive fix for this non-obvious sync issue.",2026-01-25T18:19:51.512333+00:00
+gptme/gptme-contrib,179,feat(plugins): add ralph-loop plugin for iterative execution,https://github.com/gptme/gptme-contrib/pull/179,,"Shell injection vulnerability - `spec_file`, `plan_file`, and `backend` parameters are inserted directly into the bash script without proper escaping. If these contain shell metacharacters or are user-controlled, this allows arbitrary command execution.
+
+Use `shlex.quote()` for all variables inserted into the bash script:
+
+```suggestion
+    script = f""""""#!/bin/bash
+cd {shlex.quote(str(work_dir))}
+SPEC_FILE={shlex.quote(spec_file)}
+PLAN_FILE={shlex.quote(plan_file)}
+BACKEND={shlex.quote(backend)}
+MAX_ITER={max_iterations}
+TIMEOUT={step_timeout}
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: plugins/ralph-loop/src/gptme_ralph_loop/tools/ralph_loop.py
+Line: 424:430
+
+Comment:
+Shell injection vulnerability - `spec_file`, `plan_file`, and `backend` parameters are inserted directly into the bash script without proper escaping. If these contain shell metacharacters or are user-controlled, this allows arbitrary command execution.
+
+Use `shlex.quote()` for all variables inserted into the bash script:
+
+```suggestion
+    script = f""""""#!/bin/bash
+cd {shlex.quote(str(work_dir))}
+SPEC_FILE={shlex.quote(spec_file)}
+PLAN_FILE={shlex.quote(plan_file)}
+BACKEND={shlex.quote(backend)}
+MAX_ITER={max_iterations}
+TIMEOUT={step_timeout}
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/gptme/gptme-contrib/pull/179#discussion_r2725733547,,2026-01-25T17:05:26+00:00,security,critical,"Greptile correctly identified a shell injection vulnerability. Looking at lines 424-430, `spec_file`, `plan_file`, and `backend` are inserted directly into a bash script string without escaping (e.g., `SPEC_FILE=""{spec_file}""`), while `work_dir` is properly escaped with `shlex.quote()`. If any of these user-controlled parameters contain shell metacharacters like `$(command)` or backticks, arbitrary commands could be executed. This is a real security bug that's easy to miss since the code already uses `shlex.quote()` for `work_dir` but inconsistently omits it for other variables.",2026-01-25T18:19:51.512406+00:00
+alpic-ai/skybridge,390,(feat): entering JSON manually,https://github.com/alpic-ai/skybridge/pull/390,,"`JSON.parse` will throw when invalid JSON is entered, crashing the component. Wrap in try-catch or validate before parsing.
+
+```suggestion
+      onChange={(e) => {
+        try {
+          setFormData(JSON.parse(e.target.value));
+        } catch {
+          // Allow typing invalid JSON without crashing
+        }
+      }}
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/devtools/src/components/layout/tool-panel/input-form.tsx
+Line: 116:116
+
+Comment:
+`JSON.parse` will throw when invalid JSON is entered, crashing the component. Wrap in try-catch or validate before parsing.
+
+```suggestion
+      onChange={(e) => {
+        try {
+          setFormData(JSON.parse(e.target.value));
+        } catch {
+          // Allow typing invalid JSON without crashing
+        }
+      }}
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/alpic-ai/skybridge/pull/390#discussion_r2725702641,,2026-01-25T16:34:41+00:00,runtime,medium,"Greptile correctly identified that `JSON.parse(e.target.value)` on line 116 will throw an exception when the user types invalid JSON (which happens frequently during typing, e.g., after typing just '{'), causing the component to crash. This is a real runtime bug that's easy to miss but will definitely occur during normal use of the JSON editor.",2026-01-25T18:19:51.512450+00:00
