@@ -5436,3 +5436,132 @@ How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>
 </details>",https://github.com/browserbase/stagehand/pull/1607#issuecomment-3795862567,,2026-01-25T02:46:13+00:00,resource_leak,medium,"This is a valid resource leak issue - the PR adds network capture functionality that creates directories via getNetworkDir(), but the cleanupStaleFiles function doesn't clean up these directories. Without the diff visible, Greptile's analysis is logically sound: if a new directory is created for network capture but not cleaned up during shutdown, temp directories will accumulate over time. The fix is specific and actionable.",2026-01-25T03:02:02.388891+00:00
+simstudioai/sim,2988,fix(anthropic): use anthropic sdk to transform malformed response schemas to anthropic format,https://github.com/simstudioai/sim/pull/2988,,"Adding `@anthropic-ai/sdk@0.71.2` to root `package.json` creates a version conflict with `apps/sim/package.json` which already has `^0.39.0`. The `transformJSONSchema` import is from `@anthropic-ai/sdk/lib/transform-json-schema`, which may not exist in the older version used by the sim app. 
+
+Update `apps/sim/package.json` to use the same version instead:
+
+```suggestion
+  ""dependencies"": {
+    ""@anthropic-ai/sdk"": ""0.71.2""
+  }
+```
+
+And remove this root-level dependency since this is a monorepo and the dependency should live in the workspace package that uses it.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: package.json
+Line: 55:57
+
+Comment:
+Adding `@anthropic-ai/sdk@0.71.2` to root `package.json` creates a version conflict with `apps/sim/package.json` which already has `^0.39.0`. The `transformJSONSchema` import is from `@anthropic-ai/sdk/lib/transform-json-schema`, which may not exist in the older version used by the sim app. 
+
+Update `apps/sim/package.json` to use the same version instead:
+
+```suggestion
+  ""dependencies"": {
+    ""@anthropic-ai/sdk"": ""0.71.2""
+  }
+```
+
+And remove this root-level dependency since this is a monorepo and the dependency should live in the workspace package that uses it.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/simstudioai/sim/pull/2988#discussion_r2724838264,,2026-01-25T03:50:47+00:00,runtime,high,Greptile correctly identifies a real version conflict issue in a monorepo setup - adding @anthropic-ai/sdk@0.71.2 to root package.json while apps/sim/package.json has ^0.39.0 could cause runtime errors since transformJSONSchema API may not exist in older versions. This is a non-obvious dependency management issue that could cause build/runtime failures.,2026-01-25T04:37:00.096461+00:00
+simstudioai/sim,2988,fix(anthropic): use anthropic sdk to transform malformed response schemas to anthropic format,https://github.com/simstudioai/sim/pull/2988,,"The `transformJSONSchema` function is imported from `@anthropic-ai/sdk/lib/transform-json-schema`, which is an internal SDK path. This import will fail because `apps/sim/package.json` specifies `@anthropic-ai/sdk@^0.39.0`, but version `0.71.2` was added to the root `package.json`. In a monorepo, the workspace dependency takes precedence, so this import will likely resolve to `0.39.0` which may not have this function.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: apps/sim/providers/anthropic/index.ts
+Line: 2:2
+
+Comment:
+The `transformJSONSchema` function is imported from `@anthropic-ai/sdk/lib/transform-json-schema`, which is an internal SDK path. This import will fail because `apps/sim/package.json` specifies `@anthropic-ai/sdk@^0.39.0`, but version `0.71.2` was added to the root `package.json`. In a monorepo, the workspace dependency takes precedence, so this import will likely resolve to `0.39.0` which may not have this function.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/simstudioai/sim/pull/2988#discussion_r2724838268,,2026-01-25T03:50:48+00:00,runtime,high,"Greptile correctly identifies a potential runtime import failure due to version mismatch in a monorepo setup. The code imports from an internal SDK path that may not exist in version 0.39.0 specified in apps/sim/package.json, while the function likely only exists in the newer 0.71.2 version added to root package.json. This is a non-obvious dependency resolution issue that could cause the application to fail at runtime.",2026-01-25T04:37:00.096565+00:00
+alpaca-network/gatewayz-frontend,900,feat(auth): add Terragon auth redirect page,https://github.com/Alpaca-Network/gatewayz-frontend/pull/900,,"potential open redirect vulnerability - validate callback URL origin
+
+The `callback` parameter is used directly to construct the redirect URL without validating its origin. An attacker could provide a malicious URL like `https://evil.com` to redirect users to a phishing site with a valid auth token.
+
+```suggestion
+          // Validate callback URL is a trusted Terragon domain
+          const callbackUrl = new URL(callback);
+          const allowedOrigins = process.env.NEXT_PUBLIC_TERRAGON_URL 
+            ? [new URL(process.env.NEXT_PUBLIC_TERRAGON_URL).origin]
+            : ['https://terragon.alpaca-network.io']; // fallback to production domain
+          
+          if (!allowedOrigins.includes(callbackUrl.origin)) {
+            throw new Error(""Invalid callback URL - must be from Terragon domain"");
+          }
+          callbackUrl.searchParams.set(""gwauth"", token);
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: src/app/auth/terragon/page.tsx
+Line: 89:89
+
+Comment:
+potential open redirect vulnerability - validate callback URL origin
+
+The `callback` parameter is used directly to construct the redirect URL without validating its origin. An attacker could provide a malicious URL like `https://evil.com` to redirect users to a phishing site with a valid auth token.
+
+```suggestion
+          // Validate callback URL is a trusted Terragon domain
+          const callbackUrl = new URL(callback);
+          const allowedOrigins = process.env.NEXT_PUBLIC_TERRAGON_URL 
+            ? [new URL(process.env.NEXT_PUBLIC_TERRAGON_URL).origin]
+            : ['https://terragon.alpaca-network.io']; // fallback to production domain
+          
+          if (!allowedOrigins.includes(callbackUrl.origin)) {
+            throw new Error(""Invalid callback URL - must be from Terragon domain"");
+          }
+          callbackUrl.searchParams.set(""gwauth"", token);
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/Alpaca-Network/gatewayz-frontend/pull/900#discussion_r2724868093,,2026-01-25T04:12:57+00:00,security,critical,"Greptile correctly identified an open redirect vulnerability. The code at line 90 takes the `callback` query parameter directly from user input and uses it to construct a redirect URL with an auth token appended. An attacker could craft a malicious URL like `?callback=https://evil.com` to steal the auth token via the redirect, enabling account takeover or phishing. This is a real security issue that requires origin validation.",2026-01-25T04:37:00.096647+00:00
+runanywhereai/runanywhere-sdks,293,feat: Add tool calling support with C++ ,https://github.com/RunanywhereAI/runanywhere-sdks/pull/293,,"Escape sequence detection `json[i-1] != '\\'` doesn't handle multiple consecutive backslashes correctly. For example, `""\\""` (escaped backslash followed by quote) would be incorrectly treated as escaped quote.
+
+Standard approach: track escape state separately or count consecutive backslashes.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: sdk/runanywhere-react-native/packages/core/cpp/bridges/ToolCallingBridge.cpp
+Line: 57:57
+
+Comment:
+Escape sequence detection `json[i-1] != '\\'` doesn't handle multiple consecutive backslashes correctly. For example, `""\\""` (escaped backslash followed by quote) would be incorrectly treated as escaped quote.
+
+Standard approach: track escape state separately or count consecutive backslashes.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/RunanywhereAI/runanywhere-sdks/pull/293#discussion_r2724818454,,2026-01-25T03:30:02+00:00,logic,medium,"Greptile correctly identified that checking `json[i-1] != '\\'` doesn't properly handle cases like `\\""` where an escaped backslash precedes a quote character. In this case, the quote should end the string, but the code would incorrectly treat it as escaped. This is a subtle parsing bug that could cause incorrect JSON processing, and it's non-obvious enough that typical reviewers would miss it.",2026-01-25T04:37:00.096711+00:00
+runanywhereai/runanywhere-sdks,293,feat: Add tool calling support with C++ ,https://github.com/RunanywhereAI/runanywhere-sdks/pull/293,,"Same escape detection issue as line 57 - doesn't handle `""\\""` correctly (escaped backslash before quote).
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: sdk/runanywhere-react-native/packages/core/cpp/bridges/ToolCallingBridge.cpp
+Line: 140:140
+
+Comment:
+Same escape detection issue as line 57 - doesn't handle `""\\""` correctly (escaped backslash before quote).
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/RunanywhereAI/runanywhere-sdks/pull/293#discussion_r2724818479,,2026-01-25T03:30:04+00:00,logic,medium,"At line 140, the code checks `normalizedJson[valueEnd - 1] != '\\'` to detect escaped quotes, but this fails for the input `""\\""` where a backslash is itself escaped - the quote after `\\` is NOT escaped but the check would incorrectly think it is. This is a real parsing bug that could cause incorrect JSON value extraction, particularly for strings containing escaped backslashes followed by quotes.",2026-01-25T04:37:00.096775+00:00
