@@ -5827,3 +5827,50 @@ green-coding-solutions/green-metrics-tool,1523,Acl volume loading,https://github
                                 docker_run_string.append('--mount')
                                 docker_run_string.append(f""type=bind,source={mount_src_absolute},target={mount_target}{mount_option}"")
 ```",https://github.com/green-coding-solutions/green-metrics-tool/pull/1523#discussion_r2725496197,,2026-01-25T13:01:45+00:00,security,high,"Greptile correctly identified a security vulnerability where the allowed volume mount path case (lines 1282-1291) lacks comma validation that exists elsewhere in the code. Without this check, users could inject additional mount options via commas in mount_src or mount_target to alter the Docker mount command, potentially mounting unintended paths. The code validates commas for non-allowed mounts (lines 1303-1306) but misses this validation for allowed mounts.",2026-01-25T14:13:25.909849+00:00
+raycast/extensions,24848,Add clawdbot extension,https://github.com/raycast/extensions/pull/24848,,"`useState` is being called instead of `useEffect` - this will not execute the async operation correctly
+
+```suggestion
+  useEffect(() => {
+    askQuestion(question)
+      .then(setAnswer)
+      .catch((e) => setError(e.message));
+  }, [question]);
+```",https://github.com/raycast/extensions/pull/24848#discussion_r2725654952,,2026-01-25T15:59:24+00:00,logic,high,"Greptile correctly identified that `useState` is being misused on line 146 - the code passes a callback function to `useState()` which expects an initial value, not a callback to execute. This is clearly a bug where `useEffect` should be used instead. The async operation to `askQuestion` will never execute, making the ImmediateAsk component completely non-functional. This is a non-obvious mistake that could easily be missed during review.",2026-01-25T16:16:02.462873+00:00
+gptme/gptme-contrib,178,feat(plugins): add gptme-gupp work persistence plugin,https://github.com/gptme/gptme-contrib/pull/178,,"Missing `ToolSpec` registration - plugin won't be discovered by gptme
+
+This file needs to import `ToolSpec` from `gptme.tools.base` and export a tool specification at the end. Without it, gptme cannot discover or use these functions. See other plugins like `warp-grep` or `imagen` for examples.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: plugins/gptme-gupp/src/gptme_gupp/tools/gupp.py
+Line: 288:288
+
+Comment:
+Missing `ToolSpec` registration - plugin won't be discovered by gptme
+
+This file needs to import `ToolSpec` from `gptme.tools.base` and export a tool specification at the end. Without it, gptme cannot discover or use these functions. See other plugins like `warp-grep` or `imagen` for examples.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/gptme/gptme-contrib/pull/178#discussion_r2725667882,,2026-01-25T16:11:11+00:00,logic,high,"The code defines several hook functions but never creates or exports a ToolSpec object that gptme uses to discover and register plugins. Looking at the file, there's no import of ToolSpec and no tool registration at the end, meaning this plugin would be completely non-functional - gptme wouldn't be able to discover or use any of these functions. This is a critical missing piece that would cause the entire plugin to fail silently.",2026-01-25T16:16:02.462939+00:00
+gptme/gptme-contrib,178,feat(plugins): add gptme-gupp work persistence plugin,https://github.com/gptme/gptme-contrib/pull/178,,"Sorting by `updated_at` string puts older items first, not recent ones
+
+ISO format strings sort chronologically ascending (oldest first). The docstring says ""recent first"" but the code does the opposite. Parse the timestamp and use negative value for descending order.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: plugins/gptme-gupp/src/gptme_gupp/tools/gupp.py
+Line: 180:187
+
+Comment:
+Sorting by `updated_at` string puts older items first, not recent ones
+
+ISO format strings sort chronologically ascending (oldest first). The docstring says ""recent first"" but the code does the opposite. Parse the timestamp and use negative value for descending order.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/gptme/gptme-contrib/pull/178#discussion_r2725667912,,2026-01-25T16:11:13+00:00,logic,low,"Greptile correctly identifies that ISO format strings sort ascending (oldest first) when sorted naturally, but the docstring explicitly states hooks should be sorted 'by updated_at (recent first)'. This is a real logic bug where the implementation contradicts the documented behavior, though impact is limited to display ordering.",2026-01-25T16:16:02.462988+00:00
