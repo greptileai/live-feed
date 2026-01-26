@@ -6213,3 +6213,51 @@ How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>
 </details>",https://github.com/gptme/gptme-contrib/pull/192#issuecomment-3797274759,,2026-01-25T21:37:38+00:00,runtime,high,"These are real bugs that would cause runtime failures - incorrect build paths and module references after a rename refactor would prevent the packages from building/installing correctly. During package rename refactors, these mismatches between old and new module names are easy to miss but cause immediate failures when trying to build or run the package.",2026-01-25T22:14:03.471245+00:00
+onyx-dot-app/onyx,7773,fix(bookstack): use ISO-8601 datetime format for incremental polling,https://github.com/onyx-dot-app/onyx/pull/7773,,"<details>
+<summary>Additional Comments (1)</summary>
+
+**`backend/onyx/connectors/bookstack/connector.py`**
+The `end` filter should also use ISO-8601 format for consistency with the `start` filter on line 60
+
+```suggestion
+        if end:
+            params[""filter[updated_at:lte]""] = datetime.utcfromtimestamp(end).strftime(
+                ""%Y-%m-%dT%H:%M:%SZ""
+            )
+```
+
+<sub>Note: If this suggestion doesn't match your team's coding style, reply to this and let me know. I'll remember it for next time!</sub>
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: backend/onyx/connectors/bookstack/connector.py
+Line: 62:65
+
+Comment:
+The `end` filter should also use ISO-8601 format for consistency with the `start` filter on line 60
+
+```suggestion
+        if end:
+            params[""filter[updated_at:lte]""] = datetime.utcfromtimestamp(end).strftime(
+                ""%Y-%m-%dT%H:%M:%SZ""
+            )
+```
+
+<sub>Note: If this suggestion doesn't match your team's coding style, reply to this and let me know. I'll remember it for next time!</sub>
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>
+</details>",https://github.com/onyx-dot-app/onyx/pull/7773#issuecomment-3797411975,,2026-01-25T23:43:52+00:00,logic,medium,"This is a valid consistency bug - if the PR is fixing the `start` filter to use ISO-8601 format for the BookStack API, the `end` filter should also be updated to use the same format. Having mismatched datetime formats between start and end parameters could cause incorrect filtering behavior in the API calls. The catch requires understanding that both filters are querying the same API endpoint and should use consistent formatting.",2026-01-26T00:48:07.513094+00:00
+isaac-sim/isaaclab,4453,[IN PROGRESS] Fixes camera position update,https://github.com/isaac-sim/IsaacLab/pull/4453,,"duplicate assignment overwrites the intended offset `(0.5, 0.0, 0.2)` with `(0.0, 0.0, 0.0)`, making the offset zero and not testing offset functionality
+
+```suggestion
+    camera_offset = (0.5, 0.0, 0.2)  # Camera offset from robot base
+```",https://github.com/isaac-sim/IsaacLab/pull/4453#discussion_r2725971750,,2026-01-25T22:18:03+00:00,logic,medium,"Greptile correctly identified that camera_offset is assigned twice in succession - first to (0.5, 0.0, 0.2) and immediately overwritten with (0.0, 0.0, 0.0). This makes the test ineffective at verifying offset functionality since the offset becomes zero. This appears to be an accidental duplicate line that would cause the test to not properly validate the camera offset behavior it claims to test.",2026-01-26T00:48:07.513188+00:00
+isaac-sim/isaaclab,4453,[IN PROGRESS] Fixes camera position update,https://github.com/isaac-sim/IsaacLab/pull/4453,,"using camera position as base position - should retrieve robot's base position instead
+
+```suggestion
+    initial_base_pos = robot.data.root_pos_w[0].clone()
+```",https://github.com/isaac-sim/IsaacLab/pull/4453#discussion_r2725971784,,2026-01-25T22:18:04+00:00,logic,medium,"Greptile correctly identifies that line 924 sets `initial_base_pos = camera.data.pos_w[0].clone()` which is the camera's position, not the robot's base position. The test is supposed to compare camera position against robot base position + offset, but by using camera position as the 'base position', the test is effectively comparing camera position to itself + offset, making the test logic incorrect. The suggestion to use `robot.data.root_pos_w[0].clone()` is the correct fix.",2026-01-26T00:48:07.513212+00:00
