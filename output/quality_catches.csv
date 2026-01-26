@@ -7328,3 +7328,122 @@ The proper approach is to make the calling function async or use `asyncio.create
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/Alpaca-Network/gatewayz-backend/pull/950#discussion_r2727770642,,2026-01-26T14:13:31+00:00,concurrency,medium,"Greptile correctly identifies that creating a new event loop with `asyncio.new_event_loop()` and `asyncio.set_event_loop()` in sync functions that may be called from async contexts can cause deadlocks or interfere with existing event loops. The code at lines 139-159 does exactly this - creating and setting a new event loop to run async credit check functions synchronously, which is a known anti-pattern that can cause hard-to-debug issues in production async applications.",2026-01-26T14:22:16.311329+00:00
+posthog/posthog,45917,feat(llma): add generation-level toggle to clusters UI,https://github.com/PostHog/posthog/pull/45917,,"timestamp conversion inconsistency with `LLMAnalyticsClusterScene.tsx`
+
+in `ClusterTraceList.tsx` you use `dayjs.utc(traceInfo.timestamp).toISOString()` but in `LLMAnalyticsClusterScene.tsx:240` for generation-level links, you use `dayjs(traceInfo.timestamp).subtract(24, 'hour').toISOString()` with a 24-hour buffer. the PR description mentions ""24-hour timestamp buffer for generation cluster links"" but this component doesn't apply it.
+
+check whether the 24-hour buffer should also be applied here for generation-level links
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: products/llm_analytics/frontend/clusters/ClusterTraceList.tsx
+Line: 93:93
+
+Comment:
+timestamp conversion inconsistency with `LLMAnalyticsClusterScene.tsx`
+
+in `ClusterTraceList.tsx` you use `dayjs.utc(traceInfo.timestamp).toISOString()` but in `LLMAnalyticsClusterScene.tsx:240` for generation-level links, you use `dayjs(traceInfo.timestamp).subtract(24, 'hour').toISOString()` with a 24-hour buffer. the PR description mentions ""24-hour timestamp buffer for generation cluster links"" but this component doesn't apply it.
+
+check whether the 24-hour buffer should also be applied here for generation-level links
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/45917#discussion_r2727991243,,2026-01-26T15:10:48+00:00,logic,medium,"Greptile correctly identified an inconsistency - the PR description mentions a '24-hour timestamp buffer for generation cluster links' but this file doesn't apply that buffer when constructing generation-level URLs, while LLMAnalyticsClusterScene.tsx does use `subtract(24, 'hour')`. This could cause generation-level links from this component to fail to find the correct data, which is a real bug that's non-obvious because it requires cross-file analysis.",2026-01-26T16:23:59.198067+00:00
+posthog/posthog,45921,fix(gateway): exact match instead of prefix match for allowed models,https://github.com/PostHog/posthog/pull/45921,,"Exact matching breaks versioned model IDs. Anthropic uses timestamped models like `claude-sonnet-4-5-20260101`, but the allowlist only contains `claude-sonnet-4-5`. This will reject all versioned models in production.
+
+Check if the allowlist should include all versioned variants, or if prefix matching was intentional to allow future model versions.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: services/llm-gateway/src/llm_gateway/products/config.py
+Line: 110:113
+
+Comment:
+Exact matching breaks versioned model IDs. Anthropic uses timestamped models like `claude-sonnet-4-5-20260101`, but the allowlist only contains `claude-sonnet-4-5`. This will reject all versioned models in production.
+
+Check if the allowlist should include all versioned variants, or if prefix matching was intentional to allow future model versions.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/45921#discussion_r2727932455,,2026-01-26T14:55:22+00:00,logic,high,"The PR title explicitly states the intent is to change from prefix to exact match, but Greptile correctly identifies a real production concern: if the allowlist contains base model names like 'claude-sonnet-4-5' but Anthropic's API uses timestamped versions like 'claude-sonnet-4-5-20260101', all versioned model requests would be incorrectly rejected. This is a non-obvious backward compatibility issue that could break production functionality.",2026-01-26T16:23:59.198159+00:00
+twentyhq/twenty,17449,Backfill `owner` standard field check colliding `joinColumnName`,https://github.com/twentyhq/twenty/pull/17449,,"Looking at this logic, the issue is that you're not checking for collisions in the relation target when the source field already has a colliding `joinColumnName`.
+
+The current code returns early in two cases:
+1. When it's NOT a relation field (`!isMorphOrRelationField`) 
+2. When it IS a relation field AND has a colliding join column name (`hasCollidingJoinColumnName`)
+
+This means you only check the relation target when it's a relation field that does NOT have a colliding join column name. But the relation target could still have collisions even if the source field does.
+
+For example:
+- Source field has `joinColumnName: 'ownerId'` (collision detected, fixed)
+- But the target relation might also have fields that collide with the new standard owner field
+- Your current logic skips checking the target in this scenario
+
+You should check the relation target regardless of whether the source field has collisions, since they're independent collision surfaces.",https://github.com/twentyhq/twenty/pull/17449#discussion_r2728005355,,2026-01-26T15:14:21+00:00,logic,medium,"Greptile correctly identified a logic flaw: the condition `if (!isMorphOrRelationField || hasCollidingJoinColumnName) { return; }` at line 279 causes an early return when the source field has a colliding joinColumnName, but this skips checking whether the relation target ALSO has a collision that needs fixing. Both sides of a relation could independently have 'ownerId' as joinColumnName and both should be checked/fixed.",2026-01-26T16:23:59.198221+00:00
+nvidia/fuser,5857,MoE Dispatch/Combine first implementation for `k=1` and Nccl backend,https://github.com/NVIDIA/Fuser/pull/5857,,"Missing validation: `is_token_in_rank.size(0)` should equal `num_tokens` (x.size(0))
+
+```suggestion
+  NVF_CHECK_EQ(
+      is_token_in_rank.dim(),
+      2,
+      ""is_token_in_rank must be [tokens, ranks], got: "",
+      is_token_in_rank.sizes());
+  NVF_CHECK_EQ(x.dim(), 2, ""Dispatch expects x to be 2D [tokens, hidden]."");
+
+  const int64_t num_tokens = x.size(0);
+  const int64_t hidden = x.size(1);
+  const int64_t world_size = communicator->size();
+  const int64_t my_rank = communicator->deviceId();
+  NVF_CHECK_EQ(
+      is_token_in_rank.size(0),
+      num_tokens,
+      ""is_token_in_rank first dim must match num_tokens."");
+  NVF_CHECK_EQ(
+      is_token_in_rank.size(1),
+      world_size,
+      ""is_token_in_rank second dim must match world size."");
+```",https://github.com/NVIDIA/Fuser/pull/5857#discussion_r2728258043,,2026-01-26T16:14:24+00:00,logic,medium,"Greptile correctly identifies a missing validation. The code validates is_token_in_rank.size(1) == world_size but never checks that is_token_in_rank.size(0) == num_tokens. Since is_token_in_rank is used with operations like argmax(1) and indexing that depend on having the same number of rows as x has tokens, a dimension mismatch would cause incorrect behavior or runtime errors. This is a non-obvious validation gap that could easily be missed.",2026-01-26T16:23:59.198279+00:00
+requestnetwork/requestnetwork,1691,feat: add Tron substreams indexing package,https://github.com/RequestNetwork/requestNetwork/pull/1691,,"Missing `bs58` dependency - code uses `bs58::encode()` in `lib.rs:181` but `bs58` is not in dependencies.
+
+```suggestion
+hex = ""0.4""
+bs58 = ""0.5""
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/substreams-tron/Cargo.toml
+Line: 18:18
+
+Comment:
+Missing `bs58` dependency - code uses `bs58::encode()` in `lib.rs:181` but `bs58` is not in dependencies.
+
+```suggestion
+hex = ""0.4""
+bs58 = ""0.5""
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/RequestNetwork/requestNetwork/pull/1691#discussion_r2727950347,,2026-01-26T14:59:57+00:00,runtime,critical,"This is a missing dependency that would cause a compilation failure. The code in lib.rs uses bs58::encode() but the Cargo.toml doesn't include bs58 as a dependency, which means the project won't compile. This is a real bug that's easy to miss when reviewing a Cargo.toml in isolation without checking the corresponding source files.",2026-01-26T16:23:59.198307+00:00
+requestnetwork/requestnetwork,1691,feat: add Tron substreams indexing package,https://github.com/RequestNetwork/requestNetwork/pull/1691,,"Event topic is incomplete (40 chars instead of 64) AND never validated - code will parse ALL events from proxy contracts, not just `TransferWithReferenceAndFee`
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/substreams-tron/src/lib.rs
+Line: 19:20
+
+Comment:
+Event topic is incomplete (40 chars instead of 64) AND never validated - code will parse ALL events from proxy contracts, not just `TransferWithReferenceAndFee`
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/RequestNetwork/requestNetwork/pull/1691#discussion_r2727950417,,2026-01-26T14:59:58+00:00,logic,high,"Greptile correctly identifies two issues: (1) TRANSFER_WITH_REF_AND_FEE_TOPIC is 40 hex chars but should be 64 chars for a full keccak256 hash, and (2) the constant is defined but never used in the code - the event signature is never validated in parse_transfer_with_reference_and_fee, meaning ALL events from proxy contracts will be parsed, not just TransferWithReferenceAndFee events. This would cause incorrect payment data to be indexed.",2026-01-26T16:23:59.198331+00:00
