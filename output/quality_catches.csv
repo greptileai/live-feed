@@ -7683,3 +7683,125 @@ Use `web_contents()->GetPrimaryMainFrame()->GetFrameTreeNodeId()` or another sta
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/browseros-ai/BrowserOS/pull/337#discussion_r2728846285,,2026-01-26T18:56:53+00:00,logic,medium,"Greptile correctly identified that using `std::hash<std::string>{}(web_contents()->GetTitle())` as a tab_id is fundamentally flawed - page titles change dynamically and can be identical across different tabs (e.g., multiple 'Google' tabs), causing actions to be incorrectly grouped together or regrouped when titles change. This is a non-obvious data integrity bug that would cause incorrect behavior in action replay/analysis features.",2026-01-26T20:19:54.982040+00:00
+posthog/posthog,45946,chore: Order persons list by id when flag is active,https://github.com/PostHog/posthog/pull/45946,,"`ORDER BY id` defaults to ASC, which reverses the sort direction compared to the non-flag path (`ORDER BY created_at DESC`). Should this be `ORDER BY id DESC` to maintain newest-first ordering?
+
+```suggestion
+                    order_by = [ast.OrderExpr(expr=ast.Field(chain=[""id""]), order=""DESC"")]
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: posthog/hogql_queries/actors_query_runner.py
+Line: 369:369
+
+Comment:
+`ORDER BY id` defaults to ASC, which reverses the sort direction compared to the non-flag path (`ORDER BY created_at DESC`). Should this be `ORDER BY id DESC` to maintain newest-first ordering?
+
+```suggestion
+                    order_by = [ast.OrderExpr(expr=ast.Field(chain=[""id""]), order=""DESC"")]
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/45946#discussion_r2729123566,,2026-01-26T20:23:26+00:00,logic,medium,"Greptile correctly identified that the new code path uses `ORDER BY id` without specifying direction (defaulting to ASC), while the alternative path explicitly uses `ORDER BY created_at DESC`. This inconsistency would cause the UI to show results in opposite order depending on which code path is taken, which is likely unintended behavior. The suggestion to add `order=""DESC""` maintains consistency with the non-flag path's newest-first ordering.",2026-01-26T22:16:46.725045+00:00
+onyx-dot-app/onyx,7810,feat(chat history): summarize older messages,https://github.com/onyx-dot-app/onyx/pull/7810,,"old summary messages should be deleted before creating new one to prevent accumulation of orphaned summaries that waste database space and inflate token calculations
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: backend/onyx/chat/compression.py
+Line: 305:318
+
+Comment:
+old summary messages should be deleted before creating new one to prevent accumulation of orphaned summaries that waste database space and inflate token calculations
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/7810#discussion_r2729287775,,2026-01-26T21:17:51+00:00,data_integrity,medium,"The code creates new summary messages on each compression but never deletes the old ones. Looking at lines 292-315, when a new summary_message is created, the chat_session.summary_message_id is updated to point to the new summary, but the existing_summary message (retrieved earlier) is never deleted. This leaves orphaned ChatMessage records in the database that will accumulate over time, wasting storage and potentially inflating token calculations in calculate_total_history_tokens() which sums ALL messages in a session.",2026-01-26T22:16:46.725149+00:00
+onyx-dot-app/onyx,7808,Update file system in the background after indexing is complete,https://github.com/onyx-dot-app/onyx/pull/7808,,"Missing error handling for `ApiException`. Other methods in this file wrap `k8s_stream` calls in try-except blocks to handle pod deletion and other API errors (see lines 1087, 1147, 1277, 1396, 1495, 1674, 1747).
+
+```suggestion
+        try:
+            resp = k8s_stream(
+                self._core_api.connect_get_namespaced_pod_exec,
+                pod_name,
+                self._namespace,
+                container=""file-sync"",  # Execute in sidecar, not sandbox container
+                command=sync_command,
+                stderr=True,
+                stdin=False,
+                stdout=True,
+                tty=False,
+            )
+            logger.debug(f""File sync response: {resp}"")
+            return True
+        except ApiException as e:
+            logger.warning(f""Failed to sync files: {e}"")
+            return False
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: backend/onyx/server/features/build/sandbox/kubernetes/kubernetes_sandbox_manager.py
+Line: 1540:1552
+
+Comment:
+Missing error handling for `ApiException`. Other methods in this file wrap `k8s_stream` calls in try-except blocks to handle pod deletion and other API errors (see lines 1087, 1147, 1277, 1396, 1495, 1674, 1747).
+
+```suggestion
+        try:
+            resp = k8s_stream(
+                self._core_api.connect_get_namespaced_pod_exec,
+                pod_name,
+                self._namespace,
+                container=""file-sync"",  # Execute in sidecar, not sandbox container
+                command=sync_command,
+                stderr=True,
+                stdin=False,
+                stdout=True,
+                tty=False,
+            )
+            logger.debug(f""File sync response: {resp}"")
+            return True
+        except ApiException as e:
+            logger.warning(f""Failed to sync files: {e}"")
+            return False
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/7808#discussion_r2729104752,,2026-01-26T20:16:50+00:00,runtime,medium,"Greptile correctly identified that the new sync_files method lacks error handling for ApiException, while other similar k8s_stream calls throughout the file (at lines mentioned) consistently use try-except blocks. This is a real bug that could cause unhandled exceptions when the pod is deleted or unavailable, and the method even has a return type of bool suggesting it should handle failures gracefully by returning False rather than crashing.",2026-01-26T22:16:46.725200+00:00
+greptileai/react-mirror,430,Update CSS shorthand property list,https://github.com/greptileai/react-mirror/pull/430,,"`vertical-align` is not a CSS shorthand property - it's a standalone longhand property. The properties `alignmentBaseline`, `baselineShift`, and `baselineSource` are SVG presentation attributes, not CSS longhands. This entry should be removed.
+
+```suggestion
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/react-dom-bindings/src/client/CSSShorthandProperty.js
+Line: 259:259
+
+Comment:
+`vertical-align` is not a CSS shorthand property - it's a standalone longhand property. The properties `alignmentBaseline`, `baselineShift`, and `baselineSource` are SVG presentation attributes, not CSS longhands. This entry should be removed.
+
+```suggestion
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/greptileai/react-mirror/pull/430#discussion_r2729289030,,2026-01-26T21:18:17+00:00,data_integrity,medium,"Greptile is correct - `vertical-align` is indeed a standalone CSS property, not a shorthand. The properties listed (`alignmentBaseline`, `baselineShift`, `baselineSource`) are SVG-specific attributes unrelated to CSS vertical-align. Including this incorrect mapping could cause React's style reconciliation to behave incorrectly when handling vertical-align styles. This is a non-obvious domain knowledge issue that requires understanding CSS specifications.",2026-01-26T22:16:46.725264+00:00
+nvidia/numba-cuda,747,fix: extract handle value in Event.query() call to match other driver calls,https://github.com/NVIDIA/numba-cuda/pull/747,,"`event_time` is only set inside the while loop body, so if `evt.query()` returns `True` on the first iteration (event already complete), `event_time` will be undefined when used in the assertion on line 79.
+
+```suggestion
+        # Query immediately.
+        event_time = perf_counter() - t0
+        while not evt.query():
+            event_time = perf_counter() - t0
+```",https://github.com/NVIDIA/numba-cuda/pull/747#discussion_r2729288354,,2026-01-26T21:18:03+00:00,runtime,medium,"Greptile correctly identified that `event_time` is only assigned inside the while loop body. If `evt.query()` returns True immediately (event already complete), the loop body never executes, and `event_time` will be undefined when referenced in the assertion on line 79, causing a NameError. This is a real bug that could cause flaky test failures and is non-obvious since it depends on timing conditions.",2026-01-26T22:16:46.725301+00:00
