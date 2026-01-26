@@ -7447,3 +7447,214 @@ Event topic is incomplete (40 chars instead of 64) AND never validated - code wi
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/RequestNetwork/requestNetwork/pull/1691#discussion_r2727950417,,2026-01-26T14:59:58+00:00,logic,high,"Greptile correctly identifies two issues: (1) TRANSFER_WITH_REF_AND_FEE_TOPIC is 40 hex chars but should be 64 chars for a full keccak256 hash, and (2) the constant is defined but never used in the code - the event signature is never validated in parse_transfer_with_reference_and_fee, meaning ALL events from proxy contracts will be parsed, not just TransferWithReferenceAndFee events. This would cause incorrect payment data to be indexed.",2026-01-26T16:23:59.198331+00:00
+posthog/posthog,45935,feat: add provider and model selection to evals,https://github.com/PostHog/posthog/pull/45935,,"`_validate_model_availability` defined but never called
+
+```suggestion
+    def clean(self) -> None:
+        """"""Django validation - works for both persisted and in-memory instances.""""""
+        super().clean()
+        self._validate_provider_key_match()
+        self._validate_model_availability()
+```
+
+<sub>Note: If this suggestion doesn't match your team's coding style, reply to this and let me know. I'll remember it for next time!</sub>
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: products/llm_analytics/backend/models/model_configuration.py
+Line: 53:65
+
+Comment:
+`_validate_model_availability` defined but never called
+
+```suggestion
+    def clean(self) -> None:
+        """"""Django validation - works for both persisted and in-memory instances.""""""
+        super().clean()
+        self._validate_provider_key_match()
+        self._validate_model_availability()
+```
+
+<sub>Note: If this suggestion doesn't match your team's coding style, reply to this and let me know. I'll remember it for next time!</sub>
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/45935#discussion_r2728610366,,2026-01-26T17:44:03+00:00,logic,medium,"Greptile correctly identified that `_validate_model_availability()` is defined (lines 53-63) but never called anywhere in the code. The `clean()` method only calls `_validate_provider_key_match()`, meaning model availability validation would never run, allowing users to save configurations with unavailable models. This is a real validation bug that bypasses intended business logic.",2026-01-26T18:24:22.586886+00:00
+posthog/posthog,45935,feat: add provider and model selection to evals,https://github.com/PostHog/posthog/pull/45935,,"model select disabled when using PostHog default key, but help text says ""Add your own API key"" - users can't select PostHog-allowed models without adding a key
+
+```suggestion
+                                        disabled={availableModelsLoading}
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: products/llm_analytics/frontend/evaluations/LLMAnalyticsEvaluation.tsx
+Line: 264:265
+
+Comment:
+model select disabled when using PostHog default key, but help text says ""Add your own API key"" - users can't select PostHog-allowed models without adding a key
+
+```suggestion
+                                        disabled={availableModelsLoading}
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/45935#discussion_r2728610452,,2026-01-26T17:44:04+00:00,logic,medium,"Greptile correctly identified a UX bug: the model selector is disabled when `!selectedKeyId` (line 265), but the help text indicates users should be able to use PostHog's default key with available models. The code filters models by `posthog_available` suggesting some models should work without a custom key, but the disabled state prevents any selection. This creates a confusing/broken user experience where users can't select PostHog-allowed models.",2026-01-26T18:24:22.586972+00:00
+posthog/posthog,45935,feat: add provider and model selection to evals,https://github.com/PostHog/posthog/pull/45935,,"auto-selects user's first key when provider changes, even if user wants PostHog default - forces BYOK when it may not be intended
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: products/llm_analytics/frontend/evaluations/llmEvaluationLogic.ts
+Line: 307:314
+
+Comment:
+auto-selects user's first key when provider changes, even if user wants PostHog default - forces BYOK when it may not be intended
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/45935#discussion_r2728610529,,2026-01-26T17:44:05+00:00,logic,medium,"Looking at lines 307-314 in setSelectedProvider listener, when provider changes it auto-selects the user's first key if they have one (`keysForProvider[0].id`), overriding any user preference for using PostHog's default key (null). This is a real UX/logic bug where users who have configured their own keys but want to use PostHog's default for a specific evaluation would be forced into BYOK mode against their intent.",2026-01-26T18:24:22.587017+00:00
+posthog/posthog,45935,feat: add provider and model selection to evals,https://github.com/PostHog/posthog/pull/45935,,"only shows ""PostHog default"" option when no keys exist, but users with keys might still want to use PostHog default
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: products/llm_analytics/frontend/evaluations/LLMAnalyticsEvaluation.tsx
+Line: 225:234
+
+Comment:
+only shows ""PostHog default"" option when no keys exist, but users with keys might still want to use PostHog default
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/45935#discussion_r2728610572,,2026-01-26T17:44:06+00:00,logic,medium,"Greptile correctly identifies that the conditional logic `keysForSelectedProvider.length === 0 ? [{ value: 'posthog_default', label: 'PostHog default' }] : []` only shows the 'PostHog default' option when users have no keys configured. Users who have added their own API keys would lose access to the PostHog default option, which is likely unintended behavior since they should still be able to choose between their own keys and the default.",2026-01-26T18:24:22.587044+00:00
+twentyhq/twenty,17456,Introduce webhook v2,https://github.com/twentyhq/twenty/pull/17456,,"migration could fail if workspaces have webhooks but no custom application
+
+```suggestion
+    await queryRunner.query(
+      `UPDATE ""core"".""webhook"" w SET ""applicationId"" = (
+        SELECT COALESCE(
+          (SELECT a.""id"" FROM ""core"".""application"" a
+           WHERE a.""workspaceId"" = w.""workspaceId""
+           AND a.""isCustom"" = true
+           LIMIT 1),
+          (SELECT ws.""workspaceCustomApplicationId"" FROM ""core"".""workspace"" ws
+           WHERE ws.""id"" = w.""workspaceId"")
+        )
+      )`,
+    );
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/twenty-server/src/database/typeorm/core/migrations/common/1769200000000-addUniversalIdentifierAndApplicationIdToWebhook.ts
+Line: 19:24
+
+Comment:
+migration could fail if workspaces have webhooks but no custom application
+
+```suggestion
+    await queryRunner.query(
+      `UPDATE ""core"".""webhook"" w SET ""applicationId"" = (
+        SELECT COALESCE(
+          (SELECT a.""id"" FROM ""core"".""application"" a
+           WHERE a.""workspaceId"" = w.""workspaceId""
+           AND a.""isCustom"" = true
+           LIMIT 1),
+          (SELECT ws.""workspaceCustomApplicationId"" FROM ""core"".""workspace"" ws
+           WHERE ws.""id"" = w.""workspaceId"")
+        )
+      )`,
+    );
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/twentyhq/twenty/pull/17456#discussion_r2728642878,,2026-01-26T17:53:12+00:00,data_integrity,high,"The migration sets applicationId to NULL via subquery when no custom application exists for a workspace, then immediately tries to set that column as NOT NULL (line 28), which will cause the migration to fail for any webhook whose workspace lacks a custom application. This is a real bug that could break deployments in production.",2026-01-26T18:24:22.587070+00:00
+greptileai/react-mirror,426,Add text node support to FragmentInstance operations,https://github.com/greptileai/react-mirror/pull/426,,"Consider whether horizontal scrolling should be `window.scrollX + rect.left` (always shifts horizontally) or just `window.scrollX` (preserves horizontal position). Verify this matches the intended scrolling behavior for text nodes
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/react-dom-bindings/src/client/ReactFiberConfigDOM.js
+Line: 3482:3482
+
+Comment:
+Consider whether horizontal scrolling should be `window.scrollX + rect.left` (always shifts horizontally) or just `window.scrollX` (preserves horizontal position). Verify this matches the intended scrolling behavior for text nodes
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/greptileai/react-mirror/pull/426#discussion_r2728531171,,2026-01-26T17:22:57+00:00,logic,medium,"Greptile correctly identifies that `window.scrollTo(window.scrollX + rect.left, scrollY)` always adds `rect.left` to the horizontal position, which would cause unintended horizontal scrolling. This differs from the `element.scrollIntoView()` behavior used for non-text nodes, which typically only scrolls enough to make the element visible. The inconsistency could cause confusing scroll behavior for text nodes.",2026-01-26T18:24:22.587136+00:00
+openreplay/openreplay,4234,Spot webm,https://github.com/openreplay/openreplay/pull/4234,,"fetch error handling missing - if fetch throws (network error, CORS), `pollVideo` stops polling
+
+```suggestion
+        const pollVideo = () => {
+          fetch(videoURL)
+            .then((r) => {
+              if (r.ok && r.status === 200) {
+                initDash(videoURL);
+              } else {
+                checkTimeout = setTimeout(pollVideo, 1000);
+              }
+            })
+            .catch(() => {
+              checkTimeout = setTimeout(pollVideo, 1000);
+            });
+        };
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: frontend/app/components/Spots/SpotPlayer/components/SpotVideoContainer.tsx
+Line: 95:101
+
+Comment:
+fetch error handling missing - if fetch throws (network error, CORS), `pollVideo` stops polling
+
+```suggestion
+        const pollVideo = () => {
+          fetch(videoURL)
+            .then((r) => {
+              if (r.ok && r.status === 200) {
+                initDash(videoURL);
+              } else {
+                checkTimeout = setTimeout(pollVideo, 1000);
+              }
+            })
+            .catch(() => {
+              checkTimeout = setTimeout(pollVideo, 1000);
+            });
+        };
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/openreplay/openreplay/pull/4234#discussion_r2728287209,,2026-01-26T16:22:13+00:00,runtime,medium,"Greptile correctly identified that the `pollVideo` function only has a `.then()` handler without a `.catch()`. If the fetch fails due to network errors or CORS issues, the promise rejection will silently stop the polling loop, leaving the video player in a broken state without any retry mechanism. This is a real bug that would cause silent failures in production and is non-obvious since the error path isn't immediately apparent in the code flow.",2026-01-26T18:24:22.587210+00:00
+veda-labs/boring-vault,593,Archive legacy contracts,https://github.com/Veda-Labs/boring-vault/pull/593,,"<details>
+<summary>Additional Comments (3)</summary>
+
+**`src/archive/DelayedWithdraw.sol`**
+moving this file breaks imports in production code - `src/helper/ArcticArchitectureLens.sol:10` still imports from `src/base/Roles/DelayedWithdraw.sol`
+
+---
+
+**`src/archive/atomic-queue/AtomicQueue.sol`**
+moving this file breaks imports in production code - `src/base/DecodersAndSanitizers/Protocols/AtomicQueueDecoderAndSanitizer.sol:8` still imports from `src/atomic-queue/AtomicQueue.sol`
+
+---
+
+**`src/archive/atomic-queue/AtomicSolverV3.sol`**
+moving these files breaks imports in 12+ test files that reference `src/atomic-queue/AtomicSolverV3.sol` and related atomic-queue contracts
+</details>",https://github.com/Veda-Labs/boring-vault/pull/593#issuecomment-3800708872,,2026-01-26T17:12:05+00:00,runtime,high,"Greptile correctly identified that moving files to an archive directory breaks existing import paths in production code (ArcticArchitectureLens.sol, AtomicQueueDecoderAndSanitizer.sol) and test files. This would cause compilation failures and is a non-obvious issue when archiving files since one must check all dependent imports throughout the codebase.",2026-01-26T18:24:22.587253+00:00
