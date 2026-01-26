@@ -6286,3 +6286,144 @@ How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/onyx-dot-app/onyx/pull/7777#discussion_r2726192644,,2026-01-26T02:35:01+00:00,logic,medium,"Greptile correctly identified that the code change creates a logic error. Looking at the diff, `allocate_nextjs_port` is called unconditionally in `create_session__no_commit` (line 381-382), meaning every session gets a port. The new `has_webapp` check on line 1230 (`session.nextjs_port is not None`) will always return true since ports are always allocated, even when no webapp directory actually exists. The original code correctly checked for the physical existence of the web directory.",2026-01-26T03:04:21.166009+00:00
 helixdb/helix-db,827,fix(vector_core): prevent race conditions in concurrent HNSW writes,https://github.com/HelixDB/helix-db/pull/827,,"Unconditionally setting entry point on any error (line 725) can overwrite a valid entry point if there's a temporary read error. Only set on `EntryPointNotFound` (line 722), not on other errors like database I/O failures.",https://github.com/HelixDB/helix-db/pull/827#discussion_r2726219807,,2026-01-26T02:58:24+00:00,data_integrity,medium,"Greptile correctly identifies that the catch-all `Err(_)` case at line 725 will overwrite a valid entry point on any error (like I/O failures), not just when the entry point is genuinely missing. This could cause data corruption in the HNSW graph structure during temporary database issues. The fix should only set entry point on `EntryPointNotFound`, treating other errors differently.",2026-01-26T03:04:21.166083+00:00
+onyx-dot-app/onyx,7784,chore(deployment): remove no auth option from setup script,https://github.com/onyx-dot-app/onyx/pull/7784,,"These configuration variables are duplicated - they're defined both here and in `backend/onyx/configs/app_configs.py` (lines 1047-1057). The values also differ: `app_configs.py` has a default path of `""/app/indexed-docs""` while this file has an empty string default. This could cause configuration inconsistencies.
+
+Remove these duplicate definitions from this file and import them from `app_configs.py` instead.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: backend/onyx/server/features/build/configs.py
+Line: 3:13
+
+Comment:
+These configuration variables are duplicated - they're defined both here and in `backend/onyx/configs/app_configs.py` (lines 1047-1057). The values also differ: `app_configs.py` has a default path of `""/app/indexed-docs""` while this file has an empty string default. This could cause configuration inconsistencies.
+
+Remove these duplicate definitions from this file and import them from `app_configs.py` instead.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/7784#discussion_r2726297135,,2026-01-26T04:08:08+00:00,data_integrity,medium,"Greptile correctly identified that these configuration variables are duplicated with different default values - this new file uses empty string as default for PERSISTENT_DOCUMENT_STORAGE_PATH while app_configs.py uses '/app/indexed-docs'. This is a real bug that could cause configuration inconsistencies depending on which module is imported, potentially leading to document storage failures or unexpected behavior.",2026-01-26T04:38:40.959505+00:00
+onyx-dot-app/onyx,7784,chore(deployment): remove no auth option from setup script,https://github.com/onyx-dot-app/onyx/pull/7784,,"If `PERSISTENT_DOCUMENT_STORAGE_PATH` is an empty string (the default in `build/configs.py`), `Path("""")` will create paths relative to the current working directory, which could cause files to be written in unexpected locations.
+
+Add validation to ensure the path is not empty when the feature is enabled, or use the config from `app_configs.py` which has a proper default of `""/app/indexed-docs""`.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: backend/onyx/indexing/persistent_document_writer.py
+Line: 135:141
+
+Comment:
+If `PERSISTENT_DOCUMENT_STORAGE_PATH` is an empty string (the default in `build/configs.py`), `Path("""")` will create paths relative to the current working directory, which could cause files to be written in unexpected locations.
+
+Add validation to ensure the path is not empty when the feature is enabled, or use the config from `app_configs.py` which has a proper default of `""/app/indexed-docs""`.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/7784#discussion_r2726297162,,2026-01-26T04:08:10+00:00,security,medium,"Greptile correctly identifies that if PERSISTENT_DOCUMENT_STORAGE_PATH is an empty string, Path('') will create paths relative to the current working directory, causing files to be written to unexpected locations. This is a real bug with security/data integrity implications - files could end up in arbitrary locations depending on where the process is running. The code lacks any validation for empty/invalid paths before use.",2026-01-26T04:38:40.959583+00:00
+ever-co/ever-gauzy,9371,"fix: add arch in about window, timer window not white blank screen",https://github.com/ever-co/ever-gauzy/pull/9371,,"The getter reassigns `_application` each time it's called, discarding the `arch` value fetched via IPC. This creates a race condition where the arch won't display if the getter runs before the IPC response completes.
+
+```suggestion
+	public get application() {
+		return {
+			...this._application,
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/desktop-ui-lib/src/lib/dialogs/about/about.component.ts
+Line: 62:63
+
+Comment:
+The getter reassigns `_application` each time it's called, discarding the `arch` value fetched via IPC. This creates a race condition where the arch won't display if the getter runs before the IPC response completes.
+
+```suggestion
+	public get application() {
+		return {
+			...this._application,
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/ever-co/ever-gauzy/pull/9371#discussion_r2726227402,,2026-01-26T03:05:20+00:00,concurrency,medium,"Greptile correctly identifies that the getter reassigns `_application` entirely each time it's called, which would overwrite the `arch` property set by the async IPC callback. Looking at the diff, the fix adds `...this._application` spread at line 63, which preserves the `arch` value, validating that this was a real bug causing the arch to not display due to a race condition.",2026-01-26T04:38:40.959649+00:00
+alpaca-network/gatewayz-backend,936,feat(chat): integrate Butter.dev caching proxy for streaming requests,https://github.com/Alpaca-Network/gatewayz-backend/pull/936,,"fallback logic inside exception handler doesn't set `is_async_stream` correctly for PROVIDER_ROUTING providers
+
+when Butter.dev fails and falls back to PROVIDER_ROUTING, `is_async_stream` remains True from line 2280, but PROVIDER_ROUTING uses sync streams via `_to_thread`
+
+```suggestion
+                        except Exception as butter_err:
+                            # Fallback to direct provider if Butter fails
+                            logger.warning(
+                                f""Butter.dev streaming failed, falling back to direct: {butter_err}""
+                            )
+                            use_butter_cache = False
+                            # Fall through to normal provider routing below
+                            if attempt_provider in PROVIDER_ROUTING:
+                                stream_func = PROVIDER_ROUTING[attempt_provider][""stream""]
+                                stream = await _to_thread(stream_func, messages, request_model, **optional)
+                                is_async_stream = False
+                            else:
+                                stream = await make_openrouter_request_openai_stream_async(
+                                    messages, request_model, **optional
+                                )
+                                is_async_stream = True
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: src/routes/chat.py
+Line: 2284:2298
+
+Comment:
+fallback logic inside exception handler doesn't set `is_async_stream` correctly for PROVIDER_ROUTING providers
+
+when Butter.dev fails and falls back to PROVIDER_ROUTING, `is_async_stream` remains True from line 2280, but PROVIDER_ROUTING uses sync streams via `_to_thread`
+
+```suggestion
+                        except Exception as butter_err:
+                            # Fallback to direct provider if Butter fails
+                            logger.warning(
+                                f""Butter.dev streaming failed, falling back to direct: {butter_err}""
+                            )
+                            use_butter_cache = False
+                            # Fall through to normal provider routing below
+                            if attempt_provider in PROVIDER_ROUTING:
+                                stream_func = PROVIDER_ROUTING[attempt_provider][""stream""]
+                                stream = await _to_thread(stream_func, messages, request_model, **optional)
+                                is_async_stream = False
+                            else:
+                                stream = await make_openrouter_request_openai_stream_async(
+                                    messages, request_model, **optional
+                                )
+                                is_async_stream = True
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/Alpaca-Network/gatewayz-backend/pull/936#discussion_r2726320309,,2026-01-26T04:29:42+00:00,logic,medium,"Greptile correctly identified that when Butter.dev fails and falls back to PROVIDER_ROUTING (line 2291-2293), the code doesn't set `is_async_stream = False`, leaving it as True from line 2280. Since PROVIDER_ROUTING uses sync streams via `_to_thread`, this mismatch would cause incorrect stream handling downstream. This is a non-obvious bug in error-handling fallback logic that could cause runtime issues.",2026-01-26T04:38:40.959705+00:00
+alpaca-network/gatewayz-backend,936,feat(chat): integrate Butter.dev caching proxy for streaming requests,https://github.com/Alpaca-Network/gatewayz-backend/pull/936,,"`X-Butter-Cache` header may incorrectly report ""enabled"" for providers not in `BUTTER_PROVIDER_CONFIG`
+
+`use_butter_cache` is set based on `BUTTER_COMPATIBLE_PROVIDERS` (26 providers), but actual Butter routing only works for providers in `BUTTER_PROVIDER_CONFIG` (11 providers). For providers like ""near"", ""aihubmix"", etc., the header will say ""enabled"" even though the request goes direct to the provider.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: src/routes/chat.py
+Line: 2341:2345
+
+Comment:
+`X-Butter-Cache` header may incorrectly report ""enabled"" for providers not in `BUTTER_PROVIDER_CONFIG`
+
+`use_butter_cache` is set based on `BUTTER_COMPATIBLE_PROVIDERS` (26 providers), but actual Butter routing only works for providers in `BUTTER_PROVIDER_CONFIG` (11 providers). For providers like ""near"", ""aihubmix"", etc., the header will say ""enabled"" even though the request goes direct to the provider.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/Alpaca-Network/gatewayz-backend/pull/936#discussion_r2726320329,,2026-01-26T04:29:43+00:00,logic,medium,"Greptile correctly identified a logic inconsistency: the code at line 2271 checks `use_butter_cache and attempt_provider in BUTTER_PROVIDER_CONFIG` before using Butter, but the header at lines 2341-2345 only checks `use_butter_cache`. This means if `should_use_butter_cache()` returns true for a provider NOT in `BUTTER_PROVIDER_CONFIG`, the request will fall through to direct provider routing, but the header will still report 'enabled'. This is a real observability bug that could mislead debugging efforts.",2026-01-26T04:38:40.959816+00:00
