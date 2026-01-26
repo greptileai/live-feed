@@ -7038,3 +7038,92 @@ when switching away from HTML mode (e.g., HTML → Reader), `isFullScreen` stays
     }
   }, [viewMode, isFullScreen]);
 ```",https://github.com/mrmps/SMRY/pull/46#discussion_r2726926955,,2026-01-26T09:41:19+00:00,logic,medium,"The useEffect at lines 170-176 only sets isFullScreen to true when viewMode is 'html' on mobile, but never sets it back to false when switching away from HTML mode. This means the fullscreen state will persist incorrectly when the user changes view modes, causing UI issues. The suggested fix correctly adds the exit condition.",2026-01-26T10:18:23.964085+00:00
+posthog/posthog,45896,feat(openapi): auto-discover product endpoints via ViewSet scanning,https://github.com/PostHog/posthog/pull/45896,,"regex won't match `Viewset` (lowercase 's')
+
+`ExternalDataSchemaViewset` in `products/data_warehouse/backend/api/external_data_schema.py` won't be discovered
+
+```suggestion
+                const viewSetRegex = /class\s+(\w+ViewSet)[\s(]/gi
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: frontend/bin/generate-openapi-types.mjs
+Line: 79:79
+
+Comment:
+regex won't match `Viewset` (lowercase 's')
+
+`ExternalDataSchemaViewset` in `products/data_warehouse/backend/api/external_data_schema.py` won't be discovered
+
+```suggestion
+                const viewSetRegex = /class\s+(\w+ViewSet)[\s(]/gi
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/45896#discussion_r2727269801,,2026-01-26T11:34:23+00:00,logic,medium,The regex `/class\s+(\w+ViewSet)[\s(]/g` is case-sensitive and only matches 'ViewSet' with capital S. Greptile correctly identified that 'ExternalDataSchemaViewset' (lowercase 's') exists in the codebase and would be silently missed. This is a real bug that would cause inconsistent endpoint routing and is non-obvious since it requires knowledge of actual class naming conventions in the codebase.,2026-01-26T12:24:28.432903+00:00
+posthog/posthog,45896,feat(openapi): auto-discover product endpoints via ViewSet scanning,https://github.com/PostHog/posthog/pull/45896,,"won't handle acronyms correctly - `LLMAnalyticsClusteringRunViewSet` becomes `llmanalytics_clustering_run` instead of `llm_analytics_clustering_run`
+
+the regex only matches lowercase-to-uppercase transitions, missing uppercase-to-uppercase sequences
+
+```suggestion
+                    const snakeCase = viewSetName
+                        .replace(/ViewSet$/i, '')
+                        .replace(/([a-z])([A-Z])/g, '$1_$2')
+                        .replace(/([A-Z])([A-Z][a-z])/g, '$1_$2')
+                        .toLowerCase()
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: frontend/bin/generate-openapi-types.mjs
+Line: 83:86
+
+Comment:
+won't handle acronyms correctly - `LLMAnalyticsClusteringRunViewSet` becomes `llmanalytics_clustering_run` instead of `llm_analytics_clustering_run`
+
+the regex only matches lowercase-to-uppercase transitions, missing uppercase-to-uppercase sequences
+
+```suggestion
+                    const snakeCase = viewSetName
+                        .replace(/ViewSet$/i, '')
+                        .replace(/([a-z])([A-Z])/g, '$1_$2')
+                        .replace(/([A-Z])([A-Z][a-z])/g, '$1_$2')
+                        .toLowerCase()
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/45896#discussion_r2727269836,,2026-01-26T11:34:24+00:00,logic,medium,"Greptile correctly identified that the regex `.replace(/([a-z])([A-Z])/g, '$1_$2')` only handles lowercase-to-uppercase transitions. For 'LLMAnalyticsClusteringRunViewSet', it would produce 'llmanalytics_clustering_run' instead of the expected 'llm_analytics_clustering_run' because consecutive uppercase letters (LLM) aren't split. This would cause ViewSet matching failures for any classes with acronyms in their names, a subtle bug that's easy to miss.",2026-01-26T12:24:28.433003+00:00
+posthog/posthog,45896,feat(openapi): auto-discover product endpoints via ViewSet scanning,https://github.com/PostHog/posthog/pull/45896,,"substring matching could cause false positives - e.g. `snakeCase=""link""` would match any operationId containing ""link"" as a substring
+
+consider using word boundary check or exact segment matching like `operationId.split('_').includes(snakeCase)`
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: frontend/bin/generate-openapi-types.mjs
+Line: 121:121
+
+Comment:
+substring matching could cause false positives - e.g. `snakeCase=""link""` would match any operationId containing ""link"" as a substring
+
+consider using word boundary check or exact segment matching like `operationId.split('_').includes(snakeCase)`
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/45896#discussion_r2727269887,,2026-01-26T11:34:25+00:00,logic,medium,"The code at line 121 uses `operationId.includes(snakeCase)` for substring matching, which as Greptile correctly identifies could cause false positives - a ViewSet named 'Link' would match any operationId containing 'link' anywhere (e.g., 'get_backlinks_list'). This would incorrectly route endpoints to the wrong product folder. The suggested fix using word boundary matching is specific and actionable.",2026-01-26T12:24:28.433076+00:00
+nvidia-nemo/curator,1427,[Tutorial] Merge multiple file prefixes generated by `MegatronTokenizerWriter`,https://github.com/NVIDIA-NeMo/Curator/pull/1427,,"If no valid file pairs are found in the input directory, `builder` will remain `None` and line 272 will crash with `AttributeError: 'NoneType' object has no attribute 'finalize'`
+
+```python
+    if builder is None:
+        raise ValueError(f""ERROR: No valid file prefix pairs found in {input_dir}"")
+    
+    builder.finalize(output_prefix + "".idx"")
+```",https://github.com/NVIDIA-NeMo/Curator/pull/1427#discussion_r2727237259,,2026-01-26T11:22:03+00:00,null,medium,"Greptile correctly identified that if the input directory contains no valid .idx/.bin file pairs, the `builder` variable remains `None` after the loop (line 265-270), and calling `builder.finalize()` on line 272 would crash with an AttributeError. This is a valid edge case bug that could occur with an empty directory or one without matching file pairs, and the fix suggestion is appropriate.",2026-01-26T12:24:28.433151+00:00
