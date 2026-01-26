@@ -7658,3 +7658,28 @@ moving this file breaks imports in production code - `src/base/DecodersAndSaniti
 **`src/archive/atomic-queue/AtomicSolverV3.sol`**
 moving these files breaks imports in 12+ test files that reference `src/atomic-queue/AtomicSolverV3.sol` and related atomic-queue contracts
 </details>",https://github.com/Veda-Labs/boring-vault/pull/593#issuecomment-3800708872,,2026-01-26T17:12:05+00:00,runtime,high,"Greptile correctly identified that moving files to an archive directory breaks existing import paths in production code (ArcticArchitectureLens.sol, AtomicQueueDecoderAndSanitizer.sol) and test files. This would cause compilation failures and is a non-obvious issue when archiving files since one must check all dependent imports throughout the codebase.",2026-01-26T18:24:22.587253+00:00
+raycast/extensions,24880,Add claude-code-config-switcher extension,https://github.com/raycast/extensions/pull/24880,,"SQL injection vulnerability - while single quotes are escaped, this escaping approach is fragile and error-prone. User input in `profileData.name`, `profileData.description`, and `settingsConfig` is inserted directly into SQL.
+
+Use parameterized queries or a proper SQLite Node.js library (like `better-sqlite3` or `sqlite3`) that supports parameter binding to prevent SQL injection.",https://github.com/raycast/extensions/pull/24880#discussion_r2728986604,,2026-01-26T19:42:49+00:00,security,high,"The code escapes single quotes but executes raw SQL via shell command with user input. This is vulnerable to command injection (via shell metacharacters like backticks, $(), semicolons) even if SQL injection through quotes is partially mitigated. The settingsConfig is JSON.stringify'd user config which could contain malicious shell characters. This is a real security vulnerability that's non-obvious since the code appears to handle SQL escaping.",2026-01-26T20:19:54.981933+00:00
+raycast/extensions,24880,Add claude-code-config-switcher extension,https://github.com/raycast/extensions/pull/24880,,"SQL injection vulnerability - `id` parameter is directly interpolated. An attacker could pass a malicious ID to execute arbitrary SQL.
+
+Use parameterized queries.",https://github.com/raycast/extensions/pull/24880#discussion_r2728986707,,2026-01-26T19:42:52+00:00,security,high,"Greptile correctly identifies that the `id` parameter in `deleteProfile` is directly interpolated into the SQL query without sanitization, creating a SQL injection vulnerability. While the code does escape single quotes for name/notes/config fields in other functions, the `id` parameter in `deleteProfile` (and other functions like `setActiveProfileId`) has no such protection, allowing a malicious ID like `'; DROP TABLE providers; --` to execute arbitrary SQL commands.",2026-01-26T20:19:54.982003+00:00
+browseros-ai/browseros,337,feat: AI Ghost Mode - Invisible agent that learns from user browsing patterns,https://github.com/browseros-ai/BrowserOS/pull/337,,"using a hash of the page title as a tab ID is unreliable - titles can change or be identical across tabs, causing incorrect grouping of actions
+
+Use `web_contents()->GetPrimaryMainFrame()->GetFrameTreeNodeId()` or another stable identifier instead.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/browseros/chromium_patches/chrome/browser/browseros/ghost_mode/action_recorder.cc
+Line: 133:136
+
+Comment:
+using a hash of the page title as a tab ID is unreliable - titles can change or be identical across tabs, causing incorrect grouping of actions
+
+Use `web_contents()->GetPrimaryMainFrame()->GetFrameTreeNodeId()` or another stable identifier instead.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/browseros-ai/BrowserOS/pull/337#discussion_r2728846285,,2026-01-26T18:56:53+00:00,logic,medium,"Greptile correctly identified that using `std::hash<std::string>{}(web_contents()->GetTitle())` as a tab_id is fundamentally flawed - page titles change dynamically and can be identical across different tabs (e.g., multiple 'Google' tabs), causing actions to be incorrectly grouped together or regrouped when titles change. This is a non-obvious data integrity bug that would cause incorrect behavior in action replay/analysis features.",2026-01-26T20:19:54.982040+00:00
