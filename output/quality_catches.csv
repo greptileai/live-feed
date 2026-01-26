@@ -6890,3 +6890,151 @@ const CONFIG_SCHEMA_URL = 'https://btca.dev/btca.schema.json';
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/davis7dotsh/better-context/pull/125#discussion_r2726558314,,2026-01-26T07:18:37+00:00,data_integrity,medium,"The diff clearly shows CONFIG_SCHEMA_URL changed from 'https://btca.dev/btca.schema.json' to 'https://btca.schema.json' - the domain 'btca.dev' was accidentally removed, creating an invalid URL that would break schema validation. This is a real bug that could be easily missed in code review since it's a subtle URL change in a constant definition.",2026-01-26T08:22:25.552180+00:00
+ever-co/ever-gauzy,9365,fix: mac dmg notarize,https://github.com/ever-co/ever-gauzy/pull/9365,,"Set restrictive file permissions on the private key file to prevent unauthorized access
+
+```suggestion
+		fs.writeFileSync(privateKeyPath, Buffer.from(APPLE_API_KEY, 'base64'), { mode: 0o600 });
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: tools/notarize.js
+Line: 37:37
+
+Comment:
+Set restrictive file permissions on the private key file to prevent unauthorized access
+
+```suggestion
+		fs.writeFileSync(privateKeyPath, Buffer.from(APPLE_API_KEY, 'base64'), { mode: 0o600 });
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/ever-co/ever-gauzy/pull/9365#discussion_r2726765514,,2026-01-26T08:46:34+00:00,security,medium,"The code writes a private API key to a temporary file without setting restrictive permissions, meaning other users on the system could potentially read the sensitive key. Setting mode 0o600 ensures only the owner can read/write the file, which is a legitimate security best practice for handling secrets.",2026-01-26T10:18:23.963755+00:00
+ever-co/ever-gauzy,9365,fix: mac dmg notarize,https://github.com/ever-co/ever-gauzy/pull/9365,,"Error is logged but not re-thrown, causing notarization failures to silently pass. This could allow unsigned builds to proceed.
+
+```suggestion
+		console.error(`ERROR: Failed to notarize: ${error}`);
+		throw error;
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: tools/notarize.js
+Line: 52:52
+
+Comment:
+Error is logged but not re-thrown, causing notarization failures to silently pass. This could allow unsigned builds to proceed.
+
+```suggestion
+		console.error(`ERROR: Failed to notarize: ${error}`);
+		throw error;
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/ever-co/ever-gauzy/pull/9365#discussion_r2726765549,,2026-01-26T08:46:35+00:00,security,high,"The code catches notarization errors, logs them, but doesn't re-throw, allowing the build process to continue silently even when notarization fails. This is a real security issue for macOS app distribution since unsigned/unnotarized apps would proceed through the build pipeline appearing successful. The finally block properly cleans up the temp key file, but the error swallowing is a significant oversight that could result in distributing improperly notarized builds.",2026-01-26T10:18:23.963844+00:00
+ydb-platform/ydb-embedded-ui,3372,chore: remove bot token from workflows,https://github.com/ydb-platform/ydb-embedded-ui/pull/3372,,"<details>
+<summary>Additional Comments (1)</summary>
+
+**`.github/workflows/publication.yml`**
+The `repository-dispatch` action requires a token with permissions to dispatch events to the `ydb-platform/ydb` repository. The default `GITHUB_TOKEN` only has permissions for the current repository. This step will fail without a PAT or bot token that has access to the target repository.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: .github/workflows/publication.yml
+Line: 30:41
+
+Comment:
+The `repository-dispatch` action requires a token with permissions to dispatch events to the `ydb-platform/ydb` repository. The default `GITHUB_TOKEN` only has permissions for the current repository. This step will fail without a PAT or bot token that has access to the target repository.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>
+</details>",https://github.com/ydb-platform/ydb-embedded-ui/pull/3372#issuecomment-3798608104,,2026-01-26T09:22:24+00:00,runtime,high,"Greptile correctly identifies that the repository-dispatch action to ydb-platform/ydb requires cross-repository permissions that the default GITHUB_TOKEN cannot provide. The PR is removing bot tokens from workflows, but this specific action will fail without a token that has permissions to dispatch events to the external repository.",2026-01-26T10:18:23.963896+00:00
+mrmps/smry,46,Refactor mobile reader layout for improved UX,https://github.com/mrmps/SMRY/pull/46,,"fullscreen won't exit when switching away from HTML mode
+
+when user switches from HTML to markdown/iframe mode, `isFullScreen` remains `true` - effect only enters fullscreen but never exits
+
+```suggestion
+  // Auto-enter fullscreen on mobile when switching to HTML view
+  useEffect(() => {
+    if (typeof window === ""undefined"") return;
+    const isMobile = window.innerWidth < 768;
+    if (isMobile && viewMode === ""html"") {
+      // Schedule state update to avoid synchronous setState in effect
+      const frameId = requestAnimationFrame(() => setIsFullScreen(true));
+      return () => cancelAnimationFrame(frameId);
+    } else if (isMobile && viewMode !== ""html"") {
+      const frameId = requestAnimationFrame(() => setIsFullScreen(false));
+      return () => cancelAnimationFrame(frameId);
+    }
+  }, [viewMode]);
+```",https://github.com/mrmps/SMRY/pull/46#discussion_r2726790779,,2026-01-26T08:55:22+00:00,logic,medium,"Greptile correctly identified that the useEffect only sets isFullScreen to true when viewMode is 'html' on mobile, but never sets it back to false when switching away from HTML mode. This would cause the fullscreen state to persist incorrectly when the user changes to markdown/iframe view modes, leading to unexpected UI behavior.",2026-01-26T10:18:23.963968+00:00
+mrmps/smry,46,Refactor mobile reader layout for improved UX,https://github.com/mrmps/SMRY/pull/46,,"fullscreen won't exit when switching away from HTML mode
+
+when user switches from HTML to markdown/iframe mode, `isFullScreen` remains `true` - effect only enters fullscreen but never exits
+
+```suggestion
+  // Auto-enter fullscreen on mobile when switching to HTML view
+  useEffect(() => {
+    if (typeof window === ""undefined"") return;
+    const isMobile = window.innerWidth < 768;
+    if (isMobile && viewMode === ""html"") {
+      // Schedule state update to avoid synchronous setState in effect
+      const frameId = requestAnimationFrame(() => setIsFullScreen(true));
+      return () => cancelAnimationFrame(frameId);
+    } else if (isMobile && viewMode !== ""html"") {
+      // Exit fullscreen when switching away from HTML mode
+      const frameId = requestAnimationFrame(() => setIsFullScreen(false));
+      return () => cancelAnimationFrame(frameId);
+    }
+  }, [viewMode]);
+```",https://github.com/mrmps/SMRY/pull/46#discussion_r2726837037,,2026-01-26T09:11:44+00:00,logic,medium,"Greptile correctly identifies that the useEffect on lines 177-182 only handles entering fullscreen when viewMode === 'html' on mobile, but never exits fullscreen when viewMode changes to something else. This means the UI would remain stuck in fullscreen mode when the user switches away from HTML view, which is a real UX bug. The suggested fix to add an else-if branch to exit fullscreen when viewMode !== 'html' is the correct solution.",2026-01-26T10:18:23.964003+00:00
+mrmps/smry,46,Refactor mobile reader layout for improved UX,https://github.com/mrmps/SMRY/pull/46,,"effect only enters fullscreen but never exits
+
+when switching from HTML to markdown/iframe mode, `isFullScreen` remains `true` - add logic to exit fullscreen when `viewMode !== ""html""`
+
+```suggestion
+  // Auto-enter fullscreen on mobile when switching to HTML view
+  // Auto-exit fullscreen when switching away from HTML view
+  useEffect(() => {
+    if (typeof window === ""undefined"") return;
+    const isMobile = window.innerWidth < 768;
+    if (isMobile && viewMode === ""html"") {
+      // Schedule state update to avoid synchronous setState in effect
+      const frameId = requestAnimationFrame(() => setIsFullScreen(true));
+      return () => cancelAnimationFrame(frameId);
+    } else if (isMobile && viewMode !== ""html"" && isFullScreen) {
+      // Exit fullscreen when switching away from HTML mode
+      const frameId = requestAnimationFrame(() => setIsFullScreen(false));
+      return () => cancelAnimationFrame(frameId);
+    }
+  }, [viewMode, isFullScreen]);
+```",https://github.com/mrmps/SMRY/pull/46#discussion_r2726886750,,2026-01-26T09:28:11+00:00,logic,medium,"Greptile correctly identified that the useEffect on line 173-178 only sets isFullScreen to true when viewMode is 'html' on mobile, but never sets it back to false when switching away from HTML mode. This means isFullScreen state will stay true even when the user switches to markdown/iframe mode, causing incorrect UI behavior. The fix to add an else branch to exit fullscreen is correct and actionable.",2026-01-26T10:18:23.964031+00:00
+mrmps/smry,46,Refactor mobile reader layout for improved UX,https://github.com/mrmps/SMRY/pull/46,,"effect only enters fullscreen, never exits
+
+when switching away from HTML mode (e.g., HTML → Reader), `isFullScreen` stays `true` - need to also exit fullscreen when `viewMode !== ""html""`
+
+```suggestion
+  // Auto-enter fullscreen on mobile when switching to HTML view
+  useEffect(() => {
+    if (typeof window === ""undefined"") return;
+    const isMobile = window.innerWidth < 768;
+    if (isMobile && viewMode === ""html"") {
+      // Schedule state update to avoid synchronous setState in effect
+      const frameId = requestAnimationFrame(() => setIsFullScreen(true));
+      return () => cancelAnimationFrame(frameId);
+    } else if (isMobile && isFullScreen) {
+      // Exit fullscreen when switching away from HTML on mobile
+      const frameId = requestAnimationFrame(() => setIsFullScreen(false));
+      return () => cancelAnimationFrame(frameId);
+    }
+  }, [viewMode, isFullScreen]);
+```",https://github.com/mrmps/SMRY/pull/46#discussion_r2726926955,,2026-01-26T09:41:19+00:00,logic,medium,"The useEffect at lines 170-176 only sets isFullScreen to true when viewMode is 'html' on mobile, but never sets it back to false when switching away from HTML mode. This means the fullscreen state will persist incorrectly when the user changes view modes, causing UI issues. The suggested fix correctly adds the exit condition.",2026-01-26T10:18:23.964085+00:00
