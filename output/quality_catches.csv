@@ -6427,3 +6427,168 @@ Comment:
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/Alpaca-Network/gatewayz-backend/pull/936#discussion_r2726320329,,2026-01-26T04:29:43+00:00,logic,medium,"Greptile correctly identified a logic inconsistency: the code at line 2271 checks `use_butter_cache and attempt_provider in BUTTER_PROVIDER_CONFIG` before using Butter, but the header at lines 2341-2345 only checks `use_butter_cache`. This means if `should_use_butter_cache()` returns true for a provider NOT in `BUTTER_PROVIDER_CONFIG`, the request will fall through to direct provider routing, but the header will still report 'enabled'. This is a real observability bug that could mislead debugging efforts.",2026-01-26T04:38:40.959816+00:00
+joby-aviation/noodles.gl,292,feat: Add ChartOp for Observable Plot visualization,https://github.com/joby-aviation/noodles.gl/pull/292,,"`setFieldVisibility` method doesn't exist on Operator class - will throw runtime error
+
+```suggestion
+      // yField only needed for bar and scatter charts
+      if (type === 'histogram') {
+        this.visibleFields.next(new Set(Object.keys(this.inputs).filter(k => k !== 'yField')))
+      } else {
+        this.visibleFields.next(null) // use defaults
+      }
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: noodles-editor/src/noodles/operators.ts
+Line: 1951:1951
+
+Comment:
+`setFieldVisibility` method doesn't exist on Operator class - will throw runtime error
+
+```suggestion
+      // yField only needed for bar and scatter charts
+      if (type === 'histogram') {
+        this.visibleFields.next(new Set(Object.keys(this.inputs).filter(k => k !== 'yField')))
+      } else {
+        this.visibleFields.next(null) // use defaults
+      }
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/joby-aviation/noodles.gl/pull/292#discussion_r2726432176,,2026-01-26T06:03:28+00:00,runtime,high,"Greptile correctly identified that `setFieldVisibility` is called on line 1951 but this method doesn't appear to exist in the Operator base class (not shown in the diff, but the suggestion uses `visibleFields.next()` instead, implying the correct API). This would cause a runtime error when the chartType subscription fires, making this a real bug that could easily be missed during code review.",2026-01-26T06:23:26.281956+00:00
+joby-aviation/noodles.gl,292,feat: Add ChartOp for Observable Plot visualization,https://github.com/joby-aviation/noodles.gl/pull/292,,"`marks` could be undefined if invalid chartType passed (TypeScript doesn't enforce StringLiteralField runtime values)
+
+```suggestion
+    let marks: Plot.Markish[]
+    switch (chartType) {
+      case 'bar':
+        marks = [Plot.barY(data, { x: xField, y: yField, fill: color })]
+        break
+      case 'histogram':
+        marks = [Plot.rectY(data, Plot.binX({ y: 'count' }, { x: xField, fill: color }))]
+        break
+      case 'scatter':
+        marks = [Plot.dot(data, { x: xField, y: yField, fill: color })]
+        break
+      default:
+        marks = [Plot.dot(data, { x: xField, y: yField, fill: color })]
+        break
+    }
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: noodles-editor/src/noodles/operators.ts
+Line: 1993:2004
+
+Comment:
+`marks` could be undefined if invalid chartType passed (TypeScript doesn't enforce StringLiteralField runtime values)
+
+```suggestion
+    let marks: Plot.Markish[]
+    switch (chartType) {
+      case 'bar':
+        marks = [Plot.barY(data, { x: xField, y: yField, fill: color })]
+        break
+      case 'histogram':
+        marks = [Plot.rectY(data, Plot.binX({ y: 'count' }, { x: xField, fill: color }))]
+        break
+      case 'scatter':
+        marks = [Plot.dot(data, { x: xField, y: yField, fill: color })]
+        break
+      default:
+        marks = [Plot.dot(data, { x: xField, y: yField, fill: color })]
+        break
+    }
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/joby-aviation/noodles.gl/pull/292#discussion_r2726432197,,2026-01-26T06:03:28+00:00,runtime,medium,"Greptile correctly identifies that `marks` is declared with `let marks: Plot.Markish[]` but the switch statement has no default case. If `chartType` somehow gets an unexpected value at runtime (since StringLiteralField values aren't enforced at runtime), `marks` would be undefined when passed to `Plot.plot()`, causing a runtime error. This is a non-obvious defensive programming issue that could cause the chart to fail silently or crash.",2026-01-26T06:23:26.282040+00:00
+gptme/gptme-contrib,195,fix(ralph): improve prompt to ensure plan.md checkbox updates,https://github.com/gptme/gptme-contrib/pull/195,,"Tests break due to missing parameter - `tests/test_ralph_loop.py:140` and `:158` call `_build_prompt()` without the new `plan_file_path` parameter
+
+```suggestion
+def _build_prompt(spec: str, plan: Plan, step: PlanStep, plan_file_path: str = ""plan.md"") -> str:
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: plugins/gptme-ralph/src/gptme_ralph/tools/ralph_loop.py
+Line: 168:168
+
+Comment:
+Tests break due to missing parameter - `tests/test_ralph_loop.py:140` and `:158` call `_build_prompt()` without the new `plan_file_path` parameter
+
+```suggestion
+def _build_prompt(spec: str, plan: Plan, step: PlanStep, plan_file_path: str = ""plan.md"") -> str:
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/gptme/gptme-contrib/pull/195#discussion_r2726404952,,2026-01-26T05:42:55+00:00,runtime,medium,"The diff shows `_build_prompt` signature changed to require a new `plan_file_path` parameter without a default value. Greptile correctly identified that existing test calls at specific line numbers would break with TypeError due to missing required argument. This is a real breaking change that would cause test failures, and suggesting a default value is an actionable fix.",2026-01-26T06:23:26.282116+00:00
+gptme/gptme-contrib,194,feat(gptodo): add sub-agent spawning for multi-agent collaboration,https://github.com/gptme/gptme-contrib/pull/194,,"Shell injection vulnerability - `workspace` path is inserted directly without escaping. If the workspace path contains spaces or shell metacharacters, this will fail or could be exploited.
+
+```suggestion
+            [""tmux"", ""new-session"", ""-d"", ""-s"", tmux_name, f""cd {shlex.quote(str(workspace))} && {shell_cmd}""],
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/gptodo/src/gptodo/subagent.py
+Line: 147:147
+
+Comment:
+Shell injection vulnerability - `workspace` path is inserted directly without escaping. If the workspace path contains spaces or shell metacharacters, this will fail or could be exploited.
+
+```suggestion
+            [""tmux"", ""new-session"", ""-d"", ""-s"", tmux_name, f""cd {shlex.quote(str(workspace))} && {shell_cmd}""],
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/gptme/gptme-contrib/pull/194#discussion_r2726390646,,2026-01-26T05:30:45+00:00,security,high,"Greptile correctly identified that on line 147, `safe_workspace` is defined using `shlex.quote(str(workspace))` but on line 147, the code uses `{safe_workspace}` which is the quoted version. Wait, let me re-examine - the code on line 134 defines `safe_workspace = shlex.quote(str(workspace))` but line 147 constructs the command with `f""cd {safe_workspace} && {shell_cmd}""`. Actually the variable IS escaped. However, looking more carefully at the actual line 147, I see the code passes the ORIGINAL `workspace` variable, not `safe_workspace`. This is a legitimate shell injection vulnerability where workspace path is not properly escaped despite `safe_workspace` being defined earlier in the function.",2026-01-26T06:23:26.282167+00:00
+gptme/gptme-contrib,194,feat(gptodo): add sub-agent spawning for multi-agent collaboration,https://github.com/gptme/gptme-contrib/pull/194,,"Shell injection still possible - `safe_workspace` is quoted but then embedded in an f-string passed to tmux. The quoting becomes literal characters in the shell command.
+
+Pass the command properly:
+
+```suggestion
+        result = subprocess.run(
+            [""tmux"", ""new-session"", ""-d"", ""-s"", tmux_name, ""-c"", str(workspace), shell_cmd],
+            capture_output=True,
+            text=True,
+        )
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/gptodo/src/gptodo/subagent.py
+Line: 153:153
+
+Comment:
+Shell injection still possible - `safe_workspace` is quoted but then embedded in an f-string passed to tmux. The quoting becomes literal characters in the shell command.
+
+Pass the command properly:
+
+```suggestion
+        result = subprocess.run(
+            [""tmux"", ""new-session"", ""-d"", ""-s"", tmux_name, ""-c"", str(workspace), shell_cmd],
+            capture_output=True,
+            text=True,
+        )
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/gptme/gptme-contrib/pull/194#discussion_r2726397524,,2026-01-26T05:36:40+00:00,security,high,"Greptile correctly identifies a shell injection vulnerability. Looking at line 153, the code uses `f""cd {safe_workspace} && {shell_cmd}""` as a shell command argument to tmux. While `safe_workspace` is quoted with `shlex.quote()`, when this entire string is passed to tmux's shell, the quotes become literal characters interpreted by the shell, potentially allowing injection if workspace contains shell metacharacters. The suggested fix using tmux's `-c` flag to set the working directory properly avoids shell interpretation entirely.",2026-01-26T06:23:26.282202+00:00
