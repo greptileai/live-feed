@@ -6261,3 +6261,28 @@ isaac-sim/isaaclab,4453,[IN PROGRESS] Fixes camera position update,https://githu
 ```suggestion
     initial_base_pos = robot.data.root_pos_w[0].clone()
 ```",https://github.com/isaac-sim/IsaacLab/pull/4453#discussion_r2725971784,,2026-01-25T22:18:04+00:00,logic,medium,"Greptile correctly identifies that line 924 sets `initial_base_pos = camera.data.pos_w[0].clone()` which is the camera's position, not the robot's base position. The test is supposed to compare camera position against robot base position + offset, but by using camera position as the 'base position', the test is effectively comparing camera position to itself + offset, making the test logic incorrect. The suggestion to use `robot.data.root_pos_w[0].clone()` is the correct fix.",2026-01-26T00:48:07.513212+00:00
+raycast/extensions,24856,system-monitor: split displaymode into per module variable,https://github.com/raycast/extensions/pull/24856,,"`getPreferenceValues` called at module level causes stale preference values. Preferences won't update when user changes settings.
+
+Move inside component:
+```suggestion
+export default function CpuMonitor() {
+  const { displayModeCpu } = getPreferenceValues<ExtensionPreferences>();
+  const { revalidate, data: cpu } = usePromise(() => {
+```",https://github.com/raycast/extensions/pull/24856#discussion_r2726150181,,2026-01-26T01:56:10+00:00,logic,medium,"Greptile correctly identifies that calling getPreferenceValues at module level (line 10) means the preference is captured once when the module loads, so if users change their displayModeCpu preference, the component won't reflect the new value until the app is restarted. Moving it inside the component ensures fresh preference values on each render.",2026-01-26T03:04:21.165898+00:00
+raycast/extensions,24856,system-monitor: split displaymode into per module variable,https://github.com/raycast/extensions/pull/24856,,`displayModeBattery` is not in scope - needs to be passed as prop or moved to module level (though module level will cause stale values as noted in previous threads),https://github.com/raycast/extensions/pull/24856#discussion_r2726177898,,2026-01-26T02:21:40+00:00,runtime,high,"Greptile correctly identifies that `displayModeBattery` is declared at module level (line 10) but is used inside the `PowerMonitorDetail` function (line 55) which is a separate function from `PowerMonitor`. While JavaScript closures would technically allow access to module-level variables, this is still valid JavaScript - however, looking more carefully, the variable IS at module level so it IS in scope. The comment appears to be a false positive as module-level const declarations are accessible to all functions in the same module.",2026-01-26T03:04:21.165969+00:00
+onyx-dot-app/onyx,7777,Kube web server,https://github.com/onyx-dot-app/onyx/pull/7777,,"The logic changed from filesystem-based detection to port-based detection. This assumes a port is only allocated when a webapp exists, but sessions always get a port allocated regardless of whether a webapp actually gets created. This could show `has_webapp: true` even when no webapp was ever created in the session.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: backend/onyx/server/features/build/session/manager.py
+Line: 1229:1230
+
+Comment:
+The logic changed from filesystem-based detection to port-based detection. This assumes a port is only allocated when a webapp exists, but sessions always get a port allocated regardless of whether a webapp actually gets created. This could show `has_webapp: true` even when no webapp was ever created in the session.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/7777#discussion_r2726192644,,2026-01-26T02:35:01+00:00,logic,medium,"Greptile correctly identified that the code change creates a logic error. Looking at the diff, `allocate_nextjs_port` is called unconditionally in `create_session__no_commit` (line 381-382), meaning every session gets a port. The new `has_webapp` check on line 1230 (`session.nextjs_port is not None`) will always return true since ports are always allocated, even when no webapp directory actually exists. The original code correctly checked for the physical existence of the web directory.",2026-01-26T03:04:21.166009+00:00
+helixdb/helix-db,827,fix(vector_core): prevent race conditions in concurrent HNSW writes,https://github.com/HelixDB/helix-db/pull/827,,"Unconditionally setting entry point on any error (line 725) can overwrite a valid entry point if there's a temporary read error. Only set on `EntryPointNotFound` (line 722), not on other errors like database I/O failures.",https://github.com/HelixDB/helix-db/pull/827#discussion_r2726219807,,2026-01-26T02:58:24+00:00,data_integrity,medium,"Greptile correctly identifies that the catch-all `Err(_)` case at line 725 will overwrite a valid entry point on any error (like I/O failures), not just when the entry point is genuinely missing. This could cause data corruption in the HNSW graph structure during temporary database issues. The fix should only set entry point on `EntryPointNotFound`, treating other errors differently.",2026-01-26T03:04:21.166083+00:00
