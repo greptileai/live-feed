@@ -6592,3 +6592,301 @@ Pass the command properly:
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/gptme/gptme-contrib/pull/194#discussion_r2726397524,,2026-01-26T05:36:40+00:00,security,high,"Greptile correctly identifies a shell injection vulnerability. Looking at line 153, the code uses `f""cd {safe_workspace} && {shell_cmd}""` as a shell command argument to tmux. While `safe_workspace` is quoted with `shlex.quote()`, when this entire string is passed to tmux's shell, the quotes become literal characters interpreted by the shell, potentially allowing injection if workspace contains shell metacharacters. The suggested fix using tmux's `-c` flag to set the working directory properly avoids shell interpretation entirely.",2026-01-26T06:23:26.282202+00:00
+posthog/posthog,45883,feat: heatmaps upload + toolbar,https://github.com/PostHog/posthog/pull/45883,,"Missing ownership validation for `image_url`. The validation only checks that the path starts with `/uploaded_media/`, but doesn't verify that the uploaded media belongs to the same team. This allows users from Team A to reference uploaded images from Team B by guessing or discovering their UUIDs.
+
+You need to extract the media UUID from the path, look up the `UploadedMedia` object, and verify that `uploaded_media.team_id == self.context['request'].team.id`.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: posthog/heatmaps/heatmaps_api.py
+Line: 427:435
+
+Comment:
+Missing ownership validation for `image_url`. The validation only checks that the path starts with `/uploaded_media/`, but doesn't verify that the uploaded media belongs to the same team. This allows users from Team A to reference uploaded images from Team B by guessing or discovering their UUIDs.
+
+You need to extract the media UUID from the path, look up the `UploadedMedia` object, and verify that `uploaded_media.team_id == self.context['request'].team.id`.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/45883#discussion_r2726620528,,2026-01-26T07:49:20+00:00,security,high,The validate_image_url method only checks if the path starts with '/uploaded_media/' but performs no ownership verification. This is a valid IDOR (Insecure Direct Object Reference) vulnerability that could allow cross-team data access by referencing another team's uploaded media UUID. The fix suggestion is specific and actionable - extract the UUID and verify team ownership.,2026-01-26T08:22:25.551715+00:00
+nvidia/spark-rapids,14175,Fix OOM when shuffle partition exceeds 2GB in threaded writer,https://github.com/NVIDIA/spark-rapids/pull/14175,,"Buffer leak when compression task throws exception. The `buffer` created at line 703 is never closed if serialization/compression fails. When an exception occurs after line 703 but before returning `CompressedRecord` at line 732, the buffer is leaked because:
+1. The `withResource(cb)` block catches the exception
+2. The exception is wrapped and re-thrown at line 736
+3. The buffer is never closed
+
+Wrap buffer creation in try-finally:
+```suggestion
+        val future = RapidsShuffleInternalManagerBase.queueWriteTask(slotNum, () => {
+          var buffer: OpenByteArrayOutputStream = null
+          try {
+            withResource(cb) { _ =>
+              // Create a new buffer for this record.
+              // The buffer is closed by the merger thread after writing to disk.
+              buffer = new OpenByteArrayOutputStream()
+
+              // Serialize + compress + encryption to memory buffer
+              val compressedOutputStream = blockManager.serializerManager.wrapStream(
+                ShuffleBlockId(shuffleId, mapId, reducePartitionId), buffer)
+
+              val serializationStream = serializerInstance.serializeStream(
+                compressedOutputStream)
+              withResource(serializationStream) { serializer =>
+                serializer.writeKey(key.asInstanceOf[Any])
+                serializer.writeValue(value.asInstanceOf[Any])
+              }
+
+              // Track total written data size (compressed size)
+              val compressedSize = buffer.getCount.toLong
+              totalCompressedSize.addAndGet(compressedSize)
+
+              // Release excess quota immediately after compression.
+              // Data is now in OpenByteArrayOutputStream (heap), only need to hold
+              // compressedSize quota until Merger writes to disk.
+              // Note: excessQuota can be 0 if compression doesn't reduce size (or expands)
+              val excessQuota = math.max(0L, recordSize - compressedSize)
+              if (excessQuota > 0) {
+                limiter.release(excessQuota)
+              }
+
+              // Return CompressedRecord with buffer and remaining quota for Merger
+              // Total released = excessQuota + remainingQuota should equal recordSize
+              val remainingQuota = recordSize - excessQuota
+              val result = CompressedRecord(buffer, compressedSize, remainingQuota)
+              buffer = null // Transfer ownership to CompressedRecord
+              result
+            }
+          } catch {
+            case e: Exception =>
+              if (buffer != null) {
+                try { buffer.close() } catch { case _: Exception => }
+              }
+              throw new IOException(
+                s""Failed compression task for shuffle $shuffleId, map $mapId, "" +
+                s""partition $reducePartitionId"", e)
+          }
+        })
+```",https://github.com/NVIDIA/spark-rapids/pull/14175#discussion_r2726466696,,2026-01-26T06:24:56+00:00,resource_leak,medium,"Greptile correctly identifies that when an exception occurs after `buffer = new OpenByteArrayOutputStream()` at line 703 but before returning `CompressedRecord`, the buffer will never be closed. The current code wraps `cb` with `withResource` but not the newly created buffer, so if serialization/compression throws an exception, the buffer leaks. This is a legitimate resource leak bug that's non-obvious since the code structure with nested try blocks and withResource could easily mislead reviewers into thinking resources are properly managed.",2026-01-26T08:22:25.551818+00:00
+nvidia/spark-rapids,14175,Fix OOM when shuffle partition exceeds 2GB in threaded writer,https://github.com/NVIDIA/spark-rapids/pull/14175,,"Missing error handling when `future.get()` throws. If the compression task failed, `future.get()` throws `ExecutionException`, but the buffer and quota are never cleaned up. This causes:
+1. Buffer leak (never closed)
+2. Quota leak (never released)
+3. Merger thread crashes without closing `outputStream`
+
+Need try-catch around `future.get()` to handle failed compression tasks gracefully.",https://github.com/NVIDIA/spark-rapids/pull/14175#discussion_r2726466721,,2026-01-26T06:24:57+00:00,resource_leak,high,"Greptile correctly identifies that in the merger thread's inner loop, if `future.get()` throws an ExecutionException (from a failed compression task), there's no try-catch to handle it. This would cause the buffer and quota to leak, and the outputStream would not be closed properly since the exception propagates past the finally block. The code shows `val record = future.get()` with no exception handling around it, confirming the analysis.",2026-01-26T08:22:25.551930+00:00
+runanywhereai/runanywhere-sdks,301,Sync dev/main,https://github.com/RunanywhereAI/runanywhere-sdks/pull/301,,"Missing optional chaining - could crash if `weatherDesc` array is empty or null
+
+```suggestion
+          condition: current.weatherDesc?.[0]?.value || 'Unknown',
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: examples/react-native/RunAnywhereAI/src/screens/ChatScreen.tsx
+Line: 106:106
+
+Comment:
+Missing optional chaining - could crash if `weatherDesc` array is empty or null
+
+```suggestion
+          condition: current.weatherDesc?.[0]?.value || 'Unknown',
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/RunanywhereAI/runanywhere-sdks/pull/301#discussion_r2726617254,,2026-01-26T07:47:50+00:00,runtime,medium,"Greptile correctly identifies that `current.weatherDesc[0].value` on line 106 lacks optional chaining and could crash if the external weather API returns an empty or null `weatherDesc` array. Since this is calling an external API (wttr.in) where the response structure isn't guaranteed, this defensive coding is important to prevent runtime crashes in a React Native app.",2026-01-26T08:22:25.551954+00:00
+traceroot-ai/traceroot,376,feat(auth): add signup flow and validation (#372),https://github.com/traceroot-ai/traceroot/pull/376,,"`admin` field from user object is not being stored in JWT token, so it won't be available in session
+
+```suggestion
+    async jwt({ token, user }) {
+      if (user) {
+        token.id = user.id;
+        token.admin = user.admin;
+      }
+      return token;
+    },
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: ui/src/lib/auth.ts
+Line: 70:74
+
+Comment:
+`admin` field from user object is not being stored in JWT token, so it won't be available in session
+
+```suggestion
+    async jwt({ token, user }) {
+      if (user) {
+        token.id = user.id;
+        token.admin = user.admin;
+      }
+      return token;
+    },
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/traceroot-ai/traceroot/pull/376#discussion_r2726575050,,2026-01-26T07:27:26+00:00,logic,medium,"Greptile correctly identifies that the `admin` field is included in the user object returned from authorize() (line 58) but is not stored in the JWT token in the jwt callback (lines 66-71). This means admin status won't be available in sessions, potentially breaking admin authorization checks throughout the application. This is a non-obvious bug that could easily be missed during review.",2026-01-26T08:22:25.551978+00:00
+traceroot-ai/traceroot,376,feat(auth): add signup flow and validation (#372),https://github.com/traceroot-ai/traceroot/pull/376,,"`admin` field from token is not being copied to session
+
+```suggestion
+    async session({ session, token }) {
+      if (session.user) {
+        session.user.id = token.id as string;
+        session.user.admin = token.admin as boolean;
+      }
+      return session;
+    },
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: ui/src/lib/auth.ts
+Line: 77:81
+
+Comment:
+`admin` field from token is not being copied to session
+
+```suggestion
+    async session({ session, token }) {
+      if (session.user) {
+        session.user.id = token.id as string;
+        session.user.admin = token.admin as boolean;
+      }
+      return session;
+    },
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/traceroot-ai/traceroot/pull/376#discussion_r2726575079,,2026-01-26T07:27:27+00:00,security,high,"Greptile correctly identified that the `admin` field is set on the token in the `jwt` callback (line 68: `token.id = user.id` is present, and the user object returned from authorize includes `admin: user.admin`), but the `session` callback only copies `id` to the session, not `admin`. This means admin status would not be available in the client session, potentially breaking authorization checks that depend on it. This is a real bug that could cause admin functionality to fail silently.",2026-01-26T08:22:25.552041+00:00
+traceroot-ai/traceroot,376,feat(auth): add signup flow and validation (#372),https://github.com/traceroot-ai/traceroot/pull/376,,"`allowDangerousEmailAccountLinking: true` creates account takeover risk - if someone signs up with credentials using an email, another person can use Google OAuth with the same email to access that account
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: ui/src/lib/auth.ts
+Line: 21:21
+
+Comment:
+`allowDangerousEmailAccountLinking: true` creates account takeover risk - if someone signs up with credentials using an email, another person can use Google OAuth with the same email to access that account
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/traceroot-ai/traceroot/pull/376#discussion_r2726575151,,2026-01-26T07:27:28+00:00,security,high,"Greptile correctly identifies that `allowDangerousEmailAccountLinking: true` on line 21 creates a real account takeover vulnerability. If user A signs up with credentials using email@example.com, user B who controls a Google account with email@example.com can use OAuth to access user A's account. The flag is literally named 'dangerous' because of this risk, and NextAuth documentation explicitly warns against it.",2026-01-26T08:22:25.552070+00:00
+traceroot-ai/traceroot,376,feat(auth): add signup flow and validation (#372),https://github.com/traceroot-ai/traceroot/pull/376,,"The TypeScript definitions include `admin: boolean` on the JWT type, but this callback doesn't copy the `admin` field from user to token.
+
+```suggestion
+    async jwt({ token, user }) {
+      if (user) {
+        token.id = user.id;
+        token.admin = user.admin;
+      }
+      return token;
+    },
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: ui/src/lib/auth.ts
+Line: 70:74
+
+Comment:
+The TypeScript definitions include `admin: boolean` on the JWT type, but this callback doesn't copy the `admin` field from user to token.
+
+```suggestion
+    async jwt({ token, user }) {
+      if (user) {
+        token.id = user.id;
+        token.admin = user.admin;
+      }
+      return token;
+    },
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/traceroot-ai/traceroot/pull/376#discussion_r2726589337,,2026-01-26T07:34:17+00:00,security,high,"The code shows `admin: user.admin` being returned in the authorize function (line 60), but the jwt callback doesn't copy this field to the token. This means admin status would be lost after the initial sign-in, potentially breaking authorization checks that rely on `token.admin`. This is a subtle bug in the authentication flow that could cause admin features to fail or create security issues.",2026-01-26T08:22:25.552097+00:00
+traceroot-ai/traceroot,376,feat(auth): add signup flow and validation (#372),https://github.com/traceroot-ai/traceroot/pull/376,,"The `admin` field from the token isn't being copied to the session, so `session.user.admin` will be undefined.
+
+```suggestion
+    async session({ session, token }) {
+      if (session.user) {
+        session.user.id = token.id as string;
+        session.user.admin = token.admin as boolean;
+      }
+      return session;
+    },
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: ui/src/lib/auth.ts
+Line: 77:82
+
+Comment:
+The `admin` field from the token isn't being copied to the session, so `session.user.admin` will be undefined.
+
+```suggestion
+    async session({ session, token }) {
+      if (session.user) {
+        session.user.id = token.id as string;
+        session.user.admin = token.admin as boolean;
+      }
+      return session;
+    },
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/traceroot-ai/traceroot/pull/376#discussion_r2726589354,,2026-01-26T07:34:18+00:00,logic,high,"Greptile correctly identified that while the `admin` field is stored in the token during `jwt({ token, user })` callback (line 67 returns user with admin field), it's never copied to the session in the `session()` callback. This means admin authorization checks using `session.user.admin` will always fail, potentially breaking admin functionality throughout the application. This is a non-obvious bug that could easily be missed during review.",2026-01-26T08:22:25.552127+00:00
+traceroot-ai/traceroot,376,feat(auth): add signup flow and validation (#372),https://github.com/traceroot-ai/traceroot/pull/376,,"This creates an account takeover vulnerability - if Alice creates a credentials account, Bob can take it over by signing in with Google using Alice's email. Remove this flag or implement proper email verification before linking.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: ui/src/lib/auth.ts
+Line: 21:21
+
+Comment:
+This creates an account takeover vulnerability - if Alice creates a credentials account, Bob can take it over by signing in with Google using Alice's email. Remove this flag or implement proper email verification before linking.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/traceroot-ai/traceroot/pull/376#discussion_r2726589430,,2026-01-26T07:34:21+00:00,security,critical,"Greptile correctly identifies that `allowDangerousEmailAccountLinking: true` on line 21 creates an account takeover vulnerability. This flag allows Google OAuth to automatically link to existing accounts by email without verification, meaning an attacker who controls a Google account with the victim's email (or creates one) could take over a credentials-based account. This is a real security vulnerability that's non-obvious and explicitly warned against in the NextAuth documentation.",2026-01-26T08:22:25.552155+00:00
+davis7dotsh/better-context,125,feat: remote + local CLI support...,https://github.com/davis7dotsh/better-context/pull/125,,"Schema URL is incorrect - missing domain.
+
+```suggestion
+const CONFIG_SCHEMA_URL = 'https://btca.dev/btca.schema.json';
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: apps/cli/src/commands/init.ts
+Line: 7:7
+
+Comment:
+Schema URL is incorrect - missing domain.
+
+```suggestion
+const CONFIG_SCHEMA_URL = 'https://btca.dev/btca.schema.json';
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/davis7dotsh/better-context/pull/125#discussion_r2726558314,,2026-01-26T07:18:37+00:00,data_integrity,medium,"The diff clearly shows CONFIG_SCHEMA_URL changed from 'https://btca.dev/btca.schema.json' to 'https://btca.schema.json' - the domain 'btca.dev' was accidentally removed, creating an invalid URL that would break schema validation. This is a real bug that could be easily missed in code review since it's a subtle URL change in a constant definition.",2026-01-26T08:22:25.552180+00:00
