@@ -8917,3 +8917,114 @@ potential resource leak - previous `currentSnap` isn't closed before reassignmen
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/tinyrange/cc/pull/86#discussion_r2730938369,,2026-01-27T08:54:07+00:00,resource_leak,medium,"Looking at the original code around line 243, when a cached snapshot is found and loaded successfully via `loadFromManifest`, the previous `currentSnap` is reassigned without being closed first (unless it equals `baseSource`). The suggestion correctly adds the missing `Close()` call before reassignment. This is a real resource leak that could accumulate over multiple iterations of the caching loop, and it's non-obvious because the similar cleanup pattern exists elsewhere in the code (around line 281) but was missed in this specific location.",2026-01-27T10:21:37.363558+00:00
+posthog/posthog,46011,chore(cymbal): add issue resolution endpoint,https://github.com/PostHog/posthog/pull/46011,,"path `team_id` doesn't match event body `team_id`. user could submit event with `team_id: 1` in body to `/:team_id/event/process` where `team_id` is different, and this could create issues in the wrong team's context
+
+```suggestion
+pub async fn process_event(
+    Path(team_id): Path<i32>,
+    State(ctx): State<Arc<AppContext>>,
+    Json(event): Json<ResolvedExceptionEvent>,
+) -> Result<OutputErrProps, ProcessEventError> {
+    // Validate that team_id matches between path and event body
+    if event.team_id != team_id {
+        return Err(ProcessEventError::InvalidRequest(
+            serde_json::Error::custom(""team_id mismatch between path and body"")
+        ));
+    }
+```
+
+**Context Used:** Context from `dashboard` - When implementing new features, ensure that ownership validation is included to prevent unauthorized... ([source](https://app.greptile.com/review/custom-context?memory=9655b466-451a-401a-9ba0-5bf3e7b7f9f8))
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: rust/cymbal/src/router/event.rs
+Line: 87:91
+
+Comment:
+path `team_id` doesn't match event body `team_id`. user could submit event with `team_id: 1` in body to `/:team_id/event/process` where `team_id` is different, and this could create issues in the wrong team's context
+
+```suggestion
+pub async fn process_event(
+    Path(team_id): Path<i32>,
+    State(ctx): State<Arc<AppContext>>,
+    Json(event): Json<ResolvedExceptionEvent>,
+) -> Result<OutputErrProps, ProcessEventError> {
+    // Validate that team_id matches between path and event body
+    if event.team_id != team_id {
+        return Err(ProcessEventError::InvalidRequest(
+            serde_json::Error::custom(""team_id mismatch between path and body"")
+        ));
+    }
+```
+
+**Context Used:** Context from `dashboard` - When implementing new features, ensure that ownership validation is included to prevent unauthorized... ([source](https://app.greptile.com/review/custom-context?memory=9655b466-451a-401a-9ba0-5bf3e7b7f9f8))
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/46011#discussion_r2731623373,,2026-01-27T11:47:09+00:00,security,high,"Greptile correctly identifies that the code uses `team_id` from the URL path for `resolve_fingerprint` but the event body contains its own `team_id` field that's never validated against the path. A malicious user could submit an event with a mismatched team_id in the body to the endpoint, potentially causing data integrity issues or unauthorized access to another team's context. This is a non-obvious authorization validation bug.",2026-01-27T12:25:40.273328+00:00
+posthog/posthog,45999,feat(dev): add --scopes option to setup_local_api_key command,https://github.com/PostHog/posthog/pull/45999,,"inconsistent empty list handling between create and update paths. Line 63 normalizes `[]` to `None` with `scopes or None`, but this line passes `scopes` directly. Running `--scopes` (no args) will store `[]` on create vs `None` on update.
+
+```suggestion
+            scopes=scopes or None,
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: posthog/management/commands/setup_local_api_key.py
+Line: 78:78
+
+Comment:
+inconsistent empty list handling between create and update paths. Line 63 normalizes `[]` to `None` with `scopes or None`, but this line passes `scopes` directly. Running `--scopes` (no args) will store `[]` on create vs `None` on update.
+
+```suggestion
+            scopes=scopes or None,
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/45999#discussion_r2731400122,,2026-01-27T10:46:40+00:00,data_integrity,low,"Greptile correctly identified an inconsistency: on line 63, the code uses `scopes or None` to normalize empty lists to None, but on line 78 (the update path), it directly assigns `scopes` without this normalization. This means running `--scopes` with no arguments would store `[]` during update but `None` during create, causing inconsistent data representation.",2026-01-27T12:25:40.273438+00:00
+nvidia/dali,6170,Documentation for ndd.DType,https://github.com/NVIDIA/DALI/pull/6170,,"If any `DType` instance has `__doc__` set to `None`, calling `.split(""\n"")` will raise an `AttributeError`. Consider handling this edge case with a fallback like `(t.__doc__ or """").split(""\n"")`.",https://github.com/NVIDIA/DALI/pull/6170#discussion_r2731617894,,2026-01-27T11:45:46+00:00,runtime,medium,"Greptile correctly identifies that if any DType instance has __doc__ set to None (which is common for objects without docstrings), calling .split(""\n"") on None will raise an AttributeError. This is a real runtime bug that could crash the documentation generation script, and the suggested fix `(t.__doc__ or """").split(""\n"")` is correct and actionable.",2026-01-27T12:25:40.273491+00:00
+gptme/gptme,1167,feat(cli): add gptme-onboard wizard for first-run setup,https://github.com/gptme/gptme/pull/1167,,"`get_recommended_model()` doesn't handle `groq`, `deepseek`, or `azure` providers (see gptme/llm/models.py:622-634), causing ValueError if selected. Check that the provider is supported before displaying it.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: gptme/onboard.py
+Line: 117:123
+
+Comment:
+`get_recommended_model()` doesn't handle `groq`, `deepseek`, or `azure` providers (see gptme/llm/models.py:622-634), causing ValueError if selected. Check that the provider is supported before displaying it.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/gptme/gptme/pull/1167#discussion_r2731274626,✅ Fixed in commit 71f0ebd - Added try-except around get_recommended_model() calls,2026-01-27T10:18:39+00:00,runtime,medium,"Greptile correctly identified that `get_recommended_model()` would throw ValueError for unsupported providers like groq, deepseek, and azure. The code at line 117 calls this function without exception handling, which would crash the wizard when users select those providers. The developer confirmed the fix by adding try-except blocks around the calls.",2026-01-27T12:25:40.273516+00:00
+cedarjs/cedar,1055,chore(test-project): Use workspace package on the api side,https://github.com/cedarjs/cedar/pull/1055,,"Missing `@my-org/validators` dependency in `test-project/api/package.json`. The web side includes `""@my-org/validators"": ""workspace:*""` in its dependencies, but the api side doesn't. This will cause a module resolution error.
+
+```suggestion
+// Add to test-project/api/package.json dependencies:
+""@my-org/validators"": ""workspace:*""
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: test-project/api/src/services/contacts/contacts.ts
+Line: 1:1
+
+Comment:
+Missing `@my-org/validators` dependency in `test-project/api/package.json`. The web side includes `""@my-org/validators"": ""workspace:*""` in its dependencies, but the api side doesn't. This will cause a module resolution error.
+
+```suggestion
+// Add to test-project/api/package.json dependencies:
+""@my-org/validators"": ""workspace:*""
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/cedarjs/cedar/pull/1055#discussion_r2731445910,,2026-01-27T10:57:56+00:00,runtime,high,"The code adds an import from '@my-org/validators' but the diff only shows changes to the contacts.ts file, not to package.json. Greptile correctly identifies that without adding the workspace dependency to api/package.json, this will cause a module resolution error at runtime. This is a non-obvious cross-file dependency issue that could easily be missed.",2026-01-27T12:25:40.273548+00:00
