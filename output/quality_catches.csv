@@ -9911,3 +9911,101 @@ Connect your server to any desktop MCP client that supports the [ext-apps specif
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/alpic-ai/skybridge/pull/401#discussion_r2733519164,,2026-01-27T19:31:04+00:00,data_integrity,medium,"Greptile correctly identified that https://goose.ai/ is an AI API platform, not the desktop MCP client being referenced. The actual Goose desktop MCP client is hosted at https://block.github.io/goose/. This is a factual error in documentation that would mislead users to the wrong product, and it's non-obvious since the incorrect URL is plausible and similarly named.",2026-01-27T20:19:45.901410+00:00
+posthog/posthog,46070,chore: remove unused react virtualized,https://github.com/PostHog/posthog/pull/46070,,"Removing `react-virtualized` from dependencies will break `VirtualizedLogsList.tsx` which still imports `AutoSizer`, `CellMeasurer`, `CellMeasurerCache`, and `List` from `react-virtualized` on lines 5-7.
+
+The component at `products/logs/frontend/components/VirtualizedLogsList/VirtualizedLogsList.tsx` needs to be migrated to `react-window` before removing this dependency.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: products/logs/package.json
+Line: 17:17
+
+Comment:
+Removing `react-virtualized` from dependencies will break `VirtualizedLogsList.tsx` which still imports `AutoSizer`, `CellMeasurer`, `CellMeasurerCache`, and `List` from `react-virtualized` on lines 5-7.
+
+The component at `products/logs/frontend/components/VirtualizedLogsList/VirtualizedLogsList.tsx` needs to be migrated to `react-window` before removing this dependency.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/46070#discussion_r2733778547,,2026-01-27T20:50:06+00:00,runtime,high,Greptile correctly identified that removing react-virtualized from package.json would break VirtualizedLogsList.tsx which still imports from that package. This is a real bug that would cause runtime/build failures - the dependency is being removed while code still uses it. This is non-obvious as it requires checking other files not shown in the diff.,2026-01-27T22:19:05.843030+00:00
+raycast/extensions,24907,"Add CodexUsage extension""",https://github.com/raycast/extensions/pull/24907,,"Remove this `.new` file - it should not be committed to the repository.
+
+These backup/temporary files typically come from merge conflicts or editor saves and should be excluded from version control.",https://github.com/raycast/extensions/pull/24907#discussion_r2733700536,,2026-01-27T20:26:15+00:00,data_integrity,medium,"Greptile correctly identified that a file with `.new` extension (index.ts.new) should not be committed to the repository - these are typically temporary/backup files from editors or merge conflicts. This would clutter the codebase and potentially cause confusion, as TypeScript won't import from `.ts.new` files automatically. While not a runtime bug, it's a legitimate issue that's easy to miss during review.",2026-01-27T22:19:05.843107+00:00
+raycast/extensions,24907,"Add CodexUsage extension""",https://github.com/raycast/extensions/pull/24907,,Remove this `.new` file - it should not be committed to the repository.,https://github.com/raycast/extensions/pull/24907#discussion_r2733700567,,2026-01-27T20:26:16+00:00,data_integrity,medium,Greptile correctly identified that a file with `.new` extension (types.ts.new) was being committed to the repository. This is clearly a temporary/backup file that should not be in version control - it will cause confusion and the actual types.ts file needs to exist without the .new suffix for imports to work correctly. This is a real issue that could be easily overlooked during review.,2026-01-27T22:19:05.843144+00:00
+nvidia-nemo/curator,1434,Llane/cursor agent skills attempt,https://github.com/NVIDIA-NeMo/Curator/pull/1434,,"path calculation incorrect - splits to `.cursor/skills/curator-os` instead of `.cursor/skills/`
+
+```suggestion
+    sys.path.insert(0, str(Path(__file__).parent.parent.parent))  # Add skills/ to path
+```",https://github.com/NVIDIA-NeMo/Curator/pull/1434#discussion_r2733744709,,2026-01-27T20:40:00+00:00,logic,medium,"The code `str(__file__).rsplit('/', 3)[0]` on a path like `/path/to/.cursor/skills/curator-os/scripts/validate_pipeline.py` would produce `/path/to/.cursor/skills/curator-os` (keeping everything before the 3rd-to-last `/`), not the intended `.cursor/skills/` directory. This is a real bug that would cause the import from `shared.introspect` to fail. Greptile's suggested fix using `Path(__file__).parent.parent.parent` correctly navigates up 3 directories from the file to reach the skills folder.",2026-01-27T22:19:05.843175+00:00
+nvidia-nemo/curator,1434,Llane/cursor agent skills attempt,https://github.com/NVIDIA-NeMo/Curator/pull/1434,,"path calculation incorrect - splits to `.cursor/skills/stages` instead of `.cursor/skills/`
+
+```suggestion
+    sys.path.insert(0, str(Path(__file__).parent.parent.parent))  # Add skills/ to path
+```",https://github.com/NVIDIA-NeMo/Curator/pull/1434#discussion_r2733744742,,2026-01-27T20:40:01+00:00,logic,medium,"The code uses `rsplit(""/"", 3)[0]` which splits the path into at most 4 parts from the right and takes the first element. For a path like `.cursor/skills/stages/scripts/search_stages.py`, this would yield `.cursor/skills/stages` instead of the intended `.cursor/skills/` directory. This would cause the import of `shared.introspect` to fail since `shared/` is under `.cursor/skills/`, not `.cursor/skills/stages/`. The suggested fix using `Path(__file__).parent.parent.parent` correctly navigates up 3 directory levels.",2026-01-27T22:19:05.843212+00:00
+nvidia/numba-cuda,546,Deprecate the `DeviceNDArray` class and public APIs that return instances,https://github.com/NVIDIA/numba-cuda/pull/546,,"Missing `@require_context` decorator. This function calls `DeviceNDArray._create_nowarn()` which requires an active CUDA context (allocates memory via `devices.get_context().memalloc()` at devicearray.py:126). The equivalent function in `_api.py:143` correctly has this decorator.
+
+```suggestion
+@require_context
+def _device_array(shape, dtype=np.float64, strides=None, order=""C"", stream=0):
+```",https://github.com/NVIDIA/numba-cuda/pull/546#discussion_r2733770864,,2026-01-27T20:47:40+00:00,runtime,medium,"Greptile correctly identifies that the new `_device_array` function lacks the `@require_context` decorator while calling `DeviceNDArray._create_nowarn()` which allocates CUDA memory. The public `device_array` function that calls it doesn't have the decorator either, and looking at `_api.py` (referenced in the comment), similar internal functions do have this decorator. This would cause runtime errors when no CUDA context is active.",2026-01-27T22:19:05.843240+00:00
+gptme/gptme-contrib,216,perf(gptmail): optimize sync-maildir for incremental sync,https://github.com/gptme/gptme-contrib/pull/216,,"State file grows unbounded - deleted maildir files remain in `processed_files` forever. For long-lived mailboxes, this could accumulate thousands of obsolete entries.
+
+Consider pruning deleted files periodically by checking if maildir files still exist, or implementing a cleanup mechanism after sync completes.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/gptmail/src/gptmail/lib.py
+Line: 1424:1426
+
+Comment:
+State file grows unbounded - deleted maildir files remain in `processed_files` forever. For long-lived mailboxes, this could accumulate thousands of obsolete entries.
+
+Consider pruning deleted files periodically by checking if maildir files still exist, or implementing a cleanup mechanism after sync completes.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/gptme/gptme-contrib/pull/216#discussion_r2733884687,"✅ Fixed in commit 26a86ab - added `_prune_sync_state()` method that removes entries for maildir files that no longer exist. Pruning happens after each sync, checking `processed_files` against actual maildir contents and removing stale entries.",2026-01-27T21:23:58+00:00,resource_leak,low,"Greptile correctly identified that the sync state file grows unbounded - `processed_files` only ever has entries added (via `add()`) but never removed, even when maildir files are deleted. The developer confirmed this was a real issue and fixed it by adding a pruning mechanism.",2026-01-27T22:19:05.843262+00:00
+gptme/gptme-contrib,216,perf(gptmail): optimize sync-maildir for incremental sync,https://github.com/gptme/gptme-contrib/pull/216,,"Previous review claimed pruning was fixed in commit 26a86ab, but that commit is NOT in this PR (not in range eb337dd..f6602f5). State file will grow unbounded as deleted maildir files remain in `processed_files` forever.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/gptmail/src/gptmail/lib.py
+Line: 1587:1589
+
+Comment:
+Previous review claimed pruning was fixed in commit 26a86ab, but that commit is NOT in this PR (not in range eb337dd..f6602f5). State file will grow unbounded as deleted maildir files remain in `processed_files` forever.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/gptme/gptme-contrib/pull/216#discussion_r2733951098,,2026-01-27T21:45:50+00:00,resource_leak,medium,"Greptile correctly identifies that the sync state file (`processed_files` set) will grow unbounded because there's no pruning logic in this PR - files are only added to the set but never removed when the corresponding maildir files are deleted. The code shows `_save_sync_state` simply saves whatever is in `processed_files` with no cleanup logic, confirming the unbounded growth issue.",2026-01-27T22:19:05.843299+00:00
+alpaca-network/railway-grafana-stack,89,"Removed all depricated markdown files, staging work-builds, and updated readme. ",https://github.com/Alpaca-Network/railway-grafana-stack/pull/89,,"Duplicate assertion - line 52 checks for `gatewayz_production` twice. The second check should likely verify a different job or be removed.
+
+```suggestion
+        assert ""prometheus"" in job_names, ""Prometheus self-scrape job missing""
+        assert ""gatewayz_production"" in job_names, ""Production scrape job missing""
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: tests/test_stack_configuration.py
+Line: 51:52
+
+Comment:
+Duplicate assertion - line 52 checks for `gatewayz_production` twice. The second check should likely verify a different job or be removed.
+
+```suggestion
+        assert ""prometheus"" in job_names, ""Prometheus self-scrape job missing""
+        assert ""gatewayz_production"" in job_names, ""Production scrape job missing""
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/Alpaca-Network/railway-grafana-stack/pull/89#discussion_r2733893432,,2026-01-27T21:26:26+00:00,logic,medium,"Greptile correctly identified that lines 51-52 contain duplicate assertions checking for 'gatewayz_production' twice. The original code checked for 'gatewayz_staging' but was changed to 'gatewayz_production', making the test redundant and removing actual coverage for the staging job validation. This is a real bug that would cause tests to miss configuration errors.",2026-01-27T22:19:05.843368+00:00
