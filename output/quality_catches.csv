@@ -9028,3 +9028,228 @@ Missing `@my-org/validators` dependency in `test-project/api/package.json`. The 
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/cedarjs/cedar/pull/1055#discussion_r2731445910,,2026-01-27T10:57:56+00:00,runtime,high,"The code adds an import from '@my-org/validators' but the diff only shows changes to the contacts.ts file, not to package.json. Greptile correctly identifies that without adding the workspace dependency to api/package.json, this will cause a module resolution error at runtime. This is a non-obvious cross-file dependency issue that could easily be missed.",2026-01-27T12:25:40.273548+00:00
+posthog/posthog,45987,feat(subscriptions): Allow users to select insights in their subscriptions,https://github.com/PostHog/posthog/pull/45987,,"The validation only checks that insights belong to the dashboard and are not deleted, but doesn't verify that the insights belong to the correct team. While the dashboard itself is validated to belong to the team (line 89-90), and dashboard tiles should only contain insights from the same team, it's safer to explicitly validate team ownership here to prevent potential security issues.
+
+Add explicit team validation:
+
+```python
+            # Ensure all selected insights belong to the team
+            from posthog.models import Insight
+            team_id = self.context[""team_id""]
+            insights_team_check = Insight.objects.filter(
+                id__in=selected_ids
+            ).exclude(team_id=team_id).exists()
+            
+            if insights_team_check:
+                raise ValidationError(
+                    {""dashboard_export_insights"": [""Some insights do not belong to your team.""]}
+                )
+            
+            # Ensure all selected insights belong to the dashboard (and are not deleted)
+```
+
+**Context Used:** Context from `dashboard` - When implementing new features, ensure that ownership validation is included to prevent unauthorized... ([source](https://app.greptile.com/review/custom-context?memory=9655b466-451a-401a-9ba0-5bf3e7b7f9f8))
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: ee/api/subscription.py
+Line: 139:150
+
+Comment:
+The validation only checks that insights belong to the dashboard and are not deleted, but doesn't verify that the insights belong to the correct team. While the dashboard itself is validated to belong to the team (line 89-90), and dashboard tiles should only contain insights from the same team, it's safer to explicitly validate team ownership here to prevent potential security issues.
+
+Add explicit team validation:
+
+```python
+            # Ensure all selected insights belong to the team
+            from posthog.models import Insight
+            team_id = self.context[""team_id""]
+            insights_team_check = Insight.objects.filter(
+                id__in=selected_ids
+            ).exclude(team_id=team_id).exists()
+            
+            if insights_team_check:
+                raise ValidationError(
+                    {""dashboard_export_insights"": [""Some insights do not belong to your team.""]}
+                )
+            
+            # Ensure all selected insights belong to the dashboard (and are not deleted)
+```
+
+**Context Used:** Context from `dashboard` - When implementing new features, ensure that ownership validation is included to prevent unauthorized... ([source](https://app.greptile.com/review/custom-context?memory=9655b466-451a-401a-9ba0-5bf3e7b7f9f8))
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/45987#discussion_r2732008225,"
+Fixed! ",2026-01-27T13:26:16+00:00,security,medium,"Greptile correctly identified a defense-in-depth security issue: the validation only checks that insights belong to the dashboard via dashboard tiles, but doesn't explicitly verify team ownership of the insights themselves. While the dashboard is validated to belong to the team (line 89-90), adding explicit team validation for insights provides an extra security layer against potential cross-team data access. The developer confirmed and fixed it.",2026-01-27T14:27:03.381773+00:00
+posthog/posthog,46015,feat(insight-ai): check billing addons,https://github.com/PostHog/posthog/pull/46015,,"Frontend-only billing check creates security vulnerability. Users can bypass this by calling the API directly (e.g., via browser DevTools or curl) since `/api/projects/:project_id/insights/:insight_id/analyze` endpoint in `posthog/api/insight.py:1214` has no billing validation.
+
+```suggestion
+    // Check for at least Boost add-on (Boost, Scale, or Enterprise)
+    // Note: Backend validation is required for security - this is UI-only gating
+    const hasBoostOrHigher =
+        currentPlatformAddon?.type === BillingPlan.Boost ||
+        currentPlatformAddon?.type === BillingPlan.Scale ||
+        currentPlatformAddon?.type === BillingPlan.Enterprise
+```
+
+Add backend validation in the `analyze` action to prevent unauthorized API access.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: frontend/src/scenes/insights/InsightAIAnalysis.tsx
+Line: 33:37
+
+Comment:
+Frontend-only billing check creates security vulnerability. Users can bypass this by calling the API directly (e.g., via browser DevTools or curl) since `/api/projects/:project_id/insights/:insight_id/analyze` endpoint in `posthog/api/insight.py:1214` has no billing validation.
+
+```suggestion
+    // Check for at least Boost add-on (Boost, Scale, or Enterprise)
+    // Note: Backend validation is required for security - this is UI-only gating
+    const hasBoostOrHigher =
+        currentPlatformAddon?.type === BillingPlan.Boost ||
+        currentPlatformAddon?.type === BillingPlan.Scale ||
+        currentPlatformAddon?.type === BillingPlan.Enterprise
+```
+
+Add backend validation in the `analyze` action to prevent unauthorized API access.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/46015#discussion_r2731811196,,2026-01-27T12:36:42+00:00,security,high,"Greptile correctly identifies that adding billing checks only in the frontend creates a bypass vulnerability where users could directly call the API endpoint without the billing validation. This is a legitimate security concern for a billing/access control feature - the frontend check is purely cosmetic without corresponding backend validation. The comment is specific, actionable, and points to the exact backend endpoint that needs validation.",2026-01-27T14:27:03.381908+00:00
+posthog/posthog,46022,feat(endpoints): add limit support to endpoint execution,https://github.com/PostHog/posthog/pull/46022,,"materialized queries don't respect existing query limits - if the saved query already has a LIMIT clause, it will be ignored and replaced. Consider checking for existing limits like in `_apply_limit_to_query`
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: products/endpoints/backend/api.py
+Line: 712:713
+
+Comment:
+materialized queries don't respect existing query limits - if the saved query already has a LIMIT clause, it will be ignored and replaced. Consider checking for existing limits like in `_apply_limit_to_query`
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/46022#discussion_r2732133169,,2026-01-27T13:56:14+00:00,logic,medium,"Greptile correctly identified an inconsistency: in `_apply_limit_to_query` (lines 767-780), the code checks for existing limits and uses `min(limit, existing_limit)` to respect the smaller value, but in `_execute_materialized_endpoint` (lines 712-713), the code simply overwrites any existing limit with `ast.Constant(value=limit)` without checking if a smaller limit already exists. This is a real behavioral inconsistency that could return more data than the original query intended.",2026-01-27T14:27:03.381992+00:00
+posthog/posthog,46022,feat(endpoints): add limit support to endpoint execution,https://github.com/PostHog/posthog/pull/46022,,"if `parsed.limit` exists but isn't a `Constant` (e.g., a parameter or expression), it's treated as `None` and the requested limit replaces it entirely, losing the original limit logic
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: products/endpoints/backend/api.py
+Line: 776:778
+
+Comment:
+if `parsed.limit` exists but isn't a `Constant` (e.g., a parameter or expression), it's treated as `None` and the requested limit replaces it entirely, losing the original limit logic
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/46022#discussion_r2732133302,,2026-01-27T13:56:16+00:00,logic,medium,"Greptile correctly identifies that if `parsed.limit` exists but isn't an `ast.Constant` (e.g., could be a parameter reference or expression), the code treats `existing_limit` as `None` and completely overwrites the original limit with the requested limit. This silently ignores non-constant limit expressions in the original query, which could lead to unexpected behavior where queries return more data than intended by the original query author.",2026-01-27T14:27:03.382020+00:00
+posthog/posthog,46013,feat: improve activation flow,https://github.com/PostHog/posthog/pull/46013,,"Missing input validation - `request.data` is passed directly to billing service without validation
+
+```suggestion
+    class ActivateSerializer(serializers.Serializer):
+        products = serializers.CharField(required=True)
+        intent_product = serializers.CharField(required=False)
+
+    @action(methods=[""POST""], detail=False)
+    def activate(self, request: Request, *args: Any, **kwargs: Any) -> Response:
+        organization = self._get_org_required()
+        
+        serializer = self.ActivateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        billing_manager = self.get_billing_manager()
+        res = billing_manager.activate_subscription(organization, serializer.validated_data)
+        return Response(res, status=status.HTTP_200_OK)
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: ee/api/billing.py
+Line: 190:195
+
+Comment:
+Missing input validation - `request.data` is passed directly to billing service without validation
+
+```suggestion
+    class ActivateSerializer(serializers.Serializer):
+        products = serializers.CharField(required=True)
+        intent_product = serializers.CharField(required=False)
+
+    @action(methods=[""POST""], detail=False)
+    def activate(self, request: Request, *args: Any, **kwargs: Any) -> Response:
+        organization = self._get_org_required()
+        
+        serializer = self.ActivateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        billing_manager = self.get_billing_manager()
+        res = billing_manager.activate_subscription(organization, serializer.validated_data)
+        return Response(res, status=status.HTTP_200_OK)
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/46013#discussion_r2731769319,,2026-01-27T12:25:09+00:00,security,medium,"The diff shows the old code had an ActivateSerializer with validation for 'products' and 'plan' parameters, but the new code completely removes this validation and passes request.data directly to billing_manager.activate_subscription(). This is a legitimate security concern where unvalidated user input is being sent to a billing service, which could lead to injection or data integrity issues.",2026-01-27T14:27:03.382080+00:00
+twentyhq/twenty,17477,Migrate favorites to navigation menu items (1.18 upgrade),https://github.com/twentyhq/twenty/pull/17477,,"`getUserWorkspaceForUserOrThrow` throws an error if userWorkspace not found, but catch block returns `null`. This could lead to silent failures where user-level favorites become workspace-level favorites (with `userWorkspaceId: null`) instead of being skipped entirely.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/twenty-server/src/database/commands/upgrade-version-command/1-18/1-18-migrate-favorites-to-navigation-menu-items.command.ts
+Line: 407:411
+
+Comment:
+`getUserWorkspaceForUserOrThrow` throws an error if userWorkspace not found, but catch block returns `null`. This could lead to silent failures where user-level favorites become workspace-level favorites (with `userWorkspaceId: null`) instead of being skipped entirely.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/twentyhq/twenty/pull/17477#discussion_r2731876128,,2026-01-27T12:53:51+00:00,data_integrity,medium,"Greptile correctly identifies that when `getUserWorkspaceForUserOrThrow` throws (user workspace not found), the catch block returns null, which causes the migration to create workspace-level navigation items instead of user-level ones. This silently converts personal favorites into shared workspace favorites - a data integrity issue that could affect user experience and would be non-obvious to catch in code review.",2026-01-27T14:27:03.382123+00:00
+twentyhq/twenty,17473,i18n - docs translations,https://github.com/twentyhq/twenty/pull/17473,,"PostgreSQL command output should not be translated. The table headers and values (`Role name`, `Attributes`, `Member of`, `Superuser`) represent actual output from the `\du` command and will not match what users see.
+
+```suggestion
+    ```bash
+    Role name | Attributes  | Member of
+    -----------+-------------+-----------
+    postgres  | Superuser   | {}
+    john      | Superuser   | {}
+    ```
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/twenty-docs/l/ro/developers/contribute/capabilities/local-setup.mdx
+Line: 173:178
+
+Comment:
+PostgreSQL command output should not be translated. The table headers and values (`Role name`, `Attributes`, `Member of`, `Superuser`) represent actual output from the `\du` command and will not match what users see.
+
+```suggestion
+    ```bash
+    Role name | Attributes  | Member of
+    -----------+-------------+-----------
+    postgres  | Superuser   | {}
+    john      | Superuser   | {}
+    ```
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/twentyhq/twenty/pull/17473#discussion_r2731771298,,2026-01-27T12:25:40+00:00,data_integrity,medium,"Greptile correctly identified that PostgreSQL command output should not be translated - the `\du` command will always show English output ('Role name', 'Attributes', 'Member of', 'Superuser') regardless of system locale. Translating this to Romanian ('Nume rol', 'Atribute', 'Membru al', 'Superutilizator') would confuse users who won't see matching output when they run the actual command. This is a subtle localization error that could easily be missed.",2026-01-27T14:27:03.382151+00:00
+infisical/terraform-provider-infisical,235,feat: organization role resource,https://github.com/Infisical/terraform-provider-infisical/pull/235,,"Attribute name mismatch - should be `permissions` not `permission`
+
+```suggestion
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root(""permissions""), permissions)...)
+```",https://github.com/Infisical/terraform-provider-infisical/pull/235#discussion_r2731839158,,2026-01-27T12:44:10+00:00,logic,high,"Looking at the schema definition on line 85, the attribute is clearly named ""permissions"" (plural), but in the ImportState function at line 522, the code incorrectly uses ""permission"" (singular). This typo would cause the import functionality to fail silently or store permissions in the wrong attribute, breaking terraform state management for imported resources.",2026-01-27T14:27:03.382185+00:00
