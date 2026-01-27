@@ -8788,3 +8788,132 @@ democratizedspace/dspace,3157,Build-time docs RAG index: MiniSearch chunking + g
 ```
 
 This ensures we only match `---` surrounded by newlines, making it more robust.",https://github.com/democratizedspace/dspace/pull/3157#discussion_r2730728811,,2026-01-27T08:00:58+00:00,logic,medium,"Greptile correctly identifies a real parsing bug: the code uses `content.indexOf('\n---')` which would match horizontal rules (---) anywhere in the document after a newline, not just the frontmatter closing delimiter. This could cause content after a horizontal rule to be incorrectly parsed as frontmatter. The suggested fix to use `'\n---\n'` ensures the delimiter is on its own line, making parsing more robust.",2026-01-27T08:21:26.872747+00:00
+posthog/posthog,45983,fix(cdp): bytecode subtraction bug,https://github.com/PostHog/posthog/pull/45983,,"This logic creates false positives for legitimate subtraction operations. For example, `event.properties.count - total` would incorrectly trigger this error (left is a Field with chain length 3, right is Field with chain length 1). The heuristic should be more conservative - perhaps check if the right operand is a bare identifier (no dots) AND the operation would create a syntactically valid property name when concatenated with a hyphen.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: posthog/cdp/validation.py
+Line: 43:49
+
+Comment:
+This logic creates false positives for legitimate subtraction operations. For example, `event.properties.count - total` would incorrectly trigger this error (left is a Field with chain length 3, right is Field with chain length 1). The heuristic should be more conservative - perhaps check if the right operand is a bare identifier (no dots) AND the operation would create a syntactically valid property name when concatenated with a hyphen.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/45983#discussion_r2730967203,,2026-01-27T09:01:23+00:00,logic,medium,"Greptile correctly identifies that the heuristic is too broad - it triggers for ANY subtraction where left is a Field with chain >= 2 and right is a Field with chain == 1. Legitimate code like `event.properties.count - total` would falsely trigger this error because it meets all the conditions (left chain length 3, right chain length 1), even though it's valid subtraction, not a hyphenated property name. This is a non-obvious false positive issue in error detection logic.",2026-01-27T10:21:37.363152+00:00
+gptme/gptme,1166,feat(cli): add gptme-doctor command for system diagnostics,https://github.com/gptme/gptme/pull/1166,,"Logic issue in lines 121-128: when a provider is in `available_provider_names` but `api_key` is None (line 96 returns None), the code marks it as OK with message ""Configured (via config or env)"". This is misleading - if the key couldn't be retrieved, it means it's NOT actually configured. This path should be unreachable (if provider is available, key should exist), or if it is reachable, it indicates an error state, not OK.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: gptme/doctor.py
+Line: 121:128
+
+Comment:
+Logic issue in lines 121-128: when a provider is in `available_provider_names` but `api_key` is None (line 96 returns None), the code marks it as OK with message ""Configured (via config or env)"". This is misleading - if the key couldn't be retrieved, it means it's NOT actually configured. This path should be unreachable (if provider is available, key should exist), or if it is reachable, it indicates an error state, not OK.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/gptme/gptme/pull/1166#discussion_r2731018654,✅ Fixed in commit 6eea9df - now shows WARNING with message 'Provider available but key not retrievable for validation' instead of misleading OK status,2026-01-27T09:13:55+00:00,logic,medium,Greptile correctly identified a logic bug where a provider could be marked as 'OK' and 'Configured' when the API key couldn't actually be retrieved. The developer confirmed this was a real issue and fixed it to show a WARNING status instead. This is a non-obvious diagnostic logic error that could mislead users about their system configuration.,2026-01-27T10:21:37.363257+00:00
+helixdb/helix-db,831,feat (cli): helix sync command,https://github.com/HelixDB/helix-db/pull/831,,"New files from remote aren't added to `differing_files` list, so users won't see them in the confirmation prompt. Only existing files that differ are tracked.
+
+```suggestion
+    // Collect files that differ from local
+    let mut differing_files: Vec<String> = Vec::new();
+    for (filename, content) in &sync_response.hx_files {
+        let file_path = queries_dir.join(filename);
+        if file_path.exists() {
+            if let Ok(local_content) = std::fs::read_to_string(&file_path) {
+                if local_content != *content {
+                    differing_files.push(filename.clone());
+                }
+            }
+        } else {
+            // New file from remote
+            differing_files.push(filename.clone());
+        }
+    }
+```",https://github.com/HelixDB/helix-db/pull/831#discussion_r2731023264,,2026-01-27T09:15:08+00:00,logic,medium,"Greptile correctly identified that the code only adds files to `differing_files` when they exist locally AND differ from remote. New files from remote (where `!file_path.exists()`) are silently written without user confirmation, which breaks the intended UX where users should be prompted before any files are modified/created. This is a real bug in the sync confirmation flow.",2026-01-27T10:21:37.363363+00:00
+useautumn/autumn,633,fix: invoice created to db,https://github.com/useautumn/autumn/pull/633,,"missing `discounts` field in update - when invoice already exists, discounts won't be updated
+
+the create path (line 102-111) includes discounts via `createInvoiceFromStripe` which calls `getInvoiceDiscounts`, but this update path doesn't include the `discounts` field. this means if an invoice is created before the webhook processes (race condition), the discounts will remain empty even though `updatedStripeInvoice` has the expanded discount data.
+
+```suggestion
+		updates: {
+			product_ids: productIds,
+			internal_product_ids: internalProductIds,
+			total: stripeToAtmnAmount({
+				amount: updatedStripeInvoice.total,
+				currency: updatedStripeInvoice.currency,
+			}),
+			discounts: getInvoiceDiscounts({
+				expandedInvoice: updatedStripeInvoice,
+			}),
+		},
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: server/src/external/stripe/webhookHandlers/handleStripeInvoiceCreated/tasks/upsertAutumnInvoice.ts
+Line: 84:91
+
+Comment:
+missing `discounts` field in update - when invoice already exists, discounts won't be updated
+
+the create path (line 102-111) includes discounts via `createInvoiceFromStripe` which calls `getInvoiceDiscounts`, but this update path doesn't include the `discounts` field. this means if an invoice is created before the webhook processes (race condition), the discounts will remain empty even though `updatedStripeInvoice` has the expanded discount data.
+
+```suggestion
+		updates: {
+			product_ids: productIds,
+			internal_product_ids: internalProductIds,
+			total: stripeToAtmnAmount({
+				amount: updatedStripeInvoice.total,
+				currency: updatedStripeInvoice.currency,
+			}),
+			discounts: getInvoiceDiscounts({
+				expandedInvoice: updatedStripeInvoice,
+			}),
+		},
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/useautumn/autumn/pull/633#discussion_r2731190679,,2026-01-27T09:58:31+00:00,data_integrity,medium,"Greptile correctly identifies an inconsistency between the update and create paths. The code fetches expanded discount data via getStripeInvoice with 'discounts.source.coupon' expansion, but the update path at line 84-91 only updates product_ids, internal_product_ids, and total - omitting discounts. Meanwhile, the create path uses createInvoiceFromStripe which would process the discount data. This creates a data integrity issue where existing invoices won't have their discount information updated correctly.",2026-01-27T10:21:37.363435+00:00
+tinyrange/cc,86,Added filesystem snapshot support to the public API,https://github.com/tinyrange/cc/pull/86,,"potential resource leak - previous `currentSnap` isn't closed before reassignment
+
+```suggestion
+				snap, err := f.loadFromManifest(ctx, manifest)
+				if err == nil {
+					if currentSnap != baseSource {
+						currentSnap.Close()
+					}
+					currentSnap = snap
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: internal/api/fs_snapshot_factory.go
+Line: 229:231
+
+Comment:
+potential resource leak - previous `currentSnap` isn't closed before reassignment
+
+```suggestion
+				snap, err := f.loadFromManifest(ctx, manifest)
+				if err == nil {
+					if currentSnap != baseSource {
+						currentSnap.Close()
+					}
+					currentSnap = snap
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/tinyrange/cc/pull/86#discussion_r2730938369,,2026-01-27T08:54:07+00:00,resource_leak,medium,"Looking at the original code around line 243, when a cached snapshot is found and loaded successfully via `loadFromManifest`, the previous `currentSnap` is reassigned without being closed first (unless it equals `baseSource`). The suggestion correctly adds the missing `Close()` call before reassignment. This is a real resource leak that could accumulate over multiple iterations of the caching loop, and it's non-obvious because the similar cleanup pattern exists elsewhere in the code (around line 281) but was missed in this specific location.",2026-01-27T10:21:37.363558+00:00
