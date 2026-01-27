@@ -9420,3 +9420,366 @@ How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/NVIDIA-NeMo/Guardrails/pull/1604#discussion_r2732384379,,2026-01-27T14:47:44+00:00,logic,medium,"Greptile correctly identified a logic bug. When both input and output rails run, `target_role` is set to 'assistant' (since 'output' is in options['rails']), so `original_content` captures the assistant message. If the input rail modifies the user message but the output rail leaves the assistant message unchanged, the comparison `result_content != original_content` would be comparing assistant content to assistant content, missing the user message modification entirely. This is a non-obvious edge case in the MODIFIED status detection logic.",2026-01-27T16:22:25.146075+00:00
 nvidia/numba-cuda,751,feat: accept `cuda.core.Buffer` and `cuda.core.utils.StridedMemoryView` as kernel inputs,https://github.com/NVIDIA/numba-cuda/pull/751,,"Check that all `StridedMemoryView` instances provide the `is_contiguous_any` attribute. The internal `_StridedLayoutShim` class (`devicearray.py:973-985`) lacks this property, which could cause `AttributeError` if shim objects reach this code path.",https://github.com/NVIDIA/numba-cuda/pull/751#discussion_r2732374755,,2026-01-27T14:45:29+00:00,runtime,medium,"Greptile correctly identifies that the `_StridedLayoutShim` class in devicearray.py (lines 973-985) only defines `is_contiguous_c` and `is_contiguous_f` properties, but lacks `is_contiguous_any`. If a shim object reaches this code path and the first two conditions are false, accessing `raw_layout.is_contiguous_any` would raise an AttributeError. This is a non-obvious cross-file compatibility bug that could cause runtime crashes.",2026-01-27T16:22:25.146131+00:00
+posthog/posthog,44197,feat: add project api key model,https://github.com/PostHog/posthog/pull/44197,,"`project_id=cached_data[""team_id""]` is incorrect - `team_id` is not the same as `project_id`. Team has a foreign key to Project.
+
+```suggestion
+                team = Team(id=cached_data[""team_id""], project_id=cached_data[""project_id""])
+```
+
+You'll also need to cache `obj.team.project_id` in `_set_cached_key_data` around line 148.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: posthog/models/project_secret_api_key.py
+Line: 126:126
+
+Comment:
+`project_id=cached_data[""team_id""]` is incorrect - `team_id` is not the same as `project_id`. Team has a foreign key to Project.
+
+```suggestion
+                team = Team(id=cached_data[""team_id""], project_id=cached_data[""project_id""])
+```
+
+You'll also need to cache `obj.team.project_id` in `_set_cached_key_data` around line 148.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/44197#discussion_r2732784659,,2026-01-27T16:13:49+00:00,data_integrity,medium,"Greptile correctly identified that the code sets `project_id=cached_data['team_id']` when reconstructing the Team object from cache, but team_id and project_id are different fields - Team has a foreign key to Project. This would cause the reconstructed Team object to have an incorrect project_id, potentially causing authorization or data access issues. The cached data also doesn't store project_id, so it would need to be added to the cache as well.",2026-01-27T19:03:14.557608+00:00
+posthog/posthog,46048,chore: apply migration for removed distinct id usage CH tables,https://github.com/PostHog/posthog/pull/46048,,"The imports in `posthog/clickhouse/schema.py:63-66` still reference these SQL functions, and the table definitions are still included in `CREATE_MERGETREE_TABLE_QUERIES` (line 244), `CREATE_DISTRIBUTED_TABLE_QUERIES` (line 286), and `CREATE_MV_TABLE_QUERIES` (line 342). These need to be removed to keep the schema in sync with this migration.
+
+Without removing these references, the schema file suggests these tables should exist, which conflicts with this migration's cleanup.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: posthog/clickhouse/migrations/0202_distinct_id_usage_sharded.py
+Line: 17:34
+
+Comment:
+The imports in `posthog/clickhouse/schema.py:63-66` still reference these SQL functions, and the table definitions are still included in `CREATE_MERGETREE_TABLE_QUERIES` (line 244), `CREATE_DISTRIBUTED_TABLE_QUERIES` (line 286), and `CREATE_MV_TABLE_QUERIES` (line 342). These need to be removed to keep the schema in sync with this migration.
+
+Without removing these references, the schema file suggests these tables should exist, which conflicts with this migration's cleanup.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/46048#discussion_r2733009717,,2026-01-27T17:07:08+00:00,data_integrity,medium,"This is a valid catch - the migration drops tables but Greptile correctly identifies that the schema.py file still contains references to these tables in CREATE_MERGETREE_TABLE_QUERIES, CREATE_DISTRIBUTED_TABLE_QUERIES, and CREATE_MV_TABLE_QUERIES. This schema/migration mismatch could cause confusion and potential issues when the schema is used for table creation or validation, as it would suggest tables should exist that were intentionally dropped.",2026-01-27T19:03:14.557695+00:00
+posthog/posthog,46040,fix(dev): seed default data when using pre-migrated schema,https://github.com/PostHog/posthog/pull/46040,,"Dashboard templates use outdated `filters` format instead of `query` format. Migration 0530 converted all templates from filters to query format, but these templates still use the old format. This creates inconsistency - the system expects `query` fields (see `DashboardTemplate.original_template()` in `posthog/models/dashboard_templates.py:64-272`), but these templates have `filters` fields.
+
+The templates should either:
+1. Use the `query` format directly (matching `DashboardTemplate.original_template()`)
+2. Apply the same conversion logic from migration 0530 using `filter_to_query()` from `posthog.hogql_queries.legacy_compatibility.filter_to_query`
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: posthog/management/commands/ensure_migration_defaults.py
+Line: 31:227
+
+Comment:
+Dashboard templates use outdated `filters` format instead of `query` format. Migration 0530 converted all templates from filters to query format, but these templates still use the old format. This creates inconsistency - the system expects `query` fields (see `DashboardTemplate.original_template()` in `posthog/models/dashboard_templates.py:64-272`), but these templates have `filters` fields.
+
+The templates should either:
+1. Use the `query` format directly (matching `DashboardTemplate.original_template()`)
+2. Apply the same conversion logic from migration 0530 using `filter_to_query()` from `posthog.hogql_queries.legacy_compatibility.filter_to_query`
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/46040#discussion_r2732881016,,2026-01-27T16:36:29+00:00,data_integrity,medium,Greptile correctly identifies that the dashboard templates use the old `filters` format while the system has migrated to `query` format (migration 0530 converted existing templates). This creates a real inconsistency where newly created templates from this command would have an outdated format compared to what DashboardTemplate.original_template() returns. This is a non-obvious issue that requires understanding the migration history and data format evolution in the codebase.,2026-01-27T19:03:14.557791+00:00
+twentyhq/twenty,17491,Refactor WorkspaceAuthContext to use discriminated union types,https://github.com/twentyhq/twenty/pull/17491,,"The `userWorkspaceId` is used as the user ID here, but based on the naming convention and the auth context structure, `userWorkspaceId` typically refers to a user-workspace relationship ID, not a user ID. Check if this should be using a different field or if the parameter name is misleading.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/twenty-server/src/engine/api/mcp/services/mcp-protocol.service.ts
+Line: 109:113
+
+Comment:
+The `userWorkspaceId` is used as the user ID here, but based on the naming convention and the auth context structure, `userWorkspaceId` typically refers to a user-workspace relationship ID, not a user ID. Check if this should be using a different field or if the parameter name is misleading.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/twentyhq/twenty/pull/17491#discussion_r2733255829,,2026-01-27T18:13:55+00:00,logic,high,"Greptile correctly identifies a potential ID mismatch: the code queries for a user with `id: userWorkspaceId`, but `userWorkspaceId` likely refers to a UserWorkspace junction table ID, not the user's actual ID. This could cause authentication failures or return the wrong user, leading to incorrect authorization contexts.",2026-01-27T19:03:14.557890+00:00
+twentyhq/twenty,17488,"Migrate cron, databaseEventTrigger, httpRoute triggers to serverless functions",https://github.com/twentyhq/twenty/pull/17488,,"Migration drops tables without migrating existing data first. Any existing `cronTrigger`, `databaseEventTrigger`, or `routeTrigger` records will be permanently lost.
+
+Add queries before the DROP statements to migrate data:
+
+```suggestion
+    // Migrate existing trigger data to serverless function columns
+    await queryRunner.query(`
+      UPDATE ""core"".""serverlessFunction"" sf
+      SET ""cronTriggerSettings"" = jsonb_build_object('pattern', ct.settings->>'pattern')
+      FROM ""core"".""cronTrigger"" ct
+      WHERE ct.""serverlessFunctionId"" = sf.id
+    `);
+    
+    await queryRunner.query(`
+      UPDATE ""core"".""serverlessFunction"" sf
+      SET ""databaseEventTriggerSettings"" = jsonb_build_object(
+        'eventName', det.settings->>'eventName',
+        'updatedFields', det.settings->'updatedFields'
+      )
+      FROM ""core"".""databaseEventTrigger"" det
+      WHERE det.""serverlessFunctionId"" = sf.id
+    `);
+    
+    await queryRunner.query(`
+      UPDATE ""core"".""serverlessFunction"" sf
+      SET ""httpRouteTriggerSettings"" = jsonb_build_object(
+        'path', rt.path,
+        'httpMethod', rt.""httpMethod"",
+        'isAuthRequired', rt.""isAuthRequired"",
+        'forwardedRequestHeaders', rt.""forwardedRequestHeaders""
+      )
+      FROM ""core"".""routeTrigger"" rt
+      WHERE rt.""serverlessFunctionId"" = sf.id
+    `);
+
+    // Drop old trigger tables
+    await queryRunner.query(`DROP TABLE IF EXISTS ""core"".""cronTrigger"" CASCADE`);
+```
+
+**Context Used:** Rule from `dashboard` - Database migrations that touch uniqueness constraints must be tested on production-like datasets bef... ([source](https://app.greptile.com/review/custom-context?memory=afbb9dab-0419-4839-9ab7-73551d42b0ae))
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/twenty-server/src/database/typeorm/core/migrations/common/1770000000000-mergeTriggerEntitiesIntoServerlessFunction.ts
+Line: 20:24
+
+Comment:
+Migration drops tables without migrating existing data first. Any existing `cronTrigger`, `databaseEventTrigger`, or `routeTrigger` records will be permanently lost.
+
+Add queries before the DROP statements to migrate data:
+
+```suggestion
+    // Migrate existing trigger data to serverless function columns
+    await queryRunner.query(`
+      UPDATE ""core"".""serverlessFunction"" sf
+      SET ""cronTriggerSettings"" = jsonb_build_object('pattern', ct.settings->>'pattern')
+      FROM ""core"".""cronTrigger"" ct
+      WHERE ct.""serverlessFunctionId"" = sf.id
+    `);
+    
+    await queryRunner.query(`
+      UPDATE ""core"".""serverlessFunction"" sf
+      SET ""databaseEventTriggerSettings"" = jsonb_build_object(
+        'eventName', det.settings->>'eventName',
+        'updatedFields', det.settings->'updatedFields'
+      )
+      FROM ""core"".""databaseEventTrigger"" det
+      WHERE det.""serverlessFunctionId"" = sf.id
+    `);
+    
+    await queryRunner.query(`
+      UPDATE ""core"".""serverlessFunction"" sf
+      SET ""httpRouteTriggerSettings"" = jsonb_build_object(
+        'path', rt.path,
+        'httpMethod', rt.""httpMethod"",
+        'isAuthRequired', rt.""isAuthRequired"",
+        'forwardedRequestHeaders', rt.""forwardedRequestHeaders""
+      )
+      FROM ""core"".""routeTrigger"" rt
+      WHERE rt.""serverlessFunctionId"" = sf.id
+    `);
+
+    // Drop old trigger tables
+    await queryRunner.query(`DROP TABLE IF EXISTS ""core"".""cronTrigger"" CASCADE`);
+```
+
+**Context Used:** Rule from `dashboard` - Database migrations that touch uniqueness constraints must be tested on production-like datasets bef... ([source](https://app.greptile.com/review/custom-context?memory=afbb9dab-0419-4839-9ab7-73551d42b0ae))
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/twentyhq/twenty/pull/17488#discussion_r2732940853,,2026-01-27T16:50:32+00:00,data_integrity,critical,"The migration clearly adds new columns to serverlessFunction table and then drops the old trigger tables (cronTrigger, databaseEventTrigger, routeTrigger) with CASCADE without any data migration step. This would permanently destroy all existing trigger configurations, causing data loss in production. This is a non-obvious issue that could easily be missed during code review but would have severe consequences when run on production data.",2026-01-27T19:03:14.557944+00:00
+assistant-ui/assistant-ui,3162,docs: add changelog page,https://github.com/assistant-ui/assistant-ui/pull/3162,,"string comparison won't handle semantic versions correctly (e.g., ""1.10.0"" will be sorted before ""1.2.0"")
+
+```suggestion
+  const sorted = Array.from(grouped.entries()).sort(([a], [b]) => {
+    const aParts = a.split('.').map(Number);
+    const bParts = b.split('.').map(Number);
+    for (let i = 0; i < Math.max(aParts.length, bParts.length); i++) {
+      const diff = (bParts[i] || 0) - (aParts[i] || 0);
+      if (diff !== 0) return diff;
+    }
+    return 0;
+  });
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: apps/docs/app/(home)/changelog/_lib/releases.ts
+Line: 61:63
+
+Comment:
+string comparison won't handle semantic versions correctly (e.g., ""1.10.0"" will be sorted before ""1.2.0"")
+
+```suggestion
+  const sorted = Array.from(grouped.entries()).sort(([a], [b]) => {
+    const aParts = a.split('.').map(Number);
+    const bParts = b.split('.').map(Number);
+    for (let i = 0; i < Math.max(aParts.length, bParts.length); i++) {
+      const diff = (bParts[i] || 0) - (aParts[i] || 0);
+      if (diff !== 0) return diff;
+    }
+    return 0;
+  });
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/assistant-ui/assistant-ui/pull/3162#discussion_r2733210248,,2026-01-27T18:00:13+00:00,logic,medium,"Greptile correctly identifies that the string comparison `a < b ? 1 : -1` will incorrectly sort semantic versions - '1.10.0' would sort before '1.2.0' because '1' < '2' lexicographically. This is a real bug that would cause the changelog to display releases in wrong order, and it's non-obvious since string comparison works correctly for many version numbers until you hit double-digit minor/patch versions.",2026-01-27T19:03:14.558082+00:00
+posthog/posthog-js,2981,fix(surveys): (actually) fix survey close button color,https://github.com/PostHog/posthog-js/pull/2981,,"`aria-labelledby` references ""close-survey-title-adam"" but the title ID is ""close-survey-title"", causing mismatched accessibility IDs
+
+```suggestion
+        aria-labelledby=""close-survey-title""
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/browser/src/extensions/surveys/icons.tsx
+Line: 43:43
+
+Comment:
+`aria-labelledby` references ""close-survey-title-adam"" but the title ID is ""close-survey-title"", causing mismatched accessibility IDs
+
+```suggestion
+        aria-labelledby=""close-survey-title""
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog-js/pull/2981#discussion_r2733173886,,2026-01-27T17:49:55+00:00,logic,low,"Greptile correctly identified that aria-labelledby references 'close-survey-title-adam' but the title's id is 'close-survey-title', causing a mismatch that breaks accessibility. This appears to be leftover debugging code (note 'adam-testing' className) that should have been cleaned up before merging.",2026-01-27T19:03:14.558124+00:00
+nvidia-nemo/curator,1434,Llane/cursor agent skills attempt,https://github.com/NVIDIA-NeMo/Curator/pull/1434,,"`ParquetWriter` expects `path` parameter, not `output_path`
+
+```suggestion
+    path: ${output_path}
+```",https://github.com/NVIDIA-NeMo/Curator/pull/1434#discussion_r2732921647,,2026-01-27T16:45:52+00:00,runtime,medium,"This is a configuration error where the wrong parameter name is used for ParquetWriter. Using `output_path` instead of `path` would cause the pipeline to fail at runtime when trying to write output, as Hydra would pass an unexpected keyword argument. This is non-obvious since it requires knowledge of the ParquetWriter API.",2026-01-27T19:03:14.558151+00:00
+nvidia-nemo/curator,1434,Llane/cursor agent skills attempt,https://github.com/NVIDIA-NeMo/Curator/pull/1434,,"`ParquetWriter` parameter should be `path`, not `output_path`
+
+```suggestion
+    path: ${output_path}
+```",https://github.com/NVIDIA-NeMo/Curator/pull/1434#discussion_r2733101063,,2026-01-27T17:30:35+00:00,runtime,medium,"This is a configuration file where the ParquetWriter is being instantiated via Hydra's _target_ mechanism. If the parameter name is wrong ('output_path' instead of 'path'), the writer would fail at runtime when the pipeline tries to execute. This is a non-obvious catch since it requires knowledge of the ParquetWriter's actual constructor parameters, and the variable name ${output_path} misleadingly matches what someone might expect the parameter to be called.",2026-01-27T19:03:14.558168+00:00
+nvidia-nemo/curator,1434,Llane/cursor agent skills attempt,https://github.com/NVIDIA-NeMo/Curator/pull/1434,,"`ParquetWriter` uses `path` parameter, not `output_path`
+
+```suggestion
+    path: ${output_path}
+```",https://github.com/NVIDIA-NeMo/Curator/pull/1434#discussion_r2733209086,,2026-01-27T17:59:52+00:00,runtime,medium,"This is a YAML configuration file that would fail at runtime because the ParquetWriter class likely expects a 'path' parameter, not 'output_path'. This parameter naming mismatch would cause the pipeline to fail when trying to write output. This is a subtle API-specific issue that's easy to miss when writing configuration files.",2026-01-27T19:03:14.558186+00:00
+nvidia-nemo/curator,1434,Llane/cursor agent skills attempt,https://github.com/NVIDIA-NeMo/Curator/pull/1434,,"`ParquetWriter` uses `path` parameter, not `output_path`
+
+```suggestion
+    path: ${output_path}
+```",https://github.com/NVIDIA-NeMo/Curator/pull/1434#discussion_r2733209129,,2026-01-27T17:59:53+00:00,runtime,medium,"This is a valid configuration error - the ParquetWriter class likely expects a 'path' parameter, not 'output_path'. Using the wrong parameter name in a Hydra config would cause the pipeline to fail at runtime with a missing/unexpected argument error. This is non-obvious as it requires knowledge of the ParquetWriter API.",2026-01-27T19:03:14.558201+00:00
+nvidia/dali,6174,Add per-thread stream. Rework stream semantics. Add a real Python stream class.,https://github.com/NVIDIA/DALI/pull/6174,,"`__eq__` crashes when comparing with `None` - `stream(stream=value)` returns `None` when `value` is `None`, then accessing `s._handle` raises `AttributeError`
+
+```suggestion
+    def __eq__(self, value):
+        """"""
+        The stream objects are considered equal if they have the same handle and device.
+        The wrapped object doesn't participate in the comparison.
+        """"""
+        if value is None:
+            return False
+        s = stream(stream=value)
+        if s is None:
+            return False
+        return self._handle == s._handle and self._device_id == s._device_id
+```",https://github.com/NVIDIA/DALI/pull/6174#discussion_r2733255555,,2026-01-27T18:13:51+00:00,runtime,medium,"Greptile correctly identified that `stream(stream=value)` returns `None` when `value` is `None` (line 157: `if stream is None: return None`), and then the `__eq__` method would crash with an `AttributeError` when trying to access `s._handle` on line 122. This is a real bug that would cause crashes when comparing Stream objects with None, which is a common equality check pattern.",2026-01-27T19:03:14.558217+00:00
+strawberry-graphql/strawberry,4176,Fix pydantic type handling: respect explicit fields and support private fields,https://github.com/strawberry-graphql/strawberry/pull/4176,,"assertion logic is incorrect - the OR condition will always pass
+
+the condition `""age: String"" in schema_str or ""age: String!"" not in schema_str` will always evaluate to True because:
+- if `""age: String""` IS in the schema → first part is True
+- if `""age: String""` is NOT in the schema → `""age: String!""` is also likely not in it, so second part is True
+
+```suggestion
+    assert ""age: String"" in schema_str, f""Expected 'age: String' in schema, got: {schema_str}""
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: tests/experimental/pydantic/test_private_fields_from_pydantic.py
+Line: 360:360
+
+Comment:
+assertion logic is incorrect - the OR condition will always pass
+
+the condition `""age: String"" in schema_str or ""age: String!"" not in schema_str` will always evaluate to True because:
+- if `""age: String""` IS in the schema → first part is True
+- if `""age: String""` is NOT in the schema → `""age: String!""` is also likely not in it, so second part is True
+
+```suggestion
+    assert ""age: String"" in schema_str, f""Expected 'age: String' in schema, got: {schema_str}""
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/strawberry-graphql/strawberry/pull/4176#discussion_r2733185467,,2026-01-27T17:53:04+00:00,logic,medium,"Greptile correctly identified that the assertion `assert ""age: String"" in schema_str or ""age: String!"" not in schema_str` is logically flawed and will always pass. If ""age: String"" is not in the schema, the second condition (""age: String!"" not in it) would also be true, making the test useless. This is a real bug in test code that would allow incorrect behavior to pass undetected, and the logical flaw is non-obvious.",2026-01-27T19:03:14.558240+00:00
+nvidia/earth2studio,656,Adding capability to read precipitation variables from NCAR Datasource accumu files,https://github.com/NVIDIA/earth2studio/pull/656,,"broad `Exception` catch swallows all errors, making debugging difficult. The fallback to `res.sel(variable=variable)` (without time selection) will return incorrect data when time selection fails.",https://github.com/NVIDIA/earth2studio/pull/656#discussion_r2732875830,@NickGeneva not sure the best way to resolve this. This was my hack to just get it running. It's needed because of the sel in L457,2026-01-27T16:35:18+00:00,data_integrity,high,"Greptile correctly identified that the broad exception catch at lines 203-206 silently falls back to returning data without time selection when the time selection fails. The developer's reply confirms this was a 'hack' workaround, validating that this is a real bug that could return incorrect/incomplete data to callers who expect time-filtered results.",2026-01-27T19:03:14.558311+00:00
+gptme/gptme-contrib,216,perf(gptmail): optimize sync-maildir for incremental sync,https://github.com/gptme/gptme-contrib/pull/216,,"In maildir format, files move from `new/` to `cur/` when read, and flags get appended (e.g., `message.eml` becomes `message.eml:2,S`). Tracking the full filename means the same email will be processed twice when it transitions from unread to read.
+
+Consider tracking a normalized filename (before the `:` separator) to avoid duplicate processing:
+
+```suggestion
+                maildir_filename = msg_path.name.split("":"")[0]  # Normalize to base filename
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/gptmail/src/gptmail/lib.py
+Line: 1443:1443
+
+Comment:
+In maildir format, files move from `new/` to `cur/` when read, and flags get appended (e.g., `message.eml` becomes `message.eml:2,S`). Tracking the full filename means the same email will be processed twice when it transitions from unread to read.
+
+Consider tracking a normalized filename (before the `:` separator) to avoid duplicate processing:
+
+```suggestion
+                maildir_filename = msg_path.name.split("":"")[0]  # Normalize to base filename
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/gptme/gptme-contrib/pull/216#discussion_r2733265937,,2026-01-27T18:17:04+00:00,logic,medium,"Greptile correctly identifies a real bug in the incremental sync logic. The code tracks `msg_path.name` as the full filename, but in maildir format, files move from `new/` to `cur/` and get flags appended (e.g., `1234.eml` becomes `1234.eml:2,S`). This means the same email would be processed twice - once when unread in `new/`, and again when marked read in `cur/` with a different filename. This is non-obvious domain knowledge about maildir format that most reviewers would miss.",2026-01-27T19:03:14.558333+00:00
+browseros-ai/browseros,340,feat: /shutdown API integration for health check and better restart handling,https://github.com/browseros-ai/BrowserOS/pull/340,,"`is_running_` flag not updated during graceful shutdown - previously set to `false` immediately in `TerminateBrowserOSProcess`, now only set in `OnProcessExited`. This means `IsRunning()` returns `true` during shutdown sequence, which could cause issues if other code checks running state during this window.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/browseros/chromium_patches/chrome/browser/browseros/server/browseros_server_manager.cc
+Line: 655:667
+
+Comment:
+`is_running_` flag not updated during graceful shutdown - previously set to `false` immediately in `TerminateBrowserOSProcess`, now only set in `OnProcessExited`. This means `IsRunning()` returns `true` during shutdown sequence, which could cause issues if other code checks running state during this window.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/browseros-ai/BrowserOS/pull/340#discussion_r2733251744,,2026-01-27T18:12:37+00:00,concurrency,medium,"Greptile correctly identified that the old code set `is_running_ = false` immediately in `TerminateBrowserOSProcess`, but the new async graceful shutdown code removed this line, leaving `is_running_` as `true` during the entire shutdown sequence until `OnProcessExited` is called. This creates a race condition window where `IsRunning()` returns an incorrect state, potentially causing other code to make wrong decisions about the process state during shutdown.",2026-01-27T19:03:14.558367+00:00
+browseros-ai/browseros,340,feat: /shutdown API integration for health check and better restart handling,https://github.com/browseros-ai/BrowserOS/pull/340,,"`base::Unretained(this)` in background thread task creates potential use-after-free if `BrowserOSServerManager` is destroyed before task completes. While reply uses `weak_factory_`, the background lambda directly accesses `manager->process_controller_`, `manager->process_`, and calls `manager->RevalidatePortsForRestart()` which could crash if manager is deleted.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/browseros/chromium_patches/chrome/browser/browseros/server/browseros_server_manager.cc
+Line: 837:837
+
+Comment:
+`base::Unretained(this)` in background thread task creates potential use-after-free if `BrowserOSServerManager` is destroyed before task completes. While reply uses `weak_factory_`, the background lambda directly accesses `manager->process_controller_`, `manager->process_`, and calls `manager->RevalidatePortsForRestart()` which could crash if manager is deleted.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/browseros-ai/BrowserOS/pull/340#discussion_r2733251818,,2026-01-27T18:12:38+00:00,concurrency,high,"Greptile correctly identifies a use-after-free risk: the background thread task at line 837 uses `base::Unretained(this)` and directly accesses `manager->process_controller_`, `manager->process_`, and calls `manager->RevalidatePortsForRestart()`. If the BrowserOSServerManager is destroyed while this task is running on the thread pool, these accesses will crash. The weak_factory_ only protects the reply callback, not the background task itself.",2026-01-27T19:03:14.558396+00:00
