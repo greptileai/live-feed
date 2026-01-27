@@ -8578,3 +8578,213 @@ only checks `GATED_ACCESS` but should check all gated statuses (`GRACE_PERIOD`, 
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/onyx-dot-app/onyx/pull/7853#discussion_r2730313972,,2026-01-27T05:29:10+00:00,logic,medium,"Greptile correctly identified an inconsistency: `apply_license_status_to_settings` uses `_GATED_STATUSES` (which likely includes multiple statuses like GATED_ACCESS, GRACE_PERIOD, PAYMENT_REMINDER), but `check_ee_features_enabled` only checks for `GATED_ACCESS` specifically. This means users with GRACE_PERIOD or PAYMENT_REMINDER status would still have EE features enabled when they potentially shouldn't. The suggested fix to use `not in _GATED_STATUSES` properly aligns the logic between both functions.",2026-01-27T06:22:10.918265+00:00
+onyx-dot-app/onyx,7669,feat(filesys): hierarchynodes carry permission info,https://github.com/onyx-dot-app/onyx/pull/7669,,"`permission_sync_context` always created in slim retrieval mode, causing unnecessary permission fetches
+
+In slim retrieval, permissions aren't typically needed, but this code always creates a `PermissionSyncContext`. This causes `_get_new_ancestors_for_files` to fetch folder permissions even when not required.
+
+```suggestion
+            permission_sync_context = (
+                PermissionSyncContext(
+                    primary_admin_email=self.primary_admin_email,
+                    google_domain=self.google_domain,
+                )
+                if include_permissions
+                else None
+            )
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: backend/onyx/connectors/google_drive/connector.py
+Line: 1499:1510
+
+Comment:
+`permission_sync_context` always created in slim retrieval mode, causing unnecessary permission fetches
+
+In slim retrieval, permissions aren't typically needed, but this code always creates a `PermissionSyncContext`. This causes `_get_new_ancestors_for_files` to fetch folder permissions even when not required.
+
+```suggestion
+            permission_sync_context = (
+                PermissionSyncContext(
+                    primary_admin_email=self.primary_admin_email,
+                    google_domain=self.google_domain,
+                )
+                if include_permissions
+                else None
+            )
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/7669#discussion_r2730611412,,2026-01-27T07:23:22+00:00,performance,medium,"Greptile correctly identifies that in the slim retrieval function `_yield_slim_batch`, the `permission_sync_context` is always created unconditionally, which causes `_get_new_ancestors_for_files` to fetch folder permissions via `get_external_access_for_folder` (since the context is non-null). This results in unnecessary API calls when permissions aren't needed. The fix suggestion to conditionally create the context based on `include_permissions` matches the pattern used elsewhere in the file (lines 1315-1323).",2026-01-27T08:21:26.872343+00:00
+onyx-dot-app/onyx,7669,feat(filesys): hierarchynodes carry permission info,https://github.com/onyx-dot-app/onyx/pull/7669,,"`is_public` can be overwritten by subsequent permissions
+
+If a folder has multiple permissions (e.g., DOMAIN with `allowFileDiscovery=True` followed by ANYONE with `allowFileDiscovery=False`), the last permission processed determines `is_public`. Should use `|=` to make it sticky once true.
+
+```suggestion
+        elif permission.type == PermissionType.DOMAIN:
+            # Domain permission - check if it matches company domain
+            if permission.domain == google_domain:
+                # Only public if discoverable (allowFileDiscovery is not False)
+                # If allowFileDiscovery is False, it's ""link only"" access
+                is_public = is_public or (permission.allow_file_discovery is not False)
+            else:
+                logger.debug(
+                    f""Domain permission for {permission.domain} does not match ""
+                    f""company domain {google_domain} for folder {folder_id}""
+                )
+        elif permission.type == PermissionType.ANYONE:
+            # Only public if discoverable (allowFileDiscovery is not False)
+            # If allowFileDiscovery is False, it's ""link only"" access
+            is_public = is_public or (permission.allow_file_discovery is not False)
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: backend/ee/onyx/external_permissions/google_drive/doc_sync.py
+Line: 235:249
+
+Comment:
+`is_public` can be overwritten by subsequent permissions
+
+If a folder has multiple permissions (e.g., DOMAIN with `allowFileDiscovery=True` followed by ANYONE with `allowFileDiscovery=False`), the last permission processed determines `is_public`. Should use `|=` to make it sticky once true.
+
+```suggestion
+        elif permission.type == PermissionType.DOMAIN:
+            # Domain permission - check if it matches company domain
+            if permission.domain == google_domain:
+                # Only public if discoverable (allowFileDiscovery is not False)
+                # If allowFileDiscovery is False, it's ""link only"" access
+                is_public = is_public or (permission.allow_file_discovery is not False)
+            else:
+                logger.debug(
+                    f""Domain permission for {permission.domain} does not match ""
+                    f""company domain {google_domain} for folder {folder_id}""
+                )
+        elif permission.type == PermissionType.ANYONE:
+            # Only public if discoverable (allowFileDiscovery is not False)
+            # If allowFileDiscovery is False, it's ""link only"" access
+            is_public = is_public or (permission.allow_file_discovery is not False)
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/7669#discussion_r2730611473,,2026-01-27T07:23:23+00:00,logic,medium,"Greptile correctly identified that the `is_public` variable can be overwritten by subsequent permissions in the loop. Looking at lines 235-249, if a DOMAIN permission with `allow_file_discovery=True` sets `is_public=True`, a later ANYONE permission with `allow_file_discovery=False` would overwrite it to `False`, incorrectly downgrading the folder's public access status. This is a subtle bug that could cause permission sync issues in Google Drive integration.",2026-01-27T08:21:26.872454+00:00
+assistant-ui/assistant-ui,3151,refactor: move artifacts example to docs site,https://github.com/assistant-ui/assistant-ui/pull/3151,,"Add `sandbox` attribute to prevent XSS attacks. User-generated HTML should be sandboxed to restrict script execution and access to parent page.
+
+```suggestion
+              <iframe
+                title=""artifact-preview""
+                className=""h-full w-full""
+                srcDoc={artifact}
+                sandbox=""allow-scripts""
+              />
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: apps/docs/components/examples/artifacts-view.tsx
+Line: 50:54
+
+Comment:
+Add `sandbox` attribute to prevent XSS attacks. User-generated HTML should be sandboxed to restrict script execution and access to parent page.
+
+```suggestion
+              <iframe
+                title=""artifact-preview""
+                className=""h-full w-full""
+                srcDoc={artifact}
+                sandbox=""allow-scripts""
+              />
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/assistant-ui/assistant-ui/pull/3151#discussion_r2730611518,,2026-01-27T07:23:24+00:00,security,high,"The code renders user-generated HTML (from an AI tool call) directly into an iframe using srcDoc without any sandboxing. Without the sandbox attribute, malicious scripts in the artifact could access the parent page, steal cookies, or perform actions on behalf of the user. This is a legitimate XSS vulnerability that's easy to miss during code review.",2026-01-27T08:21:26.872566+00:00
+assistant-ui/assistant-ui,3152,fix: avoid polluting :root CSS class,https://github.com/assistant-ui/assistant-ui/pull/3152,,"`:root` cannot be a descendant of any element - this selector will never match. The space creates a descendant combinator, but `:root` is always the document root (`<html>`). All CSS variables defined in this block (lines 63-107) won't be applied, breaking the entire theme system.
+
+Replace with `&` to refer to the parent selector:
+
+```suggestion
+  & {
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/styles/src/styles/index.css
+Line: 63:63
+
+Comment:
+`:root` cannot be a descendant of any element - this selector will never match. The space creates a descendant combinator, but `:root` is always the document root (`<html>`). All CSS variables defined in this block (lines 63-107) won't be applied, breaking the entire theme system.
+
+Replace with `&` to refer to the parent selector:
+
+```suggestion
+  & {
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/assistant-ui/assistant-ui/pull/3152#discussion_r2730636571,,2026-01-27T07:32:00+00:00,logic,critical,"Greptile correctly identified that `:where(.aui-thread-root, .aui-modal-content) :root` creates a descendant selector where :root must be inside those elements, which is impossible since :root is always the document root (<html>). This would cause all theme variables (lines 63-107) to never apply, completely breaking the component's styling system. This is a non-obvious CSS specificity/selector bug that a typical reviewer could easily miss.",2026-01-27T08:21:26.872598+00:00
+assistant-ui/assistant-ui,3152,fix: avoid polluting :root CSS class,https://github.com/assistant-ui/assistant-ui/pull/3152,,"`.dark` selector needs scoping to avoid global pollution. Should be `& .dark` or wrapped in the parent selector to match the PR's intent.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/styles/src/styles/index.css
+Line: 109:109
+
+Comment:
+`.dark` selector needs scoping to avoid global pollution. Should be `& .dark` or wrapped in the parent selector to match the PR's intent.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/assistant-ui/assistant-ui/pull/3152#discussion_r2730636613,,2026-01-27T07:32:01+00:00,logic,medium,"Greptile correctly identifies that the `.dark` selector on line 109 is not properly scoped within the `:where(.aui-thread-root, .aui-modal-content)` parent selector, which defeats the PR's explicit purpose of avoiding CSS pollution to :root. While the `.dark` block is nested inside the parent selector block in the code structure, CSS doesn't work that way - `.dark` without `&` prefix would still apply globally, contradicting the PR title 'fix: avoid polluting :root CSS class'.",2026-01-27T08:21:26.872663+00:00
+assistant-ui/assistant-ui,3152,fix: avoid polluting :root CSS class,https://github.com/assistant-ui/assistant-ui/pull/3152,,"This creates a redundant nested selector `:where(.aui-thread-root, .aui-modal-content) :where(.aui-thread-root, .aui-modal-content)`. Should be `&` to refer to the parent.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/styles/src/styles/index.css
+Line: 154:154
+
+Comment:
+This creates a redundant nested selector `:where(.aui-thread-root, .aui-modal-content) :where(.aui-thread-root, .aui-modal-content)`. Should be `&` to refer to the parent.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/assistant-ui/assistant-ui/pull/3152#discussion_r2730636679,,2026-01-27T07:32:02+00:00,logic,medium,"Greptile correctly identified that line 54 creates a redundant nested selector `:where(.aui-thread-root, .aui-modal-content) :where(.aui-thread-root, .aui-modal-content) :root` because the CSS is already inside the `:where(.aui-thread-root, .aui-modal-content)` block (line 5), and then repeats the same selector. This would result in CSS variables not being applied correctly since the selector would never match (requiring nested .aui-thread-root elements). This is a non-obvious CSS scoping bug that could break the entire theme system.",2026-01-27T08:21:26.872689+00:00
+democratizedspace/dspace,3159,Stage 1 — build-time docs RAG pack: chunk + MiniSearch index,https://github.com/democratizedspace/dspace/pull/3159,,"if `text.length > maxChars` here, it gets assigned to `current` without splitting, and will remain oversized through subsequent iterations until `pushCurrent()` at line 147 adds it as an oversized chunk
+
+```suggestion
+        } else {
+            pushCurrent();
+            if (text.length > maxChars) {
+                let remaining = text;
+                while (remaining.length > maxChars) {
+                    chunks.push(remaining.slice(0, maxChars));
+                    remaining = remaining.slice(maxChars);
+                }
+                current = remaining;
+            } else {
+                current = text;
+            }
+        }
+```",https://github.com/democratizedspace/dspace/pull/3159#discussion_r2730750718,,2026-01-27T08:08:24+00:00,logic,medium,"Greptile correctly identified a logic bug: when `current.length + 1 + text.length > maxChars` but `text.length > maxChars`, the code in the else branch (lines 143-145) sets `current = text` without splitting it first. This oversized chunk will then be pushed as-is when `pushCurrent()` is called, defeating the purpose of the MAX_CHUNK_CHARS limit. The fix to apply the same splitting logic used earlier in the function is correct and actionable.",2026-01-27T08:21:26.872715+00:00
+democratizedspace/dspace,3157,Build-time docs RAG index: MiniSearch chunking + generated artifacts,https://github.com/democratizedspace/dspace/pull/3157,,"The pattern `'\n---'` will match any line starting with `---`, not just the frontmatter closing delimiter. If a markdown file contains a horizontal rule (`---`) within the content after the frontmatter, it would be incorrectly treated as the end of the frontmatter block.
+
+```suggestion
+    const endIndex = content.indexOf('\n---\n', 3);
+```
+
+This ensures we only match `---` surrounded by newlines, making it more robust.",https://github.com/democratizedspace/dspace/pull/3157#discussion_r2730728811,,2026-01-27T08:00:58+00:00,logic,medium,"Greptile correctly identifies a real parsing bug: the code uses `content.indexOf('\n---')` which would match horizontal rules (---) anywhere in the document after a newline, not just the frontmatter closing delimiter. This could cause content after a horizontal rule to be incorrectly parsed as frontmatter. The suggested fix to use `'\n---\n'` ensures the delimiter is on its own line, making parsing more robust.",2026-01-27T08:21:26.872747+00:00
