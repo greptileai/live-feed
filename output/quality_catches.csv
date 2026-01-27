@@ -9783,3 +9783,131 @@ Comment:
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/browseros-ai/BrowserOS/pull/340#discussion_r2733251818,,2026-01-27T18:12:38+00:00,concurrency,high,"Greptile correctly identifies a use-after-free risk: the background thread task at line 837 uses `base::Unretained(this)` and directly accesses `manager->process_controller_`, `manager->process_`, and calls `manager->RevalidatePortsForRestart()`. If the BrowserOSServerManager is destroyed while this task is running on the thread pool, these accesses will crash. The weak_factory_ only protects the reply callback, not the background task itself.",2026-01-27T19:03:14.558396+00:00
+posthog/posthog,46059,feat(hogql): parse row-level lock clause,https://github.com/PostHog/posthog/pull/46059,,"type annotation mismatch: the parser stores `ast.Field` objects in this list (see parser.py:566-570), but the annotation specifies `list[Table]` where `Table` is from `posthog.hogql.database.models`. Consider changing this to `list[Field]` or `list[Expr]` to match the actual usage.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: posthog/hogql/ast.py
+Line: 831:831
+
+Comment:
+type annotation mismatch: the parser stores `ast.Field` objects in this list (see parser.py:566-570), but the annotation specifies `list[Table]` where `Table` is from `posthog.hogql.database.models`. Consider changing this to `list[Field]` or `list[Expr]` to match the actual usage.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/46059#discussion_r2733461466,,2026-01-27T19:12:39+00:00,type_error,medium,"Greptile correctly identified a type annotation mismatch. The annotation says `list[Table]` but looking at the diff, `Table` is defined as an AST class (line 831 is in ast.py), and the parser likely stores `ast.Field` objects as mentioned. This type mismatch could cause issues with type checking, IDE support, and potentially runtime errors if code relies on the type annotation. The catch is non-obvious because it requires cross-referencing with the parser implementation.",2026-01-27T20:19:45.901021+00:00
+posthog/posthog,46059,feat(hogql): parse row-level lock clause,https://github.com/PostHog/posthog/pull/46059,,"`lock` shouldn't be in this condition - `window_exprs` and `ctes` are dictionaries (`dict[str, WindowExpr]` and `dict[str, CTE]`), but `lock` is `Optional[LockClause]` (a single object, not a dict). This will cause deserialization errors.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: posthog/hogql/json_ast.py
+Line: 93:93
+
+Comment:
+`lock` shouldn't be in this condition - `window_exprs` and `ctes` are dictionaries (`dict[str, WindowExpr]` and `dict[str, CTE]`), but `lock` is `Optional[LockClause]` (a single object, not a dict). This will cause deserialization errors.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/46059#discussion_r2733461517,,2026-01-27T19:12:40+00:00,logic,medium,"Greptile correctly identified that `lock` is being added to a condition designed specifically for dictionary-type fields (`window_exprs` and `ctes`), but `lock` is a single `Optional[LockClause]` object, not a dictionary. This would cause incorrect deserialization where `lock` would be treated as a dict of nodes rather than a single node, leading to deserialization errors. This is a non-obvious type mismatch bug that could easily be missed in code review.",2026-01-27T20:19:45.901122+00:00
+posthog/posthog,46059,feat(hogql): parse row-level lock clause,https://github.com/PostHog/posthog/pull/46059,,"`_print_escaped_string` is for escaping string values (like `'foo'`), but `self.visit(table)` already returns SQL for the field. For table names in the OF clause, you should extract the chain and use `_print_identifier` instead:
+
+```suggestion
+            tables = "", "".join(self._print_identifier(table.chain[0]) for table in node.tables)
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: posthog/hogql/printer/postgres.py
+Line: 175:175
+
+Comment:
+`_print_escaped_string` is for escaping string values (like `'foo'`), but `self.visit(table)` already returns SQL for the field. For table names in the OF clause, you should extract the chain and use `_print_identifier` instead:
+
+```suggestion
+            tables = "", "".join(self._print_identifier(table.chain[0]) for table in node.tables)
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/46059#discussion_r2733461563,,2026-01-27T19:12:41+00:00,logic,medium,"Greptile correctly identifies that `_print_escaped_string` is used incorrectly here - it's meant for escaping string literals (adding quotes around values), not for SQL identifiers like table names. The `visit(table)` call already returns SQL, and wrapping it with string escaping would produce malformed SQL. Table names in the OF clause should use identifier escaping instead.",2026-01-27T20:19:45.901181+00:00
+posthog/posthog,46057,feat(customers): Add table views to groups list,https://github.com/PostHog/posthog/pull/46057,,"removed `afterMount` logic that set custom `default_columns` from groupTypes config - this may break groups that have custom column configurations set via the `set_default_columns` API. The original logic preferred `groupTypes.get(groupTypeIndex)?.default_columns` over the generic `defaultDataTableColumns(NodeKind.GroupsQuery)`. Check that table views properly respect custom group column configurations.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: frontend/src/scenes/groups/groupsListLogic.ts
+Line: 58:61
+
+Comment:
+removed `afterMount` logic that set custom `default_columns` from groupTypes config - this may break groups that have custom column configurations set via the `set_default_columns` API. The original logic preferred `groupTypes.get(groupTypeIndex)?.default_columns` over the generic `defaultDataTableColumns(NodeKind.GroupsQuery)`. Check that table views properly respect custom group column configurations.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/46057#discussion_r2733351958,,2026-01-27T18:41:42+00:00,logic,medium,"Greptile correctly identified that the removed `afterMount` logic handled custom `default_columns` from groupTypes config. The original code checked `values.groupTypes.get(groupTypeIndex)?.default_columns` and used those custom columns if available, falling back to `defaultDataTableColumns`. The new code in `GROUPS_LIST_DEFAULT_QUERY` simply sets `select: undefined` without any mechanism to load custom column configurations, which could break groups that have custom column settings configured via the API.",2026-01-27T20:19:45.901238+00:00
+simstudioai/sim,3026,feat(code): collapsed JSON in terminal,https://github.com/simstudioai/sim/pull/3026,,"Escape sequence handling is incomplete. `prevChar !== '\\'` doesn't handle escaped backslashes (`\\""`). For example, `""value with \\\\"" quote""` will incorrectly toggle string state at the escaped quote.
+
+Need to count consecutive backslashes to determine if the quote is truly escaped.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: apps/sim/components/emcn/components/code/code.tsx
+Line: 123:123
+
+Comment:
+Escape sequence handling is incomplete. `prevChar !== '\\'` doesn't handle escaped backslashes (`\\""`). For example, `""value with \\\\"" quote""` will incorrectly toggle string state at the escaped quote.
+
+Need to count consecutive backslashes to determine if the quote is truly escaped.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/simstudioai/sim/pull/3026#discussion_r2733584044,,2026-01-27T19:50:40+00:00,logic,medium,"Greptile correctly identifies that the code at line 123 only checks `prevChar !== '\\'` which doesn't handle escaped backslashes. In JSON like `""value with \\"" quote""`, the quote after `\\` is NOT escaped (the backslash itself is escaped), but the current logic would incorrectly treat it as escaped. This causes incorrect string boundary detection which could lead to misidentified collapsible regions.",2026-01-27T20:19:45.901285+00:00
+nvidia-nemo/curator,1434,Llane/cursor agent skills attempt,https://github.com/NVIDIA-NeMo/Curator/pull/1434,,"`ParquetWriter` uses `path` parameter, not `output_path`
+
+```suggestion
+  - _target_: nemo_curator.stages.text.io.writer.ParquetWriter
+    path: ${output_path}
+```",https://github.com/NVIDIA-NeMo/Curator/pull/1434#discussion_r2733295598,,2026-01-27T18:26:15+00:00,runtime,medium,"This is a configuration bug where the wrong parameter name is used. If ParquetWriter expects 'path' but receives 'output_path', the configuration will fail at runtime with either an error or silently ignore the output path. This is a non-obvious API-level mistake that would cause the pipeline to fail when executed.",2026-01-27T20:19:45.901314+00:00
+nvidia-nemo/curator,1434,Llane/cursor agent skills attempt,https://github.com/NVIDIA-NeMo/Curator/pull/1434,,"`ParquetWriter` uses `path` parameter, not `output_path`
+
+```suggestion
+  - _target_: nemo_curator.stages.text.io.writer.ParquetWriter
+    path: ${output_path}
+```",https://github.com/NVIDIA-NeMo/Curator/pull/1434#discussion_r2733295637,,2026-01-27T18:26:16+00:00,runtime,medium,"This is a configuration bug where the wrong parameter name is used for ParquetWriter. Using 'output_path' instead of 'path' would cause the writer to fail or silently ignore the output location, resulting in a runtime error or data not being written to the expected location. This is non-obvious as it requires knowledge of the ParquetWriter API.",2026-01-27T20:19:45.901370+00:00
+nvidia-nemo/curator,1434,Llane/cursor agent skills attempt,https://github.com/NVIDIA-NeMo/Curator/pull/1434,,"`ParquetWriter` uses `path` parameter, not `output_path`
+
+```suggestion
+  - _target_: nemo_curator.stages.text.io.writer.ParquetWriter
+    path: ${output_path}
+```",https://github.com/NVIDIA-NeMo/Curator/pull/1434#discussion_r2733295790,,2026-01-27T18:26:19+00:00,runtime,medium,"This is likely a real bug - the ParquetWriter is being called with `output_path` parameter but based on Greptile's knowledge of the nemo_curator library, the correct parameter name is `path`. This would cause a runtime error when the pipeline executes since the required parameter would be missing or the wrong parameter would be passed. This is non-obvious as it requires knowledge of the specific API.",2026-01-27T20:19:45.901390+00:00
+alpic-ai/skybridge,401,Mcp apps docs improvements - part 1,https://github.com/alpic-ai/skybridge/pull/401,,"incorrect URL for Goose - `https://goose.ai/` is a different service (an AI API platform). The correct URL for Goose (the desktop MCP client) is `https://block.github.io/goose/`
+
+```suggestion
+Connect your server to any desktop MCP client that supports the [ext-apps specification](https://github.com/modelcontextprotocol/ext-apps), such as [VSCode](https://code.visualstudio.com/), [Goose](https://block.github.io/goose/), [Postman](https://www.postman.com/), or [MCPJam](https://mcpjam.com/). 
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: docs/quickstart/test-your-app.mdx
+Line: 124:124
+
+Comment:
+incorrect URL for Goose - `https://goose.ai/` is a different service (an AI API platform). The correct URL for Goose (the desktop MCP client) is `https://block.github.io/goose/`
+
+```suggestion
+Connect your server to any desktop MCP client that supports the [ext-apps specification](https://github.com/modelcontextprotocol/ext-apps), such as [VSCode](https://code.visualstudio.com/), [Goose](https://block.github.io/goose/), [Postman](https://www.postman.com/), or [MCPJam](https://mcpjam.com/). 
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/alpic-ai/skybridge/pull/401#discussion_r2733519164,,2026-01-27T19:31:04+00:00,data_integrity,medium,"Greptile correctly identified that https://goose.ai/ is an AI API platform, not the desktop MCP client being referenced. The actual Goose desktop MCP client is hosted at https://block.github.io/goose/. This is a factual error in documentation that would mislead users to the wrong product, and it's non-obvious since the incorrect URL is plausible and similarly named.",2026-01-27T20:19:45.901410+00:00
