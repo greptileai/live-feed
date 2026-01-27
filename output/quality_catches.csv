@@ -9253,3 +9253,170 @@ infisical/terraform-provider-infisical,235,feat: organization role resource,http
 ```suggestion
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root(""permissions""), permissions)...)
 ```",https://github.com/Infisical/terraform-provider-infisical/pull/235#discussion_r2731839158,,2026-01-27T12:44:10+00:00,logic,high,"Looking at the schema definition on line 85, the attribute is clearly named ""permissions"" (plural), but in the ImportState function at line 522, the code incorrectly uses ""permission"" (singular). This typo would cause the import functionality to fail silently or store permissions in the wrong attribute, breaking terraform state management for imported resources.",2026-01-27T14:27:03.382185+00:00
+posthog/posthog,45861,fix(frontend): migrate TaxonomicFilter InfiniteList to react-window,https://github.com/PostHog/posthog/pull/45861,,"`scrollToRow` method doesn't exist on react-window List. Use `scrollToItem(index)` instead
+
+```suggestion
+    useEffect(() => {
+        if (index >= 0 && listRef.current) {
+            listRef.current.scrollToItem(index, 'smart')
+        }
+    }, [index])
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: frontend/src/lib/components/TaxonomicFilter/InfiniteList.tsx
+Line: 453:457
+
+Comment:
+`scrollToRow` method doesn't exist on react-window List. Use `scrollToItem(index)` instead
+
+```suggestion
+    useEffect(() => {
+        if (index >= 0 && listRef.current) {
+            listRef.current.scrollToItem(index, 'smart')
+        }
+    }, [index])
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/45861#discussion_r2732499584,,2026-01-27T15:14:00+00:00,runtime,medium,"Greptile correctly identified that `scrollToRow` is a react-virtualized API method, not a react-window API method. The PR is migrating from react-virtualized to react-window, and react-window's List component uses `scrollToItem(index, align)` instead. This would cause a runtime error when trying to scroll to a highlighted item since `scrollToRow` would be undefined on the react-window List ref.",2026-01-27T16:22:25.145783+00:00
+posthog/posthog,45861,fix(frontend): migrate TaxonomicFilter InfiniteList to react-window,https://github.com/PostHog/posthog/pull/45861,,"`useListRef` doesn't exist in react-window@2.2.5. Use `useRef` from React instead
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: frontend/src/lib/components/AddToDashboard/AddToDashboardModal.tsx
+Line: 4:4
+
+Comment:
+`useListRef` doesn't exist in react-window@2.2.5. Use `useRef` from React instead
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/45861#discussion_r2732499733,,2026-01-27T15:14:02+00:00,runtime,high,"Greptile correctly identified that `useListRef` is not an export from react-window. The react-window library (version 1.x and 2.x) exports `List`, `FixedSizeList`, `VariableSizeList`, and related components, but not `useListRef`. This would cause a runtime import error when the code is executed. This is a non-obvious catch since it requires knowledge of react-window's API.",2026-01-27T16:22:25.145869+00:00
+posthog/posthog,45861,fix(frontend): migrate TaxonomicFilter InfiniteList to react-window,https://github.com/PostHog/posthog/pull/45861,,"`scrollToRow` doesn't exist on react-window List. Use `scrollToItem` instead
+
+```suggestion
+    useEffect(() => {
+        if (scrollIndex >= 0 && listRef.current) {
+            listRef.current.scrollToItem(scrollIndex, 'smart')
+        }
+    }, [scrollIndex])
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: frontend/src/lib/components/AddToDashboard/AddToDashboardModal.tsx
+Line: 142:146
+
+Comment:
+`scrollToRow` doesn't exist on react-window List. Use `scrollToItem` instead
+
+```suggestion
+    useEffect(() => {
+        if (scrollIndex >= 0 && listRef.current) {
+            listRef.current.scrollToItem(scrollIndex, 'smart')
+        }
+    }, [scrollIndex])
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/45861#discussion_r2732499877,,2026-01-27T15:14:04+00:00,runtime,medium,"Greptile correctly identified that react-window's List component uses `scrollToItem(index, align)` not `scrollToRow({index, align})`. The PR title confirms migration to react-window, and this API mismatch would cause a runtime error when trying to auto-scroll to a dashboard. This is a non-obvious catch since someone familiar with react-virtualized (which does have scrollToRow) could easily make this mistake.",2026-01-27T16:22:25.145915+00:00
+posthog/posthog,46034,fix(cohorts): add ClickHouse email lookup for CSV imports,https://github.com/PostHog/posthog/pull/46034,,"missing `FINAL` modifier in ClickHouse query - this will return stale data
+
+the person table uses `ReplacingMergeTree` engine, so queries must use `FINAL` to get the latest version of each row. without it, you may get duplicate or outdated person records.
+
+```suggestion
+            query = """"""
+            SELECT DISTINCT person.id
+            FROM person FINAL
+            WHERE person.team_id = %(team_id)s
+              AND JSONExtractString(person.properties, 'email') IN %(emails)s
+              AND person.is_deleted = 0
+            """"""
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: posthog/models/cohort/cohort.py
+Line: 558:564
+
+Comment:
+missing `FINAL` modifier in ClickHouse query - this will return stale data
+
+the person table uses `ReplacingMergeTree` engine, so queries must use `FINAL` to get the latest version of each row. without it, you may get duplicate or outdated person records.
+
+```suggestion
+            query = """"""
+            SELECT DISTINCT person.id
+            FROM person FINAL
+            WHERE person.team_id = %(team_id)s
+              AND JSONExtractString(person.properties, 'email') IN %(emails)s
+              AND person.is_deleted = 0
+            """"""
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/46034#discussion_r2732679488,,2026-01-27T15:50:25+00:00,data_integrity,high,"This is a valid catch specific to ClickHouse's ReplacingMergeTree semantics. PostHog uses ReplacingMergeTree for the person table to handle updates, and without the FINAL modifier, queries can return multiple versions of the same row or stale data before background merges complete. This is a non-obvious database-specific issue that could cause incorrect cohort membership lookups and duplicate person records.",2026-01-27T16:22:25.145965+00:00
+twentyhq/twenty,17482,Front component rendering,https://github.com/twentyhq/twenty/pull/17482,,"Dynamic import from user-controlled URL without validation creates remote code execution vulnerability. The `api.componentUrl` is passed from the host and dynamically imported without any validation or origin checking. Even though this runs in a worker, it can still:
+- Import and execute arbitrary JavaScript from any origin
+- Access worker-scoped APIs and data
+- Potentially bypass CORS if the server allows it
+
+Before production, you must implement strict validation:
+- Validate the URL matches an expected pattern/origin
+- Use a content security policy
+- Consider using signed URLs or tokens to authenticate component sources
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/twenty-shared/src/front-component/remote/worker/worker.ts
+Line: 23:23
+
+Comment:
+Dynamic import from user-controlled URL without validation creates remote code execution vulnerability. The `api.componentUrl` is passed from the host and dynamically imported without any validation or origin checking. Even though this runs in a worker, it can still:
+- Import and execute arbitrary JavaScript from any origin
+- Access worker-scoped APIs and data
+- Potentially bypass CORS if the server allows it
+
+Before production, you must implement strict validation:
+- Validate the URL matches an expected pattern/origin
+- Use a content security policy
+- Consider using signed URLs or tokens to authenticate component sources
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/twentyhq/twenty/pull/17482#discussion_r2732454283,,2026-01-27T15:03:07+00:00,security,critical,"The code at line 23 performs `await import(api.componentUrl)` where `api.componentUrl` comes from an external HostAPI with no validation. This is a textbook remote code execution vulnerability - any URL can be passed and its JavaScript will be executed in the worker context. This is a non-obvious security issue that could easily be missed in review, and Greptile correctly identifies the attack vectors.",2026-01-27T16:22:25.146009+00:00
+nvidia-nemo/guardrails,1604,feat(llmrails): add check_async method for input/output rails validation,https://github.com/NVIDIA-NeMo/Guardrails/pull/1604,,"MODIFIED detection may not work correctly when both input and output rails run. `original_content` captures the LAST user/assistant message. If messages contain both user and assistant (e.g., `[{""role"": ""user"", ""content"": ""modify""}, {""role"": ""assistant"", ""content"": ""hi""}]`), `original_content` will be ""hi"" (assistant). If the input rail modifies the user message but output rail doesn't change assistant message, comparison will be ""hi"" != ""hi"" → PASSED, missing the input modification.
+
+Consider tracking which rail type is being checked and comparing the appropriate message content, or comparing all modified messages rather than just the last one.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: nemoguardrails/rails/llm/llmrails.py
+Line: 1485:1500
+
+Comment:
+MODIFIED detection may not work correctly when both input and output rails run. `original_content` captures the LAST user/assistant message. If messages contain both user and assistant (e.g., `[{""role"": ""user"", ""content"": ""modify""}, {""role"": ""assistant"", ""content"": ""hi""}]`), `original_content` will be ""hi"" (assistant). If the input rail modifies the user message but output rail doesn't change assistant message, comparison will be ""hi"" != ""hi"" → PASSED, missing the input modification.
+
+Consider tracking which rail type is being checked and comparing the appropriate message content, or comparing all modified messages rather than just the last one.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/NVIDIA-NeMo/Guardrails/pull/1604#discussion_r2732384379,,2026-01-27T14:47:44+00:00,logic,medium,"Greptile correctly identified a logic bug. When both input and output rails run, `target_role` is set to 'assistant' (since 'output' is in options['rails']), so `original_content` captures the assistant message. If the input rail modifies the user message but the output rail leaves the assistant message unchanged, the comparison `result_content != original_content` would be comparing assistant content to assistant content, missing the user message modification entirely. This is a non-obvious edge case in the MODIFIED status detection logic.",2026-01-27T16:22:25.146075+00:00
+nvidia/numba-cuda,751,feat: accept `cuda.core.Buffer` and `cuda.core.utils.StridedMemoryView` as kernel inputs,https://github.com/NVIDIA/numba-cuda/pull/751,,"Check that all `StridedMemoryView` instances provide the `is_contiguous_any` attribute. The internal `_StridedLayoutShim` class (`devicearray.py:973-985`) lacks this property, which could cause `AttributeError` if shim objects reach this code path.",https://github.com/NVIDIA/numba-cuda/pull/751#discussion_r2732374755,,2026-01-27T14:45:29+00:00,runtime,medium,"Greptile correctly identifies that the `_StridedLayoutShim` class in devicearray.py (lines 973-985) only defines `is_contiguous_c` and `is_contiguous_f` properties, but lacks `is_contiguous_any`. If a shim object reaches this code path and the first two conditions are false, accessing `raw_layout.is_contiguous_any` would raise an AttributeError. This is a non-obvious cross-file compatibility bug that could cause runtime crashes.",2026-01-27T16:22:25.146131+00:00
