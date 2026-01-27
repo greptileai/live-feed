@@ -7805,3 +7805,643 @@ nvidia/numba-cuda,747,fix: extract handle value in Event.query() call to match o
         while not evt.query():
             event_time = perf_counter() - t0
 ```",https://github.com/NVIDIA/numba-cuda/pull/747#discussion_r2729288354,,2026-01-26T21:18:03+00:00,runtime,medium,"Greptile correctly identified that `event_time` is only assigned inside the while loop body. If `evt.query()` returns True immediately (event already complete), the loop body never executes, and `event_time` will be undefined when referenced in the assertion on line 79, causing a NameError. This is a real bug that could cause flaky test failures and is non-obvious since it depends on timing conditions.",2026-01-26T22:16:46.725301+00:00
+posthog/posthog,45961,feat: Add new options page for `insights`,https://github.com/PostHog/posthog/pull/45961,,"`targetSelector` references an element on the options page (`[data-attr=""insight-option-trends""]`), but `getUrl` points to the direct insight creation page. The URL should point to the page containing the target selector for proper task guidance
+
+```suggestion
+                id: SetupTaskId.ExploreTrendsInsight,
+                title: 'Create a trends insight',
+                description: 'Visualize how events or actions vary over time.',
+                taskType: 'explore',
+                dependsOn: [SetupTaskId.CreateFirstInsight],
+                getUrl: () => urls.insightOptions(),
+                targetSelector: '[data-attr=""insight-option-trends""]',
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: frontend/src/lib/components/ProductSetup/productSetupRegistry.ts
+Line: 56:62
+
+Comment:
+`targetSelector` references an element on the options page (`[data-attr=""insight-option-trends""]`), but `getUrl` points to the direct insight creation page. The URL should point to the page containing the target selector for proper task guidance
+
+```suggestion
+                id: SetupTaskId.ExploreTrendsInsight,
+                title: 'Create a trends insight',
+                description: 'Visualize how events or actions vary over time.',
+                taskType: 'explore',
+                dependsOn: [SetupTaskId.CreateFirstInsight],
+                getUrl: () => urls.insightOptions(),
+                targetSelector: '[data-attr=""insight-option-trends""]',
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/45961#discussion_r2729589647,,2026-01-26T22:55:39+00:00,logic,medium,"Greptile correctly identified a mismatch between getUrl() and targetSelector. The targetSelector '[data-attr=""insight-option-trends""]' references an element on an options/selection page, but getUrl() points to urls.insightNew() which is the direct creation page. This would cause the onboarding guidance system to fail to highlight the correct element since it would navigate to the wrong page. This pattern repeats for all the new explore tasks (Funnels, Retention, Paths, Stickiness, Lifecycle), making it a non-obvious but impactful bug in the product setup flow.",2026-01-27T00:53:28.622859+00:00
+posthog/posthog,45961,feat: Add new options page for `insights`,https://github.com/PostHog/posthog/pull/45961,,"same issue - `getUrl` should point to `urls.insightOptions()` to match the `targetSelector`
+
+```suggestion
+                id: SetupTaskId.ExploreFunnelInsight,
+                title: 'Create a funnel insight',
+                description: 'Track how users move through steps like signup → activation → purchase.',
+                taskType: 'explore',
+                dependsOn: [SetupTaskId.CreateFirstInsight],
+                getUrl: () => urls.insightOptions(),
+                targetSelector: '[data-attr=""insight-option-funnels""]',
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: frontend/src/lib/components/ProductSetup/productSetupRegistry.ts
+Line: 64:70
+
+Comment:
+same issue - `getUrl` should point to `urls.insightOptions()` to match the `targetSelector`
+
+```suggestion
+                id: SetupTaskId.ExploreFunnelInsight,
+                title: 'Create a funnel insight',
+                description: 'Track how users move through steps like signup → activation → purchase.',
+                taskType: 'explore',
+                dependsOn: [SetupTaskId.CreateFirstInsight],
+                getUrl: () => urls.insightOptions(),
+                targetSelector: '[data-attr=""insight-option-funnels""]',
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/45961#discussion_r2729589700,,2026-01-26T22:55:40+00:00,logic,medium,"Greptile correctly identifies that the `targetSelector` is `[data-attr=""insight-option-funnels""]` which would only exist on an insight options page, but `getUrl` points to `urls.insightNew({ type: InsightType.FUNNELS })` which goes directly to creating a new funnel insight. This mismatch means the target element won't be found on the page the URL navigates to, breaking the onboarding/setup flow. This applies to multiple insight types in this diff and is a non-obvious bug that could easily be missed during review.",2026-01-27T00:53:28.623008+00:00
+posthog/posthog,45961,feat: Add new options page for `insights`,https://github.com/PostHog/posthog/pull/45961,,"same issue - `getUrl` should point to `urls.insightOptions()` to match the `targetSelector`
+
+```suggestion
+                id: SetupTaskId.ExploreRetentionInsight,
+                title: 'Explore retention analysis',
+                description: 'See how many users return on subsequent days after an initial action.',
+                taskType: 'explore',
+                dependsOn: [SetupTaskId.CreateFirstInsight],
+                getUrl: () => urls.insightOptions(),
+                targetSelector: '[data-attr=""insight-option-retention""]',
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: frontend/src/lib/components/ProductSetup/productSetupRegistry.ts
+Line: 72:78
+
+Comment:
+same issue - `getUrl` should point to `urls.insightOptions()` to match the `targetSelector`
+
+```suggestion
+                id: SetupTaskId.ExploreRetentionInsight,
+                title: 'Explore retention analysis',
+                description: 'See how many users return on subsequent days after an initial action.',
+                taskType: 'explore',
+                dependsOn: [SetupTaskId.CreateFirstInsight],
+                getUrl: () => urls.insightOptions(),
+                targetSelector: '[data-attr=""insight-option-retention""]',
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/45961#discussion_r2729589729,,2026-01-26T22:55:41+00:00,logic,medium,"Greptile correctly identifies a mismatch between getUrl() pointing to urls.insightNew() and targetSelector looking for '[data-attr=""insight-option-retention""]'. The targetSelector expects UI elements from an options page, but getUrl() navigates directly to creating a new insight of that type, meaning the element to highlight won't exist on the navigated page. This would cause the onboarding UI targeting to fail silently.",2026-01-27T00:53:28.623072+00:00
+posthog/posthog,45961,feat: Add new options page for `insights`,https://github.com/PostHog/posthog/pull/45961,,"same issue - `getUrl` should point to `urls.insightOptions()` to match the `targetSelector`
+
+```suggestion
+                id: SetupTaskId.ExplorePathsInsight,
+                title: 'Explore user paths',
+                description: 'Trace the journeys users take within your product.',
+                taskType: 'explore',
+                dependsOn: [SetupTaskId.CreateFirstInsight],
+                getUrl: () => urls.insightOptions(),
+                targetSelector: '[data-attr=""insight-option-paths""]',
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: frontend/src/lib/components/ProductSetup/productSetupRegistry.ts
+Line: 80:86
+
+Comment:
+same issue - `getUrl` should point to `urls.insightOptions()` to match the `targetSelector`
+
+```suggestion
+                id: SetupTaskId.ExplorePathsInsight,
+                title: 'Explore user paths',
+                description: 'Trace the journeys users take within your product.',
+                taskType: 'explore',
+                dependsOn: [SetupTaskId.CreateFirstInsight],
+                getUrl: () => urls.insightOptions(),
+                targetSelector: '[data-attr=""insight-option-paths""]',
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/45961#discussion_r2729589772,,2026-01-26T22:55:42+00:00,logic,medium,"The code uses `urls.insightNew({ type: InsightType.PATHS })` for `getUrl`, but the `targetSelector` points to `[data-attr=""insight-option-paths""]`, which is likely an element on the insight options selection page, not the insight creation page. This mismatch would cause the guided setup to navigate to the wrong page where the target element doesn't exist, breaking the onboarding flow.",2026-01-27T00:53:28.623114+00:00
+posthog/posthog,45961,feat: Add new options page for `insights`,https://github.com/PostHog/posthog/pull/45961,,"same issue - `getUrl` should point to `urls.insightOptions()` to match the `targetSelector`
+
+```suggestion
+                id: SetupTaskId.ExploreStickinessInsight,
+                title: 'Explore stickiness',
+                description: 'See what keeps users coming back by viewing repeated actions.',
+                taskType: 'explore',
+                dependsOn: [SetupTaskId.CreateFirstInsight],
+                getUrl: () => urls.insightOptions(),
+                targetSelector: '[data-attr=""insight-option-stickiness""]',
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: frontend/src/lib/components/ProductSetup/productSetupRegistry.ts
+Line: 88:94
+
+Comment:
+same issue - `getUrl` should point to `urls.insightOptions()` to match the `targetSelector`
+
+```suggestion
+                id: SetupTaskId.ExploreStickinessInsight,
+                title: 'Explore stickiness',
+                description: 'See what keeps users coming back by viewing repeated actions.',
+                taskType: 'explore',
+                dependsOn: [SetupTaskId.CreateFirstInsight],
+                getUrl: () => urls.insightOptions(),
+                targetSelector: '[data-attr=""insight-option-stickiness""]',
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/45961#discussion_r2729589809,,2026-01-26T22:55:43+00:00,logic,medium,"Greptile correctly identified that the `getUrl` returns `urls.insightNew({ type: InsightType.STICKINESS })` while the `targetSelector` points to `[data-attr=""insight-option-stickiness""]` - an element that would exist on an options page, not the insight creation page. This mismatch means the setup task guidance would navigate to the wrong page where the target element doesn't exist, breaking the onboarding flow. This is a real bug that would cause incorrect UI behavior and is non-obvious because it requires understanding the relationship between URL destinations and DOM elements.",2026-01-27T00:53:28.623177+00:00
+posthog/posthog,45961,feat: Add new options page for `insights`,https://github.com/PostHog/posthog/pull/45961,,"same issue - `getUrl` should point to `urls.insightOptions()` to match the `targetSelector`
+
+```suggestion
+                id: SetupTaskId.ExploreLifecycleInsight,
+                title: 'Explore lifecycle analysis',
+                description: 'Break down users into new, returning, resurrected, and dormant.',
+                taskType: 'explore',
+                dependsOn: [SetupTaskId.CreateFirstInsight],
+                getUrl: () => urls.insightOptions(),
+                targetSelector: '[data-attr=""insight-option-lifecycle""]',
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: frontend/src/lib/components/ProductSetup/productSetupRegistry.ts
+Line: 96:102
+
+Comment:
+same issue - `getUrl` should point to `urls.insightOptions()` to match the `targetSelector`
+
+```suggestion
+                id: SetupTaskId.ExploreLifecycleInsight,
+                title: 'Explore lifecycle analysis',
+                description: 'Break down users into new, returning, resurrected, and dormant.',
+                taskType: 'explore',
+                dependsOn: [SetupTaskId.CreateFirstInsight],
+                getUrl: () => urls.insightOptions(),
+                targetSelector: '[data-attr=""insight-option-lifecycle""]',
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/45961#discussion_r2729589845,,2026-01-26T22:55:44+00:00,logic,medium,"The targetSelector '[data-attr=""insight-option-lifecycle""]' suggests this element exists on an insights options page, but getUrl points to urls.insightNew() which would navigate directly to creating a new lifecycle insight. This mismatch means the onboarding system would navigate to the wrong page and fail to highlight the intended UI element. This is a non-obvious consistency bug across multiple similar entries that a typical reviewer might miss when scanning the diff.",2026-01-27T00:53:28.623221+00:00
+onyx-dot-app/onyx,7819,feat(ee): add proxy endpoints for self-hosted billing operations,https://github.com/onyx-dot-app/onyx/pull/7819,,"test expects 503 but `get_optional_license_payload()` raises 501 (proxy.py:56)
+
+```suggestion
+            assert exc_info.value.status_code == 501
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: backend/tests/unit/ee/onyx/server/tenants/test_proxy.py
+Line: 266:266
+
+Comment:
+test expects 503 but `get_optional_license_payload()` raises 501 (proxy.py:56)
+
+```suggestion
+            assert exc_info.value.status_code == 501
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/7819#discussion_r2729634556,,2026-01-26T23:15:52+00:00,logic,medium,"Looking at the test code at line 266, it asserts `exc_info.value.status_code == 501`, which matches what Greptile suggested. The diff shows the test already expects 501, so Greptile's suggestion is actually already implemented in the code. Wait - re-reading the diff, the test at line 266 does assert `status_code == 501`. The Greptile comment appears to be incorrect - the code already has 501. This is a false positive.",2026-01-27T00:53:28.623261+00:00
+infisical/infisical,5275,fix(saml): support Azure SAML 'Sign assertion only' configuration,https://github.com/Infisical/infisical/pull/5275,,"JSON.parse without try-catch could throw on malformed RelayState input from the IdP.
+
+```suggestion
+              try {
+                const relayState = JSON.parse(req.body.RelayState);
+                if (relayState.spInitiated) {
+                  samlConfig.audience = `spn:${ssoConfig.issuer}`;
+                }
+              } catch {
+                // Invalid RelayState format, skip audience override
+              }
+```",https://github.com/Infisical/infisical/pull/5275#discussion_r2729561041,,2026-01-26T22:44:05+00:00,runtime,medium,"The code does call JSON.parse(req.body.RelayState) without any try-catch protection. Since RelayState comes from external IdP input, malformed JSON would cause an unhandled exception that could crash the request or authentication flow. This is a real bug that could affect production SAML authentication.",2026-01-27T00:53:28.623290+00:00
+assistant-ui/assistant-ui,3135,fix: lint,https://github.com/assistant-ui/assistant-ui/pull/3135,,"`callbackRef` should not be in the dependency array. The whole purpose of `useEffectEvent` is to return a stable reference that doesn't change between renders.
+
+The correct fix is to add `useEffectEvent` to `biome.json` line 77 with `""stableResult"": true`, similar to how `tapEffectEvent` is configured:
+
+```json
+{ ""name"": ""useEffectEvent"", ""stableResult"": true },
+```
+
+Adding `callbackRef` to the deps defeats the purpose of using `useEffectEvent` and can cause unnecessary re-subscriptions to the event listener.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/store/src/useAuiEvent.ts
+Line: 21:21
+
+Comment:
+`callbackRef` should not be in the dependency array. The whole purpose of `useEffectEvent` is to return a stable reference that doesn't change between renders.
+
+The correct fix is to add `useEffectEvent` to `biome.json` line 77 with `""stableResult"": true`, similar to how `tapEffectEvent` is configured:
+
+```json
+{ ""name"": ""useEffectEvent"", ""stableResult"": true },
+```
+
+Adding `callbackRef` to the deps defeats the purpose of using `useEffectEvent` and can cause unnecessary re-subscriptions to the event listener.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/assistant-ui/assistant-ui/pull/3135#discussion_r2729780145,,2026-01-27T00:27:30+00:00,performance,low,"Greptile correctly identifies that adding `callbackRef` to the dependency array defeats the purpose of `useEffectEvent`, which is specifically designed to return a stable reference. While the reference IS stable (so it won't cause re-renders in practice), adding it to deps is semantically incorrect and the proper fix is to configure biome to recognize `useEffectEvent` as returning a stable result. This is a non-obvious issue about React patterns that shows understanding of the library's internals.",2026-01-27T00:53:28.623314+00:00
+alpaca-network/gatewayz-backend,965,fix: address code review comments - unused imports and send_email bug,https://github.com/Alpaca-Network/gatewayz-backend/pull/965,,"Critical bug: incorrect parameter name. The method signature is `send_email_notification(to_email, subject, html_content, text_content=None)` but this code uses `body=` instead of `html_content=`. This will cause a `TypeError` at runtime.
+
+```suggestion
+                    notification_service.send_email_notification(
+                        to_email=admin_email,
+                        subject=f""URGENT: {provider} credits critically low"",
+                        html_content=f""""""
+                        <h2>Provider Credit Alert</h2>
+                        <p><strong>Provider:</strong> {provider}</p>
+                        <p><strong>Balance:</strong> ${balance:.2f}</p>
+                        <p><strong>Status:</strong> {status}</p>
+                        <p><strong>Action Required:</strong> Add credits immediately to prevent service disruption</p>
+                        <p><a href=""https://openrouter.ai/settings/credits"">Add Credits</a></p>
+                        """""",
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: src/services/provider_credit_monitor.py
+Line: 196:207
+
+Comment:
+Critical bug: incorrect parameter name. The method signature is `send_email_notification(to_email, subject, html_content, text_content=None)` but this code uses `body=` instead of `html_content=`. This will cause a `TypeError` at runtime.
+
+```suggestion
+                    notification_service.send_email_notification(
+                        to_email=admin_email,
+                        subject=f""URGENT: {provider} credits critically low"",
+                        html_content=f""""""
+                        <h2>Provider Credit Alert</h2>
+                        <p><strong>Provider:</strong> {provider}</p>
+                        <p><strong>Balance:</strong> ${balance:.2f}</p>
+                        <p><strong>Status:</strong> {status}</p>
+                        <p><strong>Action Required:</strong> Add credits immediately to prevent service disruption</p>
+                        <p><a href=""https://openrouter.ai/settings/credits"">Add Credits</a></p>
+                        """""",
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/Alpaca-Network/gatewayz-backend/pull/965#discussion_r2729752498,,2026-01-27T00:11:47+00:00,runtime,high,"The PR title explicitly mentions 'fix: address code review comments - unused imports and send_email bug', which confirms this is a real bug being fixed. Using `body=` instead of `html_content=` as the parameter name would cause a TypeError at runtime when critical credit alerts are triggered, preventing important notifications from being sent. This is a non-obvious parameter name mismatch that a typical reviewer could easily miss.",2026-01-27T00:53:28.623360+00:00
+gptme/gptme,1162,feat(cli): add agent profiles for pre-configured system prompts + tool access,https://github.com/gptme/gptme/pull/1162,,"behavior flags defined but never enforced - `read_only`, `no_network`, and `confirm_writes` are set in profiles but have no actual effect on tool behavior. the system only adds them to the system prompt, which relies on the LLM to comply rather than enforcing them programmatically
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: gptme/profiles.py
+Line: 26:34
+
+Comment:
+behavior flags defined but never enforced - `read_only`, `no_network`, and `confirm_writes` are set in profiles but have no actual effect on tool behavior. the system only adds them to the system prompt, which relies on the LLM to comply rather than enforcing them programmatically
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/gptme/gptme/pull/1162#discussion_r2729776175,,2026-01-27T00:25:12+00:00,security,high,"Greptile correctly identifies that ProfileBehavior flags (read_only, no_network, confirm_writes) are defined as data fields but have no enforcement mechanism in the code - they only appear in system prompts hoping the LLM complies. This is a security-critical issue since profiles like 'explorer' and 'isolated' promise restrictions that aren't actually enforced programmatically, creating a false sense of security.",2026-01-27T00:53:28.623410+00:00
+gptme/gptme,1162,feat(cli): add agent profiles for pre-configured system prompts + tool access,https://github.com/gptme/gptme/pull/1162,,"profile tools only apply if user doesn't specify `--tool`. if user runs `gptme --agent-profile isolated --tool shell,patch`, they get shell and patch tools instead of the restricted `read,ipython` defined by the isolated profile, defeating the security restrictions
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: gptme/cli.py
+Line: 382:384
+
+Comment:
+profile tools only apply if user doesn't specify `--tool`. if user runs `gptme --agent-profile isolated --tool shell,patch`, they get shell and patch tools instead of the restricted `read,ipython` defined by the isolated profile, defeating the security restrictions
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/gptme/gptme/pull/1162#discussion_r2729776223,,2026-01-27T00:25:14+00:00,security,high,"The code at line 385-386 shows `if not tool_allowlist and selected_profile.tools is not None:` which confirms Greptile's analysis - profile tools are only applied when no explicit tools are specified. This is a real security issue because profiles like 'isolated' are meant to restrict tool access for security, but users can bypass these restrictions by specifying `--tool` flags, defeating the purpose of security-focused profiles.",2026-01-27T00:53:28.623437+00:00
+gptme/gptme,1163,feat(cli): add shielded processing mode for untrusted content,https://github.com/gptme/gptme/pull/1163,,"The `ProfileBehavior` flags (`read_only`, `no_network`, `confirm_writes`) set here are not actually enforced at runtime. The system only enforces tool restrictions through the allowlist, but the behavior flags themselves have no runtime checks.
+
+This creates a **critical security gap**: the `shell` tool is included in multiple shielded modes, but there's nothing preventing shell commands from writing files or accessing the network, bypassing the intended security model.
+
+For example, in ""shielded-full"" mode (lines 415-416), `shell` is notably excluded, but in ""shielded-network"" mode (line 429), `shell` is included. An attacker could use shell commands like `curl` to exfiltrate data despite `no_network=True`.
+
+Either:
+1. Implement runtime enforcement of behavior flags in the tool execution layer, OR
+2. Remove the behavior flags entirely and document that security relies solely on tool allowlisting and LLM instruction-following
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: gptme/cli.py
+Line: 395:457
+
+Comment:
+The `ProfileBehavior` flags (`read_only`, `no_network`, `confirm_writes`) set here are not actually enforced at runtime. The system only enforces tool restrictions through the allowlist, but the behavior flags themselves have no runtime checks.
+
+This creates a **critical security gap**: the `shell` tool is included in multiple shielded modes, but there's nothing preventing shell commands from writing files or accessing the network, bypassing the intended security model.
+
+For example, in ""shielded-full"" mode (lines 415-416), `shell` is notably excluded, but in ""shielded-network"" mode (line 429), `shell` is included. An attacker could use shell commands like `curl` to exfiltrate data despite `no_network=True`.
+
+Either:
+1. Implement runtime enforcement of behavior flags in the tool execution layer, OR
+2. Remove the behavior flags entirely and document that security relies solely on tool allowlisting and LLM instruction-following
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/gptme/gptme/pull/1163#discussion_r2729782004,,2026-01-27T00:28:37+00:00,security,critical,"Greptile correctly identifies that the ProfileBehavior flags (read_only, no_network) are set but there's no evidence in this diff of runtime enforcement. The 'shielded-network' mode includes 'shell' tool while setting no_network=True, but shell commands like curl/wget would bypass this since it's only a declarative flag. This is a real security gap where the feature promises protection it doesn't actually deliver.",2026-01-27T00:53:28.623464+00:00
+gptme/gptme,1163,feat(cli): add shielded processing mode for untrusted content,https://github.com/gptme/gptme/pull/1163,,"Including `shell` tool in network-shielded mode allows bypass of `no_network` restriction. Shell commands can execute `curl`, `wget`, `nc`, etc. to access the network despite the security promise that ""you cannot access the internet"".
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: gptme/cli.py
+Line: 429:430
+
+Comment:
+Including `shell` tool in network-shielded mode allows bypass of `no_network` restriction. Shell commands can execute `curl`, `wget`, `nc`, etc. to access the network despite the security promise that ""you cannot access the internet"".
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/gptme/gptme/pull/1163#discussion_r2729782028,,2026-01-27T00:28:38+00:00,security,high,"Greptile correctly identifies that the 'network' shielded mode at line 429-430 includes the 'shell' tool in its allowed tools list, which contradicts the security promise of 'no network access'. Users could bypass the restriction by running shell commands like curl, wget, or nc, completely undermining the security feature's purpose. This is a non-obvious security vulnerability in a feature specifically designed for handling untrusted content.",2026-01-27T00:53:28.623518+00:00
+gptme/gptme,1163,feat(cli): add shielded processing mode for untrusted content,https://github.com/gptme/gptme/pull/1163,,"Including `shell` tool in write-shielded mode allows bypass of `read_only` restriction. Shell commands can write files using redirection (`echo ""data"" > file.txt`), `cp`, `mv`, `dd`, etc. despite the security promise that ""you CANNOT modify any files"".
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: gptme/cli.py
+Line: 443:444
+
+Comment:
+Including `shell` tool in write-shielded mode allows bypass of `read_only` restriction. Shell commands can write files using redirection (`echo ""data"" > file.txt`), `cp`, `mv`, `dd`, etc. despite the security promise that ""you CANNOT modify any files"".
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/gptme/gptme/pull/1163#discussion_r2729782066,,2026-01-27T00:28:39+00:00,security,high,"Greptile correctly identified that the 'write' shielded mode includes 'shell' in its tools list (line 443-444) while claiming 'you CANNOT modify any files' in its system prompt. This is a real security bypass since shell commands can write files via redirection, cp, mv, etc., completely undermining the read_only restriction. This is a non-obvious security issue that could lead to data modification despite the security promise.",2026-01-27T00:53:28.623545+00:00
+gptme/gptme,1163,feat(cli): add shielded processing mode for untrusted content,https://github.com/gptme/gptme/pull/1163,,"Including `shell` in the explorer profile allows write operations and network access despite `read_only=True` and `no_network=True` behavior flags (which aren't enforced). Shell commands can write files or access network.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: gptme/profiles.py
+Line: 85:86
+
+Comment:
+Including `shell` in the explorer profile allows write operations and network access despite `read_only=True` and `no_network=True` behavior flags (which aren't enforced). Shell commands can write files or access network.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/gptme/gptme/pull/1163#discussion_r2729782110,,2026-01-27T00:28:41+00:00,security,high,"Greptile correctly identifies a security vulnerability: the 'explorer' profile includes 'shell' in its allowed tools while claiming to be read-only with no network access. The behavior flags (read_only=True, no_network=True) are only metadata that aren't enforced at the shell level - shell commands can write files (rm, mv, echo >) and access network (curl, wget). This completely undermines the security guarantees the profile claims to provide.",2026-01-27T00:53:28.623571+00:00
+gptme/gptme,1154,feat(hooks): add async_mode support for non-blocking hook execution,https://github.com/gptme/gptme/pull/1154,,"The `_run_async_hook` method doesn't handle `SessionCompleteException` like the sync hook version does (lines 458-461). If an async hook raises this exception, it will be caught and logged as a generic error rather than being properly handled. Consider adding similar special-case handling:
+
+```python
+except Exception as e:
+    # Special handling for session termination
+    if e.__class__.__name__ == ""SessionCompleteException"":
+        logger.info(f""Async hook '{hook.name}' signaled session completion"")
+        # Note: Can't propagate in async mode, just log
+        return
+    logger.exception(f""Error in async hook '{hook.name}'"")
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: gptme/hooks/__init__.py
+Line: 467:508
+
+Comment:
+The `_run_async_hook` method doesn't handle `SessionCompleteException` like the sync hook version does (lines 458-461). If an async hook raises this exception, it will be caught and logged as a generic error rather than being properly handled. Consider adding similar special-case handling:
+
+```python
+except Exception as e:
+    # Special handling for session termination
+    if e.__class__.__name__ == ""SessionCompleteException"":
+        logger.info(f""Async hook '{hook.name}' signaled session completion"")
+        # Note: Can't propagate in async mode, just log
+        return
+    logger.exception(f""Error in async hook '{hook.name}'"")
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/gptme/gptme/pull/1154#discussion_r2729500057,✅ Fixed in commit 6dbee5e - Added SessionCompleteException handling with logging (cannot propagate from async context),2026-01-26T22:27:03+00:00,logic,medium,"Greptile correctly identified that the `_run_async_hook` method was missing special handling for `SessionCompleteException` that exists in the sync hook version (lines 458-461). The developer confirmed this was a valid issue and fixed it in commit 6dbee5e. While the exception can't propagate from async context, proper logging rather than treating it as an error is important for debugging and understanding hook behavior.",2026-01-27T00:53:28.623596+00:00
+runanywhereai/runanywhere-sdks,303,[draft - not to merge yet ] Shubham/core ml diffusion,https://github.com/RunanywhereAI/runanywhere-sdks/pull/303,,"duplicate generation call - this entire block builds options but then discards the result and re-generates below (lines 99-117)
+
+```suggestion
+        // Build C options
+        var cOptions = rac_diffusion_options_t()
+        var finalResult = rac_diffusion_result_t()
+
+        let generateResult = prompt.withCString { promptPtr in
+            opts.negativePrompt.withCString { negPromptPtr -> rac_result_t in
+                cOptions.prompt = promptPtr
+                cOptions.negative_prompt = negPromptPtr
+                cOptions.width = Int32(opts.width)
+                cOptions.height = Int32(opts.height)
+                cOptions.steps = Int32(opts.steps)
+                cOptions.guidance_scale = opts.guidanceScale
+                cOptions.seed = opts.seed
+                cOptions.scheduler = opts.scheduler.cValue
+                cOptions.mode = opts.mode.cValue
+                cOptions.denoise_strength = opts.denoiseStrength
+                cOptions.report_intermediate_images = RAC_FALSE
+                cOptions.progress_stride = 1
+
+                return rac_diffusion_component_generate(handle, &cOptions, &finalResult)
+            }
+        }
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: sdk/runanywhere-swift/Sources/RunAnywhere/Public/Extensions/Diffusion/RunAnywhere+Diffusion.swift
+Line: 52:94
+
+Comment:
+duplicate generation call - this entire block builds options but then discards the result and re-generates below (lines 99-117)
+
+```suggestion
+        // Build C options
+        var cOptions = rac_diffusion_options_t()
+        var finalResult = rac_diffusion_result_t()
+
+        let generateResult = prompt.withCString { promptPtr in
+            opts.negativePrompt.withCString { negPromptPtr -> rac_result_t in
+                cOptions.prompt = promptPtr
+                cOptions.negative_prompt = negPromptPtr
+                cOptions.width = Int32(opts.width)
+                cOptions.height = Int32(opts.height)
+                cOptions.steps = Int32(opts.steps)
+                cOptions.guidance_scale = opts.guidanceScale
+                cOptions.seed = opts.seed
+                cOptions.scheduler = opts.scheduler.cValue
+                cOptions.mode = opts.mode.cValue
+                cOptions.denoise_strength = opts.denoiseStrength
+                cOptions.report_intermediate_images = RAC_FALSE
+                cOptions.progress_stride = 1
+
+                return rac_diffusion_component_generate(handle, &cOptions, &finalResult)
+            }
+        }
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/RunanywhereAI/runanywhere-sdks/pull/303#discussion_r2729527168,,2026-01-26T22:34:57+00:00,performance,medium,"Greptile correctly identified that lines 52-94 call `rac_diffusion_component_generate` and then completely discard the result, only to rebuild identical options and call generate again at lines 99-117. This wastes computational resources by running expensive image generation twice, and the first generation's result (stored in local `diffusionResult` variables) is never used. The comment even acknowledges 'Re-generate to get the actual result (the above was just for building options)' which confirms this is unintentional redundant work.",2026-01-27T00:53:28.623638+00:00
+runanywhereai/runanywhere-sdks,303,[draft - not to merge yet ] Shubham/core ml diffusion,https://github.com/RunanywhereAI/runanywhere-sdks/pull/303,,"streaming then calling `generateImage` again will generate the image twice - the stream already produces the final result
+
+The loop consumes the stream which internally calls generation, then line 305 calls `generateImage` again with the same prompt/options. Remove the second call and get the result from the stream's final event.
+
+```suggestion
+            for try await progressUpdate in stream {
+                self.progress = progressUpdate.progress
+                self.currentStep = progressUpdate.currentStep
+                self.totalSteps = progressUpdate.totalSteps
+                self.statusMessage = ""Step \(progressUpdate.currentStep)/\(progressUpdate.totalSteps)""
+
+                // Final image will be in the last progress update
+                if let imageData = progressUpdate.intermediateImage {
+                    if let uiImage = createImage(from: imageData, width: width, height: height) {
+                        self.generatedImage = Image(uiImage: uiImage)
+                    }
+                }
+            }
+
+            // Image is already generated from the stream above
+            // Seed will be in the final result if needed
+            statusMessage = ""Generation complete""
+            logger.info(""Image generated successfully via stream"")
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: examples/ios/RunAnywhereAI/RunAnywhereAI/Features/Diffusion/DiffusionViewModel.swift
+Line: 285:305
+
+Comment:
+streaming then calling `generateImage` again will generate the image twice - the stream already produces the final result
+
+The loop consumes the stream which internally calls generation, then line 305 calls `generateImage` again with the same prompt/options. Remove the second call and get the result from the stream's final event.
+
+```suggestion
+            for try await progressUpdate in stream {
+                self.progress = progressUpdate.progress
+                self.currentStep = progressUpdate.currentStep
+                self.totalSteps = progressUpdate.totalSteps
+                self.statusMessage = ""Step \(progressUpdate.currentStep)/\(progressUpdate.totalSteps)""
+
+                // Final image will be in the last progress update
+                if let imageData = progressUpdate.intermediateImage {
+                    if let uiImage = createImage(from: imageData, width: width, height: height) {
+                        self.generatedImage = Image(uiImage: uiImage)
+                    }
+                }
+            }
+
+            // Image is already generated from the stream above
+            // Seed will be in the final result if needed
+            statusMessage = ""Generation complete""
+            logger.info(""Image generated successfully via stream"")
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/RunanywhereAI/runanywhere-sdks/pull/303#discussion_r2729527227,,2026-01-26T22:34:58+00:00,logic,medium,"Greptile correctly identified that the code first consumes a stream via `generateImageStream()` (lines 285-299) and then calls `generateImage()` again (line 305) with the same prompt/options, which would trigger duplicate image generation - wasting compute resources and time. This is a real bug that causes unnecessary work and could confuse users with different results if seeds differ.",2026-01-27T00:53:28.623703+00:00
+runanywhereai/runanywhere-sdks,303,[draft - not to merge yet ] Shubham/core ml diffusion,https://github.com/RunanywhereAI/runanywhere-sdks/pull/303,,"checking if the optional `cgImage` is nil after checking for ""no image"" creates unreachable code
+
+If `images.first` is nil, line 227 already throws. Line 232's safety check `cgImage == nil` will never be true here since we'd have thrown already.
+
+```suggestion
+            // Get the first image
+            guard let cgImage = images.first else {
+                throw SDKError.diffusion(.generationFailed, ""No image generated"")
+            }
+
+            // Note: cgImage can be nil if safety checker filtered the image
+            let safetyTriggered = (cgImage == nil)
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: sdk/runanywhere-swift/Sources/RunAnywhere/Features/Diffusion/DiffusionPlatformService.swift
+Line: 226:232
+
+Comment:
+checking if the optional `cgImage` is nil after checking for ""no image"" creates unreachable code
+
+If `images.first` is nil, line 227 already throws. Line 232's safety check `cgImage == nil` will never be true here since we'd have thrown already.
+
+```suggestion
+            // Get the first image
+            guard let cgImage = images.first else {
+                throw SDKError.diffusion(.generationFailed, ""No image generated"")
+            }
+
+            // Note: cgImage can be nil if safety checker filtered the image
+            let safetyTriggered = (cgImage == nil)
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/RunanywhereAI/runanywhere-sdks/pull/303#discussion_r2729527436,,2026-01-26T22:35:02+00:00,logic,medium,"Greptile correctly identifies that `images` is of type `[CGImage?]` (array of optional CGImages), so `images.first` returns `CGImage??`. The `guard let cgImage = images.first` unwraps one layer, making `cgImage` of type `CGImage?`. The guard only fails if the array is empty, not if the first element is nil. Therefore `cgImage == nil` on line 232 IS reachable and correctly checks for safety-filtered images. However, this reveals a subtle bug: if safety is triggered, `cgImage` would be nil, the code would set `safetyTriggered = true`, but then `image = cgImage` would be nil and `imageData` stays nil - which seems intentional. The comment's suggested fix doesn't actually change behavior. This is a non-obvious type system nuance worth catching.",2026-01-27T00:53:28.623761+00:00
+gptme/gptme-contrib,208,feat(gptodo): add auto-unblocking when dependent tasks complete,https://github.com/gptme/gptme-contrib/pull/208,,"Comment says ""Only clear if this was the only thing being waited on"" but code unconditionally clears both fields. If `waiting_for` can contain multiple task IDs, this logic needs adjustment.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/gptodo/src/gptodo/unblock.py
+Line: 105:107
+
+Comment:
+Comment says ""Only clear if this was the only thing being waited on"" but code unconditionally clears both fields. If `waiting_for` can contain multiple task IDs, this logic needs adjustment.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/gptme/gptme-contrib/pull/208#discussion_r2729767194,,2026-01-27T00:20:12+00:00,logic,medium,"Greptile correctly identified a bug where the code comment on line 103-104 states 'Only clear if this was the only thing being waited on' but the implementation on lines 105-107 unconditionally removes both 'waiting_for' and 'waiting_since' fields regardless of whether multiple task IDs are present. The condition `completed_id in waiting_for` checks if the string contains the ID, but then removes the entire field rather than just that specific ID, which contradicts the stated intent.",2026-01-27T00:53:28.623803+00:00
