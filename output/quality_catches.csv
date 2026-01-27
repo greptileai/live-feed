@@ -8555,3 +8555,26 @@ deinit {
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/RunanywhereAI/runanywhere-sdks/pull/304#discussion_r2730122394,,2026-01-27T03:48:56+00:00,resource_leak,medium,"Greptile correctly identifies that `autoStreamTask` is stored but not cancelled in `deinit`. The code at line 196 creates and stores the task in `autoStreamTask`, but the `deinit` at lines 51-54 only removes the notification observer without cancelling the task. If the view is deallocated without `onDisappear` being called (e.g., during navigation edge cases), the async task could continue running, causing a resource leak and potentially accessing deallocated memory.",2026-01-27T04:32:46.744144+00:00
+onyx-dot-app/onyx,7853,feat(license): improve license enforcement middleware,https://github.com/onyx-dot-app/onyx/pull/7853,,"only checks `GATED_ACCESS` but should check all gated statuses (`GRACE_PERIOD`, `PAYMENT_REMINDER`) defined in `_GATED_STATUSES`
+
+```suggestion
+        if metadata and metadata.status not in _GATED_STATUSES:
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: backend/ee/onyx/server/settings/api.py
+Line: 49:49
+
+Comment:
+only checks `GATED_ACCESS` but should check all gated statuses (`GRACE_PERIOD`, `PAYMENT_REMINDER`) defined in `_GATED_STATUSES`
+
+```suggestion
+        if metadata and metadata.status not in _GATED_STATUSES:
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/7853#discussion_r2730313972,,2026-01-27T05:29:10+00:00,logic,medium,"Greptile correctly identified an inconsistency: `apply_license_status_to_settings` uses `_GATED_STATUSES` (which likely includes multiple statuses like GATED_ACCESS, GRACE_PERIOD, PAYMENT_REMINDER), but `check_ee_features_enabled` only checks for `GATED_ACCESS` specifically. This means users with GRACE_PERIOD or PAYMENT_REMINDER status would still have EE features enabled when they potentially shouldn't. The suggested fix to use `not in _GATED_STATUSES` properly aligns the logic between both functions.",2026-01-27T06:22:10.918265+00:00
