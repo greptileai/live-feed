@@ -8445,3 +8445,48 @@ Comment says ""Only clear if this was the only thing being waited on"" but code 
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/gptme/gptme-contrib/pull/208#discussion_r2729767194,,2026-01-27T00:20:12+00:00,logic,medium,"Greptile correctly identified a bug where the code comment on line 103-104 states 'Only clear if this was the only thing being waited on' but the implementation on lines 105-107 unconditionally removes both 'waiting_for' and 'waiting_since' fields regardless of whether multiple task IDs are present. The condition `completed_id in waiting_for` checks if the string contains the ID, but then removes the entire field rather than just that specific ID, which contradicts the stated intent.",2026-01-27T00:53:28.623803+00:00
+onyx-dot-app/onyx,7504,feat(ee): enforce seat limits on user operations,https://github.com/onyx-dot-app/onyx/pull/7504,,"Seat check happens before `add_users_to_tenant()` in multi-tenant mode, but `add_users_to_tenant` may create inactive mappings for some users. The seat calculation counts only users with active mappings AND active user status. If a user already has an active mapping elsewhere, the new mapping is created as inactive (line 111 in user_mapping.py), so they won't immediately consume a seat. However, the check counts them as needing a seat upfront, potentially blocking valid invites.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: backend/onyx/server/manage/users.py
+Line: 400:406
+
+Comment:
+Seat check happens before `add_users_to_tenant()` in multi-tenant mode, but `add_users_to_tenant` may create inactive mappings for some users. The seat calculation counts only users with active mappings AND active user status. If a user already has an active mapping elsewhere, the new mapping is created as inactive (line 111 in user_mapping.py), so they won't immediately consume a seat. However, the check counts them as needing a seat upfront, potentially blocking valid invites.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/7504#discussion_r2729836033,,2026-01-27T01:00:13+00:00,logic,medium,"Greptile correctly identifies a race condition/logic issue where the seat availability check counts all 'truly_new_emails' as needing seats, but in multi-tenant mode, some users may already have active mappings on other tenants and would get inactive mappings (not consuming seats). This could incorrectly block valid bulk invites. The analysis requires understanding cross-file behavior (user_mapping.py) and the nuanced seat counting logic, making it non-obvious.",2026-01-27T03:00:29.885295+00:00
+nvidia/nvflare,4039,Fix the rest of the examples,https://github.com/NVIDIA/NVFlare/pull/4039,,"On Windows, executables require `.exe` extension. Use `shutil.which()` to locate executables cross-platform:
+
+```suggestion
+        # Get the full path to flower-supernode from the current Python environment
+        import shutil
+        flower_supernode_path = shutil.which(""flower-supernode"")
+        if not flower_supernode_path:
+            python_bin_dir = os.path.dirname(sys.executable)
+            flower_supernode_path = os.path.join(python_bin_dir, ""flower-supernode"")
+```",https://github.com/NVIDIA/NVFlare/pull/4039#discussion_r2729835589,,2026-01-27T00:59:57+00:00,runtime,medium,"Greptile correctly identifies that on Windows, executables have `.exe` extensions (e.g., `flower-supernode.exe`), so the current code constructing paths like `os.path.join(python_bin_dir, FLOWER_SUPERNODE)` will fail on Windows. Using `shutil.which()` is a standard cross-platform solution for locating executables. This is a non-obvious platform compatibility bug that would cause runtime failures on Windows systems.",2026-01-27T03:00:29.885386+00:00
+nvidia/nvflare,4039,Fix the rest of the examples,https://github.com/NVIDIA/NVFlare/pull/4039,,"On Windows, executables require `.exe` extension. Use `shutil.which()` for cross-platform compatibility:
+
+```suggestion
+        # Get the full path to flower-superlink from the current Python environment
+        import shutil
+        flower_superlink_path = shutil.which(""flower-superlink"")
+        if not flower_superlink_path:
+            python_bin_dir = os.path.dirname(sys.executable)
+            flower_superlink_path = os.path.join(python_bin_dir, ""flower-superlink"")
+```",https://github.com/NVIDIA/NVFlare/pull/4039#discussion_r2729835629,,2026-01-27T00:59:58+00:00,runtime,medium,"Greptile correctly identifies that the code constructs executable paths by joining the Python bin directory with the executable name, but on Windows executables have `.exe` extensions. The current code would fail to find `flower-superlink` when it should look for `flower-superlink.exe`, causing runtime errors on Windows. Using `shutil.which()` is the standard cross-platform solution for finding executables.",2026-01-27T03:00:29.885452+00:00
+nvidia/nvflare,4039,Fix the rest of the examples,https://github.com/NVIDIA/NVFlare/pull/4039,,"On Windows, executables require `.exe` extension. Use `shutil.which()` for cross-platform compatibility:
+
+```suggestion
+        # Get the full path to flwr from the current Python environment
+        import shutil
+        flwr_path = shutil.which(""flwr"")
+        if not flwr_path:
+            python_bin_dir = os.path.dirname(sys.executable)
+            flwr_path = os.path.join(python_bin_dir, ""flwr"")
+```",https://github.com/NVIDIA/NVFlare/pull/4039#discussion_r2729835671,,2026-01-27T00:59:59+00:00,runtime,medium,"Greptile correctly identifies a cross-platform compatibility bug. The code constructs executable paths by joining directory and name (e.g., `os.path.join(python_bin_dir, FLOWER_CLI)`), but on Windows, executables have `.exe` extensions. This would cause FileNotFoundError on Windows systems. Using `shutil.which()` is a standard cross-platform solution for finding executables.",2026-01-27T03:00:29.885497+00:00
