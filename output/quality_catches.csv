@@ -8490,3 +8490,68 @@ nvidia/nvflare,4039,Fix the rest of the examples,https://github.com/NVIDIA/NVFla
             python_bin_dir = os.path.dirname(sys.executable)
             flwr_path = os.path.join(python_bin_dir, ""flwr"")
 ```",https://github.com/NVIDIA/NVFlare/pull/4039#discussion_r2729835671,,2026-01-27T00:59:59+00:00,runtime,medium,"Greptile correctly identifies a cross-platform compatibility bug. The code constructs executable paths by joining directory and name (e.g., `os.path.join(python_bin_dir, FLOWER_CLI)`), but on Windows, executables have `.exe` extensions. This would cause FileNotFoundError on Windows systems. Using `shutil.which()` is a standard cross-platform solution for finding executables.",2026-01-27T03:00:29.885497+00:00
+greptileai/react-mirror,432,fix(eslint-plugin-react-hooks): allow underscore prefix in component …,https://github.com/greptileai/react-mirror/pull/432,,"<details>
+<summary>Additional Comments (1)</summary>
+
+**`packages/eslint-plugin-react-hooks/src/rules/RulesOfHooks.ts`**
+inconsistency: `COMPONENT_NAME_PATTERN` in `RunReactCompiler.ts:26` still uses `/^[A-Z]/` and wasn't updated to match this change
+
+```
+// packages/eslint-plugin-react-hooks/src/shared/RunReactCompiler.ts:26
+const COMPONENT_NAME_PATTERN = /^[A-Z]/;
+```
+
+this means underscore-prefixed components like `_PrivateComponent` will pass the hooks rule but might not be recognized by the compiler's React code detection heuristic
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/eslint-plugin-react-hooks/src/rules/RulesOfHooks.ts
+Line: 26:26
+
+Comment:
+inconsistency: `COMPONENT_NAME_PATTERN` in `RunReactCompiler.ts:26` still uses `/^[A-Z]/` and wasn't updated to match this change
+
+```
+// packages/eslint-plugin-react-hooks/src/shared/RunReactCompiler.ts:26
+const COMPONENT_NAME_PATTERN = /^[A-Z]/;
+```
+
+this means underscore-prefixed components like `_PrivateComponent` will pass the hooks rule but might not be recognized by the compiler's React code detection heuristic
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>
+</details>",https://github.com/greptileai/react-mirror/pull/432#issuecomment-3802817811,,2026-01-27T03:06:01+00:00,logic,medium,"Greptile correctly identified an inconsistency where the PR updates the component name pattern in RulesOfHooks.ts to allow underscore prefixes, but the same pattern in RunReactCompiler.ts wasn't updated. This creates a real behavioral inconsistency where underscore-prefixed components like `_PrivateComponent` will pass hooks linting but won't be recognized by the React compiler, which could lead to unexpected compilation behavior.",2026-01-27T04:32:46.744040+00:00
+runanywhereai/runanywhere-sdks,304,[Swift-sdk] VLM Support + Diffusion support,https://github.com/RunanywhereAI/runanywhere-sdks/pull/304,,"Auto-streaming implementation creates a new `Task` but doesn't store a reference to cancel it in `deinit`. While `stopAutoStreaming()` is called in `onDisappear`, if the view is deallocated without `onDisappear` being called, the task could continue running.
+
+Consider storing the task reference and canceling in `deinit`:
+```swift
+deinit {
+    autoStreamTask?.cancel()
+    NotificationCenter.default.removeObserver(self)
+}
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: examples/ios/RunAnywhereAI/RunAnywhereAI/Features/Vision/VLMViewModel.swift
+Line: 196:214
+
+Comment:
+Auto-streaming implementation creates a new `Task` but doesn't store a reference to cancel it in `deinit`. While `stopAutoStreaming()` is called in `onDisappear`, if the view is deallocated without `onDisappear` being called, the task could continue running.
+
+Consider storing the task reference and canceling in `deinit`:
+```swift
+deinit {
+    autoStreamTask?.cancel()
+    NotificationCenter.default.removeObserver(self)
+}
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/RunanywhereAI/runanywhere-sdks/pull/304#discussion_r2730122394,,2026-01-27T03:48:56+00:00,resource_leak,medium,"Greptile correctly identifies that `autoStreamTask` is stored but not cancelled in `deinit`. The code at line 196 creates and stores the task in `autoStreamTask`, but the `deinit` at lines 51-54 only removes the notification observer without cancelling the task. If the view is deallocated without `onDisappear` being called (e.g., during navigation edge cases), the async task could continue running, causing a resource leak and potentially accessing deallocated memory.",2026-01-27T04:32:46.744144+00:00
