@@ -1,2296 +1,2305 @@
 {
   "posthog/posthog": {
-    "last_checked": "2026-01-28T12:17:54.807344+00:00",
-    "last_pr_number": 46145,
+    "last_checked": "2026-01-28T14:16:08.750244+00:00",
+    "last_pr_number": 46154,
     "error_count": 0,
     "pr_shas": {
-      "46145": "0c6708b1d0d055af502bbf82a680725c51ed3f84",
-      "46127": "7fe4d675c0d48eda1f8fde09a8aef9228d8cfe5f",
-      "46142": "9795eb4ca3c618fc47e19d946418639616881228",
-      "46045": "dc25a6ec011d4c82a82c2b8ffa2fa930dac3c3bc",
-      "45120": "7a6e042b37fdd1c41ae902353133ae790732f8f9",
-      "46133": "e10a4e648aa8052638e5b48f4c401f0516d0c977",
-      "45974": "992b5e6b7d0fc9fc5ab1a2c827cdfa5d9ee729f8",
-      "45936": "75b26fee598fc32037ae21f64e8c529e5230e57d",
-      "45812": "ba585eeabf79ff013780aec22a49a06f7983169b",
-      "46144": "cff2cb4c7be4bb4244a542d62813a7594e124057",
+      "46045": "b6629b3cd65f7e71a8362e034d4c496a83c63cee",
+      "46107": "66c139e5a4271fc0a104fd60703418ed0ae3c789",
+      "46057": "1d2301c800e43402cc97d3c8f58a0d1a0b239732",
+      "46133": "2964aa5f3cda5249f55712440afa5eef864654b8",
+      "46153": "5124ddea3f16edaa9550a8d22fb698b49d4ae92c",
+      "45256": "b8490a9963da811b0e312e00cd74e17ebb4690e9",
+      "46073": "8411049628e2abc73e733273ffd765a64054ea67",
+      "46148": "6bf1edcef89a3bebb460415c4a1a90b9e85be950",
+      "46014": "247886339ac1ef1174e33e8060816192efda01ad",
+      "44017": "62a4be600a43eef432c198cb4efc108449209027",
+      "45136": "f981efb7af4678a9ec1f4b66a157edf6b5a966ac",
+      "44720": "adb53f532a594dc9cc6fabd779b554e4dc24191d",
+      "45488": "ba958a175c5b21331fda372b35f40b907c484318",
+      "45947": "92b5c2bf24f8a996851ec49e166952bf797e33e6",
+      "46154": "2152c89bd3a4e1e4ae32f8584a2b468976c19881",
+      "46071": "de26c41587a06f37b3e80fc43976c6a5d5f22d4b",
+      "46049": "6140aad90d8e04f7316efd11234dfafc31e2b318",
+      "46005": "34e68a9282be7fa765eadcc3b1a0ac6ed54b0f3b",
+      "46119": "dfa382a1c792a63c9a1f3ee99d2d0430455e6b40",
+      "46036": "81b19bc3b5baa89112c032d12b9cc9b03d19af62",
+      "46004": "135a53eaf186450b270b35c30970f6c71463eb10",
+      "45991": "75389e90ddd05b1da80c18862fca3fb77cf550bb",
+      "45611": "302445256fbb0135c17ce1d39f17cb41394d44ed",
+      "46143": "f468e7787135cbe0a4ffe7a788a516559a7e8c23",
+      "46124": "965209b5366b15100ac1a6dc0a5c9ec84a718e32",
+      "45980": "a02c7860416c910a6f8e64a9b55fd654d8b5f93e",
+      "46151": "e36287f33cd6370575082aaf36e3a23d5bfa0018",
+      "46149": "08d09d3b72d4bbbfce3d69ac7995514cf7dff57e",
       "46011": "02ca240c0a28586bb9560156ced5238781d0e6fc",
-      "45849": "16b8af5b03922dddcc8bc9e71ab7ca5eb483b8f5",
-      "46118": "f43c32947abfdffc888e34e378ad34bbdb8559e7",
-      "46143": "633b288755f15703e1269a30b689339f3aacbff4",
-      "45917": "7a5d1190d04952d33e954618433b61162c6d072c",
-      "45980": "799761563f3815172b4259ac31cc031d682000a1",
-      "46049": "dd361b7449d978a6a448a7ca1af1887234561a59",
-      "46138": "ecc5702b92c47cb4c9663e7366ea65174ab1fb87",
-      "46137": "7e43d638f213bc4b93869905a1dd977c3aeab9b2",
-      "46036": "1f35bb0ac248e88b83f49279a97b60a5105005ba",
-      "45895": "26da965d65cc1b24c4a11502bc4555ca7087aae6",
-      "45987": "4aa82f3a0f0a04c71583ed76c38631d335e6c29b",
-      "46139": "da9da24098b4393c89cbdbf9dfb8d4909a8a42e4",
-      "46044": "99cbbcb6db7bd937e72ffb3b00f980344afac26b",
-      "45136": "d9b43f719b44191cb3f7bcab88ff2504fee0988c",
-      "45148": "7a28eed9c3d984aa87639197ddbf4fa8b59f5c9c",
-      "44993": "5cfc39c837afece32e400db659b970bfcd1472af",
-      "46134": "80707100382e14adbb9b60112503afa0bdd2302d",
-      "46014": "f4749eaad4c3826099330b78da5f10de88c1a28f",
-      "46140": "f751bb84338840aafa27c148635dde073a6004f1",
-      "46129": "d912bdb48b76705ae308be9a81ca58e8418feec6",
-      "46005": "02684045ac06534e0585e820e0a3cfcfc468a7a5",
-      "46135": "da60b8731a5be7eae9e76a2baa3e80cf02f08fbb",
-      "45696": "fa909eef289a7532cc2a107d451fbe80f25b8254",
-      "46089": "9eeb979d4b13ff072dfaadb7255bb6ac4868e067",
-      "46097": "e62016913ed8b321519e2581103158ba5a171704",
-      "43894": "80db85d363d485d0e532a843789de6ec006b0ef8",
-      "45968": "0bd22f20c92551310b884700f4cbf62c4d70c39f",
-      "46105": "cd3ce3abb3be7f510ee120df802c26b7029c1097",
-      "45744": "94c9e54f7b2d9b521e591432423ee3681f4d8bc5",
-      "45943": "112c06f64fe1bde2dce216c274d3f81eeeee68c2",
-      "46131": "4276ab81af15d36c5a4e1387f626706dc1679556",
-      "45964": "85d800af72ac4d7af4a18edb599836a3fd9398dd"
+      "45899": "c25afca20e123d3406db902c42d772efde1d511f",
+      "46026": "09c4b9caa9de3eb508986130d953076bd52b6025",
+      "45121": "22421498ee7394fe2831ea9270cb653f450aa485",
+      "45148": "8ebac3ca74b455d977a0834543a410881a471f45",
+      "46129": "f734b6c31e5099d01c92f534910408f61b06ebc1",
+      "46145": "ad269215871767541e3d40c3c54b4bf1c67b94ea",
+      "46135": "9aa13136706044cd8502562d4c9b7d7d581d5312",
+      "45791": "897131381fff556df6c9f1d3d290f78239987190",
+      "46128": "50fd9f0706b0204119eea64ce93a3f785e37293f",
+      "46147": "b324be03e91440caa6aa08c7e3553c918a2474ce",
+      "45987": "ca1e8577b92d125113f707bab0eaf536b07b541e",
+      "46146": "5714ce23583147a9c7307c017dba394da4fd1f3b",
+      "45895": "0ef364addb6b6e1f5e52fd3fd574d381907b58f3",
+      "46140": "dd7a0b773fd296f7802137357d8517a696d3f597",
+      "45917": "9976037bcbf70602102dc8e7b4a4e7e63f8b23fe",
+      "44711": "58f807857c0177acb524dbb5c792eb1bd64ed71c",
+      "46136": "079ad736ca07c66c9a6dbc1d89941a9e7c4da0da",
+      "45805": "8db87b55fa15aad151bd358ca82f7c6830100c6f",
+      "46121": "9f41fb2e681609ea676aa846a47c52cb1a633249",
+      "45936": "e6a9b707d33f7e7fbcf3563521bddad3c2a935d6",
+      "45812": "ba585eeabf79ff013780aec22a49a06f7983169b",
+      "46142": "cb7bf462ac0005551657a98b2ad2a238d152f02a",
+      "45261": "0ae09b8c8ac595f8f34fdd115db0b7d9524b3716",
+      "45147": "90f60d15f4d793bf218c12352b49c80a75811395"
     }
   },
   "raycast/extensions": {
-    "last_checked": "2026-01-28T12:17:58.576130+00:00",
-    "last_pr_number": 24928,
+    "last_checked": "2026-01-28T14:16:11.338673+00:00",
+    "last_pr_number": 24931,
     "error_count": 0,
     "pr_shas": {
-      "24905": "ee6bc24829afe4a45416c994abc362f65ee3fa5e",
-      "24928": "e9316f72fd93367ee375cc381361ef79ffc845e2",
-      "24927": "89601a744602057148010c1d5d6c9e19563b9cb6",
-      "21557": "c17100aad65841df09993b8ac9c7585e0ef074ba",
-      "20839": "42673d89cf76e030959cb0aeed1b1ec134005091",
-      "24642": "38b78e186163f557843e3a353f10d3f1ff6d3d01",
-      "24922": "821d22c2e239715195bf46c339452a7444e3ab15",
-      "24926": "33a3405f0298f370a33a3c60435dc69ee221d1d6",
-      "24466": "8f810baa40f8dc4e6c222f99479741ec26c74d1c",
-      "24131": "6e5dcfde77f27be5f4a59c9947d60d3bce24346b",
-      "24921": "07390cf7787e70e515374165d3907f5c48a946dc"
+      "24931": "f708696c3c77ede498f9ebbcf8d6757bff564605",
+      "24848": "e04649f45e32ad0fb987957882bf0e48326e8127",
+      "24426": "a21f1257c23d258c97a964a231c0303decc7a777",
+      "24401": "a3048304f2f152421c1f8775b2db4a47772bab9a",
+      "14224": "7bb0083e4eac67a0604e8629e222648a168ea0fb",
+      "24927": "d8b8063a557122f19f4d3aed2b0596bac3974b63",
+      "24467": "baac5a2230c371a0b93dd050a12abad8f8453038",
+      "24908": "ed3f24d9298e8469b85b7a65beaafaf57e857076",
+      "24462": "203a70053ca9a3b9b3745dc1d0bf0549bc0bf686"
     }
   },
   "twentyhq/twenty": {
-    "last_checked": "2026-01-28T12:18:05.553262+00:00",
-    "last_pr_number": 17514,
+    "last_checked": "2026-01-28T14:16:16.776385+00:00",
+    "last_pr_number": 17520,
     "error_count": 0,
     "pr_shas": {
-      "17452": "ae96a02b63b0e24be160b12b5f1d67a5b6f850d7",
-      "17477": "dc9e22fcb93c750d46cd47d2fac78013daac8aea",
-      "17503": "fe90a8af794725162bb66922627dc8dcd4dd5350",
-      "17514": "0be8cd16339fcc37ac6e49c0b4f782fd39a8a043",
-      "17513": "f8a83cfbd923627c8d21874cb34b346238d3d225",
-      "17482": "b817bcc501f3065c31fe298483f25206955aa1f8",
-      "17512": "c4fc20e161481491999cbb323ed32a5d866a6828",
-      "17508": "17c6badb8d8c4d606e79af10d890f2b2331438df",
-      "17510": "db5dcb8b1928448cd92dae1e4942400642d50f56",
-      "17509": "4c5dd4dcbd88ecb4dc69c8e4b1be71561d56d743",
-      "17502": "ddaf3fbc51103993e3d45823471f1c566ebef404"
+      "17452": "8a718a5eae6b4039d3f22d49193f855498842b76",
+      "17520": "9a89e7915b9fa198fc1421b8bd9252bef8a6490e",
+      "17477": "3427a6c6e2c59b6336faf60ec4440d387e8e4fdf",
+      "17519": "6c936b2837875af195c4cf2b3072e2d3dabe1974",
+      "17518": "2e03e9cf842b481b8629e4085194445ed6a2592d",
+      "17491": "adcee8b0f6f58b3edd48d277c21fbc797ba732f2",
+      "17400": "4c4ab9ba260a9894f2d4a2415f518515c9fd5457",
+      "17476": "6f2a9851961cd70f6caff8c2ee3569384bdbcb6f",
+      "17482": "f802789090bb169c231e0840556e8f8a49c03ab4",
+      "17502": "ddaf3fbc51103993e3d45823471f1c566ebef404",
+      "17503": "80177e366ca806bb30f059439158f391e5550d45",
+      "17517": "a4cc5e681fff1a99e9aad60bacbd517d7a6f78c3",
+      "17516": "784de914f556dd403776d4dda16ff517a99a9b3c"
     }
   },
   "onyx-dot-app/onyx": {
-    "last_checked": "2026-01-28T12:18:06.344674+00:00",
+    "last_checked": "2026-01-28T14:16:17.791205+00:00",
     "last_pr_number": 7938,
-    "error_count": 0,
-    "pr_shas": {
-      "6114": "6de59a98449c6cb8f111f0dc8d20ba517e4c2386",
-      "6224": "44a87dae357445683eb5be6fb6212b5c902796d1",
-      "6231": "93c7559cb48f3da97dbd0764c72282c9177d4c3f",
-      "7938": "0f3c2d6e412ce769ffc89d1df5c7bbaba5cb9e5e"
-    }
+    "error_count": 0
   },
   "helicone/helicone": {
-    "last_checked": "2026-01-28T12:18:07.833935+00:00",
+    "last_checked": "2026-01-28T14:16:18.643776+00:00",
     "last_pr_number": 5549,
-    "error_count": 0,
-    "pr_shas": {
-      "5549": "1db94f03a403dfe310e88d6a91535f36d69e1a6e"
-    }
+    "error_count": 0
   },
   "openobserve/openobserve": {
-    "last_checked": "2026-01-28T12:18:09.406090+00:00",
-    "last_pr_number": 10220,
+    "last_checked": "2026-01-28T14:16:21.716353+00:00",
+    "last_pr_number": 10225,
     "error_count": 0,
     "pr_shas": {
-      "10158": "49faea0a5972b7298e3ff1cde8ab8718d0588a79",
-      "10200": "fc9b4f87255b6654e948637bd2b64d9dac17f777",
-      "10196": "6c3d58c02ed08a2018bad6f2305ea0df2bd162fa",
-      "10213": "64ff6b59b45152fa9e7fda5c7572d3c4a3ca9455"
+      "10218": "e2c48a242c931251f08470102050a5b182180973",
+      "10225": "5312cec342c5a84074dd6e57c13f0799058923d9",
+      "10224": "ab7e03190b221495ebfce7afc9187679bb276450",
+      "10068": "687b633e0a024a6d74297c2e2613f93b56786765",
+      "10139": "badc18c3e0a46e275c2bc2e1d9977d25370f3789",
+      "10223": "fa17065ff1db920769c682de4083d5d6df0be3c5",
+      "10200": "2b8de2fdcf5d441a5a376338ca5ab22bd9700ae7",
+      "10158": "43612f39a0961363455e6f2dc159087ae37ebf2d",
+      "10198": "d2e24a041e87dc6b0466604d7dc8fa6101bd2bb8",
+      "10196": "6c3d58c02ed08a2018bad6f2305ea0df2bd162fa"
     }
   },
   "simstudioai/sim": {
-    "last_checked": "2026-01-28T12:18:11.058629+00:00",
+    "last_checked": "2026-01-28T14:16:23.129970+00:00",
     "last_pr_number": 3044,
-    "error_count": 0,
-    "pr_shas": {
-      "3026": "2e29dbb318e0b69e9505ab4b40750634d43787e7"
-    }
+    "error_count": 0
   },
   "greptileai/react-mirror": {
-    "last_checked": "2026-01-28T12:18:30.678861+00:00",
+    "last_checked": "2026-01-28T14:16:41.765467+00:00",
     "last_pr_number": 439,
     "error_count": 0,
     "pr_shas": {
-      "301": "26b5ecc4f7852e6815702a9c2de7ffec7aeff60c",
-      "439": "ba153139c94cfc4671ba8df973c0e6d514ab0091",
-      "438": "04673e533bf3cc512433e6b9f3327ac75ffbe61d"
+      "301": "e1c705378e8318a2b4780777781d8c0aabdb6f2f"
     }
   },
   "infisical/infisical": {
-    "last_checked": "2026-01-28T12:18:31.473824+00:00",
+    "last_checked": "2026-01-28T14:16:42.626233+00:00",
     "last_pr_number": 5292,
-    "error_count": 0
+    "error_count": 0,
+    "pr_shas": {
+      "5269": "b4701c7a27d4ff4f748717910d7b986b6ba9fabd",
+      "5282": "23fa3e2a366ffb5227848cf114766e6902add658",
+      "5255": "739b4588a39c00b8db9c87f1cf884c2d67cc80b4",
+      "5281": "088eba24dcc552f627c93a5955ab1ffbda8a852b"
+    }
   },
   "nvidia/transformerengine": {
-    "last_checked": "2026-01-28T12:18:33.246311+00:00",
+    "last_checked": "2026-01-28T14:16:43.958662+00:00",
     "last_pr_number": 2629,
     "error_count": 0
   },
   "assistant-ui/assistant-ui": {
-    "last_checked": "2026-01-28T12:18:34.216913+00:00",
+    "last_checked": "2026-01-28T14:16:44.805522+00:00",
     "last_pr_number": 3169,
-    "error_count": 0,
-    "pr_shas": {
-      "3091": "c2a0fecd2229d7f5a7eccac6629e5bac51862c81"
-    }
+    "error_count": 0
   },
   "nvidia/fuser": {
-    "last_checked": "2026-01-28T12:18:35.326983+00:00",
+    "last_checked": "2026-01-28T14:16:45.678288+00:00",
     "last_pr_number": 5887,
     "error_count": 0,
     "pr_shas": {
-      "5341": "8ced8deaf2bc92087daaffaa67edb7e6f140777f"
+      "5887": "b82126805d869bb537a0d1ade0243fd66f7605d7"
     }
   },
   "eventual-inc/daft": {
-    "last_checked": "2026-01-28T12:18:36.513818+00:00",
+    "last_checked": "2026-01-28T14:16:46.735097+00:00",
     "last_pr_number": 6090,
     "error_count": 0,
     "pr_shas": {
+      "5459": "a16ae3d19684aeee7f6585fa9aa28c1e74d8567d",
+      "5980": "f9980c406ad88a7d0c3a24df45c598bf538e2bcf",
+      "5466": "75648ed9f5129c9a75b02e164f4af36c1bc85649",
       "5884": "207492fc073173bd4e08697d58d1ab6958bf353a"
     }
   },
   "posthog/posthog-js": {
-    "last_checked": "2026-01-28T12:18:38.265229+00:00",
+    "last_checked": "2026-01-28T14:16:47.855207+00:00",
     "last_pr_number": 2983,
     "error_count": 0,
     "pr_shas": {
-      "2983": "bd824ffbbcda2dcab99755a83b7c340aa32f1199"
+      "2847": "30ce37140b461e259724492bca36d6f8a4f0360e"
     }
   },
   "ethyca/fides": {
-    "last_checked": "2026-01-28T12:18:39.276714+00:00",
-    "last_pr_number": 7262,
-    "error_count": 0
+    "last_checked": "2026-01-28T14:16:49.133758+00:00",
+    "last_pr_number": 7263,
+    "error_count": 0,
+    "pr_shas": {
+      "7262": "fb813a3c13a2bb76b7af5bc1d486edb4863d9a9d",
+      "7220": "96d276b9ad458ab988a28087601775f83cde5ebc",
+      "7230": "b19fac5e5e658646470173c7a79fb68469185506",
+      "7263": "49fe5051495c5b6e4b2ad0326258a4d8d9583d32",
+      "7254": "1434cb74bcc52f607eb0d27c60d276d28132dce7"
+    }
   },
   "nvidia-holoscan/holohub": {
-    "last_checked": "2026-01-28T12:18:40.458040+00:00",
+    "last_checked": "2026-01-28T14:16:50.545688+00:00",
     "last_pr_number": 1377,
     "error_count": 0
   },
   "isaac-sim/isaaclab": {
-    "last_checked": "2026-01-28T12:18:43.486970+00:00",
-    "last_pr_number": 4481,
+    "last_checked": "2026-01-28T14:16:53.237915+00:00",
+    "last_pr_number": 4482,
     "error_count": 0,
     "pr_shas": {
-      "4481": "d76f6f4cb1f2a73448ea9b852398f87d1152d77a",
-      "4479": "09b5bb45a2b570919e0f520dd381f86125c35595",
-      "4472": "3f1a99f32b141db31d595d5a1438e3cd5b192cdc",
-      "4480": "ef0e0f64e273e7350ca72570287a7326e9063b3a",
+      "4046": "1a0510100d21604b57c599a949f2459d6cb8163a",
+      "4452": "6ec03e639877068a2991ea0df6d372a193550134",
+      "4482": "a861e72ba5bb30a98fb2b8149a568081d323f079",
+      "4437": "7ad23922383145240738fd8ae8a505db1e0574fc",
+      "4472": "ac8c2e5fea14c727da0c21bf461b0ea49863b9cd",
+      "4481": "751be5c2a93afce7611bc369ba08c6ba60f97aec",
       "4475": "ee2e2623a41060c413802261662ba189bf150b95"
     }
   },
   "nvidia/nvflare": {
-    "last_checked": "2026-01-28T12:18:44.797598+00:00",
+    "last_checked": "2026-01-28T14:16:54.216054+00:00",
     "last_pr_number": 4053,
     "error_count": 0
   },
   "bluedotimpact/bluedot": {
-    "last_checked": "2026-01-28T12:18:45.636682+00:00",
+    "last_checked": "2026-01-28T14:16:54.892488+00:00",
     "last_pr_number": 1997,
     "error_count": 0
   },
   "browserbase/stagehand": {
-    "last_checked": "2026-01-28T12:18:46.711281+00:00",
+    "last_checked": "2026-01-28T14:16:55.838309+00:00",
     "last_pr_number": 1627,
-    "error_count": 0,
-    "pr_shas": {
-      "1624": "4781745cf466238cecc04f9ebc093ece2d8e1126"
-    }
+    "error_count": 0
   },
   "nvidia-nemo/curator": {
-    "last_checked": "2026-01-28T12:18:47.813386+00:00",
+    "last_checked": "2026-01-28T14:16:57.072971+00:00",
     "last_pr_number": 1435,
     "error_count": 0
   },
   "opensecretcloud/maple": {
-    "last_checked": "2026-01-28T12:18:48.680864+00:00",
+    "last_checked": "2026-01-28T14:16:57.827043+00:00",
     "last_pr_number": 405,
     "error_count": 0
   },
   "flexcompute/tidy3d": {
-    "last_checked": "2026-01-28T12:18:51.757923+00:00",
-    "last_pr_number": 3212,
+    "last_checked": "2026-01-28T14:16:59.415650+00:00",
+    "last_pr_number": 3213,
     "error_count": 0,
     "pr_shas": {
-      "2903": "3bb6f496bcfddfb47a1431e90d6caf68de69dbed",
-      "3082": "df19d272711a285f766231270b7d2e91fb480722",
-      "3208": "ac73e255599b7cb98efeabc4ab85222e64f76ad3",
-      "3138": "85f7dc462e38fd9ac652ceb10ff3a38266af7cdb",
-      "2433": "01a30a9da3dbbd879015847b9959f6420313a0a4",
-      "3212": "37bff73b60d2cc42fc5b4191f30497cd4e0b5f66"
+      "3211": "252bbafd37dcc63aed23fa3190380af514b970dd",
+      "3026": "dc1f0ed397863b7ddc9c3c1957c1f488a6e74d22",
+      "3127": "b93c56e11d702a7fb2fc338eccf261eb813a81e7",
+      "3213": "05147036e0f0baa7c639841f979bba2db71dd152",
+      "3082": "df19d272711a285f766231270b7d2e91fb480722"
     }
   },
   "generaltranslation/gt": {
-    "last_checked": "2026-01-28T12:18:52.789645+00:00",
+    "last_checked": "2026-01-28T14:17:00.533398+00:00",
     "last_pr_number": 972,
     "error_count": 0
   },
   "nvidia/spark-rapids": {
-    "last_checked": "2026-01-28T12:18:54.079088+00:00",
+    "last_checked": "2026-01-28T14:17:01.790640+00:00",
     "last_pr_number": 14217,
-    "error_count": 0,
-    "pr_shas": {
-      "14217": "82af7847ea6b1dc47cfd144921b41de5e7c1f48a"
-    }
+    "error_count": 0
   },
   "opentech1/openchat": {
-    "last_checked": "2026-01-28T12:18:55.034967+00:00",
+    "last_checked": "2026-01-28T14:17:02.715657+00:00",
     "last_pr_number": 561,
     "error_count": 0
   },
   "ever-co/ever-teams": {
-    "last_checked": "2026-01-28T12:18:56.923815+00:00",
+    "last_checked": "2026-01-28T14:17:03.796429+00:00",
     "last_pr_number": 4237,
     "error_count": 0,
     "pr_shas": {
-      "4236": "29a083d7de9e6956c20a7cfb72b0b2a1d9b954d5"
+      "4232": "408e991e9fdb76da8042dc8ee121d39dfbf0cab2"
     }
   },
   "layer-fi/layer-react": {
-    "last_checked": "2026-01-28T12:18:57.696895+00:00",
+    "last_checked": "2026-01-28T14:17:04.512325+00:00",
     "last_pr_number": 1152,
     "error_count": 0
   },
   "ever-co/ever-gauzy": {
-    "last_checked": "2026-01-28T12:18:58.635254+00:00",
+    "last_checked": "2026-01-28T14:17:05.205527+00:00",
     "last_pr_number": 9379,
     "error_count": 0
   },
   "langfuse/langfuse-python": {
-    "last_checked": "2026-01-28T12:19:00.095715+00:00",
+    "last_checked": "2026-01-28T14:17:06.509674+00:00",
     "last_pr_number": 1505,
     "error_count": 0
   },
   "mellanox/libxlio": {
-    "last_checked": "2026-01-28T12:19:01.143762+00:00",
+    "last_checked": "2026-01-28T14:17:07.822031+00:00",
     "last_pr_number": 561,
     "error_count": 0
   },
   "appdevforall/codeonthego": {
-    "last_checked": "2026-01-28T12:19:02.389910+00:00",
+    "last_checked": "2026-01-28T14:17:08.592873+00:00",
     "last_pr_number": 896,
     "error_count": 0,
     "pr_shas": {
-      "896": "30e341455d0672a3be86130423311fd250dc0626"
+      "866": "ab33f3adf17face302a17bffbdd72cfa2ac1cdf8",
+      "868": "fd0b0a4292ef5e79bc14ad8af316cdb6733eaedb",
+      "884": "f56c7974baac67d98021e22ba512c1bca36517af"
     }
   },
   "stack-auth/stack-auth": {
-    "last_checked": "2026-01-28T12:19:03.622304+00:00",
+    "last_checked": "2026-01-28T14:17:09.727578+00:00",
     "last_pr_number": 1138,
     "error_count": 0
   },
   "nvidia/dali": {
-    "last_checked": "2026-01-28T12:19:06.737768+00:00",
-    "last_pr_number": 6175,
+    "last_checked": "2026-01-28T14:17:11.338479+00:00",
+    "last_pr_number": 6176,
     "error_count": 0,
     "pr_shas": {
-      "6171": "1cf129a922985cf9a1a7d7d8b3abe52afd9fb36f",
-      "6174": "abc8fea5033929ce9ce87e1cd5d305359fa3a6c0",
-      "6167": "4219f2bd9b6b0c42a696773b6191282b0a963b0e",
+      "6176": "dfb6cdcd67839417dc96adc6142a8505c1d19eef",
       "6170": "28557221d4f64501b3a8ff4236bf1135e863298e",
-      "6173": "e4fb0c9ed13668d481319dd16611952c5e420a28",
-      "6175": "d4bff37fc2b5e53b3d8663ef18f2d9b64b98146a",
-      "6172": "5a0c98a693e9e7ec3a60e5fa2aa89ced2e429f3d",
-      "6159": "fc539108c7191edbe22e2a9348667a9b9dc009b5"
+      "6172": "5a0c98a693e9e7ec3a60e5fa2aa89ced2e429f3d"
     }
   },
   "ever-works/ever-works-website-template": {
-    "last_checked": "2026-01-28T12:19:06.915497+00:00",
+    "last_checked": "2026-01-28T14:17:11.504004+00:00",
     "last_pr_number": 530,
     "error_count": 0
   },
   "nvidia/physicsnemo": {
-    "last_checked": "2026-01-28T12:19:08.538378+00:00",
+    "last_checked": "2026-01-28T14:17:12.928133+00:00",
     "last_pr_number": 1354,
     "error_count": 0
   },
   "pdfme/pdfme": {
-    "last_checked": "2026-01-28T12:19:09.434025+00:00",
+    "last_checked": "2026-01-28T14:17:14.147769+00:00",
     "last_pr_number": 1307,
     "error_count": 0
   },
   "reflex-dev/reflex": {
-    "last_checked": "2026-01-28T12:19:10.766598+00:00",
+    "last_checked": "2026-01-28T14:17:15.194504+00:00",
     "last_pr_number": 6103,
     "error_count": 0
   },
   "quiltdata/quilt": {
-    "last_checked": "2026-01-28T12:19:11.933727+00:00",
+    "last_checked": "2026-01-28T14:17:16.729708+00:00",
     "last_pr_number": 4720,
     "error_count": 0,
     "pr_shas": {
-      "4701": "28841cd5fef28016d067ddeefa4d9f638f3a68a0"
+      "4701": "e87728d65cde1cabfea17968ec60fbb7cc456b5f",
+      "4711": "192cb44438b437d1623dcf1034966747baa54cc2",
+      "2589": "2c314db62c5c59f762b254296c5d5e1e22405d3f",
+      "4716": "8487481a8f88871e3276de8c7b749a57ed720fec"
     }
   },
   "jaronheard/soonlist-turbo": {
-    "last_checked": "2026-01-28T12:19:12.626001+00:00",
+    "last_checked": "2026-01-28T14:17:17.357192+00:00",
     "last_pr_number": 879,
     "error_count": 0
   },
   "opensource-society/notesvault": {
-    "last_checked": "2026-01-28T12:19:13.750656+00:00",
+    "last_checked": "2026-01-28T14:17:18.716641+00:00",
     "last_pr_number": 1045,
     "error_count": 0
   },
   "reflex-dev/reflex-web": {
-    "last_checked": "2026-01-28T12:19:14.755711+00:00",
+    "last_checked": "2026-01-28T14:17:19.809502+00:00",
     "last_pr_number": 1739,
     "error_count": 0
   },
   "constellation-labs/tessellation": {
-    "last_checked": "2026-01-28T12:19:15.876671+00:00",
+    "last_checked": "2026-01-28T14:17:20.669856+00:00",
     "last_pr_number": 1404,
     "error_count": 0
   },
   "ydb-platform/ydb-embedded-ui": {
-    "last_checked": "2026-01-28T12:19:16.739049+00:00",
-    "last_pr_number": 3391,
-    "error_count": 0
-  },
-  "openreplay/openreplay": {
-    "last_checked": "2026-01-28T12:19:18.698735+00:00",
-    "last_pr_number": 4243,
+    "last_checked": "2026-01-28T14:17:23.497141+00:00",
+    "last_pr_number": 3394,
     "error_count": 0,
     "pr_shas": {
-      "4243": "d36d6c83fff5b2adf0f50e35dfe5b8176d783bd6"
+      "3393": "698aabef219bca0393516fa3394ef251d7d93f47",
+      "3391": "45b82906ab27a9395fbd7c1e15e805d1951f7770",
+      "3394": "a91fc01405efe319ccb43753f53a022ae4604dda"
+    }
+  },
+  "openreplay/openreplay": {
+    "last_checked": "2026-01-28T14:17:25.592962+00:00",
+    "last_pr_number": 4246,
+    "error_count": 0,
+    "pr_shas": {
+      "4246": "4e00d665e4119ec91f3a920a4558b168c0794da6",
+      "4245": "29877c08c2b4de1fecbc115a6f1047a79b120257",
+      "4244": "5e26ec5f38e4747a410b236e522fade7b8d4965d"
     }
   },
   "green-coding-solutions/green-metrics-tool": {
-    "last_checked": "2026-01-28T12:19:19.815496+00:00",
+    "last_checked": "2026-01-28T14:17:26.734361+00:00",
     "last_pr_number": 1526,
     "error_count": 0
   },
   "alpaca-network/gatewayz-backend": {
-    "last_checked": "2026-01-28T12:19:20.594029+00:00",
+    "last_checked": "2026-01-28T14:17:27.687109+00:00",
     "last_pr_number": 973,
     "error_count": 0
   },
   "veda-labs/boring-vault": {
-    "last_checked": "2026-01-28T12:19:21.457041+00:00",
+    "last_checked": "2026-01-28T14:17:28.491788+00:00",
     "last_pr_number": 595,
     "error_count": 0
   },
   "opensecretcloud/opensecret": {
-    "last_checked": "2026-01-28T12:19:22.346644+00:00",
+    "last_checked": "2026-01-28T14:17:29.253237+00:00",
     "last_pr_number": 132,
     "error_count": 0
   },
   "umami-software/umami": {
-    "last_checked": "2026-01-28T12:19:24.468901+00:00",
+    "last_checked": "2026-01-28T14:17:31.165106+00:00",
     "last_pr_number": 3987,
     "error_count": 0
   },
   "nvidia/spark-rapids-jni": {
-    "last_checked": "2026-01-28T12:19:25.845483+00:00",
+    "last_checked": "2026-01-28T14:17:32.340095+00:00",
     "last_pr_number": 4208,
     "error_count": 0
   },
   "mellanox/hw-mgmt": {
-    "last_checked": "2026-01-28T12:19:28.313954+00:00",
+    "last_checked": "2026-01-28T14:17:33.500172+00:00",
     "last_pr_number": 2267,
     "error_count": 0,
     "pr_shas": {
-      "2266": "7ebda2582d593e8d0a82bf4a0a171e2035dceb17",
-      "2267": "dc6d60e54e76f861b60454c2bd1ae15024e4961e"
+      "2266": "7ebda2582d593e8d0a82bf4a0a171e2035dceb17"
     }
   },
   "ssvlabs/ssv": {
-    "last_checked": "2026-01-28T12:19:29.999829+00:00",
+    "last_checked": "2026-01-28T14:17:34.786526+00:00",
     "last_pr_number": 2675,
     "error_count": 0,
     "pr_shas": {
+      "2665": "57055846a9bd0764f16934fee5055dd47cd3850c",
       "2627": "ea030c6ee4e5cc6cca2fab3d4960e69507a52e12",
-      "2673": "3d0f32567e00125011c7872f0b8bf7f6a9bbaf1c"
+      "2675": "0f31d247cf87bea9ec609641f49d823b874415f8"
     }
   },
   "democratizedspace/dspace": {
-    "last_checked": "2026-01-28T12:19:30.957580+00:00",
+    "last_checked": "2026-01-28T14:17:35.907822+00:00",
     "last_pr_number": 3235,
     "error_count": 0
   },
   "yamada-ui/yamada-ui": {
-    "last_checked": "2026-01-28T12:19:32.367516+00:00",
+    "last_checked": "2026-01-28T14:17:37.137660+00:00",
     "last_pr_number": 5681,
     "error_count": 0
   },
   "judgez/ai-agent-tool": {
-    "last_checked": "2026-01-28T12:19:32.935141+00:00",
+    "last_checked": "2026-01-28T14:17:37.523891+00:00",
     "last_pr_number": 38,
     "error_count": 0
   },
   "synnaxlabs/synnax": {
-    "last_checked": "2026-01-28T12:19:34.123378+00:00",
+    "last_checked": "2026-01-28T14:17:38.337407+00:00",
     "last_pr_number": 1891,
     "error_count": 0
   },
   "gptme/gptme": {
-    "last_checked": "2026-01-28T12:19:34.845514+00:00",
+    "last_checked": "2026-01-28T14:17:39.058796+00:00",
     "last_pr_number": 1179,
     "error_count": 0
   },
   "cedarjs/cedar": {
-    "last_checked": "2026-01-28T12:19:37.019310+00:00",
-    "last_pr_number": 1065,
+    "last_checked": "2026-01-28T14:17:41.522594+00:00",
+    "last_pr_number": 1068,
     "error_count": 0,
     "pr_shas": {
-      "1065": "2221746fad0ba38840121340b426b89d0b680458",
+      "1068": "316405229e5652d6ae3ecb92ca667a6bfb685064",
+      "1067": "bf9aa8bb328b1604c3a08dc94516d3b060d2228d",
       "1061": "c8e28564258db0991ea7a9b4f75358b5ecf23a6f",
-      "1044": "e9fc13cf2f0a3432988b3eef417a4796531ba527",
-      "975": "fb6a30f5b95a2520797708be544d28a18890b378"
+      "1066": "f2099cd750fa85e19e6a36d9532bdcd620a6da5a",
+      "1065": "2221746fad0ba38840121340b426b89d0b680458"
     }
   },
   "langfuse/langfuse-js": {
-    "last_checked": "2026-01-28T12:19:38.053309+00:00",
+    "last_checked": "2026-01-28T14:17:44.459239+00:00",
     "last_pr_number": 722,
     "error_count": 0
   },
   "nvidia-nemo/guardrails": {
-    "last_checked": "2026-01-28T12:19:40.575029+00:00",
-    "last_pr_number": 1605,
+    "last_checked": "2026-01-28T14:17:45.978606+00:00",
+    "last_pr_number": 1606,
     "error_count": 0,
     "pr_shas": {
-      "1605": "62bb608c9b8d84667dc119c201e0e3b07eb86341",
-      "1604": "5fac05530fc7604d2111b2b705fd1ce81e7b106c"
+      "1606": "e9a072f8c022952ebfccf56f6808673ed3546828"
     }
   },
   "synth-inc/onit": {
-    "last_checked": "2026-01-28T12:19:41.465797+00:00",
+    "last_checked": "2026-01-28T14:17:47.003409+00:00",
     "last_pr_number": null,
     "error_count": 0
   },
   "astandrik/ydb-qdrant": {
-    "last_checked": "2026-01-28T12:19:42.240116+00:00",
+    "last_checked": "2026-01-28T14:17:47.705038+00:00",
     "last_pr_number": 187,
     "error_count": 0
   },
   "sqlfluff/sqlfluff": {
-    "last_checked": "2026-01-28T12:19:43.468831+00:00",
+    "last_checked": "2026-01-28T14:17:48.714677+00:00",
     "last_pr_number": 7398,
     "error_count": 0
   },
   "futuroptimist/sugarkube": {
-    "last_checked": "2026-01-28T12:19:44.203242+00:00",
+    "last_checked": "2026-01-28T14:17:49.575911+00:00",
     "last_pr_number": 2098,
     "error_count": 0
   },
   "vladislavsournine/rabbittest": {
-    "last_checked": "2026-01-28T12:19:45.368319+00:00",
+    "last_checked": "2026-01-28T14:17:50.308544+00:00",
     "last_pr_number": 268,
     "error_count": 0
   },
   "bstewart2255/speddy": {
-    "last_checked": "2026-01-28T12:19:46.262327+00:00",
+    "last_checked": "2026-01-28T14:17:51.000964+00:00",
     "last_pr_number": 567,
     "error_count": 0
   },
   "strawberry-graphql/strawberry": {
-    "last_checked": "2026-01-28T12:19:48.442545+00:00",
+    "last_checked": "2026-01-28T14:17:52.550906+00:00",
     "last_pr_number": 4178,
-    "error_count": 0,
-    "pr_shas": {
-      "4178": "68eef411e28e61889534608dc84a1e0102b407af"
-    }
-  },
-  "posthog/posthog-python": {
-    "last_checked": "2026-01-28T12:19:49.806584+00:00",
-    "last_pr_number": 416,
     "error_count": 0
   },
+  "posthog/posthog-python": {
+    "last_checked": "2026-01-28T14:17:54.168581+00:00",
+    "last_pr_number": 416,
+    "error_count": 0,
+    "pr_shas": {
+      "397": "75dc5eb0387d1e8863b66b0b308bc2bdcdadab3e"
+    }
+  },
   "remnawave/frontend": {
-    "last_checked": "2026-01-28T12:19:50.799156+00:00",
+    "last_checked": "2026-01-28T14:17:54.903924+00:00",
     "last_pr_number": 293,
     "error_count": 0
   },
   "nextgencontributions/django2pydantic": {
-    "last_checked": "2026-01-28T12:19:51.626803+00:00",
+    "last_checked": "2026-01-28T14:17:55.884464+00:00",
     "last_pr_number": 244,
     "error_count": 0
   },
   "erxes/erxes": {
-    "last_checked": "2026-01-28T12:19:54.431364+00:00",
+    "last_checked": "2026-01-28T14:17:56.691023+00:00",
     "last_pr_number": 6888,
-    "error_count": 0,
-    "pr_shas": {
-      "6888": "574b37b03524e24aada8317f6460c0b975dcee79",
-      "6883": "c4ae4f3e45ea94d438a84266025bb66b1d2eb971",
-      "6885": "bcef6a148031e03ec217f408677f2c124d3e2c9b",
-      "6886": "33ddaf731a33ebd29246dbc56cc9c1f185be19dd",
-      "6887": "b40bd7e656787f3031c810589c4b73d7d2d2945f",
-      "6884": "6a74378f975017be90821ef95124e8508004c983"
-    }
+    "error_count": 0
   },
   "nextgencontributions/django-ninja-crudl": {
-    "last_checked": "2026-01-28T12:19:55.293271+00:00",
+    "last_checked": "2026-01-28T14:17:57.512785+00:00",
     "last_pr_number": 213,
     "error_count": 0
   },
   "sfcompute/cli": {
-    "last_checked": "2026-01-28T12:19:56.309318+00:00",
+    "last_checked": "2026-01-28T14:17:58.530479+00:00",
     "last_pr_number": 242,
     "error_count": 0
   },
   "atuinsh/desktop": {
-    "last_checked": "2026-01-28T12:19:58.814971+00:00",
+    "last_checked": "2026-01-28T14:18:00.409503+00:00",
     "last_pr_number": 372,
     "error_count": 0
   },
   "nvidia/numba-cuda": {
-    "last_checked": "2026-01-28T12:20:00.477857+00:00",
-    "last_pr_number": 752,
-    "error_count": 0
+    "last_checked": "2026-01-28T14:18:02.182024+00:00",
+    "last_pr_number": 754,
+    "error_count": 0,
+    "pr_shas": {
+      "754": "79069cd35b657e25ef8d1428e95a23887a0c090b"
+    }
   },
   "alpaca-network/gatewayz-frontend": {
-    "last_checked": "2026-01-28T12:20:01.300787+00:00",
+    "last_checked": "2026-01-28T14:18:02.875842+00:00",
     "last_pr_number": 934,
     "error_count": 0
   },
   "helixdb/helix-db": {
-    "last_checked": "2026-01-28T12:20:02.368652+00:00",
+    "last_checked": "2026-01-28T14:18:03.995751+00:00",
     "last_pr_number": 836,
-    "error_count": 0,
-    "pr_shas": {
-      "831": "2bfc0316ad2f3461c123014da97d25680ae78370"
-    }
-  },
-  "remnawave/panel": {
-    "last_checked": "2026-01-28T12:20:03.788123+00:00",
-    "last_pr_number": 328,
     "error_count": 0
   },
+  "remnawave/panel": {
+    "last_checked": "2026-01-28T14:18:05.381208+00:00",
+    "last_pr_number": 328,
+    "error_count": 0,
+    "pr_shas": {
+      "323": "a3847ef11bac280a1ad06dfa6df1c6f47c005b3f",
+      "328": "7a52d80304d1c52b4e6c3ae79c6a5a0734261f29"
+    }
+  },
   "nvidia/earth2studio": {
-    "last_checked": "2026-01-28T12:20:05.396920+00:00",
+    "last_checked": "2026-01-28T14:18:06.405628+00:00",
     "last_pr_number": 660,
     "error_count": 0
   },
   "elephant-xyz/counties-trasform-scripts": {
-    "last_checked": "2026-01-28T12:20:06.238220+00:00",
+    "last_checked": "2026-01-28T14:18:07.080727+00:00",
     "last_pr_number": 716,
     "error_count": 0
   },
   "nvidia/cloudai": {
-    "last_checked": "2026-01-28T12:20:07.539255+00:00",
+    "last_checked": "2026-01-28T14:18:08.335321+00:00",
     "last_pr_number": 792,
-    "error_count": 0,
-    "pr_shas": {
-      "790": "b5533521267e7365b43c88f86cb76c520140d796"
-    }
+    "error_count": 0
   },
   "deltahacks/portal": {
-    "last_checked": "2026-01-28T12:20:08.361366+00:00",
+    "last_checked": "2026-01-28T14:18:09.247738+00:00",
     "last_pr_number": 434,
     "error_count": 0
   },
   "nvidia/warp": {
-    "last_checked": "2026-01-28T12:20:10.486511+00:00",
+    "last_checked": "2026-01-28T14:18:12.775176+00:00",
     "last_pr_number": 1189,
     "error_count": 0
   },
   "zeromicro/zero-examples": {
-    "last_checked": "2026-01-28T12:20:11.555409+00:00",
+    "last_checked": "2026-01-28T14:18:13.813521+00:00",
     "last_pr_number": null,
     "error_count": 0
   },
   "getarcaneapp/arcane": {
-    "last_checked": "2026-01-28T12:20:13.070432+00:00",
+    "last_checked": "2026-01-28T14:18:14.943126+00:00",
     "last_pr_number": 1593,
-    "error_count": 0,
-    "pr_shas": {
-      "1591": "998d440e102a21230ab0750da1b6601043127300",
-      "1593": "171f03caecec46f5c5dbc7091ca48a47e2b9dc45"
-    }
+    "error_count": 0
   },
   "axelarnetwork/axelarjs": {
-    "last_checked": "2026-01-28T12:20:14.087330+00:00",
+    "last_checked": "2026-01-28T14:18:15.927864+00:00",
     "last_pr_number": 716,
     "error_count": 0
   },
   "synth-laboratories/synth-ai": {
-    "last_checked": "2026-01-28T12:20:14.836748+00:00",
+    "last_checked": "2026-01-28T14:18:16.741799+00:00",
     "last_pr_number": 186,
     "error_count": 0
   },
   "redot-engine/redot-website": {
-    "last_checked": "2026-01-28T12:20:16.732233+00:00",
+    "last_checked": "2026-01-28T14:18:18.369824+00:00",
     "last_pr_number": null,
     "error_count": 0
   },
   "browseros-ai/browseros-server": {
-    "last_checked": "2026-01-28T12:20:17.985033+00:00",
+    "last_checked": "2026-01-28T14:18:19.277632+00:00",
     "last_pr_number": 281,
     "error_count": 0
   },
   "mellanox/libvma": {
-    "last_checked": "2026-01-28T12:20:19.180698+00:00",
+    "last_checked": "2026-01-28T14:18:20.693236+00:00",
     "last_pr_number": 1174,
     "error_count": 0
   },
   "ktenman/portfolio": {
-    "last_checked": "2026-01-28T12:20:20.445519+00:00",
-    "last_pr_number": 1244,
+    "last_checked": "2026-01-28T14:18:21.634890+00:00",
+    "last_pr_number": 1246,
     "error_count": 0,
     "pr_shas": {
-      "1244": "23b72a7b88fc3c158d2ba92ec5ea8bdbe10fe37a"
+      "1246": "0737ae078788628580b89f5913fe137e89cefcd1"
     }
   },
   "dsarno/unity-mcp": {
-    "last_checked": "2026-01-28T12:20:21.378326+00:00",
+    "last_checked": "2026-01-28T14:18:22.565381+00:00",
     "last_pr_number": 131,
     "error_count": 0
   },
   "workos/workos-node": {
-    "last_checked": "2026-01-28T12:20:22.541384+00:00",
+    "last_checked": "2026-01-28T14:18:23.635355+00:00",
     "last_pr_number": 1452,
-    "error_count": 0,
-    "pr_shas": {
-      "1339": "c5135d57a69276b59f2457ee9b1532b6742a7dc6"
-    }
+    "error_count": 0
   },
   "remnawave/backend": {
-    "last_checked": "2026-01-28T12:20:24.332074+00:00",
+    "last_checked": "2026-01-28T14:18:24.824583+00:00",
     "last_pr_number": 131,
     "error_count": 0
   },
   "ducnguyen67201/cognobserve": {
-    "last_checked": "2026-01-28T12:20:25.301805+00:00",
+    "last_checked": "2026-01-28T14:18:25.687218+00:00",
     "last_pr_number": 242,
     "error_count": 0
   },
   "adam-cad/cadam": {
-    "last_checked": "2026-01-28T12:20:26.191225+00:00",
+    "last_checked": "2026-01-28T14:18:26.466632+00:00",
     "last_pr_number": 69,
     "error_count": 0
   },
   "browseros-ai/browseros-agent": {
-    "last_checked": "2026-01-28T12:20:26.928890+00:00",
+    "last_checked": "2026-01-28T14:18:27.132648+00:00",
     "last_pr_number": 281,
     "error_count": 0
   },
   "adaline/gateway": {
-    "last_checked": "2026-01-28T12:20:28.017972+00:00",
+    "last_checked": "2026-01-28T14:18:28.171851+00:00",
     "last_pr_number": 162,
     "error_count": 0
   },
   "infisical/cli": {
-    "last_checked": "2026-01-28T12:20:29.004514+00:00",
-    "last_pr_number": 115,
-    "error_count": 0
+    "last_checked": "2026-01-28T14:18:29.519437+00:00",
+    "last_pr_number": 116,
+    "error_count": 0,
+    "pr_shas": {
+      "116": "4b726f21f4b5440faa291259ce4d0ecf44def722"
+    }
   },
   "runanywhereai/runanywhere-sdks": {
-    "last_checked": "2026-01-28T12:20:30.602371+00:00",
+    "last_checked": "2026-01-28T14:18:30.779389+00:00",
     "last_pr_number": 309,
     "error_count": 0
   },
   "posthog/posthog-dotnet": {
-    "last_checked": "2026-01-28T12:20:31.610667+00:00",
+    "last_checked": "2026-01-28T14:18:31.856991+00:00",
     "last_pr_number": 148,
-    "error_count": 0
+    "error_count": 0,
+    "pr_shas": {
+      "148": "5d01fa29df796e1defe30c7e62248a0ae596d32f"
+    }
   },
   "nvidia-digital-bio/nvmolkit": {
-    "last_checked": "2026-01-28T12:20:32.634599+00:00",
-    "last_pr_number": 77,
-    "error_count": 0
+    "last_checked": "2026-01-28T14:18:33.434022+00:00",
+    "last_pr_number": 78,
+    "error_count": 0,
+    "pr_shas": {
+      "78": "9170b62ba1cad3fc129e84fc43c570f0e7e4492c",
+      "76": "d75cc6d2bc27d2e0f3f8aa98f11043710d2a5e94",
+      "77": "cb3068a85ea5ba4cfd2086f81164d4eb68ec9a38"
+    }
   },
   "rapidsai/cugraph-gnn": {
-    "last_checked": "2026-01-28T12:20:34.385793+00:00",
+    "last_checked": "2026-01-28T14:18:34.857040+00:00",
     "last_pr_number": 393,
     "error_count": 0
   },
   "openucx/ucc": {
-    "last_checked": "2026-01-28T12:20:35.957585+00:00",
+    "last_checked": "2026-01-28T14:18:36.202901+00:00",
     "last_pr_number": 1259,
     "error_count": 0
   },
   "opensecretcloud/opensecret-sdk": {
-    "last_checked": "2026-01-28T12:20:36.585189+00:00",
+    "last_checked": "2026-01-28T14:18:36.695506+00:00",
     "last_pr_number": 62,
     "error_count": 0
   },
   "tigrisdata/tigris-os-docs": {
-    "last_checked": "2026-01-28T12:20:37.657105+00:00",
+    "last_checked": "2026-01-28T14:18:37.590819+00:00",
     "last_pr_number": 339,
     "error_count": 0
   },
   "joby-aviation/noodles.gl": {
-    "last_checked": "2026-01-28T12:20:38.439757+00:00",
+    "last_checked": "2026-01-28T14:18:38.308785+00:00",
     "last_pr_number": 298,
-    "error_count": 0,
-    "pr_shas": {
-      "298": "b5c3e909b4a68b6e452070a26e440a043212fb9f",
-      "297": "149ecae14faecbe1e2f35b925664a26d68a2e111"
-    }
+    "error_count": 0
   },
   "getformo/sdk": {
-    "last_checked": "2026-01-28T12:20:39.247656+00:00",
+    "last_checked": "2026-01-28T14:18:39.099894+00:00",
     "last_pr_number": 153,
     "error_count": 0
   },
   "ever-co/ever-rec": {
-    "last_checked": "2026-01-28T12:20:40.401226+00:00",
+    "last_checked": "2026-01-28T14:18:40.007315+00:00",
     "last_pr_number": 132,
     "error_count": 0
   },
   "gtbitsofgood/design-system": {
-    "last_checked": "2026-01-28T12:20:41.118409+00:00",
+    "last_checked": "2026-01-28T14:18:40.750239+00:00",
     "last_pr_number": 124,
     "error_count": 0
   },
   "futuroptimist/jobbot3000": {
-    "last_checked": "2026-01-28T12:20:42.215868+00:00",
+    "last_checked": "2026-01-28T14:18:41.549572+00:00",
     "last_pr_number": 1034,
     "error_count": 0
   },
   "futuroptimist/danielsmith.io": {
-    "last_checked": "2026-01-28T12:20:42.921884+00:00",
+    "last_checked": "2026-01-28T14:18:42.153260+00:00",
     "last_pr_number": 422,
     "error_count": 0
   },
   "cleder/fastkml": {
-    "last_checked": "2026-01-28T12:20:43.745603+00:00",
+    "last_checked": "2026-01-28T14:18:43.211556+00:00",
     "last_pr_number": 489,
     "error_count": 0
   },
   "aweber-imbi/imbi-automations": {
-    "last_checked": "2026-01-28T12:20:44.607943+00:00",
+    "last_checked": "2026-01-28T14:18:43.831572+00:00",
     "last_pr_number": 64,
     "error_count": 0
   },
   "gtbitsofgood/hope-for-haiti": {
-    "last_checked": "2026-01-28T12:20:45.491321+00:00",
+    "last_checked": "2026-01-28T14:18:44.638515+00:00",
     "last_pr_number": 264,
     "error_count": 0
   },
   "mercoa-finance/react": {
-    "last_checked": "2026-01-28T12:20:46.468738+00:00",
+    "last_checked": "2026-01-28T14:18:45.699056+00:00",
     "last_pr_number": 114,
     "error_count": 0
   },
   "rasulkireev/tuxseo": {
-    "last_checked": "2026-01-28T12:20:47.435104+00:00",
+    "last_checked": "2026-01-28T14:18:46.385694+00:00",
     "last_pr_number": 136,
     "error_count": 0
   },
   "crossmint/n8n-nodes-crossmint": {
-    "last_checked": "2026-01-28T12:20:48.153114+00:00",
+    "last_checked": "2026-01-28T14:18:47.108598+00:00",
     "last_pr_number": 64,
     "error_count": 0
   },
   "aimultiple-benchmark/prometheus-bench-gre-2": {
-    "last_checked": "2026-01-28T12:20:49.194773+00:00",
+    "last_checked": "2026-01-28T14:18:47.845544+00:00",
     "last_pr_number": null,
     "error_count": 0
   },
   "nvidia/topograph": {
-    "last_checked": "2026-01-28T12:20:50.315391+00:00",
+    "last_checked": "2026-01-28T14:18:48.741390+00:00",
     "last_pr_number": 202,
     "error_count": 0
   },
   "cleder/vercheck": {
-    "last_checked": "2026-01-28T12:20:51.390123+00:00",
+    "last_checked": "2026-01-28T14:18:49.625902+00:00",
     "last_pr_number": 94,
     "error_count": 0
   },
   "mikestepanov/cascade": {
-    "last_checked": "2026-01-28T12:20:52.329588+00:00",
-    "last_pr_number": 126,
-    "error_count": 0
+    "last_checked": "2026-01-28T14:18:52.435139+00:00",
+    "last_pr_number": 129,
+    "error_count": 0,
+    "pr_shas": {
+      "128": "4a1e1884b48071a74dd76677d4fe71787461cf95",
+      "129": "ef6a636a58c8488bef3ef95b689327478cc82751",
+      "127": "10b0d8c1182e5f273cc7b79a5eacf585a0a88903"
+    }
   },
   "emerge-lab/pufferdrive": {
-    "last_checked": "2026-01-28T12:20:53.262044+00:00",
+    "last_checked": "2026-01-28T14:18:53.215774+00:00",
     "last_pr_number": 272,
     "error_count": 0
   },
   "beanie-brick-band/leopard": {
-    "last_checked": "2026-01-28T12:20:54.185447+00:00",
+    "last_checked": "2026-01-28T14:18:53.833672+00:00",
     "last_pr_number": 92,
     "error_count": 0
   },
   "gptme/gptme-contrib": {
-    "last_checked": "2026-01-28T12:20:55.153707+00:00",
+    "last_checked": "2026-01-28T14:18:54.594985+00:00",
     "last_pr_number": 219,
-    "error_count": 0
+    "error_count": 0,
+    "pr_shas": {
+      "219": "a5ffcae56c062574d1b77b8662e66737133b9540"
+    }
   },
   "delta-exchange/chatwoot": {
-    "last_checked": "2026-01-28T12:20:55.882803+00:00",
+    "last_checked": "2026-01-28T14:18:55.355694+00:00",
     "last_pr_number": 146,
     "error_count": 0
   },
   "infisical/terraform-provider-infisical": {
-    "last_checked": "2026-01-28T12:20:56.951182+00:00",
+    "last_checked": "2026-01-28T14:18:56.281792+00:00",
     "last_pr_number": 235,
     "error_count": 0
   },
   "cleder/pygeoif": {
-    "last_checked": "2026-01-28T12:20:57.824313+00:00",
+    "last_checked": "2026-01-28T14:18:57.159776+00:00",
     "last_pr_number": 332,
     "error_count": 0
   },
   "anderskev/amelia": {
-    "last_checked": "2026-01-28T12:20:59.208436+00:00",
+    "last_checked": "2026-01-28T14:18:58.466254+00:00",
     "last_pr_number": 386,
     "error_count": 0
   },
   "flyx-ai/heimdall": {
-    "last_checked": "2026-01-28T12:21:00.167101+00:00",
+    "last_checked": "2026-01-28T14:18:59.288535+00:00",
     "last_pr_number": 102,
     "error_count": 0
   },
   "axelarnetwork/axelarscan-ui": {
-    "last_checked": "2026-01-28T12:21:01.413350+00:00",
+    "last_checked": "2026-01-28T14:19:00.323748+00:00",
     "last_pr_number": 373,
     "error_count": 0
   },
   "dcramer/peated": {
-    "last_checked": "2026-01-28T12:21:02.555050+00:00",
+    "last_checked": "2026-01-28T14:19:01.446282+00:00",
     "last_pr_number": null,
     "error_count": 0
   },
   "rasulkireev/marketing-agents": {
-    "last_checked": "2026-01-28T12:21:03.662921+00:00",
+    "last_checked": "2026-01-28T14:19:02.430724+00:00",
     "last_pr_number": 136,
     "error_count": 0
   },
   "workos/workos-ruby": {
-    "last_checked": "2026-01-28T12:21:05.175590+00:00",
+    "last_checked": "2026-01-28T14:19:03.592085+00:00",
     "last_pr_number": 418,
     "error_count": 0
   },
   "huskit/website-agent": {
-    "last_checked": "2026-01-28T12:21:05.526091+00:00",
+    "last_checked": "2026-01-28T14:19:03.995426+00:00",
     "last_pr_number": 24,
     "error_count": 0
   },
   "futuroptimist/wove": {
-    "last_checked": "2026-01-28T12:21:06.273533+00:00",
+    "last_checked": "2026-01-28T14:19:04.829966+00:00",
     "last_pr_number": 333,
     "error_count": 0
   },
   "workos/workos-go": {
-    "last_checked": "2026-01-28T12:21:07.800804+00:00",
+    "last_checked": "2026-01-28T14:19:05.994403+00:00",
     "last_pr_number": 487,
     "error_count": 0
   },
   "nvidia/matx": {
-    "last_checked": "2026-01-28T12:21:09.171099+00:00",
+    "last_checked": "2026-01-28T14:19:07.341140+00:00",
     "last_pr_number": 1124,
     "error_count": 0
   },
   "cleder/crepr": {
-    "last_checked": "2026-01-28T12:21:10.111390+00:00",
+    "last_checked": "2026-01-28T14:19:08.590968+00:00",
     "last_pr_number": 134,
     "error_count": 0
   },
   "ischemist/syntharena": {
-    "last_checked": "2026-01-28T12:21:10.648154+00:00",
+    "last_checked": "2026-01-28T14:19:09.211621+00:00",
     "last_pr_number": 60,
     "error_count": 0
   },
   "gtbitsofgood/bagel-rescue": {
-    "last_checked": "2026-01-28T12:21:11.515963+00:00",
+    "last_checked": "2026-01-28T14:19:09.993561+00:00",
     "last_pr_number": null,
     "error_count": 0
   },
   "browserbase/mcp-server-browserbase": {
-    "last_checked": "2026-01-28T12:21:12.759801+00:00",
+    "last_checked": "2026-01-28T14:19:11.168756+00:00",
     "last_pr_number": 147,
     "error_count": 0
   },
   "gtbitsofgood/juno": {
-    "last_checked": "2026-01-28T12:21:13.720126+00:00",
+    "last_checked": "2026-01-28T14:19:12.321496+00:00",
     "last_pr_number": 234,
     "error_count": 0
   },
   "robottwo/gsh_prime": {
-    "last_checked": "2026-01-28T12:21:15.127491+00:00",
+    "last_checked": "2026-01-28T14:19:13.450344+00:00",
     "last_pr_number": 81,
     "error_count": 0
   },
   "gtbitsofgood/juno-dashboard": {
-    "last_checked": "2026-01-28T12:21:15.755415+00:00",
+    "last_checked": "2026-01-28T14:19:13.910949+00:00",
     "last_pr_number": null,
     "error_count": 0
   },
   "workos/workos-python": {
-    "last_checked": "2026-01-28T12:21:17.216572+00:00",
+    "last_checked": "2026-01-28T14:19:15.462014+00:00",
     "last_pr_number": 523,
     "error_count": 0
   },
   "nvidia/dgx-cloud-examples": {
-    "last_checked": "2026-01-28T12:21:18.010635+00:00",
+    "last_checked": "2026-01-28T14:19:16.179200+00:00",
     "last_pr_number": 40,
     "error_count": 0
   },
   "axelarnetwork/axelarscan-api": {
-    "last_checked": "2026-01-28T12:21:19.123239+00:00",
+    "last_checked": "2026-01-28T14:19:17.176037+00:00",
     "last_pr_number": 329,
     "error_count": 0
   },
   "ever-co/ever-traduora": {
-    "last_checked": "2026-01-28T12:21:20.453509+00:00",
+    "last_checked": "2026-01-28T14:19:18.209676+00:00",
     "last_pr_number": 509,
     "error_count": 0
   },
   "mellanox/doca-driver-build": {
-    "last_checked": "2026-01-28T12:21:21.472303+00:00",
+    "last_checked": "2026-01-28T14:19:19.167389+00:00",
     "last_pr_number": 238,
     "error_count": 0
   },
   "astandrik/ydb-qdrant-ui": {
-    "last_checked": "2026-01-28T12:21:21.815219+00:00",
+    "last_checked": "2026-01-28T14:19:19.472218+00:00",
     "last_pr_number": null,
     "error_count": 0
   },
   "kandotrun/kururi-ai": {
-    "last_checked": "2026-01-28T12:21:22.055008+00:00",
+    "last_checked": "2026-01-28T14:19:19.696269+00:00",
     "last_pr_number": null,
     "error_count": 0
   },
   "ischemist/project-procrustes": {
-    "last_checked": "2026-01-28T12:21:22.719722+00:00",
+    "last_checked": "2026-01-28T14:19:20.257442+00:00",
     "last_pr_number": 56,
     "error_count": 0
   },
   "confident-ai/deepeval": {
-    "last_checked": "2026-01-28T12:21:24.108094+00:00",
+    "last_checked": "2026-01-28T14:19:21.304526+00:00",
     "last_pr_number": 2459,
     "error_count": 0
   },
   "gtbitsofgood/ican": {
-    "last_checked": "2026-01-28T12:21:24.961831+00:00",
+    "last_checked": "2026-01-28T14:19:22.115973+00:00",
     "last_pr_number": null,
     "error_count": 0
   },
   "traceroot-ai/traceroot": {
-    "last_checked": "2026-01-28T12:21:26.876687+00:00",
+    "last_checked": "2026-01-28T14:19:23.595874+00:00",
     "last_pr_number": 377,
     "error_count": 0
   },
   "elephant-xyz/oracle-node": {
-    "last_checked": "2026-01-28T12:21:27.554810+00:00",
+    "last_checked": "2026-01-28T14:19:24.362890+00:00",
     "last_pr_number": 164,
     "error_count": 0
   },
   "pr-pm/prpm": {
-    "last_checked": "2026-01-28T12:21:28.319116+00:00",
+    "last_checked": "2026-01-28T14:19:25.076489+00:00",
     "last_pr_number": 250,
     "error_count": 0
   },
   "sgardoll/yamltools": {
-    "last_checked": "2026-01-28T12:21:28.828594+00:00",
+    "last_checked": "2026-01-28T14:19:25.458422+00:00",
     "last_pr_number": null,
     "error_count": 0
   },
   "silimate/opensta": {
-    "last_checked": "2026-01-28T12:21:29.326663+00:00",
+    "last_checked": "2026-01-28T14:19:25.980837+00:00",
     "last_pr_number": 34,
     "error_count": 0
   },
   "nvidia/spark-rapids-tools": {
-    "last_checked": "2026-01-28T12:21:30.808110+00:00",
+    "last_checked": "2026-01-28T14:19:27.273492+00:00",
     "last_pr_number": 2031,
     "error_count": 0
   },
   "sebastiaanspeck/bettingbook-cli": {
-    "last_checked": "2026-01-28T12:21:31.344314+00:00",
+    "last_checked": "2026-01-28T14:19:27.696434+00:00",
     "last_pr_number": 52,
     "error_count": 0
   },
   "credal-ai/actions-sdk": {
-    "last_checked": "2026-01-28T12:21:32.416854+00:00",
+    "last_checked": "2026-01-28T14:19:28.569868+00:00",
     "last_pr_number": 479,
     "error_count": 0
   },
   "alpaca-network/railway-grafana-stack": {
-    "last_checked": "2026-01-28T12:21:33.213103+00:00",
+    "last_checked": "2026-01-28T14:19:29.347606+00:00",
     "last_pr_number": 92,
     "error_count": 0
   },
   "every-day-things/citadel": {
-    "last_checked": "2026-01-28T12:21:34.220465+00:00",
+    "last_checked": "2026-01-28T14:19:30.082673+00:00",
     "last_pr_number": null,
     "error_count": 0
   },
   "ewjdev/anyclick": {
-    "last_checked": "2026-01-28T12:21:34.729912+00:00",
+    "last_checked": "2026-01-28T14:19:30.440098+00:00",
     "last_pr_number": null,
     "error_count": 0
   },
   "fairlendinc/flpilot": {
-    "last_checked": "2026-01-28T12:21:35.166453+00:00",
+    "last_checked": "2026-01-28T14:19:30.879916+00:00",
     "last_pr_number": 48,
     "error_count": 0
   },
   "nvidia/spark-rapids-examples": {
-    "last_checked": "2026-01-28T12:21:36.216508+00:00",
+    "last_checked": "2026-01-28T14:19:32.052771+00:00",
     "last_pr_number": 616,
     "error_count": 0
   },
   "workos/authkit-react-router": {
-    "last_checked": "2026-01-28T12:21:36.917532+00:00",
+    "last_checked": "2026-01-28T14:19:32.717299+00:00",
     "last_pr_number": 57,
     "error_count": 0
   },
   "aj47/speakmcp": {
-    "last_checked": "2026-01-28T12:21:37.800593+00:00",
+    "last_checked": "2026-01-28T14:19:33.306306+00:00",
     "last_pr_number": 992,
     "error_count": 0
   },
   "green-coding-solutions/eco-ci-energy-estimation": {
-    "last_checked": "2026-01-28T12:21:38.884299+00:00",
+    "last_checked": "2026-01-28T14:19:34.293845+00:00",
     "last_pr_number": null,
     "error_count": 0
   },
   "axelarnetwork/axelar-docs": {
-    "last_checked": "2026-01-28T12:21:40.344928+00:00",
+    "last_checked": "2026-01-28T14:19:35.526354+00:00",
     "last_pr_number": 1433,
     "error_count": 0
   },
   "workos/workos-php": {
-    "last_checked": "2026-01-28T12:21:41.879907+00:00",
+    "last_checked": "2026-01-28T14:19:36.924819+00:00",
     "last_pr_number": 317,
     "error_count": 0
   },
   "mrmps/smry": {
-    "last_checked": "2026-01-28T12:21:42.277900+00:00",
+    "last_checked": "2026-01-28T14:19:37.298893+00:00",
     "last_pr_number": 53,
-    "error_count": 0,
-    "pr_shas": {
-      "42": "d348721b96bcd1e2d69df106a38477a72671bc98",
-      "39": "a28737b75a9ba6d708765f009485c01acd7b47ed",
-      "35": "ec0428c09c409970b72f7bf95eb6d1f6bf4644df",
-      "31": "d6ade63ec11c7a5ada284affd3913fd370142917"
-    }
+    "error_count": 0
   },
   "gtbitsofgood/juno-sdk": {
-    "last_checked": "2026-01-28T12:21:42.854128+00:00",
+    "last_checked": "2026-01-28T14:19:37.796999+00:00",
     "last_pr_number": null,
     "error_count": 0
   },
   "ironyh/vuesip": {
-    "last_checked": "2026-01-28T12:21:43.798129+00:00",
+    "last_checked": "2026-01-28T14:19:38.426675+00:00",
     "last_pr_number": 179,
     "error_count": 0
   },
   "antonengelhardt/kicktipp-bot": {
-    "last_checked": "2026-01-28T12:21:44.599791+00:00",
+    "last_checked": "2026-01-28T14:19:39.067547+00:00",
     "last_pr_number": 75,
     "error_count": 0
   },
   "cyberdesk-hq/cyberdriver": {
-    "last_checked": "2026-01-28T12:21:45.003682+00:00",
+    "last_checked": "2026-01-28T14:19:39.554516+00:00",
     "last_pr_number": 33,
     "error_count": 0
   },
   "remnawave/subscription-page": {
-    "last_checked": "2026-01-28T12:21:45.740269+00:00",
+    "last_checked": "2026-01-28T14:19:40.319319+00:00",
     "last_pr_number": 38,
     "error_count": 0
   },
   "remnawave/node": {
-    "last_checked": "2026-01-28T12:21:46.168621+00:00",
+    "last_checked": "2026-01-28T14:19:40.856547+00:00",
     "last_pr_number": 26,
     "error_count": 0
   },
   "useautumn/autumn": {
-    "last_checked": "2026-01-28T12:21:48.017917+00:00",
-    "last_pr_number": 644,
+    "last_checked": "2026-01-28T14:19:43.356860+00:00",
+    "last_pr_number": 648,
     "error_count": 0,
     "pr_shas": {
-      "644": "13965d138a63a5dd043e7a886426178133cb6268",
-      "643": "f5fbe824d255612aa30c5999db580af18e7599ee",
-      "505": "0a972d8852c84736541a6922190cd76ea484914d",
-      "591": "ea0e6b855cf0cd1fb4a72ca95891fa18e1967f2a"
+      "648": "42034ad3cac977b6f1db561a622acfe1eed69b23",
+      "644": "3d22b55e634551d805a05d094573afc75ca1e7c0",
+      "647": "41e2f2826cd70b6f37e523de4278c1b69e7df408",
+      "646": "ffbb2ca29a56eb77b8c5a794c0fee7aab5aa21ab",
+      "645": "4dff80de16c21d58a58f6fb5d368537bd14b375b"
     }
   },
   "tigrisdata/tigris-boto3-ext": {
-    "last_checked": "2026-01-28T12:21:48.404494+00:00",
+    "last_checked": "2026-01-28T14:19:43.704526+00:00",
     "last_pr_number": 14,
     "error_count": 0
   },
   "weavermarquez/house-of-bao": {
-    "last_checked": "2026-01-28T12:21:48.882759+00:00",
+    "last_checked": "2026-01-28T14:19:44.070708+00:00",
     "last_pr_number": null,
     "error_count": 0
   },
   "cocos/cocos-engine": {
-    "last_checked": "2026-01-28T12:21:49.897581+00:00",
+    "last_checked": "2026-01-28T14:19:45.146502+00:00",
     "last_pr_number": 19136,
     "error_count": 0
   },
   "tinyrange/cc": {
-    "last_checked": "2026-01-28T12:21:50.647408+00:00",
+    "last_checked": "2026-01-28T14:19:45.780542+00:00",
     "last_pr_number": 87,
     "error_count": 0
   },
   "vanjaro/ord": {
-    "last_checked": "2026-01-28T12:21:50.957950+00:00",
+    "last_checked": "2026-01-28T14:19:45.956359+00:00",
     "last_pr_number": null,
     "error_count": 0
   },
   "futuroptimist/token.place": {
-    "last_checked": "2026-01-28T12:21:51.731370+00:00",
+    "last_checked": "2026-01-28T14:19:46.591296+00:00",
     "last_pr_number": 589,
     "error_count": 0
   },
   "workos/authkit-remix": {
-    "last_checked": "2026-01-28T12:21:52.562511+00:00",
+    "last_checked": "2026-01-28T14:19:47.329301+00:00",
     "last_pr_number": 85,
     "error_count": 0
   },
   "xl0/lovely-docs": {
-    "last_checked": "2026-01-28T12:21:52.936605+00:00",
+    "last_checked": "2026-01-28T14:19:47.580838+00:00",
     "last_pr_number": 18,
     "error_count": 0
   },
   "kafkasportal/git": {
-    "last_checked": "2026-01-28T12:21:53.059759+00:00",
+    "last_checked": "2026-01-28T14:19:47.653997+00:00",
     "last_pr_number": 91,
     "error_count": 0
   },
   "atimmer/24letters-site": {
-    "last_checked": "2026-01-28T12:21:54.387830+00:00",
+    "last_checked": "2026-01-28T14:19:48.955950+00:00",
     "last_pr_number": 333,
     "error_count": 0
   },
   "cajunsystems/cajun": {
-    "last_checked": "2026-01-28T12:21:54.739415+00:00",
+    "last_checked": "2026-01-28T14:19:49.237272+00:00",
     "last_pr_number": null,
     "error_count": 0
   },
   "shivang-16/beetle.ai": {
-    "last_checked": "2026-01-28T12:21:55.858452+00:00",
+    "last_checked": "2026-01-28T14:19:49.925721+00:00",
     "last_pr_number": 92,
     "error_count": 0
   },
   "michaeldrotar/tabby": {
-    "last_checked": "2026-01-28T12:21:56.187245+00:00",
+    "last_checked": "2026-01-28T14:19:50.228903+00:00",
     "last_pr_number": 21,
     "error_count": 0
   },
   "nvidia/spark-rapids-benchmarks": {
-    "last_checked": "2026-01-28T12:21:57.482425+00:00",
+    "last_checked": "2026-01-28T14:19:51.640576+00:00",
     "last_pr_number": 243,
     "error_count": 0
   },
   "workos/workos-kotlin": {
-    "last_checked": "2026-01-28T12:21:58.753840+00:00",
+    "last_checked": "2026-01-28T14:19:52.599438+00:00",
     "last_pr_number": null,
     "error_count": 0
   },
   "dexploarer/ghostspeak": {
-    "last_checked": "2026-01-28T12:22:00.086337+00:00",
+    "last_checked": "2026-01-28T14:19:53.660502+00:00",
     "last_pr_number": 119,
     "error_count": 0
   },
   "alpic-ai/skybridge": {
-    "last_checked": "2026-01-28T12:22:02.068437+00:00",
-    "last_pr_number": 402,
+    "last_checked": "2026-01-28T14:19:56.316588+00:00",
+    "last_pr_number": 410,
     "error_count": 0,
     "pr_shas": {
+      "410": "3c0e33691409fe5c4e28ee468b6a9506e0b92c60",
+      "392": "7965868d7ed9c600eff79b6da3d098bf78c5e2d5",
       "401": "fd74dc89b98cbb15ab1917a5b64586424255a485",
-      "396": "7b36447b09de985e4cdda5552fbd3ee854a936d5",
-      "304": "a80dfb956ff1c08ee6591e815084b7fe0a2afec4"
+      "396": "4ee05032cd1394e85f76b92512edf04006940a71",
+      "409": "bc9b932fa09684c01878477ef21780bbfca07168",
+      "304": "50622a880b93eb36317fd5f751b3956c69d58b8a",
+      "408": "b358a5089090e5512eb7dfa244ca2cdb3b9cd0ff"
     }
   },
   "brookcs3/pleco-xa": {
-    "last_checked": "2026-01-28T12:22:03.056678+00:00",
+    "last_checked": "2026-01-28T14:19:57.199810+00:00",
     "last_pr_number": null,
     "error_count": 0
   },
   "paid-ai/paid-python": {
-    "last_checked": "2026-01-28T12:22:03.820341+00:00",
+    "last_checked": "2026-01-28T14:19:57.754373+00:00",
     "last_pr_number": 81,
     "error_count": 0
   },
   "silimate/yosys": {
-    "last_checked": "2026-01-28T12:22:04.804976+00:00",
+    "last_checked": "2026-01-28T14:19:58.641226+00:00",
     "last_pr_number": 95,
     "error_count": 0
   },
   "nvidia/spark-rapids-ml": {
-    "last_checked": "2026-01-28T12:22:05.736957+00:00",
+    "last_checked": "2026-01-28T14:19:59.746772+00:00",
     "last_pr_number": 1005,
     "error_count": 0
   },
   "kargnas/laravel-ai-translator": {
-    "last_checked": "2026-01-28T12:22:06.448843+00:00",
+    "last_checked": "2026-01-28T14:20:00.313922+00:00",
     "last_pr_number": null,
     "error_count": 0
   },
   "gtbitsofgood/voluntrack": {
-    "last_checked": "2026-01-28T12:22:07.391658+00:00",
+    "last_checked": "2026-01-28T14:20:01.222584+00:00",
     "last_pr_number": null,
     "error_count": 0
   },
   "valian-ca/eslint-config": {
-    "last_checked": "2026-01-28T12:22:08.578580+00:00",
+    "last_checked": "2026-01-28T14:20:02.325468+00:00",
     "last_pr_number": 176,
     "error_count": 0
   },
   "dotnet-ninja/garage": {
-    "last_checked": "2026-01-28T12:22:08.950589+00:00",
+    "last_checked": "2026-01-28T14:20:02.669012+00:00",
     "last_pr_number": null,
     "error_count": 0
   },
   "helixdb/helix-ql-docs": {
-    "last_checked": "2026-01-28T12:22:09.628557+00:00",
+    "last_checked": "2026-01-28T14:20:03.271980+00:00",
     "last_pr_number": 45,
     "error_count": 0
   },
   "kossy0701/devise": {
-    "last_checked": "2026-01-28T12:22:09.952746+00:00",
+    "last_checked": "2026-01-28T14:20:03.560970+00:00",
     "last_pr_number": null,
     "error_count": 0
   },
   "ranvier2d2/chef": {
-    "last_checked": "2026-01-28T12:22:10.239598+00:00",
+    "last_checked": "2026-01-28T14:20:03.875707+00:00",
     "last_pr_number": null,
     "error_count": 0
   },
   "availproject/bridge-ui": {
-    "last_checked": "2026-01-28T12:22:10.964504+00:00",
+    "last_checked": "2026-01-28T14:20:04.838505+00:00",
     "last_pr_number": 116,
     "error_count": 0
   },
   "workos/authkit-react": {
-    "last_checked": "2026-01-28T12:22:11.675462+00:00",
+    "last_checked": "2026-01-28T14:20:05.645398+00:00",
     "last_pr_number": 86,
     "error_count": 0
   },
   "plexe-ai/plexe": {
-    "last_checked": "2026-01-28T12:22:12.828275+00:00",
+    "last_checked": "2026-01-28T14:20:06.867065+00:00",
     "last_pr_number": 159,
     "error_count": 0
   },
   "emerge-lab/adaptive_driving_agent": {
-    "last_checked": "2026-01-28T12:22:13.224564+00:00",
+    "last_checked": "2026-01-28T14:20:07.275334+00:00",
     "last_pr_number": 17,
     "error_count": 0
   },
   "jamesainslie/mdview": {
-    "last_checked": "2026-01-28T12:22:13.721950+00:00",
+    "last_checked": "2026-01-28T14:20:07.638817+00:00",
     "last_pr_number": null,
     "error_count": 0
   },
   "credal-ai/fern-docs": {
-    "last_checked": "2026-01-28T12:22:14.884496+00:00",
+    "last_checked": "2026-01-28T14:20:08.480806+00:00",
     "last_pr_number": 301,
     "error_count": 0
   },
   "futuroptimist/pr-reaper": {
-    "last_checked": "2026-01-28T12:22:15.542417+00:00",
+    "last_checked": "2026-01-28T14:20:09.025391+00:00",
     "last_pr_number": null,
     "error_count": 0
   },
   "flashnetxyz/ts-sdk": {
-    "last_checked": "2026-01-28T12:22:16.253868+00:00",
+    "last_checked": "2026-01-28T14:20:09.628859+00:00",
     "last_pr_number": 49,
     "error_count": 0
   },
   "bitcoinppl/cove": {
-    "last_checked": "2026-01-28T12:22:17.041490+00:00",
+    "last_checked": "2026-01-28T14:20:10.404025+00:00",
     "last_pr_number": 537,
     "error_count": 0
   },
   "alexsidebar/docs": {
-    "last_checked": "2026-01-28T12:22:17.372619+00:00",
+    "last_checked": "2026-01-28T14:20:10.744372+00:00",
     "last_pr_number": 9,
     "error_count": 0
   },
   "revenium/revenium-middleware-ollama-python": {
-    "last_checked": "2026-01-28T12:22:17.629930+00:00",
+    "last_checked": "2026-01-28T14:20:10.997851+00:00",
     "last_pr_number": 3,
     "error_count": 0
   },
   "maji-studio/varuna-carbon-dmrv": {
-    "last_checked": "2026-01-28T12:22:18.132379+00:00",
+    "last_checked": "2026-01-28T14:20:11.251682+00:00",
     "last_pr_number": 23,
     "error_count": 0
   },
   "anunnakian/langchain4j": {
-    "last_checked": "2026-01-28T12:22:18.351311+00:00",
+    "last_checked": "2026-01-28T14:20:11.489250+00:00",
     "last_pr_number": 2,
     "error_count": 0
   },
   "guruh46/freighter": {
-    "last_checked": "2026-01-28T12:22:18.715397+00:00",
+    "last_checked": "2026-01-28T14:20:11.791289+00:00",
     "last_pr_number": 13,
     "error_count": 0
   },
   "otdoges/zapdev": {
-    "last_checked": "2026-01-28T12:22:19.904447+00:00",
+    "last_checked": "2026-01-28T14:20:12.589412+00:00",
     "last_pr_number": 218,
     "error_count": 0
   },
   "ssvlabs/ssv-spec": {
-    "last_checked": "2026-01-28T12:22:21.186523+00:00",
+    "last_checked": "2026-01-28T14:20:14.622335+00:00",
     "last_pr_number": 599,
-    "error_count": 0,
-    "pr_shas": {
-      "599": "e9078371a003edb6e4e7bc0c56ab98a6146d79b6",
-      "572": "85ee4f32e4fc22bae8aacf837153aab3dcd6620b"
-    }
+    "error_count": 0
   },
   "superglue-ai/superglue": {
-    "last_checked": "2026-01-28T12:22:22.336279+00:00",
-    "last_pr_number": 604,
+    "last_checked": "2026-01-28T14:20:16.150924+00:00",
+    "last_pr_number": 605,
     "error_count": 0,
     "pr_shas": {
-      "604": "92a5ed467ba8a1ae08c86d0ce7e69fdd070459e9"
+      "605": "d166bf9245685ad3b9df55dbf12f127b162f7e56"
     }
   },
   "quiltdata/iac": {
-    "last_checked": "2026-01-28T12:22:23.396593+00:00",
+    "last_checked": "2026-01-28T14:20:17.005928+00:00",
     "last_pr_number": 100,
     "error_count": 0
   },
   "nextgencontributions/nitpick": {
-    "last_checked": "2026-01-28T12:22:23.988345+00:00",
+    "last_checked": "2026-01-28T14:20:17.851900+00:00",
     "last_pr_number": 50,
     "error_count": 0
   },
   "yertools/simple-frontend-stack": {
-    "last_checked": "2026-01-28T12:22:25.057457+00:00",
+    "last_checked": "2026-01-28T14:20:18.961628+00:00",
     "last_pr_number": 105,
     "error_count": 0
   },
   "revenium/revenium-middleware-openai-python": {
-    "last_checked": "2026-01-28T12:22:25.305089+00:00",
+    "last_checked": "2026-01-28T14:20:19.192541+00:00",
     "last_pr_number": 2,
     "error_count": 0
   },
   "paid-ai/paid-node": {
-    "last_checked": "2026-01-28T12:22:26.046085+00:00",
+    "last_checked": "2026-01-28T14:20:19.916346+00:00",
     "last_pr_number": 76,
     "error_count": 0
   },
   "cdinea/cucim": {
-    "last_checked": "2026-01-28T12:22:26.283959+00:00",
+    "last_checked": "2026-01-28T14:20:20.143701+00:00",
     "last_pr_number": null,
     "error_count": 0
   },
   "stopbars/core": {
-    "last_checked": "2026-01-28T12:22:27.215714+00:00",
+    "last_checked": "2026-01-28T14:20:20.952158+00:00",
     "last_pr_number": 102,
     "error_count": 0
   },
   "h1dr0nn/crosssave-cloud": {
-    "last_checked": "2026-01-28T12:22:27.771671+00:00",
+    "last_checked": "2026-01-28T14:20:21.514795+00:00",
     "last_pr_number": null,
     "error_count": 0
   },
   "namecallfilter/lunar-chess": {
-    "last_checked": "2026-01-28T12:22:28.274914+00:00",
+    "last_checked": "2026-01-28T14:20:22.026641+00:00",
     "last_pr_number": null,
     "error_count": 0
   },
   "credal-ai/credal-python-sdk": {
-    "last_checked": "2026-01-28T12:22:29.208231+00:00",
+    "last_checked": "2026-01-28T14:20:22.906245+00:00",
     "last_pr_number": 70,
     "error_count": 0
   },
   "chandeldivyam/docufy": {
-    "last_checked": "2026-01-28T12:22:29.719891+00:00",
+    "last_checked": "2026-01-28T14:20:23.292924+00:00",
     "last_pr_number": null,
     "error_count": 0
   },
   "doudouhe/spring-ai-summary": {
-    "last_checked": "2026-01-28T12:22:30.022588+00:00",
+    "last_checked": "2026-01-28T14:20:23.595543+00:00",
     "last_pr_number": 13,
     "error_count": 0
   },
   "browseros-ai/browseros": {
-    "last_checked": "2026-01-28T12:22:31.979723+00:00",
+    "last_checked": "2026-01-28T14:20:25.930235+00:00",
     "last_pr_number": 341,
     "error_count": 0
   },
   "youversion/platform-sdk-react": {
-    "last_checked": "2026-01-28T12:22:32.794356+00:00",
+    "last_checked": "2026-01-28T14:20:26.545231+00:00",
     "last_pr_number": 115,
     "error_count": 0
   },
   "johnsaigle/wormhole": {
-    "last_checked": "2026-01-28T12:22:33.124206+00:00",
+    "last_checked": "2026-01-28T14:20:26.803349+00:00",
     "last_pr_number": null,
     "error_count": 0
   },
   "emmapowers/trellis": {
-    "last_checked": "2026-01-28T12:22:33.475028+00:00",
+    "last_checked": "2026-01-28T14:20:27.188960+00:00",
     "last_pr_number": 29,
     "error_count": 0
   },
   "dxleryt/woocommerce": {
-    "last_checked": "2026-01-28T12:22:33.867448+00:00",
+    "last_checked": "2026-01-28T14:20:27.518349+00:00",
     "last_pr_number": 23,
     "error_count": 0
   },
   "isuldra/suppliers": {
-    "last_checked": "2026-01-28T12:22:34.158276+00:00",
+    "last_checked": "2026-01-28T14:20:27.777488+00:00",
     "last_pr_number": 14,
     "error_count": 0
   },
   "workos/authkit-session": {
-    "last_checked": "2026-01-28T12:22:34.492290+00:00",
+    "last_checked": "2026-01-28T14:20:28.137330+00:00",
     "last_pr_number": 18,
     "error_count": 0
   },
   "dioramashvili/ascend.ai": {
-    "last_checked": "2026-01-28T12:22:34.973223+00:00",
+    "last_checked": "2026-01-28T14:20:28.610713+00:00",
     "last_pr_number": 58,
     "error_count": 0
   },
   "silimate/silisizer": {
-    "last_checked": "2026-01-28T12:22:35.714475+00:00",
+    "last_checked": "2026-01-28T14:20:29.155371+00:00",
     "last_pr_number": 54,
     "error_count": 0
   },
   "sevilze/ani2hyprtui": {
-    "last_checked": "2026-01-28T12:22:35.977852+00:00",
+    "last_checked": "2026-01-28T14:20:29.373054+00:00",
     "last_pr_number": null,
     "error_count": 0
   },
   "jerichosequitin/metabase-mcp": {
-    "last_checked": "2026-01-28T12:22:36.429708+00:00",
+    "last_checked": "2026-01-28T14:20:29.685346+00:00",
     "last_pr_number": 22,
     "error_count": 0
   },
   "builtwithdjango/builtwithdjango": {
-    "last_checked": "2026-01-28T12:22:37.124567+00:00",
+    "last_checked": "2026-01-28T14:20:30.386346+00:00",
     "last_pr_number": null,
     "error_count": 0
   },
   "revenium/revenium-middleware-google-python": {
-    "last_checked": "2026-01-28T12:22:37.353284+00:00",
+    "last_checked": "2026-01-28T14:20:30.577988+00:00",
     "last_pr_number": 2,
     "error_count": 0
   },
   "mellanox/ufm_sdk_3.0": {
-    "last_checked": "2026-01-28T12:22:38.360229+00:00",
+    "last_checked": "2026-01-28T14:20:31.685617+00:00",
     "last_pr_number": 359,
     "error_count": 0
   },
   "tizzle716/stable-diffusion-webui": {
-    "last_checked": "2026-01-28T12:22:38.665100+00:00",
+    "last_checked": "2026-01-28T14:20:31.975677+00:00",
     "last_pr_number": 8,
     "error_count": 0
   },
   "revenium/revenium-middleware-anthropic-node": {
-    "last_checked": "2026-01-28T12:22:38.950725+00:00",
+    "last_checked": "2026-01-28T14:20:32.186565+00:00",
     "last_pr_number": 3,
     "error_count": 0
   },
   "inistack/strapi_for_greptile": {
-    "last_checked": "2026-01-28T12:22:39.251064+00:00",
+    "last_checked": "2026-01-28T14:20:32.451061+00:00",
     "last_pr_number": null,
     "error_count": 0
   },
   "nvidia-nemo/emerging-optimizers": {
-    "last_checked": "2026-01-28T12:22:40.377012+00:00",
+    "last_checked": "2026-01-28T14:20:33.501810+00:00",
     "last_pr_number": 91,
     "error_count": 0
   },
   "access-time/lenscore": {
-    "last_checked": "2026-01-28T12:22:40.778547+00:00",
+    "last_checked": "2026-01-28T14:20:33.888254+00:00",
     "last_pr_number": 51,
     "error_count": 0
   },
   "fulcrumresearch/quibbler": {
-    "last_checked": "2026-01-28T12:22:41.108298+00:00",
+    "last_checked": "2026-01-28T14:20:34.215221+00:00",
     "last_pr_number": null,
     "error_count": 0
   },
   "open-ci-io/openci": {
-    "last_checked": "2026-01-28T12:22:42.987096+00:00",
+    "last_checked": "2026-01-28T14:20:34.916579+00:00",
     "last_pr_number": 929,
-    "error_count": 0,
-    "pr_shas": {
-      "929": "0a015770c6376754c71c2b3b08aa7cd14b6bd0e1",
-      "926": "694c723fce0e3d5097d43cb3ab45b700b93fe3ef"
-    }
+    "error_count": 0
   },
   "t3-content/snitchbench": {
-    "last_checked": "2026-01-28T12:22:43.567680+00:00",
+    "last_checked": "2026-01-28T14:20:35.468080+00:00",
     "last_pr_number": 19,
     "error_count": 0
   },
   "ivntsng/nextstep-extension": {
-    "last_checked": "2026-01-28T12:22:44.098472+00:00",
+    "last_checked": "2026-01-28T14:20:35.857500+00:00",
     "last_pr_number": null,
     "error_count": 0
   },
   "rasulkireev/django-saas-starter": {
-    "last_checked": "2026-01-28T12:22:44.439532+00:00",
+    "last_checked": "2026-01-28T14:20:36.105033+00:00",
     "last_pr_number": null,
     "error_count": 0
   },
   "gptme/gptme-agent-template": {
-    "last_checked": "2026-01-28T12:22:45.038883+00:00",
+    "last_checked": "2026-01-28T14:20:36.654708+00:00",
     "last_pr_number": 47,
     "error_count": 0
   },
   "valian-ca/zod-firebase-schema": {
-    "last_checked": "2026-01-28T12:22:46.047313+00:00",
+    "last_checked": "2026-01-28T14:20:37.828605+00:00",
     "last_pr_number": 366,
     "error_count": 0
   },
   "infisical/node-sdk-v2": {
-    "last_checked": "2026-01-28T12:22:46.487191+00:00",
+    "last_checked": "2026-01-28T14:20:38.289442+00:00",
     "last_pr_number": null,
     "error_count": 0
   },
   "infisical/python-sdk-official": {
-    "last_checked": "2026-01-28T12:22:47.353767+00:00",
+    "last_checked": "2026-01-28T14:20:39.160265+00:00",
     "last_pr_number": 51,
     "error_count": 0
   },
   "valian-ca/react-firebase": {
-    "last_checked": "2026-01-28T12:22:48.666294+00:00",
+    "last_checked": "2026-01-28T14:20:40.240687+00:00",
     "last_pr_number": 85,
     "error_count": 0
   },
   "stopbars/website": {
-    "last_checked": "2026-01-28T12:22:49.368215+00:00",
+    "last_checked": "2026-01-28T14:20:40.973700+00:00",
     "last_pr_number": 97,
     "error_count": 0
   },
   "revenium/revenium-metering-python": {
-    "last_checked": "2026-01-28T12:22:50.238539+00:00",
+    "last_checked": "2026-01-28T14:20:41.774403+00:00",
     "last_pr_number": 102,
     "error_count": 0
   },
   "credal-ai/credal-typescript-sdk": {
-    "last_checked": "2026-01-28T12:22:50.952180+00:00",
+    "last_checked": "2026-01-28T14:20:42.532491+00:00",
     "last_pr_number": 73,
     "error_count": 0
   },
   "davis7dotsh/r8y": {
-    "last_checked": "2026-01-28T12:22:51.305193+00:00",
+    "last_checked": "2026-01-28T14:20:42.793467+00:00",
     "last_pr_number": 13,
     "error_count": 0
   },
   "ankanmisra/fastify": {
-    "last_checked": "2026-01-28T12:22:51.536553+00:00",
+    "last_checked": "2026-01-28T14:20:42.996186+00:00",
     "last_pr_number": null,
     "error_count": 0
   },
   "futuroptimist/gitshelves": {
-    "last_checked": "2026-01-28T12:22:52.546230+00:00",
+    "last_checked": "2026-01-28T14:20:43.793655+00:00",
     "last_pr_number": null,
     "error_count": 0
   },
   "mikeyyyzhao/react-big-calendar": {
-    "last_checked": "2026-01-28T12:22:52.993343+00:00",
+    "last_checked": "2026-01-28T14:20:44.186068+00:00",
     "last_pr_number": null,
     "error_count": 0
   },
   "drothermel/dr_util": {
-    "last_checked": "2026-01-28T12:22:53.473063+00:00",
+    "last_checked": "2026-01-28T14:20:44.560302+00:00",
     "last_pr_number": null,
     "error_count": 0
   },
   "nksaraf/vinxi": {
-    "last_checked": "2026-01-28T12:22:54.975258+00:00",
+    "last_checked": "2026-01-28T14:20:46.082931+00:00",
     "last_pr_number": null,
     "error_count": 0
   },
   "nanhesam/eveokee-monorepo": {
-    "last_checked": "2026-01-28T12:22:55.430751+00:00",
+    "last_checked": "2026-01-28T14:20:46.532619+00:00",
     "last_pr_number": 52,
     "error_count": 0
   },
   "nickjlange/recruiter-rankings.com": {
-    "last_checked": "2026-01-28T12:22:55.740472+00:00",
+    "last_checked": "2026-01-28T14:20:46.792584+00:00",
     "last_pr_number": null,
     "error_count": 0
   },
   "hiroxsoftwaresolutions/fluxomail-sdk-js": {
-    "last_checked": "2026-01-28T12:22:56.210153+00:00",
+    "last_checked": "2026-01-28T14:20:47.279034+00:00",
     "last_pr_number": 56,
     "error_count": 0
   },
   "cloudzero/template-cloudzero-open-source": {
-    "last_checked": "2026-01-28T12:22:56.676597+00:00",
+    "last_checked": "2026-01-28T14:20:47.621052+00:00",
     "last_pr_number": 7,
     "error_count": 0
   },
   "infisical/go-sdk": {
-    "last_checked": "2026-01-28T12:22:57.433956+00:00",
+    "last_checked": "2026-01-28T14:20:48.396569+00:00",
     "last_pr_number": 66,
     "error_count": 0
   },
   "yamap55/python_repository_simple": {
-    "last_checked": "2026-01-28T12:22:58.551982+00:00",
+    "last_checked": "2026-01-28T14:20:49.312886+00:00",
     "last_pr_number": 454,
     "error_count": 0
   },
   "runanywhereai/hackss": {
-    "last_checked": "2026-01-28T12:22:58.851675+00:00",
+    "last_checked": "2026-01-28T14:20:49.587086+00:00",
     "last_pr_number": null,
     "error_count": 0
   },
   "mergecal/icalendar-anonymizer": {
-    "last_checked": "2026-01-28T12:22:59.368435+00:00",
+    "last_checked": "2026-01-28T14:20:50.020532+00:00",
     "last_pr_number": 91,
     "error_count": 0
   },
   "axar-ai/axar": {
-    "last_checked": "2026-01-28T12:22:59.811293+00:00",
+    "last_checked": "2026-01-28T14:20:50.547755+00:00",
     "last_pr_number": null,
     "error_count": 0
   },
   "noobships/reacher-x": {
-    "last_checked": "2026-01-28T12:23:00.145614+00:00",
+    "last_checked": "2026-01-28T14:20:50.795085+00:00",
     "last_pr_number": 3,
     "error_count": 0
   },
   "ariajsarkar/eventix": {
-    "last_checked": "2026-01-28T12:23:00.432888+00:00",
+    "last_checked": "2026-01-28T14:20:51.025752+00:00",
     "last_pr_number": 3,
     "error_count": 0
   },
   "sbohner14335/nextjs-carbon-template": {
-    "last_checked": "2026-01-28T12:23:00.866219+00:00",
+    "last_checked": "2026-01-28T14:20:51.431795+00:00",
     "last_pr_number": 18,
     "error_count": 0
   },
   "valian-ca/fireway": {
-    "last_checked": "2026-01-28T12:23:01.303774+00:00",
+    "last_checked": "2026-01-28T14:20:51.780551+00:00",
     "last_pr_number": 18,
     "error_count": 0
   },
   "fredrikaugust/otelly": {
-    "last_checked": "2026-01-28T12:23:01.584324+00:00",
+    "last_checked": "2026-01-28T14:20:52.048464+00:00",
     "last_pr_number": 3,
     "error_count": 0
   },
   "unrealmultiple/tshockplugin": {
-    "last_checked": "2026-01-28T12:23:02.715463+00:00",
+    "last_checked": "2026-01-28T14:20:53.149493+00:00",
     "last_pr_number": 1067,
     "error_count": 0
   },
   "run-ai/runai-model-streamer": {
-    "last_checked": "2026-01-28T12:23:03.859234+00:00",
+    "last_checked": "2026-01-28T14:20:54.104729+00:00",
     "last_pr_number": 121,
     "error_count": 0
   },
   "urbancompass/hnvm": {
-    "last_checked": "2026-01-28T12:23:04.649974+00:00",
+    "last_checked": "2026-01-28T14:20:54.925015+00:00",
     "last_pr_number": 70,
     "error_count": 0
   },
   "davis7dotsh/better-context": {
-    "last_checked": "2026-01-28T12:23:05.500607+00:00",
+    "last_checked": "2026-01-28T14:20:55.937667+00:00",
     "last_pr_number": 132,
     "error_count": 0
   },
   "cloudzero/provision-account": {
-    "last_checked": "2026-01-28T12:23:06.798747+00:00",
+    "last_checked": "2026-01-28T14:20:57.124021+00:00",
     "last_pr_number": null,
     "error_count": 0
   },
   "requestnetwork/requestnetwork": {
-    "last_checked": "2026-01-28T12:23:07.974738+00:00",
+    "last_checked": "2026-01-28T14:20:58.132866+00:00",
     "last_pr_number": 1691,
     "error_count": 0
   },
   "brainbasehq/brainbase-chat-embeddable": {
-    "last_checked": "2026-01-28T12:23:08.305102+00:00",
+    "last_checked": "2026-01-28T14:20:58.490114+00:00",
     "last_pr_number": 10,
     "error_count": 0
   },
   "blb3d/filaops": {
-    "last_checked": "2026-01-28T12:23:08.788236+00:00",
-    "last_pr_number": 107,
-    "error_count": 0
+    "last_checked": "2026-01-28T14:20:59.302450+00:00",
+    "last_pr_number": 108,
+    "error_count": 0,
+    "pr_shas": {
+      "108": "538412d0e99af89c94b6e80f54d236291fcba23f",
+      "107": "9377d4bad5e651bf97180917ecb560eb11fc9846",
+      "87": "a2600bd6bdc7ece9bdbc99e8c5ee3ef7150a70ec",
+      "80": "e099d5ae3bb47d83a0a8c1bbf5e982d98ffe8c6e",
+      "83": "eab0fed7b1b1e284f2cb41d29324c58b2b73f23c"
+    }
   },
   "remylovelogicai/agent-starter-pack": {
-    "last_checked": "2026-01-28T12:23:09.280281+00:00",
+    "last_checked": "2026-01-28T14:20:59.617885+00:00",
     "last_pr_number": 11,
     "error_count": 0
   },
   "caluckenbach/rsai": {
-    "last_checked": "2026-01-28T12:23:09.746182+00:00",
+    "last_checked": "2026-01-28T14:21:00.043528+00:00",
     "last_pr_number": null,
     "error_count": 0
   },
   "d4x3d/linkmi": {
-    "last_checked": "2026-01-28T12:23:09.935778+00:00",
+    "last_checked": "2026-01-28T14:21:00.157296+00:00",
     "last_pr_number": null,
     "error_count": 0
   },
   "mohammadshehadeh/lms": {
-    "last_checked": "2026-01-28T12:23:10.355347+00:00",
+    "last_checked": "2026-01-28T14:21:00.492599+00:00",
     "last_pr_number": null,
     "error_count": 0
   },
   "reductoai/pypdfform-reducto": {
-    "last_checked": "2026-01-28T12:23:10.682603+00:00",
+    "last_checked": "2026-01-28T14:21:00.803269+00:00",
     "last_pr_number": 7,
     "error_count": 0
   },
   "lumiachain/hyperstaking-contracts": {
-    "last_checked": "2026-01-28T12:23:11.078175+00:00",
+    "last_checked": "2026-01-28T14:21:01.215264+00:00",
     "last_pr_number": 24,
     "error_count": 0
   },
   "workos/authkit-tanstack-start": {
-    "last_checked": "2026-01-28T12:23:11.778791+00:00",
+    "last_checked": "2026-01-28T14:21:01.795219+00:00",
     "last_pr_number": 49,
     "error_count": 0
   },
   "antonengelhardt/wasm-oidc-plugin": {
-    "last_checked": "2026-01-28T12:23:12.569858+00:00",
+    "last_checked": "2026-01-28T14:21:02.636141+00:00",
     "last_pr_number": 121,
     "error_count": 0
   },
   "sp7-equipo3/pro-eat": {
-    "last_checked": "2026-01-28T12:23:13.134254+00:00",
+    "last_checked": "2026-01-28T14:21:02.993236+00:00",
     "last_pr_number": null,
     "error_count": 0
   },
   "fhenixprotocol/cofhesdk": {
-    "last_checked": "2026-01-28T12:23:14.931391+00:00",
+    "last_checked": "2026-01-28T14:21:03.765338+00:00",
     "last_pr_number": 102,
-    "error_count": 0,
-    "pr_shas": {
-      "102": "19652027b10d3e6410c45b4b2b8ea4b40eb406e6",
-      "99": "d804c4e6f0ceb8bfa64ad5cbe8c7e4ea3efd211e",
-      "101": "7ed82adf47b1d29c3223af9c3daeca7b0f3761e7",
-      "100": "200c7a1f7a2dbafe82e711f5287de6ed3ef49aeb"
-    }
+    "error_count": 0
   },
   "gptme/gptme-rag": {
-    "last_checked": "2026-01-28T12:23:15.313152+00:00",
+    "last_checked": "2026-01-28T14:21:04.117369+00:00",
     "last_pr_number": null,
     "error_count": 0
   },
   "rasulkireev/osig": {
-    "last_checked": "2026-01-28T12:23:15.650521+00:00",
+    "last_checked": "2026-01-28T14:21:04.337041+00:00",
     "last_pr_number": null,
     "error_count": 0
   },
   "ekline-io/ekline-github-action": {
-    "last_checked": "2026-01-28T12:23:16.830401+00:00",
+    "last_checked": "2026-01-28T14:21:05.184917+00:00",
     "last_pr_number": 88,
     "error_count": 0
   },
   "xzqxnet0990/okex-v1": {
-    "last_checked": "2026-01-28T12:23:17.089726+00:00",
+    "last_checked": "2026-01-28T14:21:05.389561+00:00",
     "last_pr_number": null,
     "error_count": 0
   },
   "marcelocra/devmagic": {
-    "last_checked": "2026-01-28T12:23:17.587815+00:00",
+    "last_checked": "2026-01-28T14:21:05.913560+00:00",
     "last_pr_number": 65,
     "error_count": 0
   },
   "dexter5000000/webiste-for-gaming": {
-    "last_checked": "2026-01-28T12:23:18.130623+00:00",
+    "last_checked": "2026-01-28T14:21:06.340514+00:00",
     "last_pr_number": null,
     "error_count": 0
   },
   "oleksandrkucherenko/e-bash": {
-    "last_checked": "2026-01-28T12:23:18.629871+00:00",
+    "last_checked": "2026-01-28T14:21:07.009788+00:00",
     "last_pr_number": 68,
     "error_count": 0
   },
   "zkw13/cereal": {
-    "last_checked": "2026-01-28T12:23:18.998758+00:00",
+    "last_checked": "2026-01-28T14:21:07.297183+00:00",
     "last_pr_number": 3,
     "error_count": 0
   },
   "abhishekg999/supascan": {
-    "last_checked": "2026-01-28T12:23:19.239818+00:00",
+    "last_checked": "2026-01-28T14:21:07.551629+00:00",
     "last_pr_number": 11,
     "error_count": 0
   },
   "andreydodonov-eh/zephyr": {
-    "last_checked": "2026-01-28T12:23:19.457871+00:00",
+    "last_checked": "2026-01-28T14:21:07.736936+00:00",
     "last_pr_number": 2,
     "error_count": 0
   },
   "aveiga/cloud-api-gateway": {
-    "last_checked": "2026-01-28T12:23:19.722964+00:00",
+    "last_checked": "2026-01-28T14:21:07.966542+00:00",
     "last_pr_number": null,
     "error_count": 0
   },
   "bry-ly/velos-inve": {
-    "last_checked": "2026-01-28T12:23:20.042675+00:00",
+    "last_checked": "2026-01-28T14:21:08.319083+00:00",
     "last_pr_number": 13,
     "error_count": 0
   },
   "clera-dev/clera": {
-    "last_checked": "2026-01-28T12:23:20.686622+00:00",
+    "last_checked": "2026-01-28T14:21:09.206322+00:00",
     "last_pr_number": 117,
     "error_count": 0
   },
   "cloudzero/cloudzero-anycost-example": {
-    "last_checked": "2026-01-28T12:23:21.142123+00:00",
+    "last_checked": "2026-01-28T14:21:09.586543+00:00",
     "last_pr_number": null,
     "error_count": 0
   },
   "cloudzero/cloudzero-changelog-release-notes": {
-    "last_checked": "2026-01-28T12:23:21.585836+00:00",
+    "last_checked": "2026-01-28T14:21:10.015856+00:00",
     "last_pr_number": null,
     "error_count": 0
   },
   "elephant-xyz/elephant-cli": {
-    "last_checked": "2026-01-28T12:23:22.496623+00:00",
+    "last_checked": "2026-01-28T14:21:11.147880+00:00",
     "last_pr_number": 237,
     "error_count": 0
   },
   "emeraudeengine/emeraude-engine": {
-    "last_checked": "2026-01-28T12:23:22.770108+00:00",
+    "last_checked": "2026-01-28T14:21:11.393654+00:00",
     "last_pr_number": 5,
     "error_count": 0
   },
   "fuzzy31u/yukamiya.me": {
-    "last_checked": "2026-01-28T12:23:23.175294+00:00",
+    "last_checked": "2026-01-28T14:21:11.785420+00:00",
     "last_pr_number": 44,
     "error_count": 0
   },
   "infisical/infisical-dotnet-sdk": {
-    "last_checked": "2026-01-28T12:23:23.492488+00:00",
+    "last_checked": "2026-01-28T14:21:12.079064+00:00",
     "last_pr_number": null,
     "error_count": 0
   },
   "jvde-github/ais-catcher": {
-    "last_checked": "2026-01-28T12:23:24.468231+00:00",
+    "last_checked": "2026-01-28T14:21:12.908970+00:00",
     "last_pr_number": 497,
     "error_count": 0
   },
   "pc-style/messenger-desktop": {
-    "last_checked": "2026-01-28T12:23:24.969645+00:00",
+    "last_checked": "2026-01-28T14:21:13.334476+00:00",
     "last_pr_number": 10,
     "error_count": 0
   },
   "rice-apps/owlrecruit": {
-    "last_checked": "2026-01-28T12:23:25.413788+00:00",
+    "last_checked": "2026-01-28T14:21:13.838254+00:00",
     "last_pr_number": 104,
     "error_count": 0
   },
   "sgurivir/opencv_copy": {
-    "last_checked": "2026-01-28T12:23:25.563900+00:00",
+    "last_checked": "2026-01-28T14:21:13.922520+00:00",
     "last_pr_number": null,
     "error_count": 0
   },
   "stefanbinoj/gitbee": {
-    "last_checked": "2026-01-28T12:23:25.869972+00:00",
+    "last_checked": "2026-01-28T14:21:14.184656+00:00",
     "last_pr_number": null,
     "error_count": 0
   },
   "technickai/ai-coding-config": {
-    "last_checked": "2026-01-28T12:23:26.447779+00:00",
+    "last_checked": "2026-01-28T14:21:14.733159+00:00",
     "last_pr_number": 39,
     "error_count": 0
   },
   "workos/workos-dotnet": {
-    "last_checked": "2026-01-28T12:23:27.678602+00:00",
+    "last_checked": "2026-01-28T14:21:16.130325+00:00",
     "last_pr_number": 200,
     "error_count": 0
   },
   "xl0/latent-tools": {
-    "last_checked": "2026-01-28T12:23:28.209039+00:00",
+    "last_checked": "2026-01-28T14:21:16.570606+00:00",
     "last_pr_number": null,
     "error_count": 0
   },
   "zararsw/network-scanner": {
-    "last_checked": "2026-01-28T12:23:28.436021+00:00",
+    "last_checked": "2026-01-28T14:21:16.855719+00:00",
     "last_pr_number": 4,
     "error_count": 0
   },
   "marcelocra/ghostkeys": {
-    "last_checked": "2026-01-28T12:23:28.689460+00:00",
+    "last_checked": "2026-01-28T14:21:17.114325+00:00",
     "last_pr_number": null,
     "error_count": 0
   },
   "danielsoliman/helm": {
-    "last_checked": "2026-01-28T12:23:28.903061+00:00",
+    "last_checked": "2026-01-28T14:21:17.343542+00:00",
     "last_pr_number": 4,
     "error_count": 0
   },
   "requestnetwork/ethwarsaw-ticketing": {
-    "last_checked": "2026-01-28T12:23:29.200929+00:00",
+    "last_checked": "2026-01-28T14:21:17.617916+00:00",
     "last_pr_number": 4,
     "error_count": 0
   },
   "futuroptimist/gabriel": {
-    "last_checked": "2026-01-28T12:23:30.117921+00:00",
+    "last_checked": "2026-01-28T14:21:18.332445+00:00",
     "last_pr_number": null,
     "error_count": 0
   },
   "trybyte-app/robotstxt-tester": {
-    "last_checked": "2026-01-28T12:23:30.456548+00:00",
+    "last_checked": "2026-01-28T14:21:18.582322+00:00",
     "last_pr_number": null,
     "error_count": 0
   },
   "trybyte-app/robotstxt-ts-port": {
-    "last_checked": "2026-01-28T12:23:30.776191+00:00",
+    "last_checked": "2026-01-28T14:21:18.807367+00:00",
     "last_pr_number": null,
     "error_count": 0
   },
   "futuroptimist/axel": {
-    "last_checked": "2026-01-28T12:23:31.676554+00:00",
+    "last_checked": "2026-01-28T14:21:19.605237+00:00",
     "last_pr_number": 238,
     "error_count": 0
   },
   "sallaapp/zatca": {
-    "last_checked": "2026-01-28T12:23:32.388270+00:00",
+    "last_checked": "2026-01-28T14:21:20.330905+00:00",
     "last_pr_number": null,
     "error_count": 0
   },
   "charithabandi/kwil-db": {
-    "last_checked": "2026-01-28T12:23:32.644207+00:00",
+    "last_checked": "2026-01-28T14:21:20.559233+00:00",
     "last_pr_number": 5,
     "error_count": 0
   },
   "float-ritual-stack/floatctl": {
-    "last_checked": "2026-01-28T12:23:33.077440+00:00",
+    "last_checked": "2026-01-28T14:21:20.863268+00:00",
     "last_pr_number": 42,
     "error_count": 0
   },
   "ferhatelmas/ferhatelmas.com": {
-    "last_checked": "2026-01-28T12:23:33.370029+00:00",
+    "last_checked": "2026-01-28T14:21:21.137700+00:00",
     "last_pr_number": null,
     "error_count": 0
   },
   "batcheu/one": {
-    "last_checked": "2026-01-28T12:23:33.645153+00:00",
+    "last_checked": "2026-01-28T14:21:21.316795+00:00",
     "last_pr_number": 1,
     "error_count": 0
   },
   "erwinkn/pulse-ui": {
-    "last_checked": "2026-01-28T12:23:35.011487+00:00",
+    "last_checked": "2026-01-28T14:21:22.674654+00:00",
     "last_pr_number": 78,
     "error_count": 0,
     "pr_shas": {
-      "78": "48dce1a97aa785da15040089f1e95e6922b3a3a8",
-      "77": "00c4056b346f77a689fbe4123ba17eae1688a854"
+      "78": "32c30db95180ebfad6b07a4ca62c097973388acc",
+      "77": "bd0a89bd1c158867869c080765f45ff213012126"
     }
   },
   "meta-introspector/solfunmeme-dioxus": {
-    "last_checked": "2026-01-28T12:23:35.441474+00:00",
+    "last_checked": "2026-01-28T14:21:23.075738+00:00",
     "last_pr_number": 17,
     "error_count": 0
   },
   "emmapowers/bakelite": {
-    "last_checked": "2026-01-28T12:23:35.751883+00:00",
+    "last_checked": "2026-01-28T14:21:23.353730+00:00",
     "last_pr_number": 10,
     "error_count": 0
   },
   "stopbars/vatsys-plugin": {
-    "last_checked": "2026-01-28T12:23:36.112312+00:00",
+    "last_checked": "2026-01-28T14:21:23.752046+00:00",
     "last_pr_number": null,
     "error_count": 0
   },
   "dokku-mcp/dokku-mcp": {
-    "last_checked": "2026-01-28T12:23:36.661654+00:00",
+    "last_checked": "2026-01-28T14:21:24.198554+00:00",
     "last_pr_number": 62,
     "error_count": 0
   },
   "alexaka1/distroless-dotnet-healthchecks": {
-    "last_checked": "2026-01-28T12:23:37.918325+00:00",
+    "last_checked": "2026-01-28T14:21:25.868687+00:00",
     "last_pr_number": 1037,
     "error_count": 0,
     "pr_shas": {
-      "1036": "d6027c93fd496a6a7cff84584b000f9b661d7562",
-      "1037": "39672485f01eef93d462b82a49516fa1cff9f915"
+      "1037": "caf638840d88ac82da981dfa9710e73d23c2fbc6"
     }
   },
   "jhatch3/cs451-fall-25-proj-1": {
-    "last_checked": "2026-01-28T12:23:38.230397+00:00",
+    "last_checked": "2026-01-28T14:21:26.115404+00:00",
     "last_pr_number": null,
     "error_count": 0
   },
   "t3-content/auto-draftify": {
-    "last_checked": "2026-01-28T12:23:38.468534+00:00",
+    "last_checked": "2026-01-28T14:21:26.357681+00:00",
     "last_pr_number": null,
     "error_count": 0
   },
   "aipotheosis-labs/gate22": {
-    "last_checked": "2026-01-28T12:23:39.828032+00:00",
+    "last_checked": "2026-01-28T14:21:27.450070+00:00",
     "last_pr_number": null,
     "error_count": 0
   },
   "aidankinzett/homebrew-git-wt": {
-    "last_checked": "2026-01-28T12:23:40.354975+00:00",
+    "last_checked": "2026-01-28T14:21:27.758470+00:00",
     "last_pr_number": 32,
     "error_count": 0
   },
   "opencoverdefi/eslint-config-opencover": {
-    "last_checked": "2026-01-28T12:23:40.654975+00:00",
+    "last_checked": "2026-01-28T14:21:27.992235+00:00",
     "last_pr_number": 6,
     "error_count": 0
   },
   "olliegilbey/resumate": {
-    "last_checked": "2026-01-28T12:23:40.930261+00:00",
+    "last_checked": "2026-01-28T14:21:28.193506+00:00",
     "last_pr_number": null,
     "error_count": 0
   },
   "mehfoozurrehman/pos-app": {
-    "last_checked": "2026-01-28T12:23:41.203011+00:00",
+    "last_checked": "2026-01-28T14:21:28.465320+00:00",
     "last_pr_number": null,
     "error_count": 0
   },
   "nvidia/dali_deps": {
-    "last_checked": "2026-01-28T12:23:42.488083+00:00",
+    "last_checked": "2026-01-28T14:21:29.551458+00:00",
     "last_pr_number": 150,
     "error_count": 0
   },
   "remylovelogicai/chronulus-mcp": {
-    "last_checked": "2026-01-28T12:23:42.737450+00:00",
+    "last_checked": "2026-01-28T14:21:29.753881+00:00",
     "last_pr_number": 4,
     "error_count": 0
   },
   "rulloa1/vite-react-template": {
-    "last_checked": "2026-01-28T12:23:43.027976+00:00",
+    "last_checked": "2026-01-28T14:21:30.028879+00:00",
     "last_pr_number": 5,
     "error_count": 0
   },
   "remylovelogicai/claude-code-templates": {
-    "last_checked": "2026-01-28T12:23:43.314090+00:00",
+    "last_checked": "2026-01-28T14:21:30.253374+00:00",
     "last_pr_number": 8,
     "error_count": 0
   },
   "marceloprado/flash-calendar": {
-    "last_checked": "2026-01-28T12:23:44.152968+00:00",
+    "last_checked": "2026-01-28T14:21:31.033471+00:00",
     "last_pr_number": 105,
     "error_count": 0
   },
   "louistrue/ifc-data-browser": {
-    "last_checked": "2026-01-28T12:23:44.618219+00:00",
+    "last_checked": "2026-01-28T14:21:31.336296+00:00",
     "last_pr_number": 26,
     "error_count": 0
   },
   "elephant-xyz/notebook": {
-    "last_checked": "2026-01-28T12:23:44.942265+00:00",
+    "last_checked": "2026-01-28T14:21:31.597843+00:00",
     "last_pr_number": null,
     "error_count": 0
   },
   "drvova/whispo": {
-    "last_checked": "2026-01-28T12:23:45.184947+00:00",
+    "last_checked": "2026-01-28T14:21:31.850788+00:00",
     "last_pr_number": null,
     "error_count": 0
   },
   "t3-content/skatebench": {
-    "last_checked": "2026-01-28T12:23:45.671799+00:00",
+    "last_checked": "2026-01-28T14:21:32.167848+00:00",
     "last_pr_number": 5,
     "error_count": 0
   },
   "terminal-use/sb0-vercel-ai-sdk-provider": {
-    "last_checked": "2026-01-28T12:23:45.894745+00:00",
+    "last_checked": "2026-01-28T14:21:32.329785+00:00",
     "last_pr_number": null,
     "error_count": 0
   },
   "ternarybob/quaero": {
-    "last_checked": "2026-01-28T12:23:46.373381+00:00",
+    "last_checked": "2026-01-28T14:21:32.607088+00:00",
     "last_pr_number": 13,
     "error_count": 0
   },
   "decocereus/xyou": {
-    "last_checked": "2026-01-28T12:23:46.642199+00:00",
+    "last_checked": "2026-01-28T14:21:32.790790+00:00",
     "last_pr_number": null,
     "error_count": 0
   },
   "usemoss/moss-samples": {
-    "last_checked": "2026-01-28T12:23:47.131940+00:00",
+    "last_checked": "2026-01-28T14:21:33.090076+00:00",
     "last_pr_number": 11,
     "error_count": 0
   },
   "valian-ca/firebase-functions": {
-    "last_checked": "2026-01-28T12:23:47.576901+00:00",
+    "last_checked": "2026-01-28T14:21:33.439908+00:00",
     "last_pr_number": 15,
     "error_count": 0
   },
   "brainbasehq/kafka-master-prompt": {
-    "last_checked": "2026-01-28T12:23:47.869490+00:00",
+    "last_checked": "2026-01-28T14:21:33.789418+00:00",
     "last_pr_number": null,
     "error_count": 0
   },
   "verticallabs-ai/rfpagent": {
-    "last_checked": "2026-01-28T12:23:48.242747+00:00",
+    "last_checked": "2026-01-28T14:21:34.052137+00:00",
     "last_pr_number": null,
     "error_count": 0
   },
   "access-time/a11y-demo-navigation": {
-    "last_checked": "2026-01-28T12:23:48.850068+00:00",
+    "last_checked": "2026-01-28T14:21:34.348566+00:00",
     "last_pr_number": null,
     "error_count": 0
   },
   "writewyzeteam/qodo-test-docs-context": {
-    "last_checked": "2026-01-28T12:23:49.438060+00:00",
+    "last_checked": "2026-01-28T14:21:34.703374+00:00",
     "last_pr_number": null,
     "error_count": 0
   },
   "plyght/tt-metal": {
-    "last_checked": "2026-01-28T12:23:49.708180+00:00",
+    "last_checked": "2026-01-28T14:21:34.887169+00:00",
     "last_pr_number": 2,
     "error_count": 0
   },
   "mehfoozurrehman/temp-cover": {
-    "last_checked": "2026-01-28T12:23:50.184389+00:00",
+    "last_checked": "2026-01-28T14:21:35.098889+00:00",
     "last_pr_number": null,
     "error_count": 0
   },
   "alexaka1/serilog-extensions": {
-    "last_checked": "2026-01-28T12:23:51.112855+00:00",
+    "last_checked": "2026-01-28T14:21:36.001815+00:00",
     "last_pr_number": 477,
     "error_count": 0
   },
   "lovelogicaillc/secretforge-ai": {
-    "last_checked": "2026-01-28T12:23:51.908496+00:00",
+    "last_checked": "2026-01-28T14:21:36.613516+00:00",
     "last_pr_number": 72,
     "error_count": 0
   },
   "lovelogicaillc/deepcode": {
-    "last_checked": "2026-01-28T12:23:52.197881+00:00",
+    "last_checked": "2026-01-28T14:21:36.816937+00:00",
     "last_pr_number": 2,
     "error_count": 0
   },
   "louistrue/ifc-classifier": {
-    "last_checked": "2026-01-28T12:23:53.009592+00:00",
+    "last_checked": "2026-01-28T14:21:37.579370+00:00",
     "last_pr_number": 183,
     "error_count": 0
   },
   "lomiafrica/lomi.": {
-    "last_checked": "2026-01-28T12:23:53.467935+00:00",
+    "last_checked": "2026-01-28T14:21:37.937986+00:00",
     "last_pr_number": 14,
     "error_count": 0
   },
   "koteyye/novaspec": {
-    "last_checked": "2026-01-28T12:23:53.689186+00:00",
+    "last_checked": "2026-01-28T14:21:38.133572+00:00",
     "last_pr_number": null,
     "error_count": 0
   },
   "remylovelogicai/agentdock": {
-    "last_checked": "2026-01-28T12:23:54.149005+00:00",
+    "last_checked": "2026-01-28T14:21:38.447843+00:00",
     "last_pr_number": 11,
     "error_count": 0
   },
   "remylovelogicai/autodocs": {
-    "last_checked": "2026-01-28T12:23:54.501382+00:00",
+    "last_checked": "2026-01-28T14:21:38.656818+00:00",
     "last_pr_number": 6,
     "error_count": 0
   },
   "remylovelogicai/bagel": {
-    "last_checked": "2026-01-28T12:23:54.795342+00:00",
+    "last_checked": "2026-01-28T14:21:38.873316+00:00",
     "last_pr_number": 9,
     "error_count": 0
   },
   "remylovelogicai/beeai-framework": {
-    "last_checked": "2026-01-28T12:23:55.163344+00:00",
+    "last_checked": "2026-01-28T14:21:39.121890+00:00",
     "last_pr_number": 9,
     "error_count": 0
   },
   "remylovelogicai/bytebot": {
-    "last_checked": "2026-01-28T12:23:55.598072+00:00",
+    "last_checked": "2026-01-28T14:21:39.438800+00:00",
     "last_pr_number": 11,
     "error_count": 0
   },
   "remylovelogicai/claude-debugs-for-you": {
-    "last_checked": "2026-01-28T12:23:55.888589+00:00",
+    "last_checked": "2026-01-28T14:21:39.676352+00:00",
     "last_pr_number": 5,
     "error_count": 0
   },
   "remylovelogicai/deepcode": {
-    "last_checked": "2026-01-28T12:23:56.146962+00:00",
+    "last_checked": "2026-01-28T14:21:39.840169+00:00",
     "last_pr_number": 2,
     "error_count": 0
   },
   "requestnetwork/easy-invoice": {
-    "last_checked": "2026-01-28T12:23:57.006544+00:00",
+    "last_checked": "2026-01-28T14:21:40.860045+00:00",
     "last_pr_number": 198,
     "error_count": 0
   },
   "requestnetwork/invoicing-template": {
-    "last_checked": "2026-01-28T12:23:57.933814+00:00",
+    "last_checked": "2026-01-28T14:21:41.799533+00:00",
     "last_pr_number": 120,
     "error_count": 0
   },
   "requestnetwork/payments-subgraph": {
-    "last_checked": "2026-01-28T12:23:59.564560+00:00",
+    "last_checked": "2026-01-28T14:21:42.880409+00:00",
     "last_pr_number": 116,
     "error_count": 0
   },
   "requestnetwork/request-helm-charts": {
-    "last_checked": "2026-01-28T12:24:00.215707+00:00",
+    "last_checked": "2026-01-28T14:21:43.578471+00:00",
     "last_pr_number": 53,
     "error_count": 0
   },
   "requestnetwork/request-scan": {
-    "last_checked": "2026-01-28T12:24:01.038490+00:00",
+    "last_checked": "2026-01-28T14:21:44.237675+00:00",
     "last_pr_number": 113,
     "error_count": 0
   },
   "aipotheosis-labs/aci": {
-    "last_checked": "2026-01-28T12:24:02.224324+00:00",
+    "last_checked": "2026-01-28T14:21:46.764182+00:00",
     "last_pr_number": 604,
     "error_count": 0
   },
   "infisical/ansible-collection": {
-    "last_checked": "2026-01-28T12:24:02.656223+00:00",
+    "last_checked": "2026-01-28T14:21:47.117436+00:00",
     "last_pr_number": 17,
     "error_count": 0
   },
   "sbohner14335/carbon-nextjs-starter": {
-    "last_checked": "2026-01-28T12:24:02.897978+00:00",
+    "last_checked": "2026-01-28T14:21:47.329821+00:00",
     "last_pr_number": null,
     "error_count": 0
   },
   "helixdb/helix-go": {
-    "last_checked": "2026-01-28T12:24:03.220286+00:00",
+    "last_checked": "2026-01-28T14:21:47.630875+00:00",
     "last_pr_number": null,
     "error_count": 0
   },
   "h1dr0nn/hamonix-soundeditor": {
-    "last_checked": "2026-01-28T12:24:03.704446+00:00",
+    "last_checked": "2026-01-28T14:21:48.058879+00:00",
     "last_pr_number": null,
     "error_count": 0
   },
   "gtbitsofgood/mapscout": {
-    "last_checked": "2026-01-28T12:24:04.668919+00:00",
+    "last_checked": "2026-01-28T14:21:48.990899+00:00",
     "last_pr_number": null,
     "error_count": 0
   },
   "gtbitsofgood/hope-sustains-life": {
-    "last_checked": "2026-01-28T12:24:05.618043+00:00",
+    "last_checked": "2026-01-28T14:21:49.852396+00:00",
     "last_pr_number": 234,
     "error_count": 0
   },
   "sixtyfour-ai/docs": {
-    "last_checked": "2026-01-28T12:24:06.006021+00:00",
+    "last_checked": "2026-01-28T14:21:50.166170+00:00",
     "last_pr_number": 8,
     "error_count": 0
   },
   "goinfinite/tk": {
-    "last_checked": "2026-01-28T12:24:06.336017+00:00",
+    "last_checked": "2026-01-28T14:21:50.424653+00:00",
     "last_pr_number": 14,
     "error_count": 0
   },
   "sonoble/onlpy3": {
-    "last_checked": "2026-01-28T12:24:06.563441+00:00",
+    "last_checked": "2026-01-28T14:21:50.611186+00:00",
     "last_pr_number": null,
     "error_count": 0
   },
   "soyio-id/soyio-docs": {
-    "last_checked": "2026-01-28T12:24:07.526932+00:00",
+    "last_checked": "2026-01-28T14:21:51.412937+00:00",
     "last_pr_number": 141,
     "error_count": 0
   }

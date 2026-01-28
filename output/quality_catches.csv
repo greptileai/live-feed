@@ -10970,3 +10970,27 @@ from isaaclab.sensors.camera.tiled_camera_cfg import TiledCameraCfg
 from isaaclab.sensors.sensor_base_cfg import SensorBaseCfg
 ```
 </details>",https://github.com/isaac-sim/IsaacLab/pull/4481#issuecomment-3810858940,,2026-01-28T11:53:01+00:00,runtime,high,"When moving a file from `isaaclab.sensors.tacsl_sensor` to `isaaclab_contrib.sensors.tacsl_sensor`, relative imports like `..camera` would resolve to `isaaclab_contrib.sensors.camera` instead of `isaaclab.sensors.camera`, causing a ModuleNotFoundError at runtime. This is a non-obvious bug that commonly occurs during file relocations and would break the module immediately upon import.",2026-01-28T12:25:24.581889+00:00
+posthog/posthog,46146,feat(hogql): add support for recursive CTEs,https://github.com/PostHog/posthog/pull/46146,,"`resolved_cte_expr` is undefined when `is_self_reference` is True. The variable is only defined in the `else` block (line 357), but this code executes after both the `if` and `else` branches.
+
+```suggestion
+                            alias=table_alias, select_query_type=cte_type.select_query_type
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: posthog/hogql/resolver.py
+Line: 380:380
+
+Comment:
+`resolved_cte_expr` is undefined when `is_self_reference` is True. The variable is only defined in the `else` block (line 357), but this code executes after both the `if` and `else` branches.
+
+```suggestion
+                            alias=table_alias, select_query_type=cte_type.select_query_type
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/46146#discussion_r2736505481,,2026-01-28T12:54:13+00:00,runtime,high,"Greptile correctly identified that `resolved_cte_expr` is only defined in the `else` branch (line 357), but line 380 references it unconditionally after both branches. When `is_self_reference` is True, the code takes the `if` branch where `resolved_cte_expr` is never assigned, causing an `UnboundLocalError` at runtime. This is a real bug that would crash the recursive CTE feature.",2026-01-28T14:22:58.759231+00:00
+nvidia-digital-bio/nvmolkit,78,Add Graph Labeling kernel and tests,https://github.com/NVIDIA-Digital-Bio/nvMolKit/pull/78,,`extractRecursivePatterns` called on line 90 but the result `info` is never used - `pairRecursiveBits` is always passed as `nullptr` on line 102,https://github.com/NVIDIA-Digital-Bio/nvMolKit/pull/78#discussion_r2736808101,,2026-01-28T14:06:42+00:00,logic,medium,"Greptile correctly identifies that `extractRecursivePatterns(&queryMol)` is called on line 90 and stored in `info`, but `info` is never used - instead `nullptr` is passed for `pairRecursiveBits` on line 102. This means recursive pattern matching will be disabled/broken, which is a real bug causing incorrect behavior in substructure matching when recursive patterns are involved.",2026-01-28T14:22:58.759315+00:00
