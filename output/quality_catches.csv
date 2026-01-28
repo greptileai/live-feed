@@ -10923,3 +10923,50 @@ democratizedspace/dspace,3226,Add client-side MiniSearch RAG retriever and injec
                 ? 'rag'
                 : 'main',
 ```",https://github.com/democratizedspace/dspace/pull/3226#discussion_r2735494275,,2026-01-28T08:44:42+00:00,logic,low,"Greptile correctly identified a logic bug in the ternary expression. When `message.kind` is truthy (e.g., 'rag'), the expression `message.kind || message === knowledgeMessage || message === docsRagMessage` evaluates to `'rag'` (the truthy string), but then the ternary always returns 'rag' for any truthy `message.kind`. The real issue is if a message had a different truthy `kind` value (not 'rag'), it would still be labeled as 'rag'. The fix to check `message.kind === 'rag'` explicitly is correct and prevents misclassification.",2026-01-28T10:22:50.586662+00:00
+twentyhq/twenty,17513,2162 Add asset watcher in twenty-sdk dev mode,https://github.com/twentyhq/twenty/pull/17513,,"`handleAssetDeleted` callback is not wired up but asset deletion is handled in `AssetWatcher.handleUnlink()`. Consider adding the callback to properly notify the orchestrator when assets are deleted, similar to how `handleFileBuilt` is used.
+
+<sub>Note: If this suggestion doesn't match your team's coding style, reply to this and let me know. I'll remember it for next time!</sub>
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/twenty-sdk/src/cli/commands/app/app-dev.ts
+Line: 137:139
+
+Comment:
+`handleAssetDeleted` callback is not wired up but asset deletion is handled in `AssetWatcher.handleUnlink()`. Consider adding the callback to properly notify the orchestrator when assets are deleted, similar to how `handleFileBuilt` is used.
+
+<sub>Note: If this suggestion doesn't match your team's coding style, reply to this and let me know. I'll remember it for next time!</sub>
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/twentyhq/twenty/pull/17513#discussion_r2736174702,,2026-01-28T11:20:37+00:00,logic,medium,"Greptile correctly identified that the AssetWatcher is being instantiated with only handleFileBuilt callback, but based on the pattern with other watchers and the mention of handleUnlink() in AssetWatcher, there should also be a handleAssetDeleted callback to notify the orchestrator when assets are removed. This is a real functional bug where asset deletions won't be properly propagated to the orchestrator, causing stale state.",2026-01-28T12:25:24.581737+00:00
+posthog/posthog-js,2983,feat: allow recording masking with a view wrapper and without accessibilitylabel,https://github.com/PostHog/posthog-js/pull/2983,,"`PostHogMaskView` is not exported from `src/index.ts`, making it unusable. Add `export * from './PostHogMaskView'` to the index file.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/react-native/src/PostHogMaskView.tsx
+Line: 1:43
+
+Comment:
+`PostHogMaskView` is not exported from `src/index.ts`, making it unusable. Add `export * from './PostHogMaskView'` to the index file.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog-js/pull/2983#discussion_r2736366281,,2026-01-28T12:14:40+00:00,logic,medium,"Greptile correctly identifies that a new component is being added but the diff only shows the component file itself - there's no corresponding export added to src/index.ts. Without this export, the component documented as publicly usable (with @public JSDoc and usage example) would be inaccessible to consumers of the package. This is a real bug that would cause the feature to be unusable.",2026-01-28T12:25:24.581838+00:00
+isaac-sim/isaaclab,4481,Moves tactile sensor to contrib folder,https://github.com/isaac-sim/IsaacLab/pull/4481,,"<details>
+<summary>Additional Comments (1)</summary>
+
+**`source/isaaclab_contrib/isaaclab_contrib/sensors/tacsl_sensor/visuotactile_sensor_cfg.py`**
+incorrect relative imports will cause `ModuleNotFoundError` - these should import from `isaaclab.sensors` instead
+
+when this file was in `isaaclab.sensors.tacsl_sensor`, `..camera` resolved to `isaaclab.sensors.camera`. now that it's in `isaaclab_contrib.sensors.tacsl_sensor`, `..camera` would resolve to `isaaclab_contrib.sensors.camera` which doesn't exist
+
+```suggestion
+from isaaclab.sensors.camera.tiled_camera_cfg import TiledCameraCfg
+from isaaclab.sensors.sensor_base_cfg import SensorBaseCfg
+```
+</details>",https://github.com/isaac-sim/IsaacLab/pull/4481#issuecomment-3810858940,,2026-01-28T11:53:01+00:00,runtime,high,"When moving a file from `isaaclab.sensors.tacsl_sensor` to `isaaclab_contrib.sensors.tacsl_sensor`, relative imports like `..camera` would resolve to `isaaclab_contrib.sensors.camera` instead of `isaaclab.sensors.camera`, causing a ModuleNotFoundError at runtime. This is a non-obvious bug that commonly occurs during file relocations and would break the module immediately upon import.",2026-01-28T12:25:24.581889+00:00
