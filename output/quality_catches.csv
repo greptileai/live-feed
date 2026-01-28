@@ -10994,3 +10994,238 @@ How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/PostHog/posthog/pull/46146#discussion_r2736505481,,2026-01-28T12:54:13+00:00,runtime,high,"Greptile correctly identified that `resolved_cte_expr` is only defined in the `else` branch (line 357), but line 380 references it unconditionally after both branches. When `is_self_reference` is True, the code takes the `if` branch where `resolved_cte_expr` is never assigned, causing an `UnboundLocalError` at runtime. This is a real bug that would crash the recursive CTE feature.",2026-01-28T14:22:58.759231+00:00
 nvidia-digital-bio/nvmolkit,78,Add Graph Labeling kernel and tests,https://github.com/NVIDIA-Digital-Bio/nvMolKit/pull/78,,`extractRecursivePatterns` called on line 90 but the result `info` is never used - `pairRecursiveBits` is always passed as `nullptr` on line 102,https://github.com/NVIDIA-Digital-Bio/nvMolKit/pull/78#discussion_r2736808101,,2026-01-28T14:06:42+00:00,logic,medium,"Greptile correctly identifies that `extractRecursivePatterns(&queryMol)` is called on line 90 and stored in `info`, but `info` is never used - instead `nullptr` is passed for `pairRecursiveBits` on line 102. This means recursive pattern matching will be disabled/broken, which is a real bug causing incorrect behavior in substructure matching when recursive patterns are involved.",2026-01-28T14:22:58.759315+00:00
+posthog/posthog,46175,feat(llma): update temporal summarization workflow to use gateway client,https://github.com/PostHog/posthog/pull/46175,,"calling sync `summarize()` in async context blocks event loop - wrap with `database_sync_to_async` like other blocking calls
+
+```suggestion
+    summary_result = await database_sync_to_async(summarize, thread_sensitive=False)(
+        text_repr=text_repr,
+        team_id=team_id,
+        mode=mode_enum,
+        model=model_enum,
+        user_id=f""temporal-workflow-team-{team_id}"",
+    )
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: posthog/temporal/llm_analytics/trace_summarization/summarization.py
+Line: 179:185
+
+Comment:
+calling sync `summarize()` in async context blocks event loop - wrap with `database_sync_to_async` like other blocking calls
+
+```suggestion
+    summary_result = await database_sync_to_async(summarize, thread_sensitive=False)(
+        text_repr=text_repr,
+        team_id=team_id,
+        mode=mode_enum,
+        model=model_enum,
+        user_id=f""temporal-workflow-team-{team_id}"",
+    )
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/46175#discussion_r2737347081,,2026-01-28T16:00:48+00:00,concurrency,medium,"The code removes `await` from `summarize()` call while the function `generate_and_save_summary_activity` is clearly async (defined with `async def`). The diff shows changing from `await summarize(...)` to just `summarize(...)`, which would either block the event loop if summarize is sync, or return a coroutine object without executing it if summarize is async. This is a real concurrency bug that could cause performance issues or incorrect behavior, and the pattern of using `database_sync_to_async` is established elsewhere in this codebase.",2026-01-28T16:25:55.625076+00:00
+posthog/posthog,46175,feat(llma): update temporal summarization workflow to use gateway client,https://github.com/PostHog/posthog/pull/46175,,"calling sync `summarize()` in async context blocks event loop - wrap with `database_sync_to_async` like other blocking calls
+
+```suggestion
+    summary_result = await database_sync_to_async(summarize, thread_sensitive=False)(
+        text_repr=text_repr,
+        team_id=team_id,
+        mode=mode_enum,
+        model=model_enum,
+        user_id=f""temporal-workflow-team-{team_id}"",
+    )
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: posthog/temporal/llm_analytics/trace_summarization/generation_summarization.py
+Line: 262:268
+
+Comment:
+calling sync `summarize()` in async context blocks event loop - wrap with `database_sync_to_async` like other blocking calls
+
+```suggestion
+    summary_result = await database_sync_to_async(summarize, thread_sensitive=False)(
+        text_repr=text_repr,
+        team_id=team_id,
+        mode=mode_enum,
+        model=model_enum,
+        user_id=f""temporal-workflow-team-{team_id}"",
+    )
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/46175#discussion_r2737347162,,2026-01-28T16:00:50+00:00,concurrency,medium,"The function `generate_and_save_generation_summary_activity` is async (line 99 shows `async def`), but the diff changes `await summarize(...)` to just `summarize(...)`, removing the await. If `summarize` is now a synchronous function (as Greptile claims), calling it directly in an async context will block the event loop. The suggestion to wrap it with `database_sync_to_async` follows the pattern used elsewhere in this codebase for blocking calls in async contexts.",2026-01-28T16:25:55.625177+00:00
+posthog/posthog,46162,feat(llma): migrate summarization to use LLM gateway client,https://github.com/PostHog/posthog/pull/46162,,"Gateway config only allows `gpt-4.1-nano` and `gpt-4.1-mini`, but the `OpenAIModel` enum in `products/llm_analytics/backend/summarization/models.py:18-19` also includes `GPT_4O_MINI` and `GPT_4O`. If users attempt to use these models via the API, the gateway will reject the request. Either add these models to the allowed list or remove them from the enum.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: services/llm-gateway/src/llm_gateway/products/config.py
+Line: 63:67
+
+Comment:
+Gateway config only allows `gpt-4.1-nano` and `gpt-4.1-mini`, but the `OpenAIModel` enum in `products/llm_analytics/backend/summarization/models.py:18-19` also includes `GPT_4O_MINI` and `GPT_4O`. If users attempt to use these models via the API, the gateway will reject the request. Either add these models to the allowed list or remove them from the enum.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/46162#discussion_r2737095382,,2026-01-28T15:10:26+00:00,logic,medium,"Greptile correctly identifies a configuration mismatch - the gateway config for 'llma_summarization' only allows 'gpt-4.1-nano' and 'gpt-4.1-mini', but if the OpenAIModel enum in the summarization module includes GPT_4O_MINI and GPT_4O as valid options, users could select those models only to have requests rejected at the gateway. This is a cross-file inconsistency that would cause runtime failures and is non-obvious without reviewing both files together.",2026-01-28T16:25:55.625244+00:00
+posthog/posthog,46140,feat(billing): add product-led outbound targets DAG,https://github.com/PostHog/posthog/pull/46140,,"f-string interpolation with user-controlled data in HogQL query. While the `nosemgrep` comment acknowledges this, `team_ids` come from ClickHouse ETL table (`posthog_team`), which could contain unexpected values. The string join doesn't protect against injection if `team_ids` contained unexpected values.
+
+```suggestion
+    query = """"""
+        SELECT
+            properties.$team_id as team_id,
+            countIf(timestamp >= now() - interval 30 day) as current_count,
+            countIf(timestamp >= now() - interval 60 day AND timestamp < now() - interval 30 day) as prior_count
+        FROM events
+        WHERE properties.$team_id IN %(team_ids)s
+          AND timestamp >= now() - interval 60 day
+        GROUP BY team_id
+    """"""
+    
+    response = execute_hogql_query(
+        query=query,
+        team=team,
+        query_type=""plo_event_growth"",
+        limit_context=LimitContext.SAVED_QUERY,
+        query_params={""team_ids"": team_ids},
+    )
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: ee/billing/dags/productled_outbound_targets.py
+Line: 134:144
+
+Comment:
+f-string interpolation with user-controlled data in HogQL query. While the `nosemgrep` comment acknowledges this, `team_ids` come from ClickHouse ETL table (`posthog_team`), which could contain unexpected values. The string join doesn't protect against injection if `team_ids` contained unexpected values.
+
+```suggestion
+    query = """"""
+        SELECT
+            properties.$team_id as team_id,
+            countIf(timestamp >= now() - interval 30 day) as current_count,
+            countIf(timestamp >= now() - interval 60 day AND timestamp < now() - interval 30 day) as prior_count
+        FROM events
+        WHERE properties.$team_id IN %(team_ids)s
+          AND timestamp >= now() - interval 60 day
+        GROUP BY team_id
+    """"""
+    
+    response = execute_hogql_query(
+        query=query,
+        team=team,
+        query_type=""plo_event_growth"",
+        limit_context=LimitContext.SAVED_QUERY,
+        query_params={""team_ids"": team_ids},
+    )
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/46140#discussion_r2737102916,Fixed in: [`a9f2e96` (this PR)](https://github.com/PostHog/posthog/pull/46140/commits/a9f2e96f3de436bb6f97f7e54c3fd16e989f109d),2026-01-28T15:11:56+00:00,security,medium,"Greptile correctly identified a potential SQL/HogQL injection vulnerability. The code at line 144 uses `placeholders` with AST nodes to safely parameterize the query, but there's inconsistency in the codebase - `build_team_product_df` uses proper parameterization with `%(org_ids)s` while `compute_event_growth` uses `{team_ids}` placeholder syntax. The developer confirmed and fixed the issue, validating this was a legitimate security concern about injection via data from the ETL table.",2026-01-28T16:25:55.625293+00:00
+posthog/posthog,46156,feat(customers): Add banner to configure person display name when showing UUID,https://github.com/PostHog/posthog/pull/46156,,"function can return `null` in the array but the return type is `Record<string, string>[]`. This will cause a runtime error on line 59 when accessing `person.display_name`.
+
+```suggestion
+function getPersonsFromResponse(response: ActorsQueryResponse | null): Array<Record<string, string> | null> {
+    if (!response?.results) {
+        return []
+    }
+    return response.results.map((result) => {
+        const person = result[0]
+        if (typeof person === 'object' && person !== null && 'display_name' in person) {
+            return person as Record<string, string>
+        }
+        return null
+    })
+}
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: products/customer_analytics/frontend/components/PersonDisplayNameNudgeBanner.tsx
+Line: 21:31
+
+Comment:
+function can return `null` in the array but the return type is `Record<string, string>[]`. This will cause a runtime error on line 59 when accessing `person.display_name`.
+
+```suggestion
+function getPersonsFromResponse(response: ActorsQueryResponse | null): Array<Record<string, string> | null> {
+    if (!response?.results) {
+        return []
+    }
+    return response.results.map((result) => {
+        const person = result[0]
+        if (typeof person === 'object' && person !== null && 'display_name' in person) {
+            return person as Record<string, string>
+        }
+        return null
+    })
+}
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/46156#discussion_r2736919128,,2026-01-28T14:31:24+00:00,runtime,medium,"Greptile correctly identified that `getPersonsFromResponse` returns `null` values in the array (line 28), but the return type is `Record<string, string>[]`. On line 56-58, the code does `persons.filter((person) => isUUIDLike(person.display_name))` which will throw a runtime error when accessing `display_name` on a null person. The fix should either filter out nulls before returning or update the type and add null checks in the filter.",2026-01-28T16:25:55.625378+00:00
+posthog/posthog,46156,feat(customers): Add banner to configure person display name when showing UUID,https://github.com/PostHog/posthog/pull/46156,,"null values from `getPersonsFromResponse` are not filtered out before accessing `person.display_name`, causing a potential runtime error
+
+```suggestion
+        const uuidCount = persons.filter((person) => {
+            return person && isUUIDLike(person.display_name)
+        }).length
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: products/customer_analytics/frontend/components/PersonDisplayNameNudgeBanner.tsx
+Line: 58:60
+
+Comment:
+null values from `getPersonsFromResponse` are not filtered out before accessing `person.display_name`, causing a potential runtime error
+
+```suggestion
+        const uuidCount = persons.filter((person) => {
+            return person && isUUIDLike(person.display_name)
+        }).length
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/46156#discussion_r2736919196,,2026-01-28T14:31:25+00:00,runtime,medium,"Greptile correctly identified that `getPersonsFromResponse` can return `null` values in the array (line 28: `return null`), but the return type is `Record<string, string>[]` which doesn't reflect this. When the code later calls `person.display_name` on line 55, it will throw a runtime error if `person` is null. This is a real bug that's easy to miss due to the misleading return type annotation.",2026-01-28T16:25:55.625418+00:00
+infisical/infisical,5282,fix(api): ensure commits are linted/formatted before commit,https://github.com/Infisical/infisical/pull/5282,,"Parameter expansion `${@#frontend/}` won't strip `./` prefix from paths like `./frontend/src/App.tsx` passed by lint-staged, causing ESLint to receive incorrect paths.
+
+```suggestion
+      ""bash -c 'cd frontend && npx eslint --fix --max-warnings 0 \""$@\""' _ ""
+```",https://github.com/Infisical/infisical/pull/5282#discussion_r2736912193,,2026-01-28T14:29:48+00:00,logic,medium,"Greptile correctly identifies that lint-staged passes paths like `./frontend/src/App.tsx`, but the parameter expansion `${@#frontend/}` only strips `frontend/` without the leading `./`, resulting in paths like `./src/App.tsx` being passed to ESLint, which would fail to find the files. This is a subtle shell scripting bug that would cause lint-staged to silently fail or error on commits.",2026-01-28T16:25:55.625446+00:00
+infisical/infisical,5282,fix(api): ensure commits are linted/formatted before commit,https://github.com/Infisical/infisical/pull/5282,,"Parameter expansion `${@#backend/}` won't strip `./` prefix from paths like `./backend/src/index.ts` passed by lint-staged, causing ESLint to receive incorrect paths.
+
+```suggestion
+      ""bash -c 'cd backend && npx eslint --fix --max-warnings 0 \""$@\""' _ ""
+```",https://github.com/Infisical/infisical/pull/5282#discussion_r2736912263,,2026-01-28T14:29:49+00:00,logic,medium,"Greptile correctly identifies a subtle bug: lint-staged passes paths like `./backend/src/index.ts`, but the parameter expansion `${@#backend/}` only strips `backend/` prefix, not `./backend/`. This would result in paths like `./src/index.ts` being passed to ESLint after cd'ing to backend, causing file-not-found errors. This is a non-obvious shell scripting edge case that most reviewers would miss.",2026-01-28T16:25:55.625466+00:00
+infisical/infisical,5282,fix(api): ensure commits are linted/formatted before commit,https://github.com/Infisical/infisical/pull/5282,,"<details>
+<summary>Additional Comments (2)</summary>
+
+**`.husky/pre-commit`**
+Deleting pre-commit hook removes critical security scan (`infisical scan git-changes --staged`) that prevents committing secrets. This creates a major vulnerability - developers can now commit credentials without detection.
+
+---
+
+**`.husky/pre-commit`**
+`lint-staged` is no longer running at commit time - only at push time. This means uncommitted linting errors will accumulate, and the PR description's verification steps won't work as described.
+</details>",https://github.com/Infisical/infisical/pull/5282#issuecomment-3811638352,,2026-01-28T14:29:52+00:00,security,critical,"Greptile correctly identifies that deleting the pre-commit hook removes the `infisical scan git-changes --staged` security scan that prevents committing secrets. This is a critical security vulnerability that could allow credentials to be accidentally committed to the repository, and is non-obvious because the PR title suggests it's improving commit linting/formatting when it's actually removing security controls.",2026-01-28T16:25:55.625487+00:00
