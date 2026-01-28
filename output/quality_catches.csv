@@ -11631,3 +11631,43 @@ Real developer file paths (`/Users/fvcci/Code/Github/price-matched/test.py`) are
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/Beanie-Brick-Band/leopard/pull/94#discussion_r2738797710,,2026-01-28T22:01:05+00:00,security,medium,Greptile correctly identifies that the seed data file contains real developer file paths like `/Users/fvcci/Code/Github/price-matched/test.py` which exposes the developer's username ('fvcci') and project information ('price-matched'). This is a valid security concern for committed seed data that could leak sensitive information about development environments and project structure.,2026-01-28T22:20:33.616610+00:00
+posthog/posthog,46208,fix(sig): re-use ongoing video export workflow,https://github.com/PostHog/posthog/pull/46208,"<details>
+<summary>Additional Comments (1)</summary>
+
+**`posthog/temporal/ai/session_summary/activities/a1_export_session_video.py`**
+when catching `WorkflowAlreadyStartedError`, the code waits for the existing workflow but then returns the NEW `exported_asset.id` that was never processed. The existing workflow is processing a DIFFERENT asset ID (from the first request). This means the returned asset will never have its `content_location` or `content` populated.
+
+need to either:
+1. query for the existing asset (checking lines 46-54) BEFORE creating a new one when a workflow is already running, OR
+2. look up and return the existing asset's ID that the already-running workflow is processing
+
+the workflow_id is based on `team_id` and `session_id`, but each request creates its own unique `exported_asset`. when the second request catches the exception, it should return the FIRST request's asset ID, not its own.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: posthog/temporal/ai/session_summary/activities/a1_export_session_video.py
+Line: 130:148
+
+Comment:
+when catching `WorkflowAlreadyStartedError`, the code waits for the existing workflow but then returns the NEW `exported_asset.id` that was never processed. The existing workflow is processing a DIFFERENT asset ID (from the first request). This means the returned asset will never have its `content_location` or `content` populated.
+
+need to either:
+1. query for the existing asset (checking lines 46-54) BEFORE creating a new one when a workflow is already running, OR
+2. look up and return the existing asset's ID that the already-running workflow is processing
+
+the workflow_id is based on `team_id` and `session_id`, but each request creates its own unique `exported_asset`. when the second request catches the exception, it should return the FIRST request's asset ID, not its own.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>
+</details>",https://github.com/PostHog/posthog/pull/46208#issuecomment-3814257126,,2026-01-28T22:28:21+00:00,data_integrity,high,"This is a genuine concurrency bug where catching WorkflowAlreadyStartedError leads to returning a newly created asset ID that will never be populated with data, since the existing workflow is processing a different asset. This would cause users to receive an empty/incomplete exported asset in normal concurrent usage scenarios. The analysis is correct and identifies a real data integrity issue.",2026-01-28T23:04:50.907478+00:00
+nvidia-nemo/curator,1437,ci: Optimize docker layer for caching and add remote cache,https://github.com/NVIDIA-NeMo/Curator/pull/1437,"`${{ env.REPO_LOWER }}` is empty at line 130-131 - it's set at line 92 but composite actions don't make `env` variables available to subsequent steps. Cache and tag references will be malformed like `nemoci.azurecr.io/:abc123`
+
+Set REPO_LOWER as output from the normalize step and reference `${{ steps.normalize.outputs.repo_lower }}` instead",https://github.com/NVIDIA-NeMo/Curator/pull/1437#discussion_r2738911992,,2026-01-28T22:38:52+00:00,runtime,high,"Comment 9 correctly identifies that `${{ env.REPO_LOWER }}` will be empty when used in the Docker build step because GitHub Actions composite actions don't propagate environment variables set in one step to subsequent steps. This will cause malformed image references like `nemoci.azurecr.io/:abc123` instead of `nemoci.azurecr.io/curator:abc123`, breaking the entire container build and push workflow. The comment also provides a concrete solution.",2026-01-28T23:04:50.907610+00:00
+nvidia/numba-cuda,760,Replace legacy wheels-build.yaml with build-wheel.yml in publish workflow,https://github.com/NVIDIA/numba-cuda/pull/760,"The source distribution (sdist) is no longer being built or published. The old workflow downloaded `sdist-py3.13-amd64` artifact and published it to PyPI. The new workflow only publishes wheels.
+
+The PR description states ""Add dedicated build-sdist job for source distribution"", but the actual implementation in commit 521da34 removed sdist building entirely with the note ""sdist not needed"". This contradicts the PR description and removes functionality that was present before.
+
+Verify whether sdist is truly not needed for PyPI publishing, or if it should be restored.",https://github.com/NVIDIA/numba-cuda/pull/760#discussion_r2738854040,Updated initial comment,2026-01-28T22:18:53+00:00,logic,medium,"Greptile caught a discrepancy between the PR description claiming to 'Add dedicated build-sdist job for source distribution' and the actual implementation which removed sdist building entirely. This is a legitimate functionality removal that contradicts the stated PR intent. The developer acknowledged this by saying 'Updated initial comment', confirming the catch was valid.",2026-01-28T23:04:50.907653+00:00
