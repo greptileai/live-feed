@@ -11229,3 +11229,288 @@ Deleting pre-commit hook removes critical security scan (`infisical scan git-cha
 **`.husky/pre-commit`**
 `lint-staged` is no longer running at commit time - only at push time. This means uncommitted linting errors will accumulate, and the PR description's verification steps won't work as described.
 </details>",https://github.com/Infisical/infisical/pull/5282#issuecomment-3811638352,,2026-01-28T14:29:52+00:00,security,critical,"Greptile correctly identifies that deleting the pre-commit hook removes the `infisical scan git-changes --staged` security scan that prevents committing secrets. This is a critical security vulnerability that could allow credentials to be accidentally committed to the repository, and is non-obvious because the PR title suggests it's improving commit linting/formatting when it's actually removing security controls.",2026-01-28T16:25:55.625487+00:00
+posthog/posthog,46162,feat(llma): migrate summarization to use LLM gateway client,https://github.com/PostHog/posthog/pull/46162,,"Incorrect async/sync conversion. Changed from async function using `AsyncOpenAI` to sync function, but this is called from async temporal activities at:
+- `posthog/temporal/llm_analytics/trace_summarization/summarization.py:179`
+- `posthog/temporal/llm_analytics/trace_summarization/generation_summarization.py:262`
+
+Both calling contexts are async functions, so blocking sync calls will block the event loop. Either:
+1. Keep this function async and use `get_async_llm_client()`, OR
+2. Wrap the sync call with `await asyncio.to_thread()` in the temporal activities
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: products/llm_analytics/backend/summarization/llm/openai.py
+Line: 19:38
+
+Comment:
+Incorrect async/sync conversion. Changed from async function using `AsyncOpenAI` to sync function, but this is called from async temporal activities at:
+- `posthog/temporal/llm_analytics/trace_summarization/summarization.py:179`
+- `posthog/temporal/llm_analytics/trace_summarization/generation_summarization.py:262`
+
+Both calling contexts are async functions, so blocking sync calls will block the event loop. Either:
+1. Keep this function async and use `get_async_llm_client()`, OR
+2. Wrap the sync call with `await asyncio.to_thread()` in the temporal activities
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/46162#discussion_r2737465682,Fixed in e7696a7 - wrapped the sync `summarize()` call with `database_sync_to_async` in the temporal activities.,2026-01-28T16:28:15+00:00,concurrency,high,"Greptile correctly identified that converting an async function to sync while it's called from async temporal activities would block the event loop. The developer confirmed this was a real issue by fixing it with 'database_sync_to_async' wrapper, validating Greptile's analysis. This is non-obvious as it requires understanding the calling context across multiple files.",2026-01-28T18:28:56.304123+00:00
+raycast/extensions,24544,Updating Oura extention to use OAuth2 of the updated v2 API's,https://github.com/raycast/extensions/pull/24544,,"Incorrect redirect URI - should use `oura` not `Extension`
+
+```suggestion
+3. Create a new application and set the Redirect URI to `https://raycast.com/redirect?packageName=oura`.
+```",https://github.com/raycast/extensions/pull/24544#discussion_r2737457523,,2026-01-28T16:26:48+00:00,logic,high,The redirect URI in OAuth flows must match exactly what the application expects. Using 'Extension' as the package name instead of 'oura' would cause the OAuth flow to fail because the redirect wouldn't match the configured callback. This is a documentation bug that would prevent users from successfully setting up the extension.,2026-01-28T18:28:56.304241+00:00
+raycast/extensions,24544,Updating Oura extention to use OAuth2 of the updated v2 API's,https://github.com/raycast/extensions/pull/24544,,"Incorrect redirect URI - should use `oura` not `Extension`
+
+```suggestion
+\`https://raycast.com/redirect?packageName=oura\`
+```",https://github.com/raycast/extensions/pull/24544#discussion_r2737457647,,2026-01-28T16:26:49+00:00,logic,medium,"The redirect URI in the markdown contains 'Extension' as a generic placeholder instead of the actual package name 'oura'. This would cause OAuth authentication to fail since the redirect URI must match exactly what's registered with Oura. This is a real bug that would break the OAuth flow, and it's easy to miss because it's embedded in a markdown string.",2026-01-28T18:28:56.304280+00:00
+onyx-dot-app/onyx,7941,chore(extensions): pull in chrome extension (#7703) to release v2.10,https://github.com/onyx-dot-app/onyx/pull/7941,,"`closeSidePanel()` is called here but the function is never defined, this will cause a runtime error when the `CLOSE_SIDE_PANEL` action is triggered
+
+```suggestion
+    // closeSidePanel() removed - function doesn't exist
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: extensions/chrome/service_worker.js
+Line: 170:170
+
+Comment:
+`closeSidePanel()` is called here but the function is never defined, this will cause a runtime error when the `CLOSE_SIDE_PANEL` action is triggered
+
+```suggestion
+    // closeSidePanel() removed - function doesn't exist
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/7941#discussion_r2737588649,,2026-01-28T16:54:29+00:00,runtime,high,"Greptile correctly identified that `closeSidePanel()` is called on line 170 but is never defined anywhere in the file. This will cause a runtime error (ReferenceError) when the CLOSE_SIDE_PANEL action is triggered. The file only defines `openSidePanel()` and `setupSidePanel()` functions, but no `closeSidePanel()` function exists. This is a non-obvious bug that would cause the extension to fail when users try to close the side panel.",2026-01-28T18:28:56.304317+00:00
+onyx-dot-app/onyx,7941,chore(extensions): pull in chrome extension (#7703) to release v2.10,https://github.com/onyx-dot-app/onyx/pull/7941,,"`getOnyxDomain()` is imported from `../utils/storage.js` but not imported at the top of the file, causing a reference error
+
+```suggestion
+      const { getOnyxDomain } = await import('../utils/storage.js');
+      const domain = await getOnyxDomain();
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: extensions/chrome/src/pages/panel.js
+Line: 110:110
+
+Comment:
+`getOnyxDomain()` is imported from `../utils/storage.js` but not imported at the top of the file, causing a reference error
+
+```suggestion
+      const { getOnyxDomain } = await import('../utils/storage.js');
+      const domain = await getOnyxDomain();
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/7941#discussion_r2737589113,,2026-01-28T16:54:35+00:00,runtime,high,"Greptile correctly identified that `getOnyxDomain()` is called on line 110 but never imported anywhere in the file. Looking at the imports at the top (lines 1-8), there is no import from `../utils/storage.js`. This will cause a ReferenceError at runtime when the fallback code path is executed, crashing the panel initialization.",2026-01-28T18:28:56.304352+00:00
+onyx-dot-app/onyx,7940,chore(extensions): pull in chrome extension (#7703) to release v2.10,https://github.com/onyx-dot-app/onyx/pull/7940,,"Icon path `icon.png` doesn't match the icon file names in `public/` directory (`icon16.png`, `icon32.png`, `icon48.png`, `icon128.png`). This will fail at runtime.
+
+```suggestion
+      iconUrl: ""public/icon48.png"",
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: extensions/chrome/service_worker.js
+Line: 82:82
+
+Comment:
+Icon path `icon.png` doesn't match the icon file names in `public/` directory (`icon16.png`, `icon32.png`, `icon48.png`, `icon128.png`). This will fail at runtime.
+
+```suggestion
+      iconUrl: ""public/icon48.png"",
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/7940#discussion_r2737553148,,2026-01-28T16:46:48+00:00,runtime,medium,"Greptile correctly identifies that line 82 references 'icon.png' which doesn't exist - the PR shows icon files are named with size suffixes (icon16.png, icon32.png, etc.) in the public/ directory. This will cause the Chrome notification to fail to display its icon at runtime, a non-obvious path mismatch that's easy to miss during code review.",2026-01-28T18:28:56.304383+00:00
+onyx-dot-app/onyx,7939,chore(extensions): pull in chrome extension (#7703) to release v2.9,https://github.com/onyx-dot-app/onyx/pull/7939,,"`closeSidePanel` is called but never defined, causing a runtime error.
+
+```suggestion
+    chrome.sidePanel.setOptions({ enabled: false });
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: extensions/chrome/service_worker.js
+Line: 170:170
+
+Comment:
+`closeSidePanel` is called but never defined, causing a runtime error.
+
+```suggestion
+    chrome.sidePanel.setOptions({ enabled: false });
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/7939#discussion_r2737525389,,2026-01-28T16:40:38+00:00,runtime,high,"Greptile correctly identified that `closeSidePanel()` is called on line 170 but the function is never defined anywhere in the file. This will cause a ReferenceError at runtime when the CLOSE_SIDE_PANEL action is triggered, breaking that functionality completely. This is non-obvious as it requires scanning the entire file for a function definition.",2026-01-28T18:28:56.304414+00:00
+onyx-dot-app/onyx,7939,chore(extensions): pull in chrome extension (#7703) to release v2.9,https://github.com/onyx-dot-app/onyx/pull/7939,,"Using wildcard origin `""*""` in `postMessage` allows any site to receive the message. Since the iframe is loaded from a configurable domain, specify the domain origin instead of `""*""` for security.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: extensions/chrome/src/pages/panel.js
+Line: 60:60
+
+Comment:
+Using wildcard origin `""*""` in `postMessage` allows any site to receive the message. Since the iframe is loaded from a configurable domain, specify the domain origin instead of `""*""` for security.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/7939#discussion_r2737525473,,2026-01-28T16:40:39+00:00,security,medium,"Greptile correctly identifies a security issue where postMessage uses '*' as the target origin on lines 54-58 and 79. Since the iframe loads from a configurable domain (ONYX_DOMAIN from storage), using '*' allows any site that might be loaded in that iframe to receive sensitive messages like PAGE_CHANGE with URL data. This is a real security concern that's easy to overlook in extension development.",2026-01-28T18:28:56.304478+00:00
+onyx-dot-app/onyx,7939,chore(extensions): pull in chrome extension (#7703) to release v2.9,https://github.com/onyx-dot-app/onyx/pull/7939,,"Using wildcard origin `""*""` in `postMessage` allows any site to receive the message. Since the iframe is loaded from a configurable domain, specify the domain origin instead of `""*""` for security.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: extensions/chrome/src/pages/panel.js
+Line: 84:84
+
+Comment:
+Using wildcard origin `""*""` in `postMessage` allows any site to receive the message. Since the iframe is loaded from a configurable domain, specify the domain origin instead of `""*""` for security.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/7939#discussion_r2737525553,,2026-01-28T16:40:40+00:00,security,medium,"Greptile correctly identifies that postMessage with '*' wildcard origin on lines 56 and 84 allows any site to intercept messages. Since the iframe loads from a user-configurable domain (ONYX_DOMAIN), the code should use that specific origin instead of '*' to prevent potential message interception by malicious sites. This is a legitimate security concern that's easy to overlook in browser extension code.",2026-01-28T18:28:56.304507+00:00
+infisical/infisical,5301,docs: improve Kubernetes Helm deployment guide,https://github.com/Infisical/infisical/pull/5301,,"incorrect label selector - the Helm chart uses `app=infisical` and `component=infisical`, not `app.kubernetes.io/name=infisical`
+
+based on helm-charts/infisical-standalone-postgres/templates/_helpers.tpl:38-40, the matchLabels are:
+- `component: infisical`
+- `app: <chart-name>`
+- `release: <release-name>`
+
+```suggestion
+kubectl logs -n infisical -l app=infisical -f
+```",https://github.com/Infisical/infisical/pull/5301#discussion_r2737820501,Fixed - Changed to `kubectl logs -n infisical -l component=infisical -f` to match the actual Helm chart labels defined in `_helpers.tpl`.,2026-01-28T17:53:01+00:00,logic,medium,"Greptile correctly identified that the documentation used an incorrect label selector (`component=infisical` is correct, not `app.kubernetes.io/name=infisical`) based on the Helm chart's actual template definitions. The developer confirmed and fixed the issue. This is a non-obvious documentation bug that would cause users' commands to fail when following the guide.",2026-01-28T18:28:56.304531+00:00
+infisical/infisical,5297,docs: improve docker-compose self-hosting guide,https://github.com/Infisical/infisical/pull/5297,,"misleading dependency configuration: adding NGINX with `depends_on: infisical` won't work because the actual service name is `backend`, not `infisical`
+
+```suggestion
+    nginx:
+      image: nginx:alpine
+      ports:
+        - ""80:80""
+        - ""443:443""
+      volumes:
+        - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+        - ./nginx/certs:/etc/nginx/certs:ro
+      depends_on:
+        - backend
+```",https://github.com/Infisical/infisical/pull/5297#discussion_r2737458781,Fixed - Changed to `docker compose -f docker-compose.prod.yml restart backend`.,2026-01-28T16:27:03+00:00,logic,medium,Greptile correctly identified that the NGINX configuration example uses `depends_on: - infisical` but the actual service name in docker-compose.prod.yml is `backend`. This would cause Docker Compose to fail when trying to start the NGINX service since it references a non-existent service. The developer confirmed by fixing it.,2026-01-28T18:28:56.304554+00:00
+mellanox/hw-mgmt,2268,Port Chameleon5S fixes to master,https://github.com/Mellanox/hw-mgmt/pull/2268,,"Incorrect label: `curr2` should be ""(in2)"" not ""(in1)""
+
+```suggestion
+    label curr2    ""PMIC-5 12V VDD_T6 VDD_T7 Rail Curr (in2)""
+```",https://github.com/Mellanox/hw-mgmt/pull/2268#discussion_r2737901600,,2026-01-28T18:13:44+00:00,data_integrity,medium,"Greptile correctly identified that `curr2` is labeled with ""(in1)"" when it should be ""(in2)"" to match the pattern used for other PMICs. Looking at the diff, line 135 shows `label curr2 ""PMIC-5 12V VDD_T6 VDD_T7 Rail Curr (in1)""` which is inconsistent with similar curr2 labels elsewhere that use ""(in2)"". This is a real copy-paste or typo error that would cause incorrect sensor labeling and potentially confuse operators monitoring power management.",2026-01-28T18:28:56.304575+00:00
+mellanox/hw-mgmt,2268,Port Chameleon5S fixes to master,https://github.com/Mellanox/hw-mgmt/pull/2268,,"Incorrect label: `curr2` should be ""(in2)"" not ""(in1)""
+
+```suggestion
+    label curr2    ""PMIC-5 12V VDD_T6 VDD_T7 Rail Curr (in2)""
+```",https://github.com/Mellanox/hw-mgmt/pull/2268#discussion_r2737901627,,2026-01-28T18:13:45+00:00,data_integrity,medium,"Greptile correctly identified a copy-paste error where curr2 is labeled as '(in1)' instead of '(in2)' for PMIC-5, which would cause incorrect sensor labeling in hardware monitoring. This is a subtle typo that could easily be missed during review, and the same error appears twice in both mp2891 and xdpe1a2g7 chip configurations at address 66.",2026-01-28T18:28:56.304594+00:00
+mellanox/hw-mgmt,2268,Port Chameleon5S fixes to master,https://github.com/Mellanox/hw-mgmt/pull/2268,,"Missing closing parenthesis
+
+```suggestion
+    label curr4    ""PMIC-11 VDDSCC Rail Curr (out2)""
+```",https://github.com/Mellanox/hw-mgmt/pull/2268#discussion_r2737901679,,2026-01-28T18:13:46+00:00,data_integrity,low,"Greptile correctly identified a missing closing parenthesis on line 303 where 'label curr4 ""PMIC-11 VDDSCC Rail Curr (out2""' is missing the closing ')' before the closing quote. This is a real syntax error in a configuration file that could cause parsing issues. While subtle, it's a genuine catch that a typical reviewer could easily miss in a large config file with many similar lines.",2026-01-28T18:28:56.304609+00:00
+sqlfluff/sqlfluff,7400,Add optional recursion limit configuration,https://github.com/sqlfluff/sqlfluff/pull/7400,,"docstring must be placed immediately after the function signature (line 604), not after code execution. Python won't recognize this as the function's docstring.
+
+```suggestion
+) -> None:
+    """"""Lint SQL files via passing a list of files or using stdin.
+
+    PATH is the path to a sql file or directory to lint. This can be either a
+    file ('path/to/file.sql'), a path ('directory/of/sql/files'), a single ('-')
+    character to indicate reading from *stdin* or a dot/blank ('.'/' ') which will
+    be interpreted like passing the current working directory as a path argument.
+
+    Linting SQL files:
+
+        sqlfluff lint path/to/file.sql
+        sqlfluff lint directory/of/sql/files
+
+    Linting a file via stdin (note the lone '-' character):
+
+        cat path/to/file.sql | sqlfluff lint -
+        echo 'select col from tbl' | sqlfluff lint -
+
+    """"""
+    # If CLI flag is not set, check config for recursion_limit
+```",https://github.com/sqlfluff/sqlfluff/pull/7400#discussion_r2737748015,,2026-01-28T17:32:41+00:00,logic,medium,"Greptile correctly identified that the docstring was placed after executable code (the recursion_limit configuration block) instead of immediately after the function signature. In Python, docstrings must be the first statement in a function body to be recognized as the function's __doc__ attribute. This would break documentation tools, help() output, and IDE documentation features for these functions.",2026-01-28T18:28:56.304625+00:00
+sqlfluff/sqlfluff,7400,Add optional recursion limit configuration,https://github.com/sqlfluff/sqlfluff/pull/7400,,"same docstring placement issue - must be immediately after function signature on line 1110
+
+```suggestion
+) -> None:
+    """"""Fix SQL files.
+
+    PATH is the path to a sql file or directory to lint. This can be either a
+    file ('path/to/file.sql'), a path ('directory/of/sql/files'), a single ('-')
+    character to indicate reading from *stdin* or a dot/blank ('.'/' ') which will
+    be interpreted like passing the current working directory as a path argument.
+    """"""
+    # If CLI flag is not set, check config for recursion_limit
+```",https://github.com/sqlfluff/sqlfluff/pull/7400#discussion_r2737748083,,2026-01-28T17:32:42+00:00,runtime,medium,"Greptile correctly identifies that the docstring is placed after the code block instead of immediately after the function signature. In Python, docstrings must be the first statement in a function body to be recognized as documentation - placing code before the docstring means it won't be accessible via __doc__ or help(). This is a real bug that affects documentation/introspection functionality and is non-obvious since the code would still run without errors.",2026-01-28T18:28:56.304660+00:00
+sqlfluff/sqlfluff,7400,Add optional recursion limit configuration,https://github.com/sqlfluff/sqlfluff/pull/7400,,"same docstring placement issue - must be immediately after function signature on line 1230
+
+```suggestion
+) -> None:
+    """"""Autoformat SQL files.
+
+    This effectively force applies `sqlfluff fix` with a known subset of fairly
+    stable rules. Enabled rules are ignored, but rule exclusions (via CLI) or
+    config are still respected.
+
+    PATH is the path to a sql file or directory to lint. This can be either a
+    file ('path/to/file.sql'), a path ('directory/of/sql/files'), a single ('-')
+    character to indicate reading from *stdin* or a dot/blank ('.'/' ') which will
+    be interpreted like passing the current working directory as a path argument.
+    """"""
+    # If CLI flag is not set, check config for recursion_limit
+```",https://github.com/sqlfluff/sqlfluff/pull/7400#discussion_r2737748145,,2026-01-28T17:32:43+00:00,runtime,medium,"Greptile correctly identified that the docstring is placed after the code block instead of immediately after the function signature. In Python, docstrings must be the first statement in a function body to be recognized as documentation (accessible via __doc__). This is a real bug that would cause the docstring to not be properly associated with the function, breaking help text and documentation tooling.",2026-01-28T18:28:56.304682+00:00
+credal-ai/actions-sdk,480,Enhance slack rts behavior,https://github.com/Credal-ai/actions-sdk/pull/480,,"Validation uses `!=` but should use `!==` for consistency. The custom instructions say to use `!=` when checking for `undefined` to also match `null` values, but here we're checking if ALL three are falsy, not just undefined/null. Using `!==` would be more explicit.
+
+However, there's a subtle bug: empty arrays `[]` would pass this check but shouldn't. Consider:
+
+```suggestion
+  if ((!query || query === """") && (!userEmails || userEmails.length === 0) && (!channelIds || channelIds.length === 0)) {
+    throw new Error(""If query is left blank, you must provide at least one userEmail or channelId to filter by."");
+  }
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: src/actions/providers/slackUser/searchSlackRTS.ts
+Line: 100:102
+
+Comment:
+Validation uses `!=` but should use `!==` for consistency. The custom instructions say to use `!=` when checking for `undefined` to also match `null` values, but here we're checking if ALL three are falsy, not just undefined/null. Using `!==` would be more explicit.
+
+However, there's a subtle bug: empty arrays `[]` would pass this check but shouldn't. Consider:
+
+```suggestion
+  if ((!query || query === """") && (!userEmails || userEmails.length === 0) && (!channelIds || channelIds.length === 0)) {
+    throw new Error(""If query is left blank, you must provide at least one userEmail or channelId to filter by."");
+  }
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/Credal-ai/actions-sdk/pull/480#discussion_r2737631344,,2026-01-28T17:04:06+00:00,logic,medium,"Greptile correctly identifies that empty arrays `[]` are truthy in JavaScript, so `if (!userEmails && !channelIds && !query)` would NOT throw an error when userEmails=[] and channelIds=[], allowing the function to proceed with no meaningful filters. This is a subtle edge case that could lead to overly broad or empty searches, and the suggested fix properly checks array lengths.",2026-01-28T18:28:56.304707+00:00
