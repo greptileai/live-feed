@@ -10009,3 +10009,348 @@ Duplicate assertion - line 52 checks for `gatewayz_production` twice. The second
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/Alpaca-Network/railway-grafana-stack/pull/89#discussion_r2733893432,,2026-01-27T21:26:26+00:00,logic,medium,"Greptile correctly identified that lines 51-52 contain duplicate assertions checking for 'gatewayz_production' twice. The original code checked for 'gatewayz_staging' but was changed to 'gatewayz_production', making the test redundant and removing actual coverage for the staging job validation. This is a real bug that would cause tests to miss configuration errors.",2026-01-27T22:19:05.843368+00:00
+posthog/posthog,46107,fix(vercel): add existing users to org during installation,https://github.com/PostHog/posthog/pull/46107,,"Removing the `_user_has_any_vercel_mapping` check creates a security issue. The old logic distinguished between ""trusted"" Vercel users (with existing mappings) and external users. External users should NOT be auto-added to organizations - they must prove ownership via login first (see `test_sso_requires_login_for_external_existing_user`).
+
+The fix should still add existing users, but preserve the security check:
+
+```suggestion
+                # Add trusted Vercel users (those with existing mappings) to the new organization
+                # External users without mappings must prove ownership via login during SSO
+                if VercelIntegration._user_has_any_vercel_mapping(existing_user):
+                    VercelIntegration._add_user_to_organization(
+                        existing_user, organization, OrganizationMembership.Level.OWNER
+                    )
+                    should_create_mapping = True
+                else:
+                    should_create_mapping = False
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: ee/vercel/integration.py
+Line: 303:307
+
+Comment:
+Removing the `_user_has_any_vercel_mapping` check creates a security issue. The old logic distinguished between ""trusted"" Vercel users (with existing mappings) and external users. External users should NOT be auto-added to organizations - they must prove ownership via login first (see `test_sso_requires_login_for_external_existing_user`).
+
+The fix should still add existing users, but preserve the security check:
+
+```suggestion
+                # Add trusted Vercel users (those with existing mappings) to the new organization
+                # External users without mappings must prove ownership via login during SSO
+                if VercelIntegration._user_has_any_vercel_mapping(existing_user):
+                    VercelIntegration._add_user_to_organization(
+                        existing_user, organization, OrganizationMembership.Level.OWNER
+                    )
+                    should_create_mapping = True
+                else:
+                    should_create_mapping = False
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/46107#discussion_r2734367109,,2026-01-28T00:34:17+00:00,security,high,"Greptile correctly identifies that removing the `_user_has_any_vercel_mapping` check creates a security vulnerability. The old code distinguished between trusted Vercel users (with existing mappings) who could be auto-added to organizations, versus external users who needed to prove ownership via login. The new code auto-adds ANY existing user as OWNER to the organization without verification, which could allow unauthorized access to organizations if an attacker knows an email address.",2026-01-28T00:49:19.825195+00:00
+posthog/posthog,46105,fix(data-warehouse): implement adaptive chunking for API timeout errors,https://github.com/PostHog/posthog/pull/46105,,"this logic causes duplicate data when timeout occurs mid-pagination. if the API successfully yields pages 1-3 then times out on page 4, the recursive call to `_fetch_with_chunk_size` will re-fetch and re-yield all data from `chunk_start` to `chunk_end` with a smaller chunk size, duplicating the already-yielded data from pages 1-3.
+
+to fix this, track which portion of the chunk was successfully fetched before the timeout, and only retry the remaining time range. alternatively, detect timeouts before yielding any data for a chunk (i.e., on the first request only)
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: posthog/temporal/data_imports/sources/meta_ads/meta_ads.py
+Line: 137:145
+
+Comment:
+this logic causes duplicate data when timeout occurs mid-pagination. if the API successfully yields pages 1-3 then times out on page 4, the recursive call to `_fetch_with_chunk_size` will re-fetch and re-yield all data from `chunk_start` to `chunk_end` with a smaller chunk size, duplicating the already-yielded data from pages 1-3.
+
+to fix this, track which portion of the chunk was successfully fetched before the timeout, and only retry the remaining time range. alternatively, detect timeouts before yielding any data for a chunk (i.e., on the first request only)
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/46105#discussion_r2734348184,,2026-01-28T00:24:01+00:00,data_integrity,high,"Greptile correctly identified that when a timeout occurs mid-pagination (after yielding some data), the code recursively calls _fetch_with_chunk_size with the same chunk_start/chunk_end range but smaller chunk sizes, which will re-fetch and re-yield all data from the beginning of that chunk, causing duplicates. This is a non-obvious logic bug that could cause significant data integrity issues in the data warehouse.",2026-01-28T00:49:19.825313+00:00
+posthog/posthog,46093,feat(personhog): support for db routing based on client request,https://github.com/PostHog/posthog/pull/46093,,"assumes all overrides in batch share same `hash_key`, but `HashKeyOverrideInput` has individual `hash_key` per override
+
+```suggestion
+        let hash_keys: Vec<&str> = overrides.iter().map(|o| o.hash_key.as_str()).collect();
+```
+
+then update the query to use `$4` for hash_keys array and unnest 3 arrays
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: rust/personhog-replica/src/storage/postgres/feature_flag.rs
+Line: 129:129
+
+Comment:
+assumes all overrides in batch share same `hash_key`, but `HashKeyOverrideInput` has individual `hash_key` per override
+
+```suggestion
+        let hash_keys: Vec<&str> = overrides.iter().map(|o| o.hash_key.as_str()).collect();
+```
+
+then update the query to use `$4` for hash_keys array and unnest 3 arrays
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/46093#discussion_r2734248322,,2026-01-27T23:31:32+00:00,logic,high,"The function signature takes `overrides: &[HashKeyOverrideInput]` and a separate `hash_key: &str` parameter, applying the same hash_key to all overrides via `bind(hash_key)`. However, if `HashKeyOverrideInput` contains individual `hash_key` fields per override (as Greptile claims), this would ignore those individual values and incorrectly use the same hash_key for all records. This is a data integrity bug that would cause incorrect feature flag behavior.",2026-01-28T00:49:19.825353+00:00
+posthog/posthog,46097,fix(data-warehouse): handle PostgreSQL dates beyond Python's year 9999 limit,https://github.com/PostHog/posthog/pull/46097,,"Date parsing fails for negative years (BC dates). When splitting `""-0001-01-01""` by `""-""`, you get `["""", ""0001"", ""01"", ""01""]`, causing `int(parts[0])` to raise `ValueError` on the empty string. The fallback returns `date.max`, but BC dates should return `date.min`.
+
+Consider handling negative years explicitly or using regex:
+
+```suggestion
+        try:
+            # Handle negative years (BC dates)
+            if s.startswith(""-""):
+                return date.min
+            
+            parts = s.split(""-"")
+            if len(parts) == 3:
+                year = int(parts[0])
+                month = int(parts[1])
+                day = int(parts[2])
+
+                if year > 9999:
+                    return date.max
+                if year < 1:
+                    return date.min
+
+                return date(year, month, day)
+        except (ValueError, IndexError):
+            pass
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: posthog/temporal/data_imports/sources/postgres/postgres.py
+Line: 201:214
+
+Comment:
+Date parsing fails for negative years (BC dates). When splitting `""-0001-01-01""` by `""-""`, you get `["""", ""0001"", ""01"", ""01""]`, causing `int(parts[0])` to raise `ValueError` on the empty string. The fallback returns `date.max`, but BC dates should return `date.min`.
+
+Consider handling negative years explicitly or using regex:
+
+```suggestion
+        try:
+            # Handle negative years (BC dates)
+            if s.startswith(""-""):
+                return date.min
+            
+            parts = s.split(""-"")
+            if len(parts) == 3:
+                year = int(parts[0])
+                month = int(parts[1])
+                day = int(parts[2])
+
+                if year > 9999:
+                    return date.max
+                if year < 1:
+                    return date.min
+
+                return date(year, month, day)
+        except (ValueError, IndexError):
+            pass
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/46097#discussion_r2734298065,,2026-01-27T23:56:43+00:00,logic,medium,"Greptile correctly identifies that splitting ""-0001-01-01"" by ""-"" produces ["""", ""0001"", ""01"", ""01""], and int("""") raises ValueError. The code catches this but falls through to return date.max, which is semantically wrong for BC dates (they should return date.min). This is a subtle edge case in date parsing that a typical reviewer would likely miss.",2026-01-28T00:49:19.825383+00:00
+simstudioai/sim,3030,improvement(workflow): remove useEffect anti-patterns,https://github.com/simstudioai/sim/pull/3030,,"Uses `currentBlocks` (which references the OLD blocks state before deletion) instead of the correct parent lookup. Since we're checking if parent exists in `remainingBlockIds`, we should look up the parent in `newBlocks`, not `currentBlocks`. If the immediate parent was deleted but grandparent exists, this gives wrong position.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: apps/sim/stores/workflows/workflow/store.ts
+Line: 466:466
+
+Comment:
+Uses `currentBlocks` (which references the OLD blocks state before deletion) instead of the correct parent lookup. Since we're checking if parent exists in `remainingBlockIds`, we should look up the parent in `newBlocks`, not `currentBlocks`. If the immediate parent was deleted but grandparent exists, this gives wrong position.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/simstudioai/sim/pull/3030#discussion_r2734115152,,2026-01-27T22:45:15+00:00,logic,medium,"Greptile correctly identified that line 466 uses `currentBlocks` to look up parent positions, but `currentBlocks` contains the old state before deletions. When traversing the parent chain to calculate absolute positions, if an intermediate parent was deleted, the code would still find it in `currentBlocks` and add its position, resulting in incorrect absolute coordinates. The lookup should use `newBlocks` to be consistent with the `remainingBlockIds` check.",2026-01-28T00:49:19.825461+00:00
+greptileai/react-mirror,329,[tests] remove withoutStack from assertConsole helpers,https://github.com/greptileai/react-mirror/pull/329,,"<details>
+<summary>Additional Comments (3)</summary>
+
+**`packages/react-native-renderer/src/__tests__/ReactNativeMount-test.internal.js`**
+this file was not updated in the PR but still uses `{withoutStack: true}` which is no longer supported. this will cause a runtime error when the test runs. remove the second parameter:
+
+```suggestion
+    assertConsoleErrorDev([DISPATCH_COMMAND_REQUIRES_HOST_COMPONENT]);
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/react-native-renderer/src/__tests__/ReactNativeMount-test.internal.js
+Line: 163:165
+
+Comment:
+this file was not updated in the PR but still uses `{withoutStack: true}` which is no longer supported. this will cause a runtime error when the test runs. remove the second parameter:
+
+```suggestion
+    assertConsoleErrorDev([DISPATCH_COMMAND_REQUIRES_HOST_COMPONENT]);
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>
+
+---
+
+**`packages/react-native-renderer/src/__tests__/ReactNativeMount-test.internal.js`**
+same issue - remove `{withoutStack: true}`:
+
+```suggestion
+    assertConsoleErrorDev([SEND_ACCESSIBILITY_EVENT_REQUIRES_HOST_COMPONENT]);
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/react-native-renderer/src/__tests__/ReactNativeMount-test.internal.js
+Line: 223:225
+
+Comment:
+same issue - remove `{withoutStack: true}`:
+
+```suggestion
+    assertConsoleErrorDev([SEND_ACCESSIBILITY_EVENT_REQUIRES_HOST_COMPONENT]);
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>
+
+---
+
+**`packages/react-reconciler/src/__tests__/ReactSuspenseCallback-test.js`**
+file not updated in PR but uses deprecated `{withoutStack: true}`. remove it:
+
+```suggestion
+    );
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/react-reconciler/src/__tests__/ReactSuspenseCallback-test.js
+Line: 70:73
+
+Comment:
+file not updated in PR but uses deprecated `{withoutStack: true}`. remove it:
+
+```suggestion
+    );
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>
+</details>",https://github.com/greptileai/react-mirror/pull/329#issuecomment-3808065760,,2026-01-27T23:18:57+00:00,runtime,medium,"Greptile identified files that were missed in a PR that removes the `withoutStack` parameter from assertConsole helpers. If the PR removes support for this parameter but doesn't update all usages, these tests would fail at runtime with an error about an unsupported parameter. This is a non-obvious catch since it requires understanding the full scope of the change across the codebase and identifying files that weren't included in the diff.",2026-01-28T00:49:19.825492+00:00
+nvidia/transformerengine,2629,[PyTorch] Pad V when Q/V head dims differ (MLA) for THD,https://github.com/NVIDIA/TransformerEngine/pull/2629,,"in `_trim_data`, reshaping uses `head_dim_qk` but should use the actual padded dimension. When `head_dim_v > head_dim_qk`, this reshape would be incorrect since no padding occurred and the actual dimension is `head_dim_v`, not `head_dim_qk`.
+
+```suggestion
+                    if data.ndim == 2:
+                        data = data.reshape(data.shape[0], num_attention_heads, head_dim_v)
+                        data = data[..., :orig_v_dim]
+                        return data.reshape(data.shape[0], -1)
+```",https://github.com/NVIDIA/TransformerEngine/pull/2629#discussion_r2734254708,fixed,2026-01-27T23:34:51+00:00,logic,medium,"Greptile correctly identified that the `_trim_data` function uses `head_dim_v` (which was updated to the padded dimension) for reshaping, but this is actually correct since after padding `head_dim_v = head_dim_qk`. However, looking more carefully at the code flow: when `pad_v_for_thd` is True, `head_dim_v` was already updated to the padded value. The real issue Greptile found is that when `head_dim_v > head_dim_qk`, no padding occurs (`pad_v_for_thd` stays False), so `_trim_thd_output` returns early without trimming - this path is actually fine. The developer confirmed the fix was needed, validating this as a legitimate catch of a subtle dimension handling bug in the reshape logic.",2026-01-28T00:49:19.825540+00:00
+constellation-labs/tessellation,1404,fix: fixing rollback initialization,https://github.com/Constellation-Labs/tessellation/pull/1404,,"Removed `clear` before `insertBytes`, but `insertBytes` uses `_ ++ data` which merges with existing state rather than replacing it. Without `clear`, `syncFull` will not perform a true ""full sync"" - it will accumulate old state with new state. This breaks the semantic contract of a ""full"" sync operation.
+
+```suggestion
+      if (newState.isEmpty) {
+        logger.info(""[MptStore] Empty sync, skipping"") >>
+          clear
+      } else
+        for {
+          _ <- logger.info(s""[MptStore] Full sync with ${newState.size} entries"")
+          _ <- clear
+          newEntries <- toHexEntries(newState)
+          _ <- producer.insertBytes(newEntries).void
+          _ <- persistAsync(ordinal)
+          _ <- build
+        } yield ()
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: modules/shared/src/main/scala/io/constellationnetwork/schema/mpt/MptStore.scala
+Line: 186:197
+
+Comment:
+Removed `clear` before `insertBytes`, but `insertBytes` uses `_ ++ data` which merges with existing state rather than replacing it. Without `clear`, `syncFull` will not perform a true ""full sync"" - it will accumulate old state with new state. This breaks the semantic contract of a ""full"" sync operation.
+
+```suggestion
+      if (newState.isEmpty) {
+        logger.info(""[MptStore] Empty sync, skipping"") >>
+          clear
+      } else
+        for {
+          _ <- logger.info(s""[MptStore] Full sync with ${newState.size} entries"")
+          _ <- clear
+          newEntries <- toHexEntries(newState)
+          _ <- producer.insertBytes(newEntries).void
+          _ <- persistAsync(ordinal)
+          _ <- build
+        } yield ()
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/Constellation-Labs/tessellation/pull/1404#discussion_r2734240405,"This is a left over, fixing",2026-01-27T23:27:26+00:00,data_integrity,high,"Greptile correctly identified that the diff removed the `clear` call before `insertBytes` in the non-empty branch, which would cause old state to merge with new state instead of being replaced during a full sync. The developer confirmed this was a mistake ('left over, fixing'), validating this as a real bug that breaks the semantic contract of a full sync operation.",2026-01-28T00:49:19.825569+00:00
+alpaca-network/gatewayz-backend,972,perf: optimize parallel model fetching for faster catalog builds,https://github.com/Alpaca-Network/gatewayz-backend/pull/972,,"Bug: when `as_completed()` times out, setting `completed_futures = []` discards all successfully completed results. `as_completed()` with timeout yields completed futures as they finish and then raises `TimeoutError` if timeout is reached. The exception should be caught after the loop to preserve completed results.
+
+```suggestion
+            # Use as_completed() to process results as they arrive instead of
+            # waiting for each future in submission order. This prevents slow
+            # gateways from blocking processing of faster ones.
+            # Overall timeout of 60s ensures we don't wait indefinitely.
+            for future in as_completed(futures, timeout=60):
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: src/services/models.py
+Line: 643:648
+
+Comment:
+Bug: when `as_completed()` times out, setting `completed_futures = []` discards all successfully completed results. `as_completed()` with timeout yields completed futures as they finish and then raises `TimeoutError` if timeout is reached. The exception should be caught after the loop to preserve completed results.
+
+```suggestion
+            # Use as_completed() to process results as they arrive instead of
+            # waiting for each future in submission order. This prevents slow
+            # gateways from blocking processing of faster ones.
+            # Overall timeout of 60s ensures we don't wait indefinitely.
+            for future in as_completed(futures, timeout=60):
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/Alpaca-Network/gatewayz-backend/pull/972#discussion_r2734328406,,2026-01-28T00:13:21+00:00,logic,high,"Greptile correctly identifies that the try/except block is placed incorrectly. When as_completed() times out, it raises TimeoutError while iterating, not during the initial call. By wrapping just the as_completed() call in try/except and setting completed_futures=[], all previously processed results in all_models are preserved, but any futures that completed before the timeout but haven't been yielded yet are discarded. The fix should wrap the for-loop iteration in try/except to catch the timeout after processing all yielded futures.",2026-01-28T00:49:19.825621+00:00
+nvidia/numba-cuda,546,Deprecate the `DeviceNDArray` class and public APIs that return instances,https://github.com/NVIDIA/numba-cuda/pull/546,,"Missing `@require_context` decorator. This function calls `DeviceNDArray._create_nowarn()` which allocates memory via `devices.get_context().memalloc()` (devicearray.py:126), requiring an active CUDA context. The equivalent function in `_api.py:143` has this decorator.",https://github.com/NVIDIA/numba-cuda/pull/546#discussion_r2734243973,,2026-01-27T23:29:13+00:00,runtime,medium,"Greptile correctly identified that `_device_array` is missing the `@require_context` decorator while calling `DeviceNDArray._create_nowarn()` which requires an active CUDA context for memory allocation. Looking at the original `device_array` function and similar functions in `_api.py`, they have this decorator to ensure proper context initialization. This could cause runtime errors when calling the function without an established CUDA context.",2026-01-28T00:49:19.825662+00:00
+nvidia/topograph,202,feat(slurm) add support for dynamic nodes,https://github.com/NVIDIA/topograph/pull/202,,"Uses total node count `len(bInfo.nodes)` which includes both static and dynamic nodes. When dynamic nodes are present, this incorrectly calculates the number of fake nodes needed.
+
+The bug: After splitting on line 107, `bInfo.nodes` still contains all nodes (static + dynamic), but only static nodes are output to the `Nodes=` field. This causes the fake node calculation to be wrong.
+
+Example scenario:
+- Block has 1 static node + 2 dynamic nodes (total=3)
+- `baseBlockSize` = 4
+- Current code: adds 4-3=1 fake node → static section will have 2 nodes (wrong!)
+- Expected: should add 4-1=3 fake nodes → static section needs 4 nodes
+
+The fake nodes should pad only the static nodes, not the total. Need to count static nodes after splitting, before calculating fake nodes needed.",https://github.com/NVIDIA/topograph/pull/202#discussion_r2734085808,,2026-01-27T22:33:19+00:00,logic,medium,"Greptile correctly identifies that the fake node calculation uses `len(bInfo.nodes)` which includes both static and dynamic nodes, but fake nodes should only pad the static portion since dynamic nodes are output separately in a comment suffix. The calculation should use the count of static nodes only (e.g., by counting nodes in the `static` string or getting the count from splitNodes).",2026-01-28T00:49:19.825682+00:00
