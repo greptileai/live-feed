@@ -10468,3 +10468,68 @@ Consider `maxRetries: 1` to guarantee staying under 90s: 30s + 1s + 30s = 61s
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/Alpaca-Network/gatewayz-frontend/pull/933#discussion_r2734635273,,2026-01-28T02:53:27+00:00,logic,medium,"Greptile correctly identifies that maxRetries: 2 means 3 total attempts (initial + 2 retries), and with 30s timeout each plus exponential backoff delays (1s, 2s), the worst case is 30+1+30+2+30=93s, exceeding the stated 90s guard timeout. The math is accurate and this is a subtle off-by-one counting issue that the developer likely missed despite adding a comment about keeping under 90s.",2026-01-28T04:32:40.882584+00:00
+nvidia/fuser,5886,TUI Environment Config Tool,https://github.com/NVIDIA/Fuser/pull/5886,,"`stat -c '%a'` is GNU-specific and will fail on macOS/BSD where the flag is `-f '%A'`. Since the shebang is `#!/bin/sh` (POSIX), this breaks portability.
+
+```suggestion
+        if [ -O ""$APPLY_SCRIPT"" ] && { [ ""$(uname)"" = ""Linux"" ] && [ ""$(stat -c '%a' ""$APPLY_SCRIPT"" 2>/dev/null)"" = ""600"" ]; } || { [ ""$(uname)"" = ""Darwin"" ] && [ ""$(stat -f '%Lp' ""$APPLY_SCRIPT"" 2>/dev/null)"" = ""600"" ]; }; then
+```
+
+Or use a simpler portable check: test for read/write only by current user without exact permission verification.",https://github.com/NVIDIA/Fuser/pull/5886#discussion_r2734957144,,2026-01-28T05:45:23+00:00,runtime,medium,"Greptile correctly identifies that the shebang is `#!/bin/bash` (not `/bin/sh` as stated, but the portability concern remains valid) and that `stat -c '%a'` is GNU-specific syntax that will fail silently on macOS/BSD systems, causing the security check to always fail and skip applying valid configuration files. This is a real cross-platform compatibility bug that would cause the tool to malfunction on non-Linux systems.",2026-01-28T06:23:51.751582+00:00
+nvidia/fuser,5886,TUI Environment Config Tool,https://github.com/NVIDIA/Fuser/pull/5886,,`stat -c` is GNU-specific and will fail on BSD/macOS with POSIX `sh` in shebangs other than bash. Current check will always fail on non-GNU systems when script is run with `/bin/sh`,https://github.com/NVIDIA/Fuser/pull/5886#discussion_r2734971857,,2026-01-28T05:52:24+00:00,runtime,medium,"Greptile correctly identifies that `stat -c '%a'` is GNU-specific syntax that fails on BSD/macOS, which uses `stat -f '%Lp'` instead. The script has a `#!/bin/bash` shebang but the security check at line 71 would silently fail on non-GNU systems, causing legitimate apply scripts to be skipped with a misleading security warning. This is a non-obvious portability bug that would affect macOS users.",2026-01-28T06:23:51.751652+00:00
+getarcaneapp/arcane,1591,feat: volume browsing and backups,https://github.com/getarcaneapp/arcane/pull/1591,,"same destructive `rm -rf /volume/*` issue as restore backup; upload-and-restore has no validation and deletes all volume data before attempting tar extraction
+
+if uploaded file is corrupt or wrong format, volume is wiped with no recovery
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: backend/internal/services/volume_service.go
+Line: 1089:1089
+
+Comment:
+same destructive `rm -rf /volume/*` issue as restore backup; upload-and-restore has no validation and deletes all volume data before attempting tar extraction
+
+if uploaded file is corrupt or wrong format, volume is wiped with no recovery
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/getarcaneapp/arcane/pull/1591#discussion_r2734864733,,2026-01-28T05:00:55+00:00,data_integrity,high,"Looking at the UploadAndRestore function (lines ~1089-1130), the code creates a pre-restore backup but then executes `rm -rf /volume/*` BEFORE attempting to copy the uploaded archive. If the archive is corrupted or in wrong format, the CopyToContainer will fail but the volume data is already deleted. While a pre-backup exists, this creates an unintuitive recovery scenario and the backup isn't automatically restored on failure. This is a real data loss risk that would be non-obvious during typical review.",2026-01-28T06:23:51.751691+00:00
+runanywhereai/runanywhere-sdks,309,Shubham/fix tool calling,https://github.com/RunanywhereAI/runanywhere-sdks/pull/309,,"peekNext returns null, breaking the math parser which expects to peek at the next token. The parser logic in parseExpression and parseTerm requires peeking to decide operations.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: examples/android/RunAnywhereAI/app/src/main/java/com/runanywhere/runanywhereai/presentation/settings/ToolSettingsViewModel.kt
+Line: 402:405
+
+Comment:
+peekNext returns null, breaking the math parser which expects to peek at the next token. The parser logic in parseExpression and parseTerm requires peeking to decide operations.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/RunanywhereAI/runanywhere-sdks/pull/309#discussion_r2734879909,,2026-01-28T05:08:13+00:00,logic,high,"Greptile correctly identified that peekNext() always returns null (line 405), which completely breaks the math expression parser. The parseExpression and parseTerm methods rely on peekNext to check the next operator before deciding whether to continue parsing, but since it always returns null, the while loops immediately break, causing expressions like '2 + 3' to only evaluate the first number. This is a real bug that would cause the calculator tool to produce incorrect results.",2026-01-28T06:23:51.751746+00:00
+mrmps/smry,51,feat: redirect non-paying users to pricing after sign-in,https://github.com/mrmps/SMRY/pull/51,,"<details>
+<summary>Additional Comments (2)</summary>
+
+**`components/shared/bottom-corner-nav.tsx`**
+Inconsistent `fallbackRedirectUrl` - still set to `""/""` here while changed to `""/pricing""` in `auth-bar.tsx`
+
+```suggestion
+              <SignInButton mode=""modal"" fallbackRedirectUrl=""/pricing"">
+```
+
+---
+
+**`components/features/settings-drawer.tsx`**
+Inconsistent `fallbackRedirectUrl` - still set to `""/""` here while changed to `""/pricing""` in `auth-bar.tsx`
+
+Note: The line number may not be exact, but search for `<SignInButton mode=""modal"" fallbackRedirectUrl=""/"">` in this file.
+
+```suggestion
+          <SignInButton mode=""modal"" fallbackRedirectUrl=""/pricing"">
+```
+
+<sub>Note: If this suggestion doesn't match your team's coding style, reply to this and let me know. I'll remember it for next time!</sub>
+</details>",https://github.com/mrmps/SMRY/pull/51#issuecomment-3809174535,,2026-01-28T06:03:09+00:00,logic,medium,"Greptile correctly identified that the PR's stated goal (redirect non-paying users to pricing after sign-in) was only partially implemented - while auth-bar.tsx was updated, other SignInButton components in bottom-corner-nav.tsx and settings-drawer.tsx were missed, creating inconsistent user experience. This is a real bug where some sign-in paths wouldn't redirect to pricing as intended.",2026-01-28T06:23:51.751797+00:00
