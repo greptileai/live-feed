@@ -10383,3 +10383,88 @@ Consider a more targeted approach that only cleans up specific problematic data 
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/Alpaca-Network/railway-grafana-stack/pull/91#discussion_r2734564546,,2026-01-28T02:15:49+00:00,data_integrity,high,"Greptile correctly identifies that deleting grafana.db on every container startup (line 7) will erase all Grafana persistent state including user preferences, saved queries, annotations, and alert states. This is a real data loss bug that could be easily missed since the comment suggests it's just cleaning 'cache', but grafana.db is actually the main SQLite database containing all Grafana configuration and user data.",2026-01-28T03:00:54.285411+00:00
+posthog/posthog,46112,feat: Clean Up MCP and bump libraries,https://github.com/PostHog/posthog/pull/46112,,"Type assertion bypasses null/undefined check. `userResult.data.distinct_id` is typed as `(string | null) | undefined` but being cast to `string`. If `distinct_id` is null or undefined, this will still pass the type check but cause runtime issues.
+
+```suggestion
+            if (!userResult.data.distinct_id) {
+                throw new Error('User distinct_id is not set')
+            }
+            await this.cache.set('distinctId', userResult.data.distinct_id)
+            _distinctId = userResult.data.distinct_id
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: services/mcp/typescript/src/integrations/mcp/index.ts
+Line: 195:195
+
+Comment:
+Type assertion bypasses null/undefined check. `userResult.data.distinct_id` is typed as `(string | null) | undefined` but being cast to `string`. If `distinct_id` is null or undefined, this will still pass the type check but cause runtime issues.
+
+```suggestion
+            if (!userResult.data.distinct_id) {
+                throw new Error('User distinct_id is not set')
+            }
+            await this.cache.set('distinctId', userResult.data.distinct_id)
+            _distinctId = userResult.data.distinct_id
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/46112#discussion_r2734762524,,2026-01-28T04:04:46+00:00,type_error,medium,"Greptile correctly identifies that the type assertion `as string` on line 195 bypasses TypeScript's null/undefined safety checks. If `distinct_id` is null or undefined, the code would silently pass type checking but cause runtime errors when _distinctId is used later. The suggestion to add an explicit check before assignment is the proper fix.",2026-01-28T04:32:40.882353+00:00
+raycast/extensions,24917,Add repojet extension,https://github.com/raycast/extensions/pull/24917,,"Command injection vulnerability - `repo.clone_url` is not sanitized before shell execution. If the GitHub API returns malicious data or is compromised, arbitrary commands could execute.
+
+Wrap `repo.clone_url` in quotes and validate it's a valid URL:
+
+```suggestion
+      await execAsync(`git clone ""${repo.clone_url}"" ""${repoPath}""`);
+```",https://github.com/raycast/extensions/pull/24917#discussion_r2734681125,,2026-01-28T03:16:53+00:00,security,high,"Greptile correctly identifies a command injection vulnerability where `repo.clone_url` is passed directly to shell execution via `execAsync` without any sanitization or quoting. While GitHub API data is generally trusted, a compromised API or malicious repository could inject shell commands through a crafted clone URL. The fix to wrap the URL in quotes is a valid mitigation.",2026-01-28T04:32:40.882472+00:00
+nvidia/fuser,5886,TUI Environment Config Tool,https://github.com/NVIDIA/Fuser/pull/5886,,"`stat -c '%a'` is GNU-specific and won't work on macOS/BSD systems. Since the shebang is `#!/bin/sh` (POSIX), consider using a more portable approach:
+
+```suggestion
+        if [ -O ""$APPLY_SCRIPT"" ] && [ ! -w ""$APPLY_SCRIPT"" -o ! -r ""$APPLY_SCRIPT"" ] 2>/dev/null; then
+```
+
+Or use `-L` to check it's a regular file and use `ls -l` with `awk` for portable permission checking, or simply check with `-r` and `-w` if exact permission validation isn't critical for this dev tool.",https://github.com/NVIDIA/Fuser/pull/5886#discussion_r2734780990,,2026-01-28T04:15:04+00:00,runtime,medium,"Greptile correctly identifies that `stat -c '%a'` is GNU-specific and will fail on macOS/BSD systems which use `stat -f '%A'`. Since the script uses `#!/bin/sh` (POSIX) shebang suggesting cross-platform compatibility, this would cause the security check to fail silently on macOS, potentially skipping legitimate apply scripts. This is a non-obvious portability bug that could cause the tool to malfunction on common development platforms.",2026-01-28T04:32:40.882515+00:00
+isaac-sim/isaaclab,4477,Updates latest changes from develop,https://github.com/isaac-sim/IsaacLab/pull/4477,,"Invalid PyTorch docs URL - `https://docs.pytorch.org/docs/stable/` contains duplicate `/docs`. The correct URL is `https://pytorch.org/docs/stable/`
+
+```suggestion
+    ""torch"": (""https://pytorch.org/docs/stable/"", None),
+```",https://github.com/isaac-sim/IsaacLab/pull/4477#discussion_r2734676191,,2026-01-28T03:13:59+00:00,logic,medium,"Greptile correctly identified that the new URL 'https://docs.pytorch.org/docs/stable/' has a redundant '/docs' path segment. The original URL 'https://pytorch.org/docs/stable/' was correct, and this change introduces a broken intersphinx URL that would cause documentation cross-references to PyTorch to fail. This is a non-obvious catch as the URL change looks plausible at first glance.",2026-01-28T04:32:40.882560+00:00
+alpaca-network/gatewayz-frontend,933,fix(auth): increase timeout and align retry configuration,https://github.com/Alpaca-Network/gatewayz-frontend/pull/933,,"With `maxRetries: 2`, the worst-case timing is:
+- Attempt 1: 30s
+- Delay 1: 1s  
+- Attempt 2: 30s
+- Delay 2: 2s
+- Attempt 3: 30s
+**Total: 93s**
+
+This exceeds the 90s guard timeout in edge cases. Combined with frontend-layer retries (line 988 in gatewayz-auth-context.tsx still has `maxRetries: 3`), the nested retries can easily exceed 90s.
+
+Consider `maxRetries: 1` to guarantee staying under 90s: 30s + 1s + 30s = 61s
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: src/app/api/auth/route.ts
+Line: 47:47
+
+Comment:
+With `maxRetries: 2`, the worst-case timing is:
+- Attempt 1: 30s
+- Delay 1: 1s  
+- Attempt 2: 30s
+- Delay 2: 2s
+- Attempt 3: 30s
+**Total: 93s**
+
+This exceeds the 90s guard timeout in edge cases. Combined with frontend-layer retries (line 988 in gatewayz-auth-context.tsx still has `maxRetries: 3`), the nested retries can easily exceed 90s.
+
+Consider `maxRetries: 1` to guarantee staying under 90s: 30s + 1s + 30s = 61s
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/Alpaca-Network/gatewayz-frontend/pull/933#discussion_r2734635273,,2026-01-28T02:53:27+00:00,logic,medium,"Greptile correctly identifies that maxRetries: 2 means 3 total attempts (initial + 2 retries), and with 30s timeout each plus exponential backoff delays (1s, 2s), the worst case is 30+1+30+2+30=93s, exceeding the stated 90s guard timeout. The math is accurate and this is a subtle off-by-one counting issue that the developer likely missed despite adding a comment about keeping under 90s.",2026-01-28T04:32:40.882584+00:00
