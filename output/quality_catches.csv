@@ -11518,3 +11518,116 @@ raycast/extensions,24942,Add CodexUsage extension,https://github.com/raycast/ext
 raycast/extensions,24942,Add CodexUsage extension,https://github.com/raycast/extensions/pull/24942,,`manage-providers` command has no implementation file - only `see-usage.tsx` exists. Either create `src/manage-providers.tsx` or remove this command definition,https://github.com/raycast/extensions/pull/24942#discussion_r2738402451,,2026-01-28T20:03:56+00:00,runtime,medium,"The package.json declares a command 'manage-providers' but according to Greptile's analysis, no corresponding implementation file exists (only see-usage.tsx). This would cause a runtime error when users try to invoke the command, making the extension partially broken. This is a non-obvious catch since it requires cross-referencing the command definitions with actual source files.",2026-01-28T20:22:13.039193+00:00
 raycast/extensions,24942,Add CodexUsage extension,https://github.com/raycast/extensions/pull/24942,,"file contains literal ""404: Not Found"" text instead of actual code - this file should either be removed or properly implemented",https://github.com/raycast/extensions/pull/24942#discussion_r2738402498,,2026-01-28T20:03:57+00:00,runtime,high,"The file literally contains the text '404: Not Found' instead of actual TypeScript code, which would cause immediate build/runtime failures when the extension tries to import from this provider. This appears to be a fetch error that was accidentally committed, and while obvious once noticed, the context of a PR adding a new extension with many files makes it easy to miss.",2026-01-28T20:22:13.039232+00:00
 nvidia-nemo/curator,1437,ci: Optimize docker layer for caching and add remote cache,https://github.com/NVIDIA-NeMo/Curator/pull/1437,,The loop references `${{ env.REPO_LOWER }}` which isn't set yet at this step (it's set in the next step at line 92). This will produce empty/incorrect cache references.,https://github.com/NVIDIA-NeMo/Curator/pull/1437#discussion_r2738126633,,2026-01-28T19:06:27+00:00,logic,medium,"Greptile correctly identified a step ordering bug: the 'Get last merged PR' step (line 95-114) uses `${{ env.REPO_LOWER }}` but the 'Normalize repo name to lowercase' step that sets this environment variable is at line 86-92. Looking at the YAML structure, steps run sequentially and the normalize step comes BEFORE the 'Get last merged PR' step, so actually Greptile's claim appears INCORRECT - REPO_LOWER IS set before it's used. The normalize step (lines 86-92) comes before the cache_from step (lines 94-114) in the YAML ordering.",2026-01-28T20:22:13.039265+00:00
+posthog/posthog,46200,fix(ducklake): add SSL mode for prod and scrub password from errors,https://github.com/PostHog/posthog/pull/46200,,"<details>
+<summary>Additional Comments (2)</summary>
+
+**`posthog/ducklake/common.py`**
+`sslmode` from connection string not passed to psycopg
+
+The `sslmode=require` added to the connection string on line 106 is parsed by `parse_postgres_dsn()` but not used when constructing `conn_kwargs`. The psycopg connection won't use SSL without explicitly setting `sslmode` in the connection parameters.
+
+```suggestion
+    conn_kwargs: PsycopgConnectionConfig = {
+        ""dbname"": params.get(""maintenance_db"") or ""postgres"",
+        ""host"": params.get(""host"") or ""localhost"",
+        ""port"": int(params.get(""port"") or ""5432""),
+        ""user"": params.get(""user"") or ""posthog"",
+        ""password"": params.get(""password"") or ""posthog"",
+        ""sslmode"": params.get(""sslmode""),
+        ""autocommit"": True,
+    }
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: posthog/ducklake/common.py
+Line: 198:205
+
+Comment:
+`sslmode` from connection string not passed to psycopg
+
+The `sslmode=require` added to the connection string on line 106 is parsed by `parse_postgres_dsn()` but not used when constructing `conn_kwargs`. The psycopg connection won't use SSL without explicitly setting `sslmode` in the connection parameters.
+
+```suggestion
+    conn_kwargs: PsycopgConnectionConfig = {
+        ""dbname"": params.get(""maintenance_db"") or ""postgres"",
+        ""host"": params.get(""host"") or ""localhost"",
+        ""port"": int(params.get(""port"") or ""5432""),
+        ""user"": params.get(""user"") or ""posthog"",
+        ""password"": params.get(""password"") or ""posthog"",
+        ""sslmode"": params.get(""sslmode""),
+        ""autocommit"": True,
+    }
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>
+
+---
+
+**`posthog/ducklake/common.py`**
+`PsycopgConnectionConfig` TypedDict missing `sslmode` field
+
+The TypedDict doesn't include `sslmode` field, which prevents passing SSL mode to psycopg connections. This needs to be added as an optional field.
+
+```suggestion
+class PsycopgConnectionConfig(TypedDict):
+    dbname: str
+    host: str
+    port: int
+    user: str
+    password: str
+    sslmode: str | None
+    autocommit: bool
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: posthog/ducklake/common.py
+Line: 178:185
+
+Comment:
+`PsycopgConnectionConfig` TypedDict missing `sslmode` field
+
+The TypedDict doesn't include `sslmode` field, which prevents passing SSL mode to psycopg connections. This needs to be added as an optional field.
+
+```suggestion
+class PsycopgConnectionConfig(TypedDict):
+    dbname: str
+    host: str
+    port: int
+    user: str
+    password: str
+    sslmode: str | None
+    autocommit: bool
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>
+</details>",https://github.com/PostHog/posthog/pull/46200#issuecomment-3813774382,,2026-01-28T20:26:50+00:00,security,high,"The PR title explicitly mentions 'add SSL mode for prod', but Greptile correctly identified that while sslmode=require is added to the connection string, it's parsed but never actually passed to the psycopg connection kwargs. This means the SSL security feature the PR intends to add wouldn't actually work - connections would still be unencrypted in production, which is a significant security issue that could easily be missed.",2026-01-28T22:20:33.616388+00:00
+nvidia/physicsnemo,1357,Update dependencies and enforce dependency checking in physicsnemo,https://github.com/NVIDIA/physicsnemo/pull/1357,,"Inconsistent with line 35 and the rest of the PR - should use `hard_fail=False` for optional dependency
+
+```suggestion
+NATTEN_AVAILABLE = check_version_spec(""natten"", hard_fail=False)
+```",https://github.com/NVIDIA/physicsnemo/pull/1357#discussion_r2738478390,,2026-01-28T20:26:25+00:00,runtime,medium,"Greptile correctly identified an inconsistency: line 35 uses `hard_fail=False` for wrapt (optional dependency), but line 38 uses `hard_fail=True` (default) for natten. Since natten is clearly also optional (the code guards usage with `if NATTEN_AVAILABLE`), using `hard_fail=True` would cause the program to crash/fail when natten isn't installed, even though the code is designed to handle its absence. This is a real bug that would prevent the optional behavior from working correctly.",2026-01-28T22:20:33.616550+00:00
+beanie-brick-band/leopard,94,feat(backend): add database seeding functionality,https://github.com/Beanie-Brick-Band/leopard/pull/94,,"Real developer file paths (`/Users/fvcci/Code/Github/price-matched/test.py`) are exposed in event data, revealing developer usernames and potentially sensitive project information. Replace with generic paths like `/workspace/test.py`.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/backend/seed/events/documents.jsonl
+Line: 1:10
+
+Comment:
+Real developer file paths (`/Users/fvcci/Code/Github/price-matched/test.py`) are exposed in event data, revealing developer usernames and potentially sensitive project information. Replace with generic paths like `/workspace/test.py`.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/Beanie-Brick-Band/leopard/pull/94#discussion_r2738797710,,2026-01-28T22:01:05+00:00,security,medium,Greptile correctly identifies that the seed data file contains real developer file paths like `/Users/fvcci/Code/Github/price-matched/test.py` which exposes the developer's username ('fvcci') and project information ('price-matched'). This is a valid security concern for committed seed data that could leak sensitive information about development environments and project structure.,2026-01-28T22:20:33.616610+00:00
