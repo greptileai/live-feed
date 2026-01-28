@@ -68,6 +68,55 @@ Respond with JSON only:
 }}"""
 
 
+BATCH_EVALUATION_PROMPT = """You are evaluating ALL comments from an AI code reviewer (Greptile) on a single PR. Your job is to find the SINGLE BEST catch worth showcasing.
+
+STRICT SEVERITY CRITERIA:
+- critical: Security vulnerability (auth bypass, injection, data exposure) OR guaranteed data loss/corruption in production
+- high: Bug that WILL cause incorrect behavior affecting users in normal usage (not edge cases)
+- medium: Bug in edge cases or error paths that could cause issues under specific conditions
+- low: Minor issues, unlikely edge cases, or "nice to fix" items
+
+EVALUATION RULES:
+1. DE-DUPLICATE: Multiple comments about the same underlying issue = pick the best-written one
+2. VERIFY: Check that Greptile's analysis is actually correct against the code
+3. PRIORITIZE: Developer-confirmed catches ("good catch", "fixed") are more valuable
+4. BE STRICT: Only return a catch if it's truly impressive and showcase-worthy
+5. ONE WINNER: Return only the single best catch, or none if nothing qualifies
+
+REJECT (when in doubt, reject):
+- Style/formatting/naming suggestions
+- Generic advice ("add error handling", "consider validation")
+- Documentation/comment suggestions
+- Refactoring that doesn't fix a real bug
+- Theoretical concerns without concrete evidence
+- Config/build/CI/test file issues
+- Obvious issues any developer would catch
+- FALSE POSITIVES where Greptile misunderstood the code
+
+---
+
+Repository: {repo}
+PR Title: {pr_title}
+PR URL: {pr_url}
+
+COMMENTS TO EVALUATE:
+{comments_section}
+
+---
+
+Analyze all comments. Find duplicates. Pick the SINGLE BEST catch (if any qualifies).
+
+Respond with JSON only:
+{{
+  "has_great_catch": true/false,
+  "selected_comment_index": <0-based index of best comment, or null if none>,
+  "bug_category": "security|logic|runtime|performance|concurrency|data_integrity|type_error|resource_leak|null",
+  "severity": "critical|high|medium|low|null",
+  "reasoning": "2-3 sentences: why this is the best catch and what makes it showcase-worthy (or why none qualify)",
+  "duplicates_found": ["brief description of any duplicate/similar issues that were consolidated"]
+}}"""
+
+
 SUMMARY_PROMPT = """Summarize what Greptile caught in this PR review. Be concise (1-2 sentences).
 
 PR: {repo} #{pr_number} - {pr_title}
@@ -251,54 +300,205 @@ Developer's reply to Greptile:
         # Match patterns like "<sub>1 file reviewed, 2 comments</sub>"
         return body.startswith("<sub>") and "file reviewed" in body and len(body) < 300
 
+    def _has_positive_reply(self, reply_body: str) -> bool:
+        """Check if a developer reply indicates positive confirmation."""
+        if not reply_body:
+            return False
+
+        reply_lower = reply_body.lower()
+
+        positive_indicators = [
+            "good catch",
+            "great catch",
+            "nice catch",
+            "thanks",
+            "thank you",
+            "fixed",
+            "will fix",
+            "you're right",
+            "you are right",
+            "correct",
+            "agreed",
+            "makes sense",
+            "good point",
+            "valid point",
+            "addressed",
+            "done",
+            "updated",
+            "resolved",
+            "👍",
+            "legit",
+            "this looks legit",
+        ]
+
+        return any(indicator in reply_lower for indicator in positive_indicators)
+
+    def _format_comment_for_batch(self, comment: GreptileComment, index: int) -> str:
+        """Format a single comment for batch evaluation."""
+        parts = [f"[Comment {index}]"]
+        parts.append(f"File: {comment.file_path or 'N/A'}")
+        parts.append(f"Line: {comment.line_number or 'N/A'}")
+
+        if comment.file_patch:
+            parts.append(f"Diff:\n```diff\n{comment.file_patch[:2000]}\n```")
+        elif comment.diff_hunk:
+            parts.append(f"Diff:\n```\n{comment.diff_hunk[:1000]}\n```")
+
+        parts.append(f"Greptile's comment:\n```\n{comment.comment_body}\n```")
+
+        if comment.reply_body:
+            parts.append(f"Developer reply:\n```\n{comment.reply_body}\n```")
+
+        return "\n".join(parts)
+
+    def evaluate_pr_batch(self, pr: PRWithGreptileComments) -> Optional[Dict[str, Any]]:
+        """Evaluate all comments in a PR together, return the single best catch.
+
+        This method:
+        1. Sends all comments to LLM together
+        2. De-duplicates similar issues
+        3. Applies strict severity criteria
+        4. Returns only the single best catch (or None)
+        """
+        # Filter out noise comments
+        valid_comments = [
+            c for c in pr.greptile_comments
+            if not self._is_skipped_comment(c) and not self._is_review_summary(c)
+        ]
+
+        if not valid_comments:
+            return None
+
+        # Format all comments for batch evaluation
+        comments_section = "\n\n---\n\n".join(
+            self._format_comment_for_batch(c, i)
+            for i, c in enumerate(valid_comments)
+        )
+
+        prompt = BATCH_EVALUATION_PROMPT.format(
+            repo=pr.repo,
+            pr_title=pr.pr_title,
+            pr_url=pr.pr_url,
+            comments_section=comments_section
+        )
+
+        try:
+            response = self.client.messages.create(
+                model=self.model,
+                max_tokens=512,
+                messages=[{"role": "user", "content": prompt}]
+            )
+
+            response_text = response.content[0].text.strip()
+            if response_text.startswith("```"):
+                response_text = response_text.split("```")[1]
+                if response_text.startswith("json"):
+                    response_text = response_text[4:]
+                response_text = response_text.strip()
+
+            evaluation = json.loads(response_text)
+
+        except json.JSONDecodeError as e:
+            self.logger.warning(f"Failed to parse batch LLM response: {e}")
+            return None
+        except Exception as e:
+            self.logger.error(f"Batch LLM API error: {e}")
+            return None
+
+        if not evaluation.get("has_great_catch"):
+            self.logger.info(
+                f"No great catch in {pr.repo} PR#{pr.pr_number}: {evaluation.get('reasoning', '')}"
+            )
+            if evaluation.get("duplicates_found"):
+                self.logger.debug(f"Duplicates found: {evaluation['duplicates_found']}")
+            return None
+
+        # Get the selected comment
+        selected_idx = evaluation.get("selected_comment_index")
+        if selected_idx is None or selected_idx >= len(valid_comments):
+            self.logger.warning(f"Invalid selected_comment_index: {selected_idx}")
+            return None
+
+        selected_comment = valid_comments[selected_idx]
+
+        self.logger.info(
+            f"Found best catch in {pr.repo} PR#{pr.pr_number}: "
+            f"{evaluation['bug_category']} ({evaluation['severity']})"
+        )
+        if evaluation.get("duplicates_found"):
+            self.logger.info(f"Consolidated duplicates: {evaluation['duplicates_found']}")
+
+        return {
+            "repo": pr.repo,
+            "pr_number": pr.pr_number,
+            "pr_title": pr.pr_title,
+            "pr_url": pr.pr_url,
+            "comment_body": selected_comment.comment_body,
+            "comment_url": selected_comment.comment_url,
+            "reply_body": selected_comment.reply_body,
+            "created_at": selected_comment.created_at.isoformat(),
+            "bug_category": evaluation.get("bug_category"),
+            "severity": evaluation.get("severity"),
+            "llm_reasoning": evaluation.get("reasoning", "")
+        }
+
     def evaluate_comments(
         self,
         results: List[PRWithGreptileComments]
     ) -> List[Dict[str, Any]]:
-        """Evaluate all comments and return those that are meaningful bugs.
+        """Evaluate all comments and return the best catch per PR.
+
+        Uses batch evaluation to:
+        1. De-duplicate similar issues within a PR
+        2. Apply strict severity criteria
+        3. Return only the single best catch per PR
 
         Args:
             results: List of PRs with comments
 
-        Returns list of evaluated comments that ARE meaningful bugs.
+        Returns list of the best catches (max 1 per PR).
         """
         quality_catches = []
-        total_evaluated = 0
         prs_evaluated = 0
+        prs_with_catches = 0
 
         for pr in results:
             prs_evaluated += 1
+            comment_count = len([
+                c for c in pr.greptile_comments
+                if not self._is_skipped_comment(c) and not self._is_review_summary(c)
+            ])
+
+            if comment_count == 0:
+                self.logger.debug(f"Skipping {pr.repo} PR#{pr.pr_number} - no valid comments")
+                continue
+
             self.logger.info(
-                f"Evaluating {pr.repo} PR#{pr.pr_number} ({len(pr.greptile_comments)} comments)"
+                f"Evaluating {pr.repo} PR#{pr.pr_number} ({comment_count} comments, batch mode)"
             )
 
-            for comment in pr.greptile_comments:
-                # Skip noise comments
-                if self._is_skipped_comment(comment):
-                    self.logger.debug(f"Skipping 'Skipped' comment {comment.comment_id}")
-                    continue
+            # Use batch evaluation to get the single best catch
+            best_catch = self.evaluate_pr_batch(pr)
 
-                if self._is_review_summary(comment):
-                    self.logger.debug(f"Skipping review summary {comment.comment_id}")
-                    continue
+            if best_catch:
+                severity = best_catch.get("severity", "").lower()
+                reply_body = best_catch.get("reply_body") or ""
 
-                total_evaluated += 1
-                self.logger.debug(
-                    f"Evaluating comment {comment.comment_id} from {pr.repo}"
-                )
+                # Low/medium severity requires positive developer confirmation
+                if severity in ("low", "medium"):
+                    if not self._has_positive_reply(reply_body):
+                        self.logger.info(
+                            f"Skipping {pr.repo} PR#{pr.pr_number} - {severity} severity "
+                            f"without positive developer reply"
+                        )
+                        continue
 
-                evaluation = self.evaluate_comment(comment, pr)
-
-                if evaluation["is_great_catch"]:
-                    quality_catches.append(evaluation)
-                    self.logger.info(
-                        f"Found meaningful bug in {pr.repo} PR#{pr.pr_number}: "
-                        f"{evaluation['bug_category']} ({evaluation['severity']})"
-                    )
+                quality_catches.append(best_catch)
+                prs_with_catches += 1
 
         self.logger.info(
-            f"Evaluated {prs_evaluated} PRs, {total_evaluated} comments, "
-            f"found {len(quality_catches)} meaningful bugs"
+            f"Evaluated {prs_evaluated} PRs, "
+            f"found {prs_with_catches} PRs with showcase-worthy catches"
         )
         return quality_catches
 
