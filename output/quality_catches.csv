@@ -10533,3 +10533,345 @@ Note: The line number may not be exact, but search for `<SignInButton mode=""mod
 
 <sub>Note: If this suggestion doesn't match your team's coding style, reply to this and let me know. I'll remember it for next time!</sub>
 </details>",https://github.com/mrmps/SMRY/pull/51#issuecomment-3809174535,,2026-01-28T06:03:09+00:00,logic,medium,"Greptile correctly identified that the PR's stated goal (redirect non-paying users to pricing after sign-in) was only partially implemented - while auth-bar.tsx was updated, other SignInButton components in bottom-corner-nav.tsx and settings-drawer.tsx were missed, creating inconsistent user experience. This is a real bug where some sign-in paths wouldn't redirect to pricing as intended.",2026-01-28T06:23:51.751797+00:00
+posthog/posthog,46123,feat(web-analytics): Allow users to update their preset filters,https://github.com/PostHog/posthog/pull/46123,,"Form fields not reset after successful update. When editing a preset via the pencil icon and saving, `editingPreset` is cleared but `presetFormName` and `presetFormDescription` retain their values, leaving stale data in the form state.
+
+```suggestion
+        updatePresetSuccess: ({ savedPreset }) => {
+            if (savedPreset) {
+                lemonToast.success(`Preset ""${savedPreset.name}"" updated`)
+                if (values.appliedPreset?.short_id === savedPreset.short_id) {
+                    actions.setAppliedPreset(savedPreset)
+                }
+            }
+            actions.resetPresetForm()
+        },
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: frontend/src/scenes/web-analytics/webAnalyticsFilterPresetsLogic.ts
+Line: 170:177
+
+Comment:
+Form fields not reset after successful update. When editing a preset via the pencil icon and saving, `editingPreset` is cleared but `presetFormName` and `presetFormDescription` retain their values, leaving stale data in the form state.
+
+```suggestion
+        updatePresetSuccess: ({ savedPreset }) => {
+            if (savedPreset) {
+                lemonToast.success(`Preset ""${savedPreset.name}"" updated`)
+                if (values.appliedPreset?.short_id === savedPreset.short_id) {
+                    actions.setAppliedPreset(savedPreset)
+                }
+            }
+            actions.resetPresetForm()
+        },
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/46123#discussion_r2735270601,,2026-01-28T07:41:52+00:00,logic,low,"Greptile correctly identified that `actions.resetPresetForm()` is only called inside the `if (savedPreset)` block, meaning if the update succeeds but returns a falsy value, or in edge cases, the form fields won't reset. Additionally, comparing with `closeSaveModal` listener which calls `resetPresetForm()`, the pattern should consistently reset form state after operations. The suggested fix moves `resetPresetForm()` outside the conditional to ensure form state is always cleaned up.",2026-01-28T08:21:58.085495+00:00
+onyx-dot-app/onyx,7931,feat: notion connector hierarchynodes,https://github.com/onyx-dot-app/onyx/pull/7931,,"`HierarchyNode` uses `raw_node_id`, not `node_id`
+
+```suggestion
+    yielded_set = {(n.raw_node_id, n.raw_parent_id, n.display_name, n.link) for n in yielded_nodes}
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: backend/tests/daily/connectors/notion/test_notion_connector.py
+Line: 25:25
+
+Comment:
+`HierarchyNode` uses `raw_node_id`, not `node_id`
+
+```suggestion
+    yielded_set = {(n.raw_node_id, n.raw_parent_id, n.display_name, n.link) for n in yielded_nodes}
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/7931#discussion_r2735168017,,2026-01-28T07:13:56+00:00,type_error,medium,"Looking at the HierarchyNode class definition imported from onyx.connectors.models, if it uses raw_node_id/raw_parent_id/display_name instead of node_id/parent_id/node_name as Greptile claims, this would cause AttributeError at runtime when the test tries to access non-existent attributes. This is a real bug in test code that would cause test failures, and the field name mismatch is non-obvious without checking the model definition.",2026-01-28T08:21:58.085636+00:00
+onyx-dot-app/onyx,7931,feat: notion connector hierarchynodes,https://github.com/onyx-dot-app/onyx/pull/7931,,"`HierarchyNode` uses `raw_node_id`, `raw_parent_id`, and `display_name`, not `node_id`, `parent_id`, and `node_name`
+
+```suggestion
+    expected_set = {
+        (n.raw_node_id, n.raw_parent_id, n.display_name, n.link) for n in expected_nodes
+    }
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: backend/tests/daily/connectors/notion/test_notion_connector.py
+Line: 26:27
+
+Comment:
+`HierarchyNode` uses `raw_node_id`, `raw_parent_id`, and `display_name`, not `node_id`, `parent_id`, and `node_name`
+
+```suggestion
+    expected_set = {
+        (n.raw_node_id, n.raw_parent_id, n.display_name, n.link) for n in expected_nodes
+    }
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/7931#discussion_r2735168069,,2026-01-28T07:13:57+00:00,logic,medium,"Greptile correctly identified that the test code uses non-existent field names (node_id, parent_id, node_name) when the HierarchyNode model actually uses different field names (raw_node_id, raw_parent_id, display_name). This would cause AttributeError at runtime when the test actually processes HierarchyNodes with data. The comment also correctly notes that both yielded_set and expected_set need to be fixed, not just expected_set as shown in the suggestion. This is a non-obvious bug that would only surface when hierarchy_nodes is non-empty.",2026-01-28T08:21:58.085691+00:00
+onyx-dot-app/onyx,7933,feat(chat): track and display tool processing duration in timeline headers,https://github.com/onyx-dot-app/onyx/pull/7933,,"Default value of `0` for `toolProcessingDuration` is incorrect logic. When the value is `undefined`, it means the backend hasn't sent the duration yet. Using `0` as default means `toolProcessingDuration === undefined` check on line 32 will never be true when the prop is omitted.
+
+```suggestion
+  toolProcessingDuration,
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: web/src/app/chat/message/messageComponents/timeline/headers/StreamingHeader.tsx
+Line: 28:28
+
+Comment:
+Default value of `0` for `toolProcessingDuration` is incorrect logic. When the value is `undefined`, it means the backend hasn't sent the duration yet. Using `0` as default means `toolProcessingDuration === undefined` check on line 32 will never be true when the prop is omitted.
+
+```suggestion
+  toolProcessingDuration,
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/7933#discussion_r2735269433,,2026-01-28T07:41:29+00:00,logic,medium,"Greptile correctly identified that setting `toolProcessingDuration = 0` as default means the check `toolProcessingDuration === undefined` on line 32 will always be false when the prop is omitted, causing the timer to freeze immediately instead of continuing to run until the backend provides the actual duration. This is a subtle but real logic bug that affects the UI behavior.",2026-01-28T08:21:58.085744+00:00
+onyx-dot-app/onyx,7933,feat(chat): track and display tool processing duration in timeline headers,https://github.com/onyx-dot-app/onyx/pull/7933,,"Logic issue: when both `imageText` and `durationText` have values, only `imageText` is shown. The duration information is lost. Consider showing both or combining them.
+
+```
+      <div className=""flex flex-col"">
+        <Text as=""p"" mainUiAction text03>
+          {durationText}
+        </Text>
+        {imageText && (
+          <Text as=""p"" mainUiAction text03>
+            {imageText}
+          </Text>
+        )}
+      </div>
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: web/src/app/chat/message/messageComponents/timeline/headers/CollapsedHeader.tsx
+Line: 37:46
+
+Comment:
+Logic issue: when both `imageText` and `durationText` have values, only `imageText` is shown. The duration information is lost. Consider showing both or combining them.
+
+```
+      <div className=""flex flex-col"">
+        <Text as=""p"" mainUiAction text03>
+          {durationText}
+        </Text>
+        {imageText && (
+          <Text as=""p"" mainUiAction text03>
+            {imageText}
+          </Text>
+        )}
+      </div>
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/7933#discussion_r2735269507,,2026-01-28T07:41:30+00:00,logic,low,"Greptile correctly identified that when `imageText` has a value (generatedImageCount > 0), the condition `!imageText` evaluates to false, so `durationText` is never displayed. This means users lose the processing duration information when images are generated, which appears unintentional given the PR's stated goal of tracking and displaying tool processing duration.",2026-01-28T08:21:58.085778+00:00
+simstudioai/sim,3043,fix(workflow): update container dimensions on keyboard movement,https://github.com/simstudioai/sim/pull/3043,,"during drag operations, position changes will trigger both `onNodeDrag` (line 2621) and this handler, causing `updateContainerDimensionsDuringMove` to be called twice per position update. add check for `!change.dragging` to only handle keyboard movements:
+
+```suggestion
+      // Handle position changes (e.g., from keyboard arrow key movement)
+      // Update container dimensions when child nodes are moved
+      for (const change of changes) {
+        if (change.type === 'position' && !change.dragging && 'position' in change && change.position) {
+          updateContainerDimensionsDuringMove(change.id, change.position)
+        }
+      }
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: apps/sim/app/workspace/[workspaceId]/w/[workflowId]/workflow.tsx
+Line: 2368:2372
+
+Comment:
+during drag operations, position changes will trigger both `onNodeDrag` (line 2621) and this handler, causing `updateContainerDimensionsDuringMove` to be called twice per position update. add check for `!change.dragging` to only handle keyboard movements:
+
+```suggestion
+      // Handle position changes (e.g., from keyboard arrow key movement)
+      // Update container dimensions when child nodes are moved
+      for (const change of changes) {
+        if (change.type === 'position' && !change.dragging && 'position' in change && change.position) {
+          updateContainerDimensionsDuringMove(change.id, change.position)
+        }
+      }
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/simstudioai/sim/pull/3043#discussion_r2735190108,,2026-01-28T07:19:54+00:00,performance,medium,"Greptile correctly identified that during drag operations, `updateContainerDimensionsDuringMove` will be called twice - once from `onNodeDrag` (line 2618) and once from the new code in `onNodesChange` (lines 2368-2372). The React Flow library's NodeChange type for position changes includes a `dragging` property, and checking `!change.dragging` would correctly filter out drag events and only handle keyboard movements, which was the stated intent of the PR.",2026-01-28T08:21:58.085851+00:00
+stack-auth/stack-auth,1138,Sign up rules,https://github.com/stack-auth/stack-auth/pull/1138,,"Values are not escaped when generating CEL strings, allowing injection attacks. If a user enters a value like `test"" || true || ""`, the generated CEL becomes `email == ""test"" || true || """"` which changes the logic.
+
+```suggestion
+function conditionToCel(condition: ConditionNode): string {
+  const { field, operator, value } = condition;
+  
+  // Escape quotes and backslashes in string values
+  const escapeValue = (v: string) => v.replace(/\\/g, '\\\\').replace(/""/g, '\\""');
+
+  switch (operator) {
+    case 'equals': {
+      return `${field} == ""${escapeValue(String(value))}""`;
+    }
+    case 'not_equals': {
+      return `${field} != ""${escapeValue(String(value))}""`;
+    }
+    case 'matches': {
+      return `${field}.matches(""${escapeValue(String(value))}"")`;
+    }
+    case 'ends_with': {
+      return `${field}.endsWith(""${escapeValue(String(value))}"")`;
+    }
+    case 'starts_with': {
+      return `${field}.startsWith(""${escapeValue(String(value))}"")`;
+    }
+    case 'contains': {
+      return `${field}.contains(""${escapeValue(String(value))}"")`;
+    }
+    case 'in_list': {
+      if (Array.isArray(value)) {
+        const items = value.map(v => `""${escapeValue(String(v))}""`).join(', ');
+        return `${field} in [${items}]`;
+      }
+      return `${field} == ""${escapeValue(String(value))}""`;
+    }
+    default: {
+      return `${field} == ""${escapeValue(String(value))}""`;
+    }
+  }
+}
+```
+
+**Context Used:** Rule from `dashboard` - Use JSON.stringify() to escape CLI-provided values when generating code to prevent injection attacks... ([source](https://app.greptile.com/review/custom-context?memory=51b93293-8c0d-46ba-b1f8-49597459e6ca))
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: apps/dashboard/src/lib/cel-visual-parser.ts
+Line: 66:98
+
+Comment:
+Values are not escaped when generating CEL strings, allowing injection attacks. If a user enters a value like `test"" || true || ""`, the generated CEL becomes `email == ""test"" || true || """"` which changes the logic.
+
+```suggestion
+function conditionToCel(condition: ConditionNode): string {
+  const { field, operator, value } = condition;
+  
+  // Escape quotes and backslashes in string values
+  const escapeValue = (v: string) => v.replace(/\\/g, '\\\\').replace(/""/g, '\\""');
+
+  switch (operator) {
+    case 'equals': {
+      return `${field} == ""${escapeValue(String(value))}""`;
+    }
+    case 'not_equals': {
+      return `${field} != ""${escapeValue(String(value))}""`;
+    }
+    case 'matches': {
+      return `${field}.matches(""${escapeValue(String(value))}"")`;
+    }
+    case 'ends_with': {
+      return `${field}.endsWith(""${escapeValue(String(value))}"")`;
+    }
+    case 'starts_with': {
+      return `${field}.startsWith(""${escapeValue(String(value))}"")`;
+    }
+    case 'contains': {
+      return `${field}.contains(""${escapeValue(String(value))}"")`;
+    }
+    case 'in_list': {
+      if (Array.isArray(value)) {
+        const items = value.map(v => `""${escapeValue(String(v))}""`).join(', ');
+        return `${field} in [${items}]`;
+      }
+      return `${field} == ""${escapeValue(String(value))}""`;
+    }
+    default: {
+      return `${field} == ""${escapeValue(String(value))}""`;
+    }
+  }
+}
+```
+
+**Context Used:** Rule from `dashboard` - Use JSON.stringify() to escape CLI-provided values when generating code to prevent injection attacks... ([source](https://app.greptile.com/review/custom-context?memory=51b93293-8c0d-46ba-b1f8-49597459e6ca))
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/stack-auth/stack-auth/pull/1138#discussion_r2735042827,,2026-01-28T06:24:50+00:00,security,high,"Greptile correctly identified that the `conditionToCel` function directly interpolates user-provided values into CEL strings without escaping quotes or backslashes. A malicious input like `test"" || true || ""` would indeed break out of the string literal and inject arbitrary CEL logic, allowing attackers to bypass validation rules. This is a non-obvious injection vulnerability in a security-critical context (sign-up rules).",2026-01-28T08:21:58.085899+00:00
+democratizedspace/dspace,3205,Refine NPC dialogue voices across quests,https://github.com/democratizedspace/dspace/pull/3205,,"<details>
+<summary>Additional Comments (4)</summary>
+
+**`frontend/src/pages/quests/json/woodworking/birdhouse.json`**
+Dialogue says ""Cedar here"" (line 11) but `npc` field still points to `atlas.jpg`. Either create `cedar.jpg` asset or update dialogue to match Atlas.
+
+---
+
+**`frontend/src/pages/quests/json/woodworking/step-stool.json`**
+Dialogue says ""Cedar here"" but `npc` field points to `atlas.jpg`. Inconsistent with dialogue attribution.
+
+---
+
+**`frontend/src/pages/quests/json/astronomy/basic-telescope.json`**
+Dialogue says ""Lyra here"" but `npc` field points to `nova.jpg`. Inconsistent with dialogue attribution.
+
+---
+
+**`frontend/src/pages/quests/json/astronomy/north-star.json`**
+Dialogue says ""Lyra here"" (line 11) but `npc` field points to `nova.jpg`. Inconsistent with dialogue attribution.
+</details>",https://github.com/democratizedspace/dspace/pull/3205#issuecomment-3809626338,,2026-01-28T08:00:25+00:00,data_integrity,medium,"This catches real data inconsistencies across multiple quest JSON files where the dialogue text mentions one NPC name (Cedar/Lyra) but the npc image field points to a different character's asset (atlas.jpg/nova.jpg). This would cause visual inconsistency where users see one character's image but read dialogue from a different character, which is a legitimate bug that could easily be overlooked during a rename/refactor across multiple files.",2026-01-28T08:21:58.086008+00:00
+synnaxlabs/synnax,1891,SY-3635: Fix Python deployment,https://github.com/synnaxlabs/synnax/pull/1891,,"Running `uv publish` from the root directory won't find the distributions built in subdirectories (`alamos/py/dist/`, `freighter/py/dist/`, `client/py/dist/`). The command needs to either:
+1. Run in each subdirectory with `working-directory`, or
+2. Explicitly specify the dist paths to publish
+
+The old workflow published immediately after building in each directory, which worked correctly.",https://github.com/synnaxlabs/synnax/pull/1891#discussion_r2735139408,,2026-01-28T07:04:46+00:00,logic,high,"Greptile correctly identifies that the new 'Publish Code' step runs `uv publish` from the root directory without a `working-directory` specification, while the builds were done in subdirectories (alamos/py, freighter/py, client/py). The `uv publish` command needs to find the dist/ folder containing built packages, but running from root won't locate the distributions built in those subdirectories. This would cause the deployment to fail or publish nothing.",2026-01-28T08:21:58.086054+00:00
+gptme/gptme-contrib,219,fix(ralph): improve plan extraction to filter gptme subprocess noise,https://github.com/gptme/gptme-contrib/pull/219,,"These patterns are too broad and will incorrectly filter valid plan content like ""- [ ] Loading data from the database"" or ""- [ ] Loaded configuration needs validation""
+
+```suggestion
+        if stripped.startswith(""Loading context"") or stripped.startswith(""Loaded ""):
+            return True
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: plugins/gptme-ralph/src/gptme_ralph/tools/ralph_loop.py
+Line: 905:906
+
+Comment:
+These patterns are too broad and will incorrectly filter valid plan content like ""- [ ] Loading data from the database"" or ""- [ ] Loaded configuration needs validation""
+
+```suggestion
+        if stripped.startswith(""Loading context"") or stripped.startswith(""Loaded ""):
+            return True
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/gptme/gptme-contrib/pull/219#discussion_r2735167478,"✅ Fixed in fd9be1a - Narrowed patterns to:
+- `""Loading context""` instead of `""Loading""`
+- `""Loaded ""` (with space) instead of `""Loaded""`
+
+This prevents false positives on valid plan items like ""- [ ] Loading data from the database""",2026-01-28T07:13:46+00:00,logic,medium,"Greptile correctly identified that the noise filter patterns were too broad - the original code checked for 'context' and 'loading' anywhere in the line, which would incorrectly filter legitimate plan items containing those words. The developer confirmed and fixed this by narrowing patterns to 'Loading context' and 'Loaded ' specifically. This is a non-obvious bug that would cause data loss by silently removing valid plan content.",2026-01-28T08:21:58.086077+00:00
