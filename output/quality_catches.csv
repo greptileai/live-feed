@@ -10875,3 +10875,51 @@ How can I resolve this? If you propose a fix, please make it concise.
 - `""Loaded ""` (with space) instead of `""Loaded""`
 
 This prevents false positives on valid plan items like ""- [ ] Loading data from the database""",2026-01-28T07:13:46+00:00,logic,medium,"Greptile correctly identified that the noise filter patterns were too broad - the original code checked for 'context' and 'loading' anywhere in the line, which would incorrectly filter legitimate plan items containing those words. The developer confirmed and fixed this by narrowing patterns to 'Loading context' and 'Loaded ' specifically. This is a non-obvious bug that would cause data loss by silently removing valid plan content.",2026-01-28T08:21:58.086077+00:00
+posthog/posthog,46132,chore: set stricter timeouts for experiments jobs,https://github.com/PostHog/posthog/pull/46132,,"<details>
+<summary>Additional Comments (1)</summary>
+
+**`products/experiments/dags/experiment_timeseries_recalculation.py`**
+`max_execution_time` parameter not passed to `ExperimentQueryRunner`, while the other two DAG files set it to 2 minutes
+
+```suggestion
+                query_runner = ExperimentQueryRunner(
+                    query=experiment_query,
+                    team=experiment.team,
+                    override_end_date=query_to_utc,
+                    workload=Workload.OFFLINE,
+                    max_execution_time=2 * 60,  # 2 minutes
+                )
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: products/experiments/dags/experiment_timeseries_recalculation.py
+Line: 141:146
+
+Comment:
+`max_execution_time` parameter not passed to `ExperimentQueryRunner`, while the other two DAG files set it to 2 minutes
+
+```suggestion
+                query_runner = ExperimentQueryRunner(
+                    query=experiment_query,
+                    team=experiment.team,
+                    override_end_date=query_to_utc,
+                    workload=Workload.OFFLINE,
+                    max_execution_time=2 * 60,  # 2 minutes
+                )
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>
+</details>",https://github.com/PostHog/posthog/pull/46132#issuecomment-3810173065,,2026-01-28T09:47:47+00:00,logic,medium,"Greptile correctly identified an inconsistency where one DAG file is missing the max_execution_time parameter while the other two DAG files in the same PR explicitly set it to 2 minutes. This is a real oversight that could cause the timeseries recalculation job to run without the intended timeout, potentially causing resource issues. The PR title explicitly mentions 'set stricter timeouts for experiments jobs', making this omission a clear bug in the implementation.",2026-01-28T10:22:50.586569+00:00
+democratizedspace/dspace,3226,Add client-side MiniSearch RAG retriever and inject docs grounding into chat prompt,https://github.com/democratizedspace/dspace/pull/3226,,"The logic `message.kind || message === knowledgeMessage || message === docsRagMessage` is flawed. When `message.kind` is truthy, the ternary evaluates to `'rag'` even if the message isn't actually a RAG message. Should use:
+
+```suggestion
+        kind:
+            message.kind === 'rag' || message === knowledgeMessage || message === docsRagMessage
+                ? 'rag'
+                : 'main',
+```",https://github.com/democratizedspace/dspace/pull/3226#discussion_r2735494275,,2026-01-28T08:44:42+00:00,logic,low,"Greptile correctly identified a logic bug in the ternary expression. When `message.kind` is truthy (e.g., 'rag'), the expression `message.kind || message === knowledgeMessage || message === docsRagMessage` evaluates to `'rag'` (the truthy string), but then the ternary always returns 'rag' for any truthy `message.kind`. The real issue is if a message had a different truthy `kind` value (not 'rag'), it would still be labeled as 'rag'. The fix to check `message.kind === 'rag'` explicitly is correct and prevents misclassification.",2026-01-28T10:22:50.586662+00:00
