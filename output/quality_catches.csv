@@ -208,3 +208,40 @@ nvidia/matx,1125,Avoid warning about unused variables,https://github.com/NVIDIA/
     (result = result * B).run(exec);
     MATX_NVTX_END_RANGE(unfused_range);
 ```",https://github.com/NVIDIA/MatX/pull/1125#discussion_r2740872358,,2026-01-29T10:05:25+00:00,runtime,high,"Greptile correctly identified that removing the variable assignment from MATX_NVTX_START_RANGE creates undefined variable references. The code still uses `unfused_range` and `fused_range` in MATX_NVTX_END_RANGE calls, but these variables no longer exist after the PR changes. This will cause a compilation error, making it a clear bug introduced by the PR.",2026-01-29T10:25:30.134993+00:00
+twentyhq/twenty,17530,Refactor `delete` `objectMetadata` action type and handler to be workspace agnostic,https://github.com/twentyhq/twenty/pull/17530,"inconsistent error handling: `update-field-action-handler.service.ts` uses `WorkspaceMigrationActionExecutionException` for this same check (line 104-107), but this throws a generic `Error`
+
+```suggestion
+    if (!isDefined(objectMetadataUniversalIdentifier)) {
+      throw new WorkspaceMigrationActionExecutionException({
+        message: `objectMetadataUniversalIdentifier is not defined for field metadata ${universalIdentifier}`,
+        code: WorkspaceMigrationActionExecutionExceptionCode.FLAT_ENTITY_NOT_FOUND,
+      });
+    }
+```
+
+<sub>Note: If this suggestion doesn't match your team's coding style, reply to this and let me know. I'll remember it for next time!</sub>
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/twenty-server/src/engine/workspace-manager/workspace-migration/workspace-migration-runner/action-handlers/field/services/delete-field-action-handler.service.ts
+Line: 72:76
+
+Comment:
+inconsistent error handling: `update-field-action-handler.service.ts` uses `WorkspaceMigrationActionExecutionException` for this same check (line 104-107), but this throws a generic `Error`
+
+```suggestion
+    if (!isDefined(objectMetadataUniversalIdentifier)) {
+      throw new WorkspaceMigrationActionExecutionException({
+        message: `objectMetadataUniversalIdentifier is not defined for field metadata ${universalIdentifier}`,
+        code: WorkspaceMigrationActionExecutionExceptionCode.FLAT_ENTITY_NOT_FOUND,
+      });
+    }
+```
+
+<sub>Note: If this suggestion doesn't match your team's coding style, reply to this and let me know. I'll remember it for next time!</sub>
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/twentyhq/twenty/pull/17530#discussion_r2741102919,Nice catch,2026-01-29T11:04:56+00:00,logic,low,"Greptile caught an inconsistency in error handling where the delete handler throws a generic Error while the update handler uses the proper WorkspaceMigrationActionExecutionException for the same check. This was confirmed by the developer with 'Nice catch'. While this is a code consistency issue rather than a bug that would cause incorrect behavior, the developer confirmation makes it a valid catch.",2026-01-29T12:27:12.487687+00:00
