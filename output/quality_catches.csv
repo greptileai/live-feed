@@ -85,3 +85,83 @@ nvidia/numba-cuda,760,Replace legacy wheels-build.yaml with build-wheel.yml in p
 The PR description states ""Add dedicated build-sdist job for source distribution"", but the actual implementation in commit 521da34 removed sdist building entirely with the note ""sdist not needed"". This contradicts the PR description and removes functionality that was present before.
 
 Verify whether sdist is truly not needed for PyPI publishing, or if it should be restored.",https://github.com/NVIDIA/numba-cuda/pull/760#discussion_r2738854040,Updated initial comment,2026-01-28T22:18:53+00:00,logic,medium,"Greptile caught a discrepancy between the PR description claiming to 'Add dedicated build-sdist job for source distribution' and the actual implementation which removed sdist building entirely. This is a legitimate functionality removal that contradicts the stated PR intent. The developer acknowledged this by saying 'Updated initial comment', confirming the catch was valid.",2026-01-28T23:04:50.907653+00:00
+onyx-dot-app/onyx,7962,fix(craft): auto set best model instead of checking for visibility,https://github.com/onyx-dot-app/onyx/pull/7962,"Missing model availability check - the function returns hardcoded model names without verifying they exist in the provider's `model_configurations`. The old implementation checked `matchingProvider.model_configurations.some((m) => m.name === model)` before selecting a model. This will cause users to be assigned non-existent models, breaking LLM functionality.
+
+```suggestion
+  // Try each priority provider in order
+  for (const { provider, modelName } of LLM_SELECTION_PRIORITY) {
+    const matchingProvider = llmProviders.find((p) => p.provider === provider);
+    if (matchingProvider) {
+      // Check if the model exists in the provider's configurations
+      const hasModel = matchingProvider.model_configurations.some(
+        (m) => m.name === modelName
+      );
+      if (hasModel) {
+        return {
+          providerName: matchingProvider.name,
+          provider: matchingProvider.provider,
+          modelName,
+        };
+      }
+    }
+  }
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: web/src/app/craft/onboarding/constants.ts
+Line: 35:44
+
+Comment:
+Missing model availability check - the function returns hardcoded model names without verifying they exist in the provider's `model_configurations`. The old implementation checked `matchingProvider.model_configurations.some((m) => m.name === model)` before selecting a model. This will cause users to be assigned non-existent models, breaking LLM functionality.
+
+```suggestion
+  // Try each priority provider in order
+  for (const { provider, modelName } of LLM_SELECTION_PRIORITY) {
+    const matchingProvider = llmProviders.find((p) => p.provider === provider);
+    if (matchingProvider) {
+      // Check if the model exists in the provider's configurations
+      const hasModel = matchingProvider.model_configurations.some(
+        (m) => m.name === modelName
+      );
+      if (hasModel) {
+        return {
+          providerName: matchingProvider.name,
+          provider: matchingProvider.provider,
+          modelName,
+        };
+      }
+    }
+  }
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/7962#discussion_r2739148674,,2026-01-29T00:07:29+00:00,logic,high,"The comment correctly identifies that the new implementation removed a critical validation check - the code returns hardcoded model names (like 'claude-opus-4-5', 'gpt-5.2') without verifying these models actually exist in the provider's configuration. This is a regression from the old implementation that checked model availability. Users could be assigned non-existent models, breaking LLM functionality during normal usage of the onboarding flow.",2026-01-29T00:48:55.408962+00:00
+credal-ai/actions-sdk,482,Create action that reads comments from docs,https://github.com/Credal-ai/actions-sdk/pull/482,"Google Drive API returns `id` not `commentId`. This will cause all comment IDs to be undefined.
+
+```suggestion
+      res.data.comments?.map((c: any) => ({
+        commentId: c.id,
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: src/actions/providers/google-oauth/readCommentsOnDoc.ts
+Line: 40:41
+
+Comment:
+Google Drive API returns `id` not `commentId`. This will cause all comment IDs to be undefined.
+
+```suggestion
+      res.data.comments?.map((c: any) => ({
+        commentId: c.id,
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/Credal-ai/actions-sdk/pull/482#discussion_r2739225309,,2026-01-29T00:33:49+00:00,logic,high,"Greptile correctly identifies that the Google Drive API returns 'id' not 'commentId' for comments, which means all comment IDs would be undefined in the output. This is a real bug that would affect every user of this function in normal usage, making comment identification impossible. The catch demonstrates knowledge of the external API contract.",2026-01-29T00:48:55.409045+00:00
