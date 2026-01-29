@@ -282,3 +282,59 @@ Suffix not preserved when model found via dynamic fetch. When `model_meta.model`
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/gptme/gptme/pull/1182#discussion_r2741612984,"✅ Fixed in commit 6bc865aa - Now creates new ModelMeta with original `model_name` preserving the suffix, similar to the static path.",2026-01-29T13:19:20+00:00,logic,medium,"Greptile correctly identified that when a model is found via dynamic fetch using the base name (lookup_model_name), returning model_meta directly would lose the original suffix (e.g., @moonshotai) that the user requested. This is a real bug that would cause incorrect model name preservation in API calls. The developer confirmed and fixed it.",2026-01-29T14:29:03.640787+00:00
+posthog/posthog,46271,feat: multiselect for statuses and priorities,https://github.com/PostHog/posthog/pull/46271,"test expects `NULL` priority tickets to be included when filtering by specific priorities, but the backend filter logic in `tickets.py:115-116` uses `priority__in` which won't match `NULL` values. Either fix the backend to include `NULL` priorities with `Q(priority__in=priorities) | Q(priority__isnull=True)`, or update the test expectation to exclude the `NULL` priority ticket
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: products/conversations/backend/api/tests/test_tickets.py
+Line: 307:333
+
+Comment:
+test expects `NULL` priority tickets to be included when filtering by specific priorities, but the backend filter logic in `tickets.py:115-116` uses `priority__in` which won't match `NULL` values. Either fix the backend to include `NULL` priorities with `Q(priority__in=priorities) | Q(priority__isnull=True)`, or update the test expectation to exclude the `NULL` priority ticket
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/46271#discussion_r2742332062,Fixed,2026-01-29T15:51:11+00:00,logic,medium,"Greptile correctly identified that the test expects NULL priority tickets to be included when filtering by specific priorities, but the backend's `priority__in` filter won't match NULL values in SQL. This is a real logic bug that was confirmed by the developer with 'Fixed'. The catch demonstrates understanding of both Django ORM behavior and SQL NULL semantics.",2026-01-29T16:28:21.841777+00:00
+posthog/posthog,46262,feat(logs): json parse log lines in log-ingestion based on team settings,https://github.com/PostHog/posthog/pull/46262,"Double stringification - `value` is already a string from `flattenJson` (line 117-145 converts everything to strings), so `value.toString()` returns the same string, then `JSON.stringify()` adds extra quotes around it. This means a value like `""info""` becomes `""\""info\""""`.
+
+```suggestion
+        newAttributes[key] = value
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: nodejs/src/logs-ingestion/log-record-avro.ts
+Line: 176:176
+
+Comment:
+Double stringification - `value` is already a string from `flattenJson` (line 117-145 converts everything to strings), so `value.toString()` returns the same string, then `JSON.stringify()` adds extra quotes around it. This means a value like `""info""` becomes `""\""info\""""`.
+
+```suggestion
+        newAttributes[key] = value
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/46262#discussion_r2742153502,,2026-01-29T15:14:36+00:00,data_integrity,high,"This catch identifies a double stringification bug where values already converted to strings get wrapped in extra quotes via JSON.stringify(), causing data corruption (e.g., 'info' becomes '""info""'). This would affect all users in normal usage and corrupt log attribute values in production. The analysis is correct - flattenJson already converts values to strings, so the additional JSON.stringify is incorrect.",2026-01-29T16:28:21.841900+00:00
+nvidia/numba-cuda,762,test(refactor): clean up `run_in_subprocess`,https://github.com/NVIDIA/numba-cuda/pull/762,"Logic error: `check=True` (line 206) raises `CalledProcessError` on non-zero exit, making the `if proc.returncode:` check (line 212) unreachable for failures. Remove `check=True` to preserve the original `AssertionError` behavior.
+
+```suggestion
+    proc = subprocess.run(
+        [sys.executable, *flags, ""-c"", code],
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=timeout,
+    )
+    out, err = proc.stdout, proc.stderr
+    if proc.returncode:
+        raise AssertionError(
+            f""process failed with code {proc.returncode:d}: stderr:\n{err}\n""
+        )
+```",https://github.com/NVIDIA/numba-cuda/pull/762#discussion_r2742143212,"This review comment seems legitimate, but I imagine we'd be better off catching the Python exception instead of removing the `check=True`?
+---
+Seems legit.",2026-01-29T15:12:21+00:00,logic,medium,"Greptile correctly identified that `check=True` makes the subsequent `if proc.returncode:` check unreachable dead code, since `subprocess.run` will raise `CalledProcessError` before reaching that line. This changes the error behavior from raising `AssertionError` to raising `CalledProcessError`, which could break test expectations. The developer confirmed this was legitimate.",2026-01-29T16:28:21.841987+00:00
