@@ -165,3 +165,36 @@ Google Drive API returns `id` not `commentId`. This will cause all comment IDs t
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/Credal-ai/actions-sdk/pull/482#discussion_r2739225309,,2026-01-29T00:33:49+00:00,logic,high,"Greptile correctly identifies that the Google Drive API returns 'id' not 'commentId' for comments, which means all comment IDs would be undefined in the output. This is a real bug that would affect every user of this function in normal usage, making comment identification impossible. The catch demonstrates knowledge of the external API contract.",2026-01-29T00:48:55.409045+00:00
+davis7dotsh/better-context,134,"update: use ""better result"" for handling errors, instead of try catch spam",https://github.com/davis7dotsh/better-context/pull/134,"The result is matched but not returned, causing `gitClone` to return `undefined` instead of throwing on error
+
+```suggestion
+	return result.match({
+		ok: () => undefined,
+		err: (error) => {
+			throw error;
+		}
+	});
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: apps/server/src/resources/impls/git.ts
+Line: 306:311
+
+Comment:
+The result is matched but not returned, causing `gitClone` to return `undefined` instead of throwing on error
+
+```suggestion
+	return result.match({
+		ok: () => undefined,
+		err: (error) => {
+			throw error;
+		}
+	});
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/davis7dotsh/better-context/pull/134#discussion_r2739888680,,2026-01-29T04:21:28+00:00,logic,high,"Greptile correctly identifies that the `result.match()` call's return value is not being returned from the function, causing `gitClone` to silently return `undefined` instead of throwing errors on failure. This is a real bug introduced during the refactoring from try-catch to Result pattern - errors will be swallowed and git clone failures won't be properly propagated to callers, affecting normal usage.",2026-01-29T04:44:12.144348+00:00
