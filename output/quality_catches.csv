@@ -338,3 +338,93 @@ nvidia/numba-cuda,762,test(refactor): clean up `run_in_subprocess`,https://githu
 ```",https://github.com/NVIDIA/numba-cuda/pull/762#discussion_r2742143212,"This review comment seems legitimate, but I imagine we'd be better off catching the Python exception instead of removing the `check=True`?
 ---
 Seems legit.",2026-01-29T15:12:21+00:00,logic,medium,"Greptile correctly identified that `check=True` makes the subsequent `if proc.returncode:` check unreachable dead code, since `subprocess.run` will raise `CalledProcessError` before reaching that line. This changes the error behavior from raising `AssertionError` to raising `CalledProcessError`, which could break test expectations. The developer confirmed this was legitimate.",2026-01-29T16:28:21.841987+00:00
+onyx-dot-app/onyx,7977,fix: input masking,https://github.com/onyx-dot-app/onyx/pull/7977,"<details>
+<summary>Additional Comments (1)</summary>
+
+**`web/src/app/admin/embeddings/modals/ChangeCredentialsModal.tsx`**
+Missing `data-ph-no-capture` attribute. Since PostHog's `maskAllInputs` is now set to `false` (in `providers.tsx:21`), this API key input needs the explicit `data-ph-no-capture` attribute to prevent session recordings from capturing sensitive credentials.
+
+```suggestion
+                    <input
+                      type=""password""
+                      data-ph-no-capture
+                      className=""border border-border rounded w-full py-2 px-3 bg-background-emphasis""
+                      value={apiKey}
+                      onChange={(e: any) => setApiKey(e.target.value)}
+                      placeholder=""Paste your API key here""
+                    />
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: web/src/app/admin/embeddings/modals/ChangeCredentialsModal.tsx
+Line: 206:212
+
+Comment:
+Missing `data-ph-no-capture` attribute. Since PostHog's `maskAllInputs` is now set to `false` (in `providers.tsx:21`), this API key input needs the explicit `data-ph-no-capture` attribute to prevent session recordings from capturing sensitive credentials.
+
+```suggestion
+                    <input
+                      type=""password""
+                      data-ph-no-capture
+                      className=""border border-border rounded w-full py-2 px-3 bg-background-emphasis""
+                      value={apiKey}
+                      onChange={(e: any) => setApiKey(e.target.value)}
+                      placeholder=""Paste your API key here""
+                    />
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>
+</details>",https://github.com/onyx-dot-app/onyx/pull/7977#issuecomment-3819293947,,2026-01-29T17:57:22+00:00,security,critical,"This is a legitimate security vulnerability catch. The PR disabled global input masking (maskAllInputs: false) for PostHog session recordings, but failed to add the data-ph-no-capture attribute to an API key input field. This means sensitive credentials would be captured in session recordings and sent to PostHog, exposing them to anyone with access to those recordings. This is a real data exposure issue that directly contradicts the PR's intent to fix input masking.",2026-01-29T18:29:27.407222+00:00
+openreplay/openreplay,4265,refactor(chalice): changed displayName&description handling refactor(DB): changed displayName&description handling,https://github.com/openreplay/openreplay/pull/4265,"Missing data migration - existing `display_name`, `description`, and `status` values should be migrated to the new `_customized` tables before dropping columns
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: ee/scripts/schema/db/init_dbs/clickhouse/1.25.0/1.25.0.sql
+Line: 148:158
+
+Comment:
+Missing data migration - existing `display_name`, `description`, and `status` values should be migrated to the new `_customized` tables before dropping columns
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/openreplay/openreplay/pull/4265#discussion_r2742737361,,2026-01-29T17:25:46+00:00,data_integrity,critical,"This catch identifies a critical data loss issue - the migration script drops columns containing existing user data (display_name, description, status) before migrating that data to the new _customized tables. Running this migration in production would permanently destroy user customizations. This is a guaranteed data loss bug that would affect all existing users.",2026-01-29T18:29:27.407387+00:00
+gptme/gptme-contrib,225,feat(gptodo): add effective command to show computed task state,https://github.com/gptme/gptme-contrib/pull/225,"`blocked` state missing from `STATE_STYLES` dict
+
+The virtual `blocked` state returned by `compute_effective_state()` isn't defined in the `STATE_STYLES` dictionary (utils.py:157-181), so it falls back to `white` styling. Consider adding an entry like:
+
+```
+""blocked"": (""red"", ""blocked""),
+```
+
+to utils.py STATE_STYLES for consistent styling of blocked tasks.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/gptodo/src/gptodo/cli.py
+Line: 263:263
+
+Comment:
+`blocked` state missing from `STATE_STYLES` dict
+
+The virtual `blocked` state returned by `compute_effective_state()` isn't defined in the `STATE_STYLES` dictionary (utils.py:157-181), so it falls back to `white` styling. Consider adding an entry like:
+
+```
+""blocked"": (""red"", ""blocked""),
+```
+
+to utils.py STATE_STYLES for consistent styling of blocked tasks.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/gptme/gptme-contrib/pull/225#discussion_r2742594440,"✅ Fixed in commit 93c0ba0 - added `blocked` virtual state with red styling to STATE_STYLES.
+
+Good catch! The comment distinguishes it from stored frontmatter states.",2026-01-29T16:50:36+00:00,logic,low,"Greptile correctly identified that the new 'blocked' virtual state returned by compute_effective_state() was missing from STATE_STYLES, causing it to fall back to default white styling instead of appropriate red styling. The developer confirmed this with '✅ Fixed' and 'Good catch!'. While not a critical bug, it's a valid issue that would affect user experience by making blocked tasks visually indistinct.",2026-01-29T18:29:27.407441+00:00
