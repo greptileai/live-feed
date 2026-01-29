@@ -245,3 +245,40 @@ inconsistent error handling: `update-field-action-handler.service.ts` uses `Work
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/twentyhq/twenty/pull/17530#discussion_r2741102919,Nice catch,2026-01-29T11:04:56+00:00,logic,low,"Greptile caught an inconsistency in error handling where the delete handler throws a generic Error while the update handler uses the proper WorkspaceMigrationActionExecutionException for the same check. This was confirmed by the developer with 'Nice catch'. While this is a code consistency issue rather than a bug that would cause incorrect behavior, the developer confirmation makes it a valid catch.",2026-01-29T12:27:12.487687+00:00
+gptme/gptme,1182,fix(llm): handle OpenRouter subprovider suffix in model lookup,https://github.com/gptme/gptme/pull/1182,"Suffix not preserved when model found via dynamic fetch. When `model_meta.model` matches `lookup_model_name`, returning `model_meta` directly loses the original suffix. Should create new ModelMeta with original `model_name` like the static path does:
+
+```suggestion
+                        # Check both full name (with suffix) and base name (without suffix)
+                        if (
+                            model_meta.model == model_name
+                            or model_meta.model == lookup_model_name
+                        ):
+                            return ModelMeta(
+                                provider, model_name, **model_meta.to_dict()
+                            )
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: gptme/llm/models.py
+Line: 566:570
+
+Comment:
+Suffix not preserved when model found via dynamic fetch. When `model_meta.model` matches `lookup_model_name`, returning `model_meta` directly loses the original suffix. Should create new ModelMeta with original `model_name` like the static path does:
+
+```suggestion
+                        # Check both full name (with suffix) and base name (without suffix)
+                        if (
+                            model_meta.model == model_name
+                            or model_meta.model == lookup_model_name
+                        ):
+                            return ModelMeta(
+                                provider, model_name, **model_meta.to_dict()
+                            )
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/gptme/gptme/pull/1182#discussion_r2741612984,"✅ Fixed in commit 6bc865aa - Now creates new ModelMeta with original `model_name` preserving the suffix, similar to the static path.",2026-01-29T13:19:20+00:00,logic,medium,"Greptile correctly identified that when a model is found via dynamic fetch using the base name (lookup_model_name), returning model_meta directly would lose the original suffix (e.g., @moonshotai) that the user requested. This is a real bug that would cause incorrect model name preservation in API calls. The developer confirmed and fixed it.",2026-01-29T14:29:03.640787+00:00
