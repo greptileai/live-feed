@@ -647,3 +647,41 @@ Either:
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/PostHog/posthog/pull/46351#discussion_r2745298413,"  Fixed - changed nodejs_realtime_cohorts to require event_ingestion instead of nodejs_cdp_workflows. The intent-map resolver handles transitive dependencies at resolution time, so the consumers are correctly independent.                                                ",2026-01-30T09:04:41+00:00,logic,medium,"This catch identified a real dependency resolution bug where nodejs_realtime_cohorts required nodejs_cdp_workflows, but the capability mapping was flat and wouldn't resolve transitive dependencies correctly. The developer confirmed and fixed it by changing the dependency to event_ingestion. This is a genuine architectural issue that could cause missing capabilities at runtime.",2026-01-30T10:22:36.136078+00:00
+green-coding-solutions/green-metrics-tool,1529,(fix): Hardware Info Root Sudoers entry was possible to hijack,https://github.com/green-coding-solutions/green-metrics-tool/pull/1529,"`readlink -f` requires GNU coreutils on macOS (BSD readlink doesn't support `-f`). Script installs coreutils only if `stdbuf` is missing, but these commands will fail if coreutils wasn't installed.
+
+```suggestion
+    powermetrics_path=$(grealpath ""/usr/bin/powermetrics"" 2>/dev/null || readlink -f ""/usr/bin/powermetrics"" 2>/dev/null || realpath ""/usr/bin/powermetrics"")
+    killall_path=$(grealpath ""/usr/bin/killall"" 2>/dev/null || readlink -f ""/usr/bin/killall"" 2>/dev/null || realpath ""/usr/bin/killall"")
+```",https://github.com/green-coding-solutions/green-metrics-tool/pull/1529#discussion_r2745872648,,2026-01-30T11:46:09+00:00,runtime,high,"This is a valid catch that will cause the macOS install script to fail. The script uses `readlink -f` which is a GNU coreutils feature not available in BSD readlink on macOS by default. The script only conditionally installs coreutils if stdbuf is missing, so this command will fail for users who have stdbuf but not full coreutils. This is a real bug that will break installation for a significant portion of macOS users.",2026-01-30T12:26:54.956779+00:00
+helixdb/helix-db,844,"fix(hql+core): fixing nested ID, math ops",https://github.com/HelixDB/helix-db/pull/844,"missing method implementations that are called by generated code in `computed_expr.rs`:
+- `pow(&Value) -> Value`
+- `abs() -> Value` 
+- `sqrt() -> Value`
+- `min(&Value) -> Value`
+- `max(&Value) -> Value`
+- `Rem` trait implementation for modulo
+
+also need `to_f64()` to be public or use alternative conversion for pow/sqrt",https://github.com/HelixDB/helix-db/pull/844#discussion_r2745924528,,2026-01-30T11:58:15+00:00,runtime,high,"Comment 6 consolidates all the missing method issues (pow, abs, sqrt, min, max, Rem trait) that comments 0-5 identify individually. The generated code in computed_expr.rs calls methods that don't exist on the Value type, which will cause compilation failures when users try to use these math operations. This is a comprehensive catch that identifies a real bug where the code generator produces invalid Rust code.",2026-01-30T12:26:54.956894+00:00
+gptme/gptme-contrib,233,"feat(gptodo): add checker pattern, dependency tree, and ready_for_review state",https://github.com/gptme/gptme-contrib/pull/233,"`details[""total""]` should exclude URL dependencies since they're skipped at line 144-146. Currently if URL deps exist, `len(resolved) + len(unresolved)` won't equal `total`, causing confusing output.
+
+```suggestion
+    details[""total""] = len(resolved) + len(unresolved)
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/gptodo/src/gptodo/checker.py
+Line: 157:157
+
+Comment:
+`details[""total""]` should exclude URL dependencies since they're skipped at line 144-146. Currently if URL deps exist, `len(resolved) + len(unresolved)` won't equal `total`, causing confusing output.
+
+```suggestion
+    details[""total""] = len(resolved) + len(unresolved)
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/gptme/gptme-contrib/pull/233#discussion_r2745847919,✅ Fixed in bf34c25 - now excluding URL deps from total count,2026-01-30T11:39:07+00:00,logic,medium,"This is a verified logic bug where URL dependencies are skipped during processing but the total count still includes them, causing the math to not add up (resolved + unresolved != total). The developer confirmed and fixed it. It's a clear data inconsistency issue that would produce confusing output for users.",2026-01-30T12:26:54.956946+00:00
