@@ -685,3 +685,54 @@ Comment:
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/gptme/gptme-contrib/pull/233#discussion_r2745847919,✅ Fixed in bf34c25 - now excluding URL deps from total count,2026-01-30T11:39:07+00:00,logic,medium,"This is a verified logic bug where URL dependencies are skipped during processing but the total count still includes them, causing the math to not add up (resolved + unresolved != total). The developer confirmed and fixed it. It's a clear data inconsistency issue that would produce confusing output for users.",2026-01-30T12:26:54.956946+00:00
+posthog/posthog,46368,feat: add NodeJS Recording API to support encryption of recording data,https://github.com/PostHog/posthog/pull/46368,"The `key` parameter accepts arbitrary S3 paths without validation. Consider validating the key format matches expected patterns (e.g., starts with expected prefix) to prevent potential path traversal or access to unintended S3 objects.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: nodejs/src/recording-api/recording-api.ts
+Line: 164:164
+
+Comment:
+The `key` parameter accepts arbitrary S3 paths without validation. Consider validating the key format matches expected patterns (e.g., starts with expected prefix) to prevent potential path traversal or access to unintended S3 objects.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/46368#discussion_r2746164321,Fixed in latest commit,2026-01-30T13:02:17+00:00,security,medium,"Comment 2 identifies a path traversal vulnerability where arbitrary S3 paths could be accessed without validation. The developer confirmed it was a valid issue and fixed it. While Comments 0 and 1 were false positives (internal API), this S3 key validation issue is a legitimate security concern that was addressed.",2026-01-30T14:25:02.873463+00:00
+openreplay/openreplay,4268,fix(chalice): fixed idp_group_prefixes default value,https://github.com/openreplay/openreplay/pull/4268,"Migration drops columns with existing data but doesn't migrate that data to the new `all_events_customized` table. Any existing `display_name`, `description`, or `status` values will be permanently lost.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: ee/scripts/schema/db/init_dbs/clickhouse/1.25.0/1.25.0.sql
+Line: 147:156
+
+Comment:
+Migration drops columns with existing data but doesn't migrate that data to the new `all_events_customized` table. Any existing `display_name`, `description`, or `status` values will be permanently lost.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/openreplay/openreplay/pull/4268#discussion_r2746479945,,2026-01-30T14:05:07+00:00,data_integrity,critical,"The migration script drops columns (display_name, description, status) containing existing user data before creating the new tables to hold that data, but includes no data migration step. This will cause permanent data loss in production for all existing customizations. This is a critical data integrity issue that would affect all users who have customized their events.",2026-01-30T14:25:02.873523+00:00
+helixdb/helix-db,845,impr (hql+core): nested ids and math ops,https://github.com/HelixDB/helix-db/pull/845,"Division by zero not handled - `wrapping_div` panics on zero divisor
+
+```suggestion
+            // Same-type signed integer divisions
+            (Value::I8(a), Value::I8(b)) => {
+                if b == 0 { return Value::Empty; }
+                Value::I8(a.wrapping_div(b))
+            }
+            (Value::I16(a), Value::I16(b)) => {
+                if b == 0 { return Value::Empty; }
+                Value::I16(a.wrapping_div(b))
+            }
+            (Value::I32(a), Value::I32(b)) => {
+                if b == 0 { return Value::Empty; }
+                Value::I32(a.wrapping_div(b))
+            }
+            (Value::I64(a), Value::I64(b)) => {
+                if b == 0 { return Value::Empty; }
+                Value::I64(a.wrapping_div(b))
+            }
+```",https://github.com/HelixDB/helix-db/pull/845#discussion_r2746255502,,2026-01-30T13:22:47+00:00,runtime,high,"This is a genuine bug catch - division by zero with wrapping_div will cause a panic in Rust, crashing the program. This affects normal usage whenever a user performs division with a zero divisor through the Value type's arithmetic operations. The comment correctly identifies the issue and provides a concrete fix.",2026-01-30T14:25:02.873554+00:00
