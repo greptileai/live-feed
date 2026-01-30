@@ -826,3 +826,52 @@ In `backend/onyx/db/enums.py`, `OpenSearchTenantMigrationStatus` uses lowercase 
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/onyx-dot-app/onyx/pull/8013#discussion_r2747186530,,2026-01-30T17:04:41+00:00,data_integrity,high,"This catch identifies a real mismatch between the Python enum definitions (lowercase values like 'pending', 'completed') and the database migration (uppercase values like 'PENDING', 'COMPLETED'). This would cause database operations to fail when the ORM tries to map between Python enums and database values. The comment correctly identifies the issue and provides the fix with cross-reference to the actual enum definitions.",2026-01-30T18:27:08.877934+00:00
+posthog/posthog,46426,chore(feature flags): client-side search/filter,https://github.com/PostHog/posthog/pull/46426,"pagination disabled whenever client-side filtering reduces results below total count, but pagination should still work on the filtered subset. users can't navigate through filtered results if there are more than 100 matches
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: frontend/src/scenes/feature-flags/FeatureFlags.tsx
+Line: 495:495
+
+Comment:
+pagination disabled whenever client-side filtering reduces results below total count, but pagination should still work on the filtered subset. users can't navigate through filtered results if there are more than 100 matches
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/46426#discussion_r2747522938,"Agreed. Additionally, this also prevents loading more pages from the server - if the user searches for ""test"" and only 15 cached flags match, they can't fetch page 2 which might have more matches.",2026-01-30T18:45:30+00:00,logic,medium,"This comment correctly identifies that pagination is disabled when client-side filtering reduces results, preventing users from navigating through filtered results or fetching additional pages from the server. The developer confirmed this is a real issue affecting user experience. This is the most impactful catch as it breaks core functionality of browsing filtered feature flags.",2026-01-30T20:20:29.552473+00:00
+getarcaneapp/arcane,1602,refactor: use docker dhi images for runtimes and builds,https://github.com/getarcaneapp/arcane/pull/1602,"`apk` is Alpine's package manager, but `dhi.io/static:20250419-glibc` appears to be a glibc-based image (not Alpine/musl-based). This will fail at build time with ""apk: command not found"" or similar error.
+
+Check whether `dhi.io/static:20250419-glibc` is Alpine-based. If not Alpine, either:
+- Use a different base image that's Alpine-based, or
+- Remove the `apk add` line if `curl`, `ca-certificates`, and `tzdata` are already included in the base image (which they likely are, given the diff shows they were removed from the install line)
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: docker/next-builds/Dockerfile-static
+Line: 7:7
+
+Comment:
+`apk` is Alpine's package manager, but `dhi.io/static:20250419-glibc` appears to be a glibc-based image (not Alpine/musl-based). This will fail at build time with ""apk: command not found"" or similar error.
+
+Check whether `dhi.io/static:20250419-glibc` is Alpine-based. If not Alpine, either:
+- Use a different base image that's Alpine-based, or
+- Remove the `apk add` line if `curl`, `ca-certificates`, and `tzdata` are already included in the base image (which they likely are, given the diff shows they were removed from the install line)
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/getarcaneapp/arcane/pull/1602#discussion_r2747512213,,2026-01-30T18:41:32+00:00,runtime,high,"This is a valid catch - the Dockerfile switches from Alpine to a glibc-based image but still uses `apk` (Alpine's package manager), which will cause the Docker build to fail immediately. This is a guaranteed build failure that would block deployment. Comment 0 and 1 are duplicates for different files with the same issue.",2026-01-30T20:20:29.552577+00:00
+openucx/ucc,1260,TL/NCCL: add user buffer registration via memmap,https://github.com/openucx/ucc/pull/1260,"buffer size calculation is incorrect for variable-size collectives (ALLTOALLV, ALLGATHERV, GATHERV, SCATTERV). For these collectives, `coll_args->args.src` uses the `info_v` union member with `counts*` array, not `info.count` scalar. Accessing `.info.count` reads the `counts` pointer as an integer, resulting in incorrect buffer size. Need to check `coll_args->args.coll_type` and use appropriate buffer size calculation for each collective type.
+
+```suggestion
+            // TODO: Need to calculate correct buffer size based on coll_type
+            // For variable-size collectives (ALLTOALLV, ALLGATHERV, etc), 
+            // must sum counts array instead of using single count value
+            status = ucc_tl_nccl_lazy_register_memh(
+                coll_args->args.src.info.buffer,
+                coll_args->args.src.info.count *
+                    ucc_dt_size(coll_args->args.src.info.datatype),
+```",https://github.com/openucx/ucc/pull/1260#discussion_r2747554746,,2026-01-30T18:55:12+00:00,logic,high,"Comment 0 identifies a real bug where variable-size collectives (ALLTOALLV, ALLGATHERV, etc.) use a union with `counts*` array in the `info_v` member, but the code incorrectly accesses `.info.count` which would interpret the pointer as an integer. This would cause incorrect buffer size calculations for these collective operations, leading to wrong memory registration bounds.",2026-01-30T20:20:29.552655+00:00
