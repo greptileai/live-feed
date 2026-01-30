@@ -606,3 +606,17 @@ helixdb/helix-db,843,Add HNSWDiagnostics endpoint for graph health checks,https:
         .map(|(id, _)| id)
         .collect();
 ```",https://github.com/HelixDB/helix-db/pull/843#discussion_r2744671602,,2026-01-30T05:29:18+00:00,runtime,high,"Greptile correctly identified that the code calls a method `get_all_vector_ids` that doesn't exist on the `VectorCore` type. This would cause a compilation error, preventing the feature from working at all. The reviewer provided a concrete fix showing how to iterate over the underlying database instead.",2026-01-30T06:29:30.425041+00:00
+green-coding-solutions/green-metrics-tool,1529,(fix): Hardware Info Root Sudoers entry was possible to hijack,https://github.com/green-coding-solutions/green-metrics-tool/pull/1529,"**CRITICAL: Sudoers entry doesn't match actual code invocations**
+
+The sudoers entries now require direct path format:
+- `/usr/bin/python3 /path/to/lib/hardware_info_root.py`
+
+But the actual code still uses module format:
+- `lib/scenario_runner.py:797`: `sudo /usr/bin/python3 -m lib.hardware_info_root`
+- `lib/utils.py:216`: `sudo python3 -m lib.hardware_info_root --read-rapl-energy-filtering`
+
+These won't match the sudoers entry and sudo will prompt for password or fail.
+
+**Fix:** Either update `scenario_runner.py` and `utils.py` to use direct path invocation, OR keep the sudoers entry using `-m lib.hardware_info_root` format (which was the original vulnerable format that this PR aims to fix).
+
+The secure solution is to update the code invocations to match the new sudoers format.",https://github.com/green-coding-solutions/green-metrics-tool/pull/1529#discussion_r2745104559,,2026-01-30T08:04:48+00:00,runtime,critical,"This catch identifies a critical mismatch where the sudoers file is being updated to use direct path format, but the actual code invocations in scenario_runner.py and utils.py still use the `-m lib.hardware_info_root` module format. This would cause sudo commands to fail or prompt for password in production, completely breaking the functionality. The comment correctly identifies both the problem and the solution path.",2026-01-30T08:23:21.146349+00:00
