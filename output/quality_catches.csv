@@ -736,3 +736,56 @@ helixdb/helix-db,845,impr (hql+core): nested ids and math ops,https://github.com
                 Value::I64(a.wrapping_div(b))
             }
 ```",https://github.com/HelixDB/helix-db/pull/845#discussion_r2746255502,,2026-01-30T13:22:47+00:00,runtime,high,"This is a genuine bug catch - division by zero with wrapping_div will cause a panic in Rust, crashing the program. This affects normal usage whenever a user performs division with a zero divisor through the Value type's arithmetic operations. The comment correctly identifies the issue and provides a concrete fix.",2026-01-30T14:25:02.873554+00:00
+posthog/posthog,46391,feat(customers): Add revenue data to person profiles,https://github.com/PostHog/posthog/pull/46391,"the `loadRevenueData` action is never called, so revenue data will never load. Add an `afterMount` that calls `actions.loadRevenueData()` (similar to how `groupLogic` calls `actions.loadGroupRevenueAnalyticsData()` in its `afterMount` at groupLogic.ts:316)
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: frontend/src/scenes/persons/personLogic.tsx
+Line: 137:150
+
+Comment:
+the `loadRevenueData` action is never called, so revenue data will never load. Add an `afterMount` that calls `actions.loadRevenueData()` (similar to how `groupLogic` calls `actions.loadGroupRevenueAnalyticsData()` in its `afterMount` at groupLogic.ts:316)
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/46391#discussion_r2746560402,,2026-01-30T14:24:44+00:00,logic,high,"This is a clear functional bug - the PR adds a `loadRevenueData` loader to fetch revenue data for person profiles, but never actually calls it anywhere. The revenue data feature simply won't work as implemented. The reviewer correctly identifies the pattern used elsewhere (groupLogic's afterMount) that should be followed here.",2026-01-30T16:25:13.000671+00:00
+raycast/extensions,25000,Add okta-app-manager extension,https://github.com/raycast/extensions/pull/25000,`confirm()` is not available in Raycast. Use `Action` with confirmation or `Alert` API instead.,https://github.com/raycast/extensions/pull/25000#discussion_r2746966008,,2026-01-30T16:08:56+00:00,runtime,high,"The comment correctly identifies that `confirm()` is a browser API that doesn't exist in Raycast's environment. This will cause a runtime error when users try to delete an environment, making it a real bug that affects normal usage. The fix is straightforward - use Raycast's Alert API instead.",2026-01-30T16:25:13.000772+00:00
+infisical/infisical,5325,feat(ui): add app connection id permission condition to secret syncs,https://github.com/Infisical/infisical/pull/5325,"<details>
+<summary>Additional Comments (1)</summary>
+
+**`backend/src/services/secret-sync/secret-sync-service.ts`**
+**Critical Security Issue: Permission bypass when updating `connectionId`**
+
+The permission checks use the OLD `connectionId` from the existing sync, but when `params.connectionId` is provided (line 502-511), the update allows changing to a NEW connection without verifying permission against that new `connectionId`.
+
+**Attack scenario:**
+1. User has Read/Edit on syncs with `connectionId=conn-1`  
+2. User does NOT have access to `connectionId=conn-2`
+3. User calls update with `params.connectionId=conn-2`
+4. Permission check at line 436-443 passes (checks OLD `conn-1`)
+5. Line 502-511 only validates the connection exists
+6. User successfully updates sync to use `conn-2`, bypassing permission restrictions
+
+**Fix required:**
+When `params.connectionId` is provided, add a permission check against the NEW connection:
+
+```typescript
+if (params.connectionId && params.connectionId !== connectionId) {
+  // Check permission against NEW connectionId
+  ForbiddenError.from(permission).throwUnlessCan(
+    ProjectPermissionSecretSyncActions.Edit,
+    secretSync.environment?.slug && secretSync.folder?.path
+      ? subject(ProjectPermissionSub.SecretSyncs, {
+          environment: secretSync.environment.slug,
+          secretPath: secretSync.folder.path,
+          connectionId: params.connectionId
+        })
+      : ProjectPermissionSub.SecretSyncs
+  );
+}
+```
+
+Note: Secret rotation correctly prevents this by excluding `connectionId` from `TUpdateSecretRotationV2DTO`.
+</details>",https://github.com/Infisical/infisical/pull/5325#issuecomment-3824534353,,2026-01-30T16:16:14+00:00,security,critical,"This identifies a permission bypass vulnerability where a user can change a sync's connectionId to one they don't have access to. The permission check only validates against the OLD connectionId, allowing users to escalate privileges by updating to a connection they shouldn't have access to. This is a clear security flaw in the authorization logic that could allow unauthorized access to connections.",2026-01-30T16:25:13.000803+00:00
