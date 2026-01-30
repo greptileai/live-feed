@@ -620,3 +620,30 @@ These won't match the sudoers entry and sudo will prompt for password or fail.
 **Fix:** Either update `scenario_runner.py` and `utils.py` to use direct path invocation, OR keep the sudoers entry using `-m lib.hardware_info_root` format (which was the original vulnerable format that this PR aims to fix).
 
 The secure solution is to update the code invocations to match the new sudoers format.",https://github.com/green-coding-solutions/green-metrics-tool/pull/1529#discussion_r2745104559,,2026-01-30T08:04:48+00:00,runtime,critical,"This catch identifies a critical mismatch where the sudoers file is being updated to use direct path format, but the actual code invocations in scenario_runner.py and utils.py still use the `-m lib.hardware_info_root` module format. This would cause sudo commands to fail or prompt for password in production, completely breaking the functionality. The comment correctly identifies both the problem and the solution path.",2026-01-30T08:23:21.146349+00:00
+posthog/posthog,46351,feat(devex): nodejs composable capability-groups,https://github.com/PostHog/posthog/pull/46351,"Dependency creates circular issue with capability group mapping
+
+`nodejs_realtime_cohorts` requires `nodejs_cdp_workflows`, but in `generator.py:227-234`, the capability mapping is flat - it doesn't handle transitive dependencies. When a user selects only `nodejs_realtime_cohorts`, the Python code will only add `realtime_cohorts` to `NODEJS_CAPABILITY_GROUPS`, but the TypeScript code in `capabilities.ts:28-30` only enables `cdpPrecalculatedFilters` and `cdpCohortMembership` without the CDP workflow capabilities that are required by the intent-map dependency.
+
+Either:
+1. Change the requires to `[event_ingestion]` instead of `[nodejs_cdp_workflows]`, OR
+2. Update `generator.py` to resolve transitive dependencies when building the capability groups string
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: devenv/intent-map.yaml
+Line: 104:104
+
+Comment:
+Dependency creates circular issue with capability group mapping
+
+`nodejs_realtime_cohorts` requires `nodejs_cdp_workflows`, but in `generator.py:227-234`, the capability mapping is flat - it doesn't handle transitive dependencies. When a user selects only `nodejs_realtime_cohorts`, the Python code will only add `realtime_cohorts` to `NODEJS_CAPABILITY_GROUPS`, but the TypeScript code in `capabilities.ts:28-30` only enables `cdpPrecalculatedFilters` and `cdpCohortMembership` without the CDP workflow capabilities that are required by the intent-map dependency.
+
+Either:
+1. Change the requires to `[event_ingestion]` instead of `[nodejs_cdp_workflows]`, OR
+2. Update `generator.py` to resolve transitive dependencies when building the capability groups string
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/46351#discussion_r2745298413,"  Fixed - changed nodejs_realtime_cohorts to require event_ingestion instead of nodejs_cdp_workflows. The intent-map resolver handles transitive dependencies at resolution time, so the consumers are correctly independent.                                                ",2026-01-30T09:04:41+00:00,logic,medium,"This catch identified a real dependency resolution bug where nodejs_realtime_cohorts required nodejs_cdp_workflows, but the capability mapping was flat and wouldn't resolve transitive dependencies correctly. The developer confirmed and fixed it by changing the dependency to event_ingestion. This is a genuine architectural issue that could cause missing capabilities at runtime.",2026-01-30T10:22:36.136078+00:00
