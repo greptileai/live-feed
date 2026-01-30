@@ -789,3 +789,40 @@ if (params.connectionId && params.connectionId !== connectionId) {
 
 Note: Secret rotation correctly prevents this by excluding `connectionId` from `TUpdateSecretRotationV2DTO`.
 </details>",https://github.com/Infisical/infisical/pull/5325#issuecomment-3824534353,,2026-01-30T16:16:14+00:00,security,critical,"This identifies a permission bypass vulnerability where a user can change a sync's connectionId to one they don't have access to. The permission check only validates against the OLD connectionId, allowing users to escalate privileges by updating to a connection they shouldn't have access to. This is a clear security flaw in the authorization logic that could allow unauthorized access to connections.",2026-01-30T16:25:13.000803+00:00
+onyx-dot-app/onyx,8013,"feat(opensearch): Migration 0 - Introduce db tables, alembic migration, db model utils",https://github.com/onyx-dot-app/onyx/pull/8013,"enum values must be lowercase to match Python enum definitions
+
+In `backend/onyx/db/enums.py`, `OpenSearchTenantMigrationStatus` uses lowercase values (`""pending""`, `""completed""`), but this migration uses uppercase (`""PENDING""`, `""COMPLETED""`). Same issue exists on lines 40-46 and 72-78.
+
+```suggestion
+            sa.Enum(
+                ""pending"",
+                ""completed"",
+                name=""opensearchtenantmigrationstatus"",
+                native_enum=False,
+            ),
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: backend/alembic/versions/d7d881a02917_add_opensearch_migration_tables.py
+Line: 26:30
+
+Comment:
+enum values must be lowercase to match Python enum definitions
+
+In `backend/onyx/db/enums.py`, `OpenSearchTenantMigrationStatus` uses lowercase values (`""pending""`, `""completed""`), but this migration uses uppercase (`""PENDING""`, `""COMPLETED""`). Same issue exists on lines 40-46 and 72-78.
+
+```suggestion
+            sa.Enum(
+                ""pending"",
+                ""completed"",
+                name=""opensearchtenantmigrationstatus"",
+                native_enum=False,
+            ),
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/8013#discussion_r2747186530,,2026-01-30T17:04:41+00:00,data_integrity,high,"This catch identifies a real mismatch between the Python enum definitions (lowercase values like 'pending', 'completed') and the database migration (uppercase values like 'PENDING', 'COMPLETED'). This would cause database operations to fail when the ORM tries to map between Python enums and database values. The comment correctly identifies the issue and provides the fix with cross-reference to the actual enum definitions.",2026-01-30T18:27:08.877934+00:00
