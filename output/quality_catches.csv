@@ -577,3 +577,32 @@ Field name mismatch - should be `partialDebugInfoProgress` not `forwardedDebugIn
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/greptileai/react-mirror/pull/335#discussion_r2744270097,,2026-01-30T01:47:00+00:00,type_error,high,This is a clear field name mismatch bug where the type declaration uses `partialDebugInfoProgress` but the initialization uses `forwardedDebugInfos`. This would cause runtime errors or broken functionality when the code tries to access the correctly-named field that was never initialized. The type system would not catch this at runtime since JavaScript doesn't enforce types.,2026-01-30T03:10:50.719005+00:00
+posthog/posthog,46349,chore(ducklake): simplify schema and table naming,https://github.com/PostHog/posthog/pull/46349,"removing `_{schema.id.hex[:8]}` from table names will cause naming conflicts when a team has multiple `ExternalDataSchema` objects with the same `source_type` and `normalized_name`. The codebase explicitly acknowledges this possibility (see `external_data_schema.py:368`), and the schema's unique ID is used in `folder_path()` to avoid conflicts. Without the schema ID suffix, `CREATE OR REPLACE TABLE` will overwrite data from different schemas.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: posthog/temporal/ducklake/ducklake_copy_data_imports_workflow.py
+Line: 197:199
+
+Comment:
+removing `_{schema.id.hex[:8]}` from table names will cause naming conflicts when a team has multiple `ExternalDataSchema` objects with the same `source_type` and `normalized_name`. The codebase explicitly acknowledges this possibility (see `external_data_schema.py:368`), and the schema's unique ID is used in `folder_path()` to avoid conflicts. Without the schema ID suffix, `CREATE OR REPLACE TABLE` will overwrite data from different schemas.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/46349#discussion_r2744668903,,2026-01-30T05:28:21+00:00,data_integrity,high,"This is a legitimate data integrity bug. Removing the schema ID suffix from table names will cause data overwrites when a team has multiple ExternalDataSchema objects with the same source_type and normalized_name - a scenario the codebase explicitly acknowledges is possible. The reviewer correctly identified that the unique ID is used elsewhere (folder_path) to prevent this exact conflict, and without it, CREATE OR REPLACE TABLE will silently overwrite different schemas' data.",2026-01-30T06:29:30.424979+00:00
+helixdb/helix-db,843,Add HNSWDiagnostics endpoint for graph health checks,https://github.com/HelixDB/helix-db/pull/843,"`get_all_vector_ids` method doesn't exist on `VectorCore`
+
+`VectorCore` doesn't have a `get_all_vector_ids` method. Need to iterate over `vector_properties_db` instead:
+
+```suggestion
+    let vector_ids: Vec<u128> = db
+        .vectors
+        .vector_properties_db
+        .iter(&txn)
+        .map_err(|e| GraphError::New(format!(""Failed to iterate vector IDs: {}"", e)))?
+        .filter_map(|r| r.ok())
+        .map(|(id, _)| id)
+        .collect();
+```",https://github.com/HelixDB/helix-db/pull/843#discussion_r2744671602,,2026-01-30T05:29:18+00:00,runtime,high,"Greptile correctly identified that the code calls a method `get_all_vector_ids` that doesn't exist on the `VectorCore` type. This would cause a compilation error, preventing the feature from working at all. The reviewer provided a concrete fix showing how to iterate over the underlying database instead.",2026-01-30T06:29:30.425041+00:00
