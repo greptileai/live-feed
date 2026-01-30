@@ -428,3 +428,72 @@ How can I resolve this? If you propose a fix, please make it concise.
 </details>",https://github.com/gptme/gptme-contrib/pull/225#discussion_r2742594440,"✅ Fixed in commit 93c0ba0 - added `blocked` virtual state with red styling to STATE_STYLES.
 
 Good catch! The comment distinguishes it from stored frontmatter states.",2026-01-29T16:50:36+00:00,logic,low,"Greptile correctly identified that the new 'blocked' virtual state returned by compute_effective_state() was missing from STATE_STYLES, causing it to fall back to default white styling instead of appropriate red styling. The developer confirmed this with '✅ Fixed' and 'Good catch!'. While not a critical bug, it's a valid issue that would affect user experience by making blocked tasks visually indistinct.",2026-01-29T18:29:27.407441+00:00
+greptileai/react-mirror,335,[Flight] Forward early debug info for lazy chunks,https://github.com/greptileai/react-mirror/pull/335,"Field name mismatch - initialized as `forwardedDebugInfos` but type definition at line 617 declares `partialDebugInfoProgress`. This will cause the WeakMap to never be initialized, breaking the progressive debug info tracking.
+
+```suggestion
+    this.partialDebugInfoProgress = null;
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/react-server/src/ReactFlightServer.js
+Line: 742:742
+
+Comment:
+Field name mismatch - initialized as `forwardedDebugInfos` but type definition at line 617 declares `partialDebugInfoProgress`. This will cause the WeakMap to never be initialized, breaking the progressive debug info tracking.
+
+```suggestion
+    this.partialDebugInfoProgress = null;
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/greptileai/react-mirror/pull/335#discussion_r2744122368,,2026-01-30T00:39:33+00:00,type_error,high,Greptile correctly identified a field name mismatch where the type definition declares `partialDebugInfoProgress` but the initialization uses `forwardedDebugInfos`. This is a clear bug that would cause the progressive debug info tracking feature to completely fail since the WeakMap would never be properly initialized under the expected field name. The code would attempt to access `partialDebugInfoProgress` but find null/undefined instead of the WeakMap.,2026-01-30T00:50:50.252520+00:00
+gptme/gptme-contrib,230,feat(plugins): add gptme-retrieval plugin for automatic context retrieval,https://github.com/gptme/gptme-contrib/pull/230,"Shell injection vulnerability - user-controlled `backend` value passed directly to shell. If backend comes from untrusted config, this allows arbitrary command execution.
+
+```suggestion
+    cmd = [backend, query, ""--mode"", mode, ""-n"", str(max_results)]
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: plugins/gptme-retrieval/src/gptme_retrieval/__init__.py
+Line: 201:201
+
+Comment:
+Shell injection vulnerability - user-controlled `backend` value passed directly to shell. If backend comes from untrusted config, this allows arbitrary command execution.
+
+```suggestion
+    cmd = [backend, query, ""--mode"", mode, ""-n"", str(max_results)]
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/gptme/gptme-contrib/pull/230#discussion_r2744032789,,2026-01-30T00:02:55+00:00,security,critical,"This is a legitimate shell injection vulnerability where user-controlled config values (backend) are passed to subprocess execution. The suggestion to use a list format instead of shell=True prevents command injection attacks. While the config comes from toml files (somewhat trusted), allowing arbitrary custom commands makes this a real security concern.",2026-01-30T00:50:50.252618+00:00
+gptme/gptme-contrib,229,fix(gptodo): ensure tmux sessions inherit environment variables,https://github.com/gptme/gptme-contrib/pull/229,"`workspace` is not shell-escaped, creating command injection vulnerability if workspace path contains special characters
+
+```suggestion
+        full_cmd = f""bash -l -c {shlex.quote(f'cd {shlex.quote(str(workspace))} && {env_setup}{shell_cmd}')}""
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/gptodo/src/gptodo/subagent.py
+Line: 173:173
+
+Comment:
+`workspace` is not shell-escaped, creating command injection vulnerability if workspace path contains special characters
+
+```suggestion
+        full_cmd = f""bash -l -c {shlex.quote(f'cd {shlex.quote(str(workspace))} && {env_setup}{shell_cmd}')}""
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/gptme/gptme-contrib/pull/229#discussion_r2743888735,✅ Fixed in commit ee90d31 - added `safe_workspace = shlex.quote(str(workspace))` before using it in the command.,2026-01-29T23:01:24+00:00,security,high,"Greptile correctly identified a command injection vulnerability where the workspace path was not shell-escaped when used inside the nested shell command. The developer confirmed and fixed the issue. While workspace paths containing special characters aren't common, this is a real security bug that could cause incorrect behavior or exploitation in production environments.",2026-01-30T00:50:50.252678+00:00
