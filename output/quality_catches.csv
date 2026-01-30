@@ -875,3 +875,25 @@ openucx/ucc,1260,TL/NCCL: add user buffer registration via memmap,https://github
                 coll_args->args.src.info.count *
                     ucc_dt_size(coll_args->args.src.info.datatype),
 ```",https://github.com/openucx/ucc/pull/1260#discussion_r2747554746,,2026-01-30T18:55:12+00:00,logic,high,"Comment 0 identifies a real bug where variable-size collectives (ALLTOALLV, ALLGATHERV, etc.) use a union with `counts*` array in the `info_v` member, but the code incorrectly accesses `.info.count` which would interpret the pointer as an integer. This would cause incorrect buffer size calculations for these collective operations, leading to wrong memory registration bounds.",2026-01-30T20:20:29.552655+00:00
+nvidia-nemo/curator,1446,cp: `ci: Optimize docker layer and uv with no cache (1444)` into `r1.1.0`,https://github.com/NVIDIA-NeMo/Curator/pull/1446,"`nemo_curator/__init__.py` imports `cosmos_xenna.ray_utils.cluster` on line 34, which won't be available until after `uv sync` runs. This will cause the build to fail when uv tries to read the version from `nemo_curator.package_info.__version__`.
+
+```suggestion
+COPY nemo_curator/package_info.py /opt/Curator/nemo_curator/
+```
+
+Remove `__init__.py` from this COPY command and only copy `package_info.py` which is actually needed for version resolution.",https://github.com/NVIDIA-NeMo/Curator/pull/1446#discussion_r2748082814,,2026-01-30T21:46:34+00:00,runtime,high,Greptile correctly identified that copying `__init__.py` before running `uv sync` will cause a build failure because `__init__.py` imports `cosmos_xenna.ray_utils.cluster` which isn't installed yet. This is a concrete build-breaking bug that would affect anyone trying to build this Docker image. The suggestion to only copy `package_info.py` (which is what's actually needed for version resolution) is actionable and correct.,2026-01-30T22:17:33.961712+00:00
+requestnetwork/requestnetwork,1693,build(deps-dev): Bump eslint from 7.22.0 to 9.26.0,https://github.com/RequestNetwork/requestNetwork/pull/1693,"ESLint 9 introduces breaking changes: `@typescript-eslint/eslint-plugin` v4.18.0 and `@typescript-eslint/parser` v4.18.0 are incompatible with ESLint 9. These TypeScript ESLint packages require upgrade to v8.x or v9.x to work with ESLint 9.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: package.json
+Line: 42:43
+
+Comment:
+ESLint 9 introduces breaking changes: `@typescript-eslint/eslint-plugin` v4.18.0 and `@typescript-eslint/parser` v4.18.0 are incompatible with ESLint 9. These TypeScript ESLint packages require upgrade to v8.x or v9.x to work with ESLint 9.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/RequestNetwork/requestNetwork/pull/1693#discussion_r2747918958,,2026-01-30T20:40:50+00:00,runtime,high,This catch correctly identifies that ESLint 9 has breaking changes that make it incompatible with the TypeScript ESLint packages at version 4.18.0. This would cause the build/lint process to fail in production since the packages are fundamentally incompatible. This is a significant catch for a dependency bump PR that could break CI/CD pipelines.,2026-01-30T22:17:33.961775+00:00
