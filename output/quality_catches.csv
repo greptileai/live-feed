@@ -497,3 +497,83 @@ Comment:
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/gptme/gptme-contrib/pull/229#discussion_r2743888735,✅ Fixed in commit ee90d31 - added `safe_workspace = shlex.quote(str(workspace))` before using it in the command.,2026-01-29T23:01:24+00:00,security,high,"Greptile correctly identified a command injection vulnerability where the workspace path was not shell-escaped when used inside the nested shell command. The developer confirmed and fixed the issue. While workspace paths containing special characters aren't common, this is a real security bug that could cause incorrect behavior or exploitation in production environments.",2026-01-30T00:50:50.252678+00:00
+posthog/posthog,46345,feat(duckling): auto-create events and persons tables if missing,https://github.com/PostHog/posthog/pull/46345,"SQL injection risk: f-string interpolation in SQL query allows potential injection if parameters aren't controlled. While `catalog_alias`, `schema`, and `table` are currently hardcoded as ""duckling""/""main""/""events""/""persons"", the function signature accepts arbitrary strings.
+
+```suggestion
+def table_exists(
+    conn: duckdb.DuckDBPyConnection,
+    catalog_alias: str,
+    schema: str,
+    table: str,
+) -> bool:
+    """"""Check if a table exists in the DuckLake catalog.""""""
+    try:
+        # Use parameterized query to prevent SQL injection
+        # DuckDB doesn't support parameterized identifiers in DESCRIBE,
+        # so validate inputs are safe identifiers
+        for identifier in [catalog_alias, schema, table]:
+            if not identifier.replace(""_"", """").isalnum():
+                raise ValueError(f""Invalid identifier: {identifier}"")
+        conn.execute(f""DESCRIBE {catalog_alias}.{schema}.{table}"")
+        return True
+    except duckdb.CatalogException:
+        return False
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: posthog/dags/events_backfill_to_duckling.py
+Line: 295:306
+
+Comment:
+SQL injection risk: f-string interpolation in SQL query allows potential injection if parameters aren't controlled. While `catalog_alias`, `schema`, and `table` are currently hardcoded as ""duckling""/""main""/""events""/""persons"", the function signature accepts arbitrary strings.
+
+```suggestion
+def table_exists(
+    conn: duckdb.DuckDBPyConnection,
+    catalog_alias: str,
+    schema: str,
+    table: str,
+) -> bool:
+    """"""Check if a table exists in the DuckLake catalog.""""""
+    try:
+        # Use parameterized query to prevent SQL injection
+        # DuckDB doesn't support parameterized identifiers in DESCRIBE,
+        # so validate inputs are safe identifiers
+        for identifier in [catalog_alias, schema, table]:
+            if not identifier.replace(""_"", """").isalnum():
+                raise ValueError(f""Invalid identifier: {identifier}"")
+        conn.execute(f""DESCRIBE {catalog_alias}.{schema}.{table}"")
+        return True
+    except duckdb.CatalogException:
+        return False
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/46345#discussion_r2744290999,"Already addressed in commit 726837e7. Added `_validate_identifier()` function that validates all identifiers are alphanumeric/underscore only before interpolation, with comprehensive tests for SQL injection attempts.",2026-01-30T01:57:49+00:00,security,medium,"Greptile correctly identified a SQL injection vulnerability where f-string interpolation was used with function parameters that could accept arbitrary strings. The developer confirmed this was a valid catch and fixed it by adding identifier validation. While the current usage was hardcoded safe values, the function signature allowed arbitrary input, making this a real security concern worth fixing.",2026-01-30T03:10:50.718850+00:00
+greptileai/react-mirror,335,[Flight] Forward early debug info for lazy chunks,https://github.com/greptileai/react-mirror/pull/335,"Field name mismatch - should be `partialDebugInfoProgress` not `forwardedDebugInfos` (type at line 617 declares `partialDebugInfoProgress`). This breaks progressive debug info tracking.
+
+```suggestion
+    this.partialDebugInfoProgress = null;
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/react-server/src/ReactFlightServer.js
+Line: 742:742
+
+Comment:
+Field name mismatch - should be `partialDebugInfoProgress` not `forwardedDebugInfos` (type at line 617 declares `partialDebugInfoProgress`). This breaks progressive debug info tracking.
+
+```suggestion
+    this.partialDebugInfoProgress = null;
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/greptileai/react-mirror/pull/335#discussion_r2744270097,,2026-01-30T01:47:00+00:00,type_error,high,This is a clear field name mismatch bug where the type declaration uses `partialDebugInfoProgress` but the initialization uses `forwardedDebugInfos`. This would cause runtime errors or broken functionality when the code tries to access the correctly-named field that was never initialized. The type system would not catch this at runtime since JavaScript doesn't enforce types.,2026-01-30T03:10:50.719005+00:00
