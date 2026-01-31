@@ -1189,3 +1189,28 @@ matplotlib removed from dependencies but still imported in `pufferlib/ocean/benc
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/Emerge-Lab/Adaptive_Driving_Agent/pull/21#discussion_r2749748168,,2026-01-31T17:05:08+00:00,runtime,high,"Greptile correctly identified that removing matplotlib from dependencies while it's still imported in evaluator.py and estimators.py will cause an ImportError at runtime. This is a concrete, verifiable bug that will break WOSAC evaluations in production. The reviewer traced the dependency chain and provided specific file locations where the import exists.",2026-01-31T18:17:48.114765+00:00
+nvidia/nvflare,3876,Feature Election contribution,https://github.com/NVIDIA/NVFlare/pull/3876,"**CRITICAL SYNTAX ERROR**: Lines 156-170 contain broken try-except blocks with duplicate code and incomplete control flow.
+
+Line 162 ends with `if match:` but is never completed. Lines 163-164 start a duplicate `if site_name.startswith(""site-""):` block. This code will not execute correctly.
+
+The correct structure should be:
+
+```suggestion
+        try:
+            if site_name.startswith(""site-""):
+                client_id = int(site_name.split(""-"")[1]) - 1
+            else:
+                match = re.search(r""\d+"", site_name)
+                if match:
+                    client_id = int(match.group()) - 1
+                else:
+                    client_id = 0
+            
+            # Validate range
+            if not (0 <= client_id < self.num_clients):
+                raise ValueError(f""Client ID {client_id} from '{site_name}' out of range [0, {self.num_clients-1}]"")
+            
+        except (ValueError, IndexError) as e:
+            logger.error(f""Failed to parse client_id from '{site_name}': {e}. Defaulting to client_id=0"")
+            client_id = 0
+```",https://github.com/NVIDIA/NVFlare/pull/3876#discussion_r2749930177,"correct, solved",2026-01-31T19:46:48+00:00,runtime,high,"This comment identifies a critical syntax error with broken try-except blocks, duplicate code, and incomplete control flow that would cause the code to fail at runtime. The developer confirmed it was correct and fixed it. This is a clear, impactful bug that would break functionality in production.",2026-01-31T20:15:02.088225+00:00
