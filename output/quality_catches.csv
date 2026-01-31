@@ -1141,3 +1141,51 @@ mrmps/smry,57,"Add Gravity micro/inline ads, AI copy menu, and buy-click device 
     }
   }, [sources.length, prevSourcesLen, deselectedSources.size]);
 ```",https://github.com/mrmps/SMRY/pull/57#discussion_r2749168539,,2026-01-31T07:46:34+00:00,runtime,high,"Calling setState during render (outside of useEffect) is a React anti-pattern that will cause infinite re-renders. The code sets `setPrevSourcesLen` and `setDeselectedSources` directly in the component body during render, which triggers more renders. This is a real bug that would cause performance issues or crashes in production.",2026-01-31T08:17:01.571420+00:00
+twentyhq/twenty,17602,feat(imap): Enterprise-Grade IDLE + Chunked Sync,https://github.com/twentyhq/twenty/pull/17602,"[P0] `startIdle` awaits `client.idle()`, which typically only resolves when IDLE ends. This means `startIdle` likely never returns while the connection is healthy, and `activeClients.set(accountId, client)` / the ""IDLE started"" log may never execute. In practice this can block whatever code path calls `startIdle` and prevent tracking the active client.
+
+If you want IDLE to run in the background, it usually needs to be started without awaiting completion (or managed in a long-lived task), and `activeClients` should be set before entering the long wait.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/twenty-server/src/modules/messaging/message-import-manager/drivers/imap/services/imap-idle.service.ts
+Line: 15:18
+
+Comment:
+[P0] `startIdle` awaits `client.idle()`, which typically only resolves when IDLE ends. This means `startIdle` likely never returns while the connection is healthy, and `activeClients.set(accountId, client)` / the ""IDLE started"" log may never execute. In practice this can block whatever code path calls `startIdle` and prevent tracking the active client.
+
+If you want IDLE to run in the background, it usually needs to be started without awaiting completion (or managed in a long-lived task), and `activeClients` should be set before entering the long wait.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/twentyhq/twenty/pull/17602#discussion_r2749733668,,2026-01-31T16:48:54+00:00,logic,high,"Comment 0 correctly identifies that `await client.idle()` is a blocking call that only resolves when IDLE ends, meaning the code after it (`activeClients.set()` and the log) will never execute while the connection is healthy. This is a fundamental bug that will cause the service to block indefinitely and fail to track active clients, breaking the entire IDLE functionality. The analysis is technically accurate for the imapflow library.",2026-01-31T18:17:48.114665+00:00
+emerge-lab/adaptive_driving_agent,21,"Revert ""Sync upstream docs evals ci (#20)""",https://github.com/Emerge-Lab/Adaptive_Driving_Agent/pull/21,"matplotlib removed from dependencies but still imported in `pufferlib/ocean/benchmark/evaluator.py:9` and `pufferlib/ocean/benchmark/estimators.py`. This will cause ImportError when running WOSAC evaluations.
+
+```suggestion
+        ""heavyball<2.0.0"",
+        ""neptune"",
+        ""wandb"",
+        ""matplotlib"",
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: setup.py
+Line: 326:328
+
+Comment:
+matplotlib removed from dependencies but still imported in `pufferlib/ocean/benchmark/evaluator.py:9` and `pufferlib/ocean/benchmark/estimators.py`. This will cause ImportError when running WOSAC evaluations.
+
+```suggestion
+        ""heavyball<2.0.0"",
+        ""neptune"",
+        ""wandb"",
+        ""matplotlib"",
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/Emerge-Lab/Adaptive_Driving_Agent/pull/21#discussion_r2749748168,,2026-01-31T17:05:08+00:00,runtime,high,"Greptile correctly identified that removing matplotlib from dependencies while it's still imported in evaluator.py and estimators.py will cause an ImportError at runtime. This is a concrete, verifiable bug that will break WOSAC evaluations in production. The reviewer traced the dependency chain and provided specific file locations where the import exists.",2026-01-31T18:17:48.114765+00:00
