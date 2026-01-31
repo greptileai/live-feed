@@ -897,3 +897,142 @@ ESLint 9 introduces breaking changes: `@typescript-eslint/eslint-plugin` v4.18.0
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/RequestNetwork/requestNetwork/pull/1693#discussion_r2747918958,,2026-01-30T20:40:50+00:00,runtime,high,This catch correctly identifies that ESLint 9 has breaking changes that make it incompatible with the TypeScript ESLint packages at version 4.18.0. This would cause the build/lint process to fail in production since the packages are fundamentally incompatible. This is a significant catch for a dependency bump PR that could break CI/CD pipelines.,2026-01-30T22:17:33.961775+00:00
+alpaca-network/gatewayz-frontend,940,feat: integrate /models/unique endpoint with many-to-many providers,https://github.com/Alpaca-Network/gatewayz-frontend/pull/940,"<details>
+<summary>Additional Comments (4)</summary>
+
+**`src/app/models/models-client.tsx`**
+`GatewayPricing` type is used but not defined. The local interface was removed when switching to `UniqueModel`, but `MobileProviderSubRow` component still references it.
+
+```suggestion
+  pricing: { prompt: string; completion: string };
+```
+
+Either add the type definition back or use the inline type.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: src/app/models/models-client.tsx
+Line: 240:240
+
+Comment:
+`GatewayPricing` type is used but not defined. The local interface was removed when switching to `UniqueModel`, but `MobileProviderSubRow` component still references it.
+
+```suggestion
+  pricing: { prompt: string; completion: string };
+```
+
+Either add the type definition back or use the inline type.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>
+
+---
+
+**`src/app/models/models-client.tsx`**
+`gateway_pricing` property doesn't exist on `UniqueModel` type. The new endpoint uses `providers` array instead. This will cause TypeScript errors.
+
+The code should access provider pricing through `model.providers` array instead:
+
+```
+const gatewayPricing: Record<string, { prompt: string; completion: string }> = {};
+model.providers.forEach(p => {
+  gatewayPricing[p.slug] = p.pricing;
+});
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: src/app/models/models-client.tsx
+Line: 284:284
+
+Comment:
+`gateway_pricing` property doesn't exist on `UniqueModel` type. The new endpoint uses `providers` array instead. This will cause TypeScript errors.
+
+The code should access provider pricing through `model.providers` array instead:
+
+```
+const gatewayPricing: Record<string, { prompt: string; completion: string }> = {};
+model.providers.forEach(p => {
+  gatewayPricing[p.slug] = p.pricing;
+});
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>
+
+---
+
+**`src/app/models/models-client.tsx`**
+`MobileModelRow` component uses old `Model` properties that don't exist on `UniqueModel`:
+- `model.pricing` (line 278) - doesn't exist, should use `providers[0].pricing`
+- `model.provider_slug` (line 281) - doesn't exist, should use `providers[0].slug`
+- `model.gateway_pricing` (line 284) - doesn't exist, should build from `providers` array
+
+This component needs to be updated to use the `UniqueModel` structure like the desktop `ExpandableModelRow` component does (lines 398-406).
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: src/app/models/models-client.tsx
+Line: 278:286
+
+Comment:
+`MobileModelRow` component uses old `Model` properties that don't exist on `UniqueModel`:
+- `model.pricing` (line 278) - doesn't exist, should use `providers[0].pricing`
+- `model.provider_slug` (line 281) - doesn't exist, should use `providers[0].slug`
+- `model.gateway_pricing` (line 284) - doesn't exist, should build from `providers` array
+
+This component needs to be updated to use the `UniqueModel` structure like the desktop `ExpandableModelRow` component does (lines 398-406).
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>
+
+---
+
+**`src/app/models/models-client.tsx`**
+`ModelTableRow` component uses old properties that don't exist on `UniqueModel`:
+- `model.pricing` (lines 81, 84-85) - should use cheapest provider's pricing
+- `model.provider_slug` (lines 86, 95) - should use `providers[0].slug`
+
+Similar to `ExpandableModelRow`, this should be updated to:
+```
+const cheapestProvider = model.providers.find(p => p.slug === model.cheapest_provider) || model.providers[0];
+const hasPricing = cheapestProvider && cheapestProvider.pricing;
+const inputCost = hasPricing ? formatPricingForDisplay(cheapestProvider.pricing.prompt, cheapestProvider.slug) : null;
+const modelUrl = getModelUrl(model.id, model.providers[0]?.slug || 'unknown');
+const providerDisplay = model.providers[0]?.name || 'Unknown';
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: src/app/models/models-client.tsx
+Line: 81:86
+
+Comment:
+`ModelTableRow` component uses old properties that don't exist on `UniqueModel`:
+- `model.pricing` (lines 81, 84-85) - should use cheapest provider's pricing
+- `model.provider_slug` (lines 86, 95) - should use `providers[0].slug`
+
+Similar to `ExpandableModelRow`, this should be updated to:
+```
+const cheapestProvider = model.providers.find(p => p.slug === model.cheapest_provider) || model.providers[0];
+const hasPricing = cheapestProvider && cheapestProvider.pricing;
+const inputCost = hasPricing ? formatPricingForDisplay(cheapestProvider.pricing.prompt, cheapestProvider.slug) : null;
+const modelUrl = getModelUrl(model.id, model.providers[0]?.slug || 'unknown');
+const providerDisplay = model.providers[0]?.name || 'Unknown';
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>
+</details>",https://github.com/Alpaca-Network/gatewayz-frontend/pull/940#issuecomment-3827244325,,2026-01-31T02:41:59+00:00,type_error,high,"Comment 1 (the consolidated comments) identifies multiple instances where the code accesses properties that don't exist on the new `UniqueModel` type - `model.pricing`, `model.provider_slug`, and `model.gateway_pricing` are all accessed but don't exist after the type change. This will cause TypeScript compilation errors and runtime failures if somehow bypassed. The issue affects multiple components (ModelTableRow, MobileModelRow) that weren't properly updated during the API migration.",2026-01-31T03:07:20.308070+00:00
