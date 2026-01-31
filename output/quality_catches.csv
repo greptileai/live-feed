@@ -1036,3 +1036,23 @@ How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>
 </details>",https://github.com/Alpaca-Network/gatewayz-frontend/pull/940#issuecomment-3827244325,,2026-01-31T02:41:59+00:00,type_error,high,"Comment 1 (the consolidated comments) identifies multiple instances where the code accesses properties that don't exist on the new `UniqueModel` type - `model.pricing`, `model.provider_slug`, and `model.gateway_pricing` are all accessed but don't exist after the type change. This will cause TypeScript compilation errors and runtime failures if somehow bypassed. The issue affects multiple components (ModelTableRow, MobileModelRow) that weren't properly updated during the API migration.",2026-01-31T03:07:20.308070+00:00
+davis7dotsh/better-context,149,fix(cli): wire chat + cursor auth,https://github.com/davis7dotsh/better-context/pull/149,"<details>
+<summary>Additional Comments (1)</summary>
+
+**`apps/server/src/providers/registry.ts`**
+Cursor provider removed from registry but `apps/server/src/providers/cursor.ts` still exists and auth code in `apps/server/src/providers/auth.ts` still reads Cursor tokens. Users with `provider = ""cursor""` in their config will get ""Provider not supported"" errors at runtime.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: apps/server/src/providers/registry.ts
+Line: 39:71
+
+Comment:
+Cursor provider removed from registry but `apps/server/src/providers/cursor.ts` still exists and auth code in `apps/server/src/providers/auth.ts` still reads Cursor tokens. Users with `provider = ""cursor""` in their config will get ""Provider not supported"" errors at runtime.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>
+</details>",https://github.com/davis7dotsh/better-context/pull/149#issuecomment-3827584452,,2026-01-31T05:47:05+00:00,runtime,high,"This catch identifies a clear breaking change: the Cursor provider was removed from the registry while the auth code and provider file still exist. Users with 'provider = ""cursor""' in their config will get runtime errors. This is a real bug that will affect users in normal usage when they try to use Cursor as a provider.",2026-01-31T06:23:03.226573+00:00
