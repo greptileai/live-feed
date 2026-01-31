@@ -1214,3 +1214,21 @@ The correct structure should be:
             logger.error(f""Failed to parse client_id from '{site_name}': {e}. Defaulting to client_id=0"")
             client_id = 0
 ```",https://github.com/NVIDIA/NVFlare/pull/3876#discussion_r2749930177,"correct, solved",2026-01-31T19:46:48+00:00,runtime,high,"This comment identifies a critical syntax error with broken try-except blocks, duplicate code, and incomplete control flow that would cause the code to fail at runtime. The developer confirmed it was correct and fixed it. This is a clear, impactful bug that would break functionality in production.",2026-01-31T20:15:02.088225+00:00
+sqlfluff/sqlfluff,7414,Support globs in COMMA_SEPARATED_PATH_KEYS,https://github.com/sqlfluff/sqlfluff/pull/7414,"<details>
+<summary>Additional Comments (1)</summary>
+
+**`src/sqlfluff/core/config/file.py`**
+Breaking change: `_resolve_path()` now returns a list, but this code expects a string for single path keys (like `library_path`). This will cause type errors when code tries to use these paths with string operations (e.g., `os.path.join(library_path, ""__init__.py"")` in jinja.py:266).
+
+The fix requires handling the list return value. For single path keys, take the first match or original value if no matches:
+
+```suggestion
+        # It it's a single path key, resolve it.
+        elif key.lower().endswith(RESOLVE_PATH_SUFFIXES):
+            assert isinstance(
+                val, str
+            ), f""Value for {key} in {log_filename} must be a string not {type(val)}.""
+            matches = _resolve_path(filepath, val)
+            config[key] = matches[0] if matches else val
+```
+</details>",https://github.com/sqlfluff/sqlfluff/pull/7414#issuecomment-3829312171,,2026-01-31T20:51:10+00:00,type_error,high,"Comment 1 correctly identifies a breaking change where `_resolve_path()` now returns a list instead of a string, but the code for single path keys (like `library_path`) still expects a string. This would cause runtime type errors when these paths are used in string operations like `os.path.join()`. The comment provides a concrete fix and references the actual downstream code that would break.",2026-01-31T22:14:27.502763+00:00
