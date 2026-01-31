@@ -1056,3 +1056,88 @@ How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>
 </details>",https://github.com/davis7dotsh/better-context/pull/149#issuecomment-3827584452,,2026-01-31T05:47:05+00:00,runtime,high,"This catch identifies a clear breaking change: the Cursor provider was removed from the registry while the auth code and provider file still exist. Users with 'provider = ""cursor""' in their config will get runtime errors. This is a real bug that will affect users in normal usage when they try to use Cursor as a provider.",2026-01-31T06:23:03.226573+00:00
+huskit/website-agent,28,Feat/improve template flow,https://github.com/HuskIT/website-agent/pull/28,"path traversal check uses simple string matching which doesn't catch all encoding variants
+
+The current `isPathSafe` implementation checks for `..` using `includes('...')` which misses encoded variants like:
+- URL encoding: `%2e%2e/` or `..%2f`
+- Unicode normalization issues
+- Mixed separators: `..\` on Windows
+
+Consider using `path.normalize()` and checking if the resolved path stays within the expected directory:
+
+```suggestion
+function isPathSafe(filePath: string): boolean {
+  // Reject absolute paths
+  if (filePath.startsWith('/') || filePath.startsWith('\\')) {
+    return false;
+  }
+
+  // Reject Windows absolute paths
+  if (/^[a-zA-Z]:/.test(filePath)) {
+    return false;
+  }
+
+  // Normalize and check for path traversal
+  const normalized = path.normalize(filePath);
+  if (normalized.startsWith('..') || normalized.includes(`${path.sep}..`)) {
+    return false;
+  }
+
+  return true;
+}
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: app/lib/.server/templates/zip-template-fetcher.ts
+Line: 166:183
+
+Comment:
+path traversal check uses simple string matching which doesn't catch all encoding variants
+
+The current `isPathSafe` implementation checks for `..` using `includes('...')` which misses encoded variants like:
+- URL encoding: `%2e%2e/` or `..%2f`
+- Unicode normalization issues
+- Mixed separators: `..\` on Windows
+
+Consider using `path.normalize()` and checking if the resolved path stays within the expected directory:
+
+```suggestion
+function isPathSafe(filePath: string): boolean {
+  // Reject absolute paths
+  if (filePath.startsWith('/') || filePath.startsWith('\\')) {
+    return false;
+  }
+
+  // Reject Windows absolute paths
+  if (/^[a-zA-Z]:/.test(filePath)) {
+    return false;
+  }
+
+  // Normalize and check for path traversal
+  const normalized = path.normalize(filePath);
+  if (normalized.startsWith('..') || normalized.includes(`${path.sep}..`)) {
+    return false;
+  }
+
+  return true;
+}
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/HuskIT/website-agent/pull/28#discussion_r2749161211,,2026-01-31T07:32:56+00:00,security,critical,"This is a security vulnerability in path traversal validation for zip file extraction. The simple string matching with `includes('..')` can be bypassed using URL encoding (%2e%2e/), unicode normalization, or mixed path separators. This could allow malicious zip files to write files outside the intended directory, which is a well-known zip slip vulnerability.",2026-01-31T08:17:01.571261+00:00
+mrmps/smry,57,"Add Gravity micro/inline ads, AI copy menu, and buy-click device metadata",https://github.com/mrmps/SMRY/pull/57,"`setState` called during render (lines 73-74) will cause infinite re-renders. Use `useEffect` instead.
+
+```suggestion
+  const [prevSourcesLen, setPrevSourcesLen] = useState(sources.length);
+  
+  useEffect(() => {
+    if (sources.length !== prevSourcesLen) {
+      setPrevSourcesLen(sources.length);
+      if (deselectedSources.size > 0) setDeselectedSources(new Set());
+    }
+  }, [sources.length, prevSourcesLen, deselectedSources.size]);
+```",https://github.com/mrmps/SMRY/pull/57#discussion_r2749168539,,2026-01-31T07:46:34+00:00,runtime,high,"Calling setState during render (outside of useEffect) is a React anti-pattern that will cause infinite re-renders. The code sets `setPrevSourcesLen` and `setDeselectedSources` directly in the component body during render, which triggers more renders. This is a real bug that would cause performance issues or crashes in production.",2026-01-31T08:17:01.571420+00:00
