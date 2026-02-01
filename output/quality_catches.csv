@@ -1232,3 +1232,60 @@ The fix requires handling the list return value. For single path keys, take the 
             config[key] = matches[0] if matches else val
 ```
 </details>",https://github.com/sqlfluff/sqlfluff/pull/7414#issuecomment-3829312171,,2026-01-31T20:51:10+00:00,type_error,high,"Comment 1 correctly identifies a breaking change where `_resolve_path()` now returns a list instead of a string, but the code for single path keys (like `library_path`) still expects a string. This would cause runtime type errors when these paths are used in string operations like `os.path.join()`. The comment provides a concrete fix and references the actual downstream code that would break.",2026-01-31T22:14:27.502763+00:00
+raycast/extensions,25035,Update moneybird extension: paginating contacts/lists (#24390) and repeat time entry (#23438),https://github.com/raycast/extensions/pull/25035,"infinite loop if `links.next` is not present - `nextUrl` is never set to null
+
+```suggestion
+  while (nextUrl) {
+    const response = await fetchWithAuth(nextUrl.toString());
+    const data = await response.json();
+    if (Array.isArray(data)) results.push(...(data as T[]));
+
+    const links = parseLinkHeader(response.headers.get(""Link""));
+    if (links.next) {
+      nextUrl = new URL(links.next, apiBaseUrl);
+    } else {
+      nextUrl = null as unknown as URL;
+      break;
+    }
+  }
+```",https://github.com/raycast/extensions/pull/25035#discussion_r2750134117,,2026-01-31T22:41:40+00:00,logic,high,"This is a valid catch of an infinite loop bug. The pagination logic continues while `nextUrl` exists, but if `links.next` is not present (i.e., we've reached the last page), `nextUrl` is never set to null, causing an infinite loop that would hang the application. This would affect users in normal usage when paginating through contacts/lists.",2026-02-01T00:58:32.807123+00:00
+onyx-dot-app/onyx,8056,refactor(craft): make usage limit overrides feature flags instead of env vars,https://github.com/onyx-dot-app/onyx/pull/8056,"`_should_skip_rate_limiting` unconditionally uses `get_default_feature_flag_provider().feature_enabled(...)`, but unlike `is_onyx_craft_enabled` it doesn’t fall back when PostHog isn’t configured (NoOp provider). If NoOp returns False by default, this will make `not has_rate_limit` = True and effectively grant unlimited usage to *all* cloud users whenever PostHog is unavailable/misconfigured.
+
+Consider mirroring the existing pattern:
+- if provider is `NoOpFeatureFlagProvider`, default to applying limits (return False), or gate this behind an env/config that’s explicitly opt-in.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: backend/onyx/server/features/build/api/rate_limit.py
+Line: 33:36
+
+Comment:
+`_should_skip_rate_limiting` unconditionally uses `get_default_feature_flag_provider().feature_enabled(...)`, but unlike `is_onyx_craft_enabled` it doesn’t fall back when PostHog isn’t configured (NoOp provider). If NoOp returns False by default, this will make `not has_rate_limit` = True and effectively grant unlimited usage to *all* cloud users whenever PostHog is unavailable/misconfigured.
+
+Consider mirroring the existing pattern:
+- if provider is `NoOpFeatureFlagProvider`, default to applying limits (return False), or gate this behind an env/config that’s explicitly opt-in.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/8056#discussion_r2750167381,,2026-01-31T23:19:36+00:00,security,high,"This is a solid catch identifying that when PostHog is unavailable or misconfigured (NoOp provider returns False), the logic `not has_rate_limit` would evaluate to True, bypassing rate limiting for all cloud users. This is a security issue that could allow unlimited usage in production when the feature flag system fails. The analysis correctly identifies the missing fallback pattern that exists elsewhere in the codebase.",2026-02-01T00:58:32.807185+00:00
+traceroot-ai/traceroot,397,Support org and project management #373,https://github.com/traceroot-ai/traceroot/pull/397,"[P0] API key endpoints no longer enforce any project existence or user authorization.
+
+In this PR, `ProjectAccess` and the explicit `get_active_project_by_id` check were removed from `create_api_key_endpoint`, `list_api_keys_endpoint`, and `delete_api_key_endpoint`, meaning anyone who can reach the API can create/list/delete keys for any `project_id` (including IDs they don’t own), and `create` will also succeed for non-existent projects unless DB constraints reject it. If these routes are intended to be protected (even in MVP), they need to reintroduce an auth/access dependency or at least verify the project exists + caller has access.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: rest/routers/api_keys.py
+Line: 24:29
+
+Comment:
+[P0] API key endpoints no longer enforce any project existence or user authorization.
+
+In this PR, `ProjectAccess` and the explicit `get_active_project_by_id` check were removed from `create_api_key_endpoint`, `list_api_keys_endpoint`, and `delete_api_key_endpoint`, meaning anyone who can reach the API can create/list/delete keys for any `project_id` (including IDs they don’t own), and `create` will also succeed for non-existent projects unless DB constraints reject it. If these routes are intended to be protected (even in MVP), they need to reintroduce an auth/access dependency or at least verify the project exists + caller has access.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/traceroot-ai/traceroot/pull/397#discussion_r2750210955,,2026-01-31T23:51:03+00:00,security,critical,"This comment identifies a critical security vulnerability where authentication and authorization checks (ProjectAccess dependency and project existence verification) were completely removed from API key management endpoints. This allows any user who can reach the API to create, list, or delete API keys for any project_id, including projects they don't own. This is a clear auth bypass that would affect production security.",2026-02-01T00:58:32.807232+00:00
