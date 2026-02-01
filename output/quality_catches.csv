@@ -1391,3 +1391,26 @@ Removed many providers (cursor, groq, mistral, xai, cohere, deepinfra, cerebras,
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/davis7dotsh/better-context/pull/149#discussion_r2750747570,,2026-02-01T08:29:33+00:00,logic,high,"This comment identifies a significant breaking change where multiple providers (cursor, groq, mistral, xai, cohere, deepinfra, cerebras, perplexity, togetherai, amazon-bedrock, azure, google-vertex) and their aliases were removed from the registry. This will cause existing user configurations referencing these providers to fail in production, affecting normal usage. The PR title mentions 'cursor auth' but actually removes cursor support entirely.",2026-02-01T10:16:09.088380+00:00
+ever-co/ever-gauzy,9392,Feat/optimize2,https://github.com/ever-co/ever-gauzy/pull/9392,"GitHub Actions matrix syntax error: `os: [self-hosted, Windows, X64]` will be interpreted as 3 separate string values (""self-hosted"", ""Windows"", ""X64""), not as a single array of labels. This will cause the workflow to fail. Either remove the matrix and use `runs-on: [self-hosted, Windows, X64]` directly, or wrap in nested array: `os: [[self-hosted, Windows, X64]]`
+
+```suggestion
+        os: [[self-hosted, Windows, X64]]
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: .github/workflows/agent-prod.yml
+Line: 285:285
+
+Comment:
+GitHub Actions matrix syntax error: `os: [self-hosted, Windows, X64]` will be interpreted as 3 separate string values (""self-hosted"", ""Windows"", ""X64""), not as a single array of labels. This will cause the workflow to fail. Either remove the matrix and use `runs-on: [self-hosted, Windows, X64]` directly, or wrap in nested array: `os: [[self-hosted, Windows, X64]]`
+
+```suggestion
+        os: [[self-hosted, Windows, X64]]
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/ever-co/ever-gauzy/pull/9392#discussion_r2751090807,,2026-02-01T11:27:18+00:00,runtime,high,"Greptile correctly identified a GitHub Actions matrix syntax error that would cause CI/CD workflows to fail. When `os: [self-hosted, Windows, X64]` is used in a matrix, GitHub interprets this as 3 separate values instead of a single array of runner labels, which would break the build. This affects 12 production and staging workflow files and would be immediately broken upon merge.",2026-02-01T12:21:26.433586+00:00
