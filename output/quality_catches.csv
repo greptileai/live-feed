@@ -1376,3 +1376,18 @@ Consider deleting with an org-scoped predicate (e.g., `id` + `org_id`) or fetchi
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/traceroot-ai/traceroot/pull/401#discussion_r2750674454,,2026-02-01T07:35:05+00:00,security,critical,"This is a classic authorization bypass vulnerability where an admin in Organization A can delete invitations belonging to Organization B by guessing invitation IDs. The code checks org membership but then deletes by invitation ID alone without verifying the invitation belongs to that org. This is a clear, exploitable security flaw that would affect production.",2026-02-01T08:19:53.512402+00:00
+davis7dotsh/better-context,149,fix(cli): wire chat + cursor auth,https://github.com/davis7dotsh/better-context/pull/149,"Removed many providers (cursor, groq, mistral, xai, cohere, deepinfra, cerebras, perplexity, togetherai, amazon-bedrock, azure, google-vertex) and all provider aliases. This breaks existing configs referencing these providers or aliases like `claude`, `gpt-4`, `gemini`, etc.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: apps/server/src/providers/registry.ts
+Line: 35:42
+
+Comment:
+Removed many providers (cursor, groq, mistral, xai, cohere, deepinfra, cerebras, perplexity, togetherai, amazon-bedrock, azure, google-vertex) and all provider aliases. This breaks existing configs referencing these providers or aliases like `claude`, `gpt-4`, `gemini`, etc.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/davis7dotsh/better-context/pull/149#discussion_r2750747570,,2026-02-01T08:29:33+00:00,logic,high,"This comment identifies a significant breaking change where multiple providers (cursor, groq, mistral, xai, cohere, deepinfra, cerebras, perplexity, togetherai, amazon-bedrock, azure, google-vertex) and their aliases were removed from the registry. This will cause existing user configurations referencing these providers to fail in production, affecting normal usage. The PR title mentions 'cursor auth' but actually removes cursor support entirely.",2026-02-01T10:16:09.088380+00:00
