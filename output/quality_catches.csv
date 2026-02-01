@@ -1414,3 +1414,155 @@ GitHub Actions matrix syntax error: `os: [self-hosted, Windows, X64]` will be in
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/ever-co/ever-gauzy/pull/9392#discussion_r2751090807,,2026-02-01T11:27:18+00:00,runtime,high,"Greptile correctly identified a GitHub Actions matrix syntax error that would cause CI/CD workflows to fail. When `os: [self-hosted, Windows, X64]` is used in a matrix, GitHub interprets this as 3 separate values instead of a single array of runner labels, which would break the build. This affects 12 production and staging workflow files and would be immediately broken upon merge.",2026-02-01T12:21:26.433586+00:00
+pdfme/pdfme,1336,build(deps): bump react and @types/react,https://github.com/pdfme/pdfme/pull/1336,"`react` upgraded to 19.2.4 but `react-dom` still at 16.14.0 - this version mismatch will cause runtime errors. Both must be the same major version.
+
+```suggestion
+    ""react"": ""^19.2.4"",
+    ""react-dom"": ""^19.2.4"",
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/ui/package.json
+Line: 49:50
+
+Comment:
+`react` upgraded to 19.2.4 but `react-dom` still at 16.14.0 - this version mismatch will cause runtime errors. Both must be the same major version.
+
+```suggestion
+    ""react"": ""^19.2.4"",
+    ""react-dom"": ""^19.2.4"",
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/pdfme/pdfme/pull/1336#discussion_r2751375033,,2026-02-01T15:19:14+00:00,runtime,critical,"This catch identifies a critical version mismatch where react is upgraded to 19.2.4 but react-dom remains at 16.14.0. This is a guaranteed runtime failure - React and ReactDOM must always be the same major version, and mixing React 19 with ReactDOM 16 will cause immediate crashes when trying to render anything. This is a fundamental incompatibility that would completely break the application.",2026-02-01T16:17:48.016997+00:00
+pdfme/pdfme,1335,build(deps): bump react-dom and @types/react-dom,https://github.com/pdfme/pdfme/pull/1335,"**[P0] React/ReactDOM major version mismatch (likely runtime breakage)**
+
+`react` is still pinned to `^16.14.0` while `react-dom` is bumped to `^19.2.4`. `react-dom@19` has a peer dep on `react@^19.2.4`, so installs will typically produce peer warnings and can break at runtime/build (render API + internals expect matching majors). This PR should bump `react` in the same package (and likely align `@types/react` too) rather than only `react-dom`.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/ui/package.json
+Line: 47:51
+
+Comment:
+**[P0] React/ReactDOM major version mismatch (likely runtime breakage)**
+
+`react` is still pinned to `^16.14.0` while `react-dom` is bumped to `^19.2.4`. `react-dom@19` has a peer dep on `react@^19.2.4`, so installs will typically produce peer warnings and can break at runtime/build (render API + internals expect matching majors). This PR should bump `react` in the same package (and likely align `@types/react` too) rather than only `react-dom`.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/pdfme/pdfme/pull/1335#discussion_r2751353446,,2026-02-01T15:12:25+00:00,runtime,high,This catch identifies a critical React version mismatch where react-dom is being upgraded from v16 to v19 while react remains at v16. This will definitely cause runtime breakage as React and ReactDOM must be the same major version - ReactDOM 19 expects React 19's internal APIs and rendering model. This is a real bug that would break the application in production.,2026-02-01T16:17:48.017115+00:00
+pdfme/pdfme,1329,build(deps): bump antd from 5.28.0 to 6.2.2,https://github.com/pdfme/pdfme/pull/1329,"antd 6.x cannot be installed due to peer dependency conflict with `form-render@^2.5.5`. The `form-render` package has a peer dependency on `antd: ""4.x || 5.x""`, which doesn't include version 6.x. As a result, npm resolved antd to version 5.29.3 instead of 6.2.2 and marked it as a peer dependency (see `package-lock.json` where antd has `""peer"": true`).
+
+To upgrade to antd 6.x, you must either:
+1. Wait for `form-render` to add antd 6.x support and update it
+2. Use `--force` or `--legacy-peer-deps` flags (not recommended as it may cause runtime issues)
+3. Find an alternative to `form-render` that supports antd 6.x
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/ui/package.json
+Line: 43:43
+
+Comment:
+antd 6.x cannot be installed due to peer dependency conflict with `form-render@^2.5.5`. The `form-render` package has a peer dependency on `antd: ""4.x || 5.x""`, which doesn't include version 6.x. As a result, npm resolved antd to version 5.29.3 instead of 6.2.2 and marked it as a peer dependency (see `package-lock.json` where antd has `""peer"": true`).
+
+To upgrade to antd 6.x, you must either:
+1. Wait for `form-render` to add antd 6.x support and update it
+2. Use `--force` or `--legacy-peer-deps` flags (not recommended as it may cause runtime issues)
+3. Find an alternative to `form-render` that supports antd 6.x
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/pdfme/pdfme/pull/1329#discussion_r2751356995,,2026-02-01T15:13:30+00:00,runtime,high,"Greptile correctly identified that the antd 6.x upgrade cannot actually succeed due to peer dependency conflicts with form-render, which only supports antd 4.x/5.x. This is a substantive catch that would prevent a broken dependency state from being merged - the PR claims to upgrade to antd 6.2.2 but npm actually resolved it to 5.29.3 due to the conflict.",2026-02-01T16:17:48.017197+00:00
+pdfme/pdfme,1320,build(deps): bump react from 16.14.0 to 19.2.4 in /packages/ui,https://github.com/pdfme/pdfme/pull/1320,"`ReactDOM.render` removed in React 18+. The codebase uses `ReactDOM.render` in `Designer.tsx:67`, `Form.tsx:66`, and `Viewer.tsx:35`, which will break with React 19. Must migrate to `createRoot` API from `react-dom/client`.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/ui/package.json
+Line: 49:50
+
+Comment:
+`ReactDOM.render` removed in React 18+. The codebase uses `ReactDOM.render` in `Designer.tsx:67`, `Form.tsx:66`, and `Viewer.tsx:35`, which will break with React 19. Must migrate to `createRoot` API from `react-dom/client`.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/pdfme/pdfme/pull/1320#discussion_r2751349485,,2026-02-01T15:10:51+00:00,runtime,critical,"This catch identifies that React 19 removes ReactDOM.render entirely, and the codebase uses it in multiple critical files (Designer.tsx, Form.tsx, Viewer.tsx). This would cause the entire UI package to completely break at runtime - not just a warning, but a hard failure. This is a genuine breaking change that would prevent the application from working.",2026-02-01T16:17:48.017284+00:00
+pdfme/pdfme,1330,build(deps-dev): bump @testing-library/react from 12.1.5 to 16.3.2,https://github.com/pdfme/pdfme/pull/1330,"Critical peer dependency mismatch: `@testing-library/react` v16.3.2 requires React 18+ or 19+ (peer dependency: `react: ^18.0.0 || ^19.0.0`), but this package uses React 16.14.0 (line 49). This will cause installation warnings and tests will likely fail.
+
+Either:
+1. Downgrade to `@testing-library/react` v12.x (compatible with React 16)
+2. Upgrade React to v18+ (breaking change requiring code updates)
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/ui/package.json
+Line: 59:59
+
+Comment:
+Critical peer dependency mismatch: `@testing-library/react` v16.3.2 requires React 18+ or 19+ (peer dependency: `react: ^18.0.0 || ^19.0.0`), but this package uses React 16.14.0 (line 49). This will cause installation warnings and tests will likely fail.
+
+Either:
+1. Downgrade to `@testing-library/react` v12.x (compatible with React 16)
+2. Upgrade React to v18+ (breaking change requiring code updates)
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/pdfme/pdfme/pull/1330#discussion_r2751353949,,2026-02-01T15:12:36+00:00,runtime,high,Greptile correctly identified a critical peer dependency mismatch where @testing-library/react v16.3.2 requires React 18+ but the package uses React 16.14.0. This will cause tests to fail in normal CI/development workflows. This is a legitimate catch that would break the test suite.,2026-02-01T16:17:48.017333+00:00
+pdfme/pdfme,1324,build(deps): bump react-dom from 16.14.0 to 19.2.4 in /packages/ui,https://github.com/pdfme/pdfme/pull/1324,"Critical version mismatch: `react` is at `^16.14.0` but `react-dom` is being upgraded to `^19.2.4`. React and ReactDOM must have matching major versions.
+
+```suggestion
+    ""react"": ""^19.2.4"",
+    ""react-dom"": ""^19.2.4"",
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/ui/package.json
+Line: 49:50
+
+Comment:
+Critical version mismatch: `react` is at `^16.14.0` but `react-dom` is being upgraded to `^19.2.4`. React and ReactDOM must have matching major versions.
+
+```suggestion
+    ""react"": ""^19.2.4"",
+    ""react-dom"": ""^19.2.4"",
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/pdfme/pdfme/pull/1324#discussion_r2751351839,,2026-02-01T15:11:52+00:00,runtime,high,"This catch identifies a critical version mismatch where react-dom is being upgraded to v19 while react remains at v16. React and ReactDOM must have matching major versions - this mismatch will cause runtime failures as the packages are tightly coupled. This is a clear, verifiable bug that would break the application in production.",2026-02-01T16:17:48.017387+00:00
+pdfme/pdfme,1326,build(deps): bump pdfjs-dist from 3.11.174 to 5.4.530,https://github.com/pdfme/pdfme/pull/1326,"<details>
+<summary>Additional Comments (1)</summary>
+
+**`packages/converter/src/index.node.ts`**
+legacy import paths may not exist in pdfjs-dist v5. The `/legacy/build/` paths were specific to v3 and earlier. Check if these imports still work with v5.4.530, as this could cause runtime errors.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/converter/src/index.node.ts
+Line: 1:3
+
+Comment:
+legacy import paths may not exist in pdfjs-dist v5. The `/legacy/build/` paths were specific to v3 and earlier. Check if these imports still work with v5.4.530, as this could cause runtime errors.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>
+</details>",https://github.com/pdfme/pdfme/pull/1326#issuecomment-3831179678,,2026-02-01T15:11:24+00:00,runtime,high,"This comment identifies a real compatibility issue - the `/legacy/build/` import paths used in the codebase were specific to pdfjs-dist v3 and may not exist in v5.4.530, which would cause runtime import errors when the code tries to load the PDF.js library. This is a breaking change that would affect all users of the converter package.",2026-02-01T16:17:48.017479+00:00
