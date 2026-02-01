@@ -1566,3 +1566,22 @@ How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>
 </details>",https://github.com/pdfme/pdfme/pull/1326#issuecomment-3831179678,,2026-02-01T15:11:24+00:00,runtime,high,"This comment identifies a real compatibility issue - the `/legacy/build/` import paths used in the codebase were specific to pdfjs-dist v3 and may not exist in v5.4.530, which would cause runtime import errors when the code tries to load the PDF.js library. This is a breaking change that would affect all users of the converter package.",2026-02-01T16:17:48.017479+00:00
+ever-co/ever-gauzy,9401,Apps,https://github.com/ever-co/ever-gauzy/pull/9401,"[P0] TypeORM ManyToOne decorator can receive the *options object* as the inverse-side argument.
+
+In `MultiORMManyToOne`, when `inverseSideOrOptions` is an object it is treated as `options` and `inverseSideProperty` remains unset, but the TypeORM branch still calls `TypeOrmManyToOne(..., inverseSideOrOptions as TypeORMInverseSide<T>, ...)`. Under TypeORM, calls like `MultiORMManyToOne(User, { nullable: true })` will pass that options object as the inverse side and likely break relation metadata registration.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/core/src/lib/core/decorators/entity/relations/many-to-one.decorator.ts
+Line: 73:79
+
+Comment:
+[P0] TypeORM ManyToOne decorator can receive the *options object* as the inverse-side argument.
+
+In `MultiORMManyToOne`, when `inverseSideOrOptions` is an object it is treated as `options` and `inverseSideProperty` remains unset, but the TypeORM branch still calls `TypeOrmManyToOne(..., inverseSideOrOptions as TypeORMInverseSide<T>, ...)`. Under TypeORM, calls like `MultiORMManyToOne(User, { nullable: true })` will pass that options object as the inverse side and likely break relation metadata registration.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/ever-co/ever-gauzy/pull/9401#discussion_r2751743497,,2026-02-01T18:08:56+00:00,logic,high,"Greptile correctly identified a real bug where the parameter normalization logic sets `inverseSideProperty` when `inverseSideOrOptions` is an object (treating it as options), but the TypeORM branch still incorrectly passes the original `inverseSideOrOptions` (which is now the options object) as the inverse-side argument. This will break relation metadata registration for any ManyToOne relation called with options but no inverse side function, which is a common usage pattern.",2026-02-01T18:19:55.549943+00:00
