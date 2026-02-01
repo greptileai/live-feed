@@ -1289,3 +1289,54 @@ In this PR, `ProjectAccess` and the explicit `get_active_project_by_id` check we
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/traceroot-ai/traceroot/pull/397#discussion_r2750210955,,2026-01-31T23:51:03+00:00,security,critical,"This comment identifies a critical security vulnerability where authentication and authorization checks (ProjectAccess dependency and project existence verification) were completely removed from API key management endpoints. This allows any user who can reach the API to create, list, or delete API keys for any project_id, including projects they don't own. This is a clear auth bypass that would affect production security.",2026-02-01T00:58:32.807232+00:00
+synnaxlabs/synnax,1914,SY-3659: Update `stylelint` to v17 and `*.ts` files,https://github.com/synnaxlabs/synnax/pull/1914,"[P0] `configs/stylelint/eslint.config.ts` appears to be importing the wrong package for a stylelint config (it imports `eslint-config-synnaxlabs`). If this file is intended to be the stylelint config (it was renamed from `console/stylelint.config.js` per diff), stylelint will either fail to load it or load an eslint config object, causing linting to break/misbehave.",https://github.com/synnaxlabs/synnax/pull/1914#discussion_r2750332548,,2026-02-01T01:12:40+00:00,logic,high,"This is a clear misconfiguration where a stylelint config file is importing eslint-config instead of stylelint-config. The file is in the stylelint directory and is meant to be a stylelint configuration, but it's importing the wrong package entirely. This will cause stylelint to either fail or behave incorrectly when linting CSS/style files.",2026-02-01T03:17:20.278043+00:00
+getarcaneapp/arcane,1614,fix: container exec sessions not being cleaned up after websockets close,https://github.com/getarcaneapp/arcane/pull/1614,"using cancelled context for timeout won't work
+
+When this cleanup is called from `watchExecContext` (line 489), the `ctx` will already be cancelled. `context.WithTimeout(ctx, 5*time.Second)` inherits the cancellation from the parent, so `cleanupCtx` will be immediately cancelled.
+
+```suggestion
+		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 5*time.Second)
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: backend/internal/api/ws_handler.go
+Line: 478:479
+
+Comment:
+using cancelled context for timeout won't work
+
+When this cleanup is called from `watchExecContext` (line 489), the `ctx` will already be cancelled. `context.WithTimeout(ctx, 5*time.Second)` inherits the cancellation from the parent, so `cleanupCtx` will be immediately cancelled.
+
+```suggestion
+		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 5*time.Second)
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/getarcaneapp/arcane/pull/1614#discussion_r2750334846,,2026-02-01T01:14:07+00:00,logic,high,"Comment 0 identifies a real bug where using a cancelled context as the parent for a timeout context will cause the cleanup operation to fail immediately. When watchExecContext triggers cleanup after context cancellation, the cleanup will not be able to complete its 5-second timeout work because the parent context is already cancelled. This would cause exec sessions to not be properly cleaned up, which is exactly what this PR is trying to fix.",2026-02-01T03:17:20.278100+00:00
+workos/workos-node,1457,Update Node SDK to ensure that all audit-log api's are in it ,https://github.com/workos/workos-node/pull/1457,"[P0] Self-dependency added (`@workos-inc/node` depends on itself)
+
+`package.json` declares `""@workos-inc/node"": ""^8.0.0""` as a dependency of the `@workos-inc/node` package. This creates a circular/self dependency that can break installs (npm will refuse/behave unexpectedly) and will also bloat/complicate the published package graph. This looks accidental and should be removed.
+
+Also appears in `package-lock.json` (self package entry present).
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: package.json
+Line: 41:46
+
+Comment:
+[P0] Self-dependency added (`@workos-inc/node` depends on itself)
+
+`package.json` declares `""@workos-inc/node"": ""^8.0.0""` as a dependency of the `@workos-inc/node` package. This creates a circular/self dependency that can break installs (npm will refuse/behave unexpectedly) and will also bloat/complicate the published package graph. This looks accidental and should be removed.
+
+Also appears in `package-lock.json` (self package entry present).
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/workos/workos-node/pull/1457#discussion_r2750428257,,2026-02-01T02:41:59+00:00,runtime,high,This is a legitimate catch of a self-dependency bug where `@workos-inc/node` is accidentally listing itself as a dependency. This will cause npm install failures or unexpected behavior and would break the package for all users. The issue is clearly visible in the diff and is a real error that would affect production usage.,2026-02-01T03:17:20.278139+00:00
