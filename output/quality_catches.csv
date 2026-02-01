@@ -1340,3 +1340,20 @@ Also appears in `package-lock.json` (self package entry present).
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/workos/workos-node/pull/1457#discussion_r2750428257,,2026-02-01T02:41:59+00:00,runtime,high,This is a legitimate catch of a self-dependency bug where `@workos-inc/node` is accidentally listing itself as a dependency. This will cause npm install failures or unexpected behavior and would break the package for all users. The issue is clearly visible in the diff and is a real error that would affect production usage.,2026-02-01T03:17:20.278139+00:00
+nvidia/warp,1206,Fix:Automatic workaround for CUDA compiler crash with local matrices …,https://github.com/NVIDIA/warp/pull/1206,"Pattern check happens before `kernel.adj.build(self)` on line 2099, but the detection flags are only populated during the build process, so this check will always evaluate to `False`
+
+Move this check to after line 2099:
+```python
+kernel.adj.build(self)
+
+# Check for known compiler bugs after building (Issue #1200)
+if warp.config.auto_detect_cuda_compiler_bugs:
+    if kernel.adj.detect_issue_1200_pattern() and self.options.get(""optimization_level"", 3) == 3:
+        # Warning and fix logic here
+        ...
+```
+
+However, this creates a new problem: by the time we detect the pattern, the kernel has already been built with -O3. The architecture needs redesign to either:
+1. Build the kernel, check the pattern, then rebuild if needed (inefficient)
+2. Do a pre-scan pass before building to detect patterns (complex)
+3. Check the pattern after build and mark kernel for rebuild on next use (better)",https://github.com/NVIDIA/warp/pull/1206#discussion_r2750574738,,2026-02-01T05:37:25+00:00,logic,high,"Comment 2 identifies a critical ordering bug where the pattern detection check happens BEFORE the build() call that populates the detection flags. This means the workaround for the CUDA compiler bug will never activate, completely defeating the purpose of the entire PR. The comment also thoughtfully outlines the architectural challenge this creates.",2026-02-01T06:29:20.005906+00:00
