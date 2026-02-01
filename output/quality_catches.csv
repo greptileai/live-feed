@@ -1357,3 +1357,22 @@ However, this creates a new problem: by the time we detect the pattern, the kern
 1. Build the kernel, check the pattern, then rebuild if needed (inefficient)
 2. Do a pre-scan pass before building to detect patterns (complex)
 3. Check the pattern after build and mark kernel for rebuild on next use (better)",https://github.com/NVIDIA/warp/pull/1206#discussion_r2750574738,,2026-02-01T05:37:25+00:00,logic,high,"Comment 2 identifies a critical ordering bug where the pattern detection check happens BEFORE the build() call that populates the detection flags. This means the workaround for the CUDA compiler bug will never activate, completely defeating the purpose of the entire PR. The comment also thoughtfully outlines the architectural challenge this creates.",2026-02-01T06:29:20.005906+00:00
+traceroot-ai/traceroot,401,[AgentOps] Backend support for org and project management,https://github.com/traceroot-ai/traceroot/pull/401,"[P1] Org-scoping bug in delete: the handler authorizes against `orgId`, but deletes by `where: { id: invitationId }` without verifying the invitation belongs to that org. An OWNER/ADMIN in Org A could delete an invitation in Org B if they know/guess its ID.
+
+Consider deleting with an org-scoped predicate (e.g., `id` + `org_id`) or fetching and validating `invitation.org_id === orgId` first.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: ui/src/app/api/organizations/[orgId]/invitations/[invitationId]/route.ts
+Line: 28:30
+
+Comment:
+[P1] Org-scoping bug in delete: the handler authorizes against `orgId`, but deletes by `where: { id: invitationId }` without verifying the invitation belongs to that org. An OWNER/ADMIN in Org A could delete an invitation in Org B if they know/guess its ID.
+
+Consider deleting with an org-scoped predicate (e.g., `id` + `org_id`) or fetching and validating `invitation.org_id === orgId` first.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/traceroot-ai/traceroot/pull/401#discussion_r2750674454,,2026-02-01T07:35:05+00:00,security,critical,"This is a classic authorization bypass vulnerability where an admin in Organization A can delete invitations belonging to Organization B by guessing invitation IDs. The code checks org membership but then deletes by invitation ID alone without verifying the invitation belongs to that org. This is a clear, exploitable security flaw that would affect production.",2026-02-01T08:19:53.512402+00:00
