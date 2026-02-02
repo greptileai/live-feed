@@ -1697,3 +1697,40 @@ Comment:
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/stack-auth/stack-auth/pull/1145#discussion_r2752407305,,2026-02-02T03:41:01+00:00,runtime,high,"This is a genuine bug where `runAsynchronouslyWithAlert(onRetry())` immediately invokes `onRetry()` during render instead of passing it as a callback. This would cause the async operation to fire every time the component renders, which is incorrect behavior that would affect users in normal usage. The fix to use `() => runAsynchronouslyWithAlert(onRetry)` is correct.",2026-02-02T04:53:10.040960+00:00
+twentyhq/twenty,17615,Add Claude Code GitHub Workflow,https://github.com/twentyhq/twenty/pull/17615,"Workflow can be triggered by any user who can comment, including external contributors. While the PR description mentions ""Only users with write access can trigger the workflow,"" the conditional checks don't enforce this. Consider adding an authorization check:
+
+```suggestion
+    if: |
+      github.event.comment.author_association == 'OWNER' ||
+      github.event.comment.author_association == 'MEMBER' ||
+      github.event.comment.author_association == 'COLLABORATOR' &&
+      ((github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||
+      (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude'))))
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: .github/workflows/claude.yml
+Line: 15:19
+
+Comment:
+Workflow can be triggered by any user who can comment, including external contributors. While the PR description mentions ""Only users with write access can trigger the workflow,"" the conditional checks don't enforce this. Consider adding an authorization check:
+
+```suggestion
+    if: |
+      github.event.comment.author_association == 'OWNER' ||
+      github.event.comment.author_association == 'MEMBER' ||
+      github.event.comment.author_association == 'COLLABORATOR' &&
+      ((github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||
+      (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude'))))
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/twentyhq/twenty/pull/17615#discussion_r2753128267,,2026-02-02T08:21:17+00:00,security,high,"This is a legitimate security concern - the workflow can be triggered by any external contributor who can comment on issues/PRs, potentially allowing them to run Claude Code actions on the repository. The PR description claims 'Only users with write access can trigger the workflow' but the code doesn't enforce this restriction. This could allow unauthorized users to consume API credits or potentially trigger unintended actions.",2026-02-02T08:29:10.754097+00:00
