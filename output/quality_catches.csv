@@ -1674,3 +1674,26 @@ Prometheus still references the deleted alertmanager service via `depends_on`. T
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/Alpaca-Network/railway-grafana-stack/pull/94#discussion_r2752302436,,2026-02-02T02:26:55+00:00,runtime,high,"Comment 0 correctly identifies that the diff shows the alertmanager service being deleted, but the depends_on reference to alertmanager was only partially removed (the diff shows '-      alertmanager:' and '-        condition: service_started' being removed). However, looking at the diff more carefully, those lines ARE being removed (shown with minus signs). Wait - re-reading the diff, the alertmanager dependency IS being removed. Let me check Comment 0's claim again... The diff shows the depends_on block going from having both alertmanager and mimir to just having mimir. So Comment 0 appears to be a false positive - the dependency WAS removed correctly.",2026-02-02T03:18:06.097144+00:00
+stack-auth/stack-auth,1145,Queries view,https://github.com/stack-auth/stack-auth/pull/1145,"`onRetry` is being invoked immediately with `onRetry()` instead of passing the function reference. This causes the async operation to execute during render.
+
+```suggestion
+        onClick={() => runAsynchronouslyWithAlert(onRetry)}
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: apps/dashboard/src/app/(main)/(protected)/projects/[projectId]/analytics/queries/page-client.tsx
+Line: 292:292
+
+Comment:
+`onRetry` is being invoked immediately with `onRetry()` instead of passing the function reference. This causes the async operation to execute during render.
+
+```suggestion
+        onClick={() => runAsynchronouslyWithAlert(onRetry)}
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/stack-auth/stack-auth/pull/1145#discussion_r2752407305,,2026-02-02T03:41:01+00:00,runtime,high,"This is a genuine bug where `runAsynchronouslyWithAlert(onRetry())` immediately invokes `onRetry()` during render instead of passing it as a callback. This would cause the async operation to fire every time the component renders, which is incorrect behavior that would affect users in normal usage. The fix to use `() => runAsynchronouslyWithAlert(onRetry)` is correct.",2026-02-02T04:53:10.040960+00:00
