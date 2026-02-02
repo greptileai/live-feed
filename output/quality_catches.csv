@@ -1649,3 +1649,28 @@ Without migrations, `prisma migrate deploy` will fail in production.
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/traceroot-ai/traceroot/pull/402#discussion_r2752147969,,2026-02-02T00:04:16+00:00,data_integrity,high,"This catch identifies a critical migration issue - table names were changed in the Prisma schema without including database migrations. This WILL cause production deployment failures when `prisma migrate deploy` is run against existing databases, potentially causing data loss or service outages. The issue is concrete, verifiable from the schema changes, and requires action before deployment.",2026-02-02T00:52:34.870359+00:00
+alpaca-network/railway-grafana-stack,94,Fix-Entry-Point-Grafana,https://github.com/Alpaca-Network/railway-grafana-stack/pull/94,"Prometheus still references the deleted alertmanager service via `depends_on`. This will cause Prometheus to fail to start.
+
+```suggestion
+    depends_on:
+      mimir:
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: docker-compose.yml
+Line: 85:86
+
+Comment:
+Prometheus still references the deleted alertmanager service via `depends_on`. This will cause Prometheus to fail to start.
+
+```suggestion
+    depends_on:
+      mimir:
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/Alpaca-Network/railway-grafana-stack/pull/94#discussion_r2752302436,,2026-02-02T02:26:55+00:00,runtime,high,"Comment 0 correctly identifies that the diff shows the alertmanager service being deleted, but the depends_on reference to alertmanager was only partially removed (the diff shows '-      alertmanager:' and '-        condition: service_started' being removed). However, looking at the diff more carefully, those lines ARE being removed (shown with minus signs). Wait - re-reading the diff, the alertmanager dependency IS being removed. Let me check Comment 0's claim again... The diff shows the depends_on block going from having both alertmanager and mimir to just having mimir. So Comment 0 appears to be a false positive - the dependency WAS removed correctly.",2026-02-02T03:18:06.097144+00:00
