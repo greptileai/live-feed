@@ -1810,3 +1810,89 @@ Comment:
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/getarcaneapp/arcane/pull/1635#discussion_r2753783923,fixed in commit 2cd8b76e,2026-02-02T11:04:01+00:00,data_integrity,medium,"Greptile correctly identified a double-counting bug where space reclaimed values would be incorrectly reported. The developer confirmed and fixed this issue. While not critical, this is a real data integrity bug that would cause incorrect metrics to be displayed to users.",2026-02-02T12:28:03.705681+00:00
+posthog/posthog,46531,WIP: Turn off posthog analytics,https://github.com/PostHog/posthog/pull/46531,"The entire exception logging functionality has been removed. This function now does nothing (`pass`), which means exceptions won't be logged to `structlog` anymore. The commented code shows that even when `api_key` was not set, exceptions were still logged via `logger.exception(error)`.
+
+This will make debugging production issues much harder. Consider keeping at least the basic logging:
+
+```suggestion
+def capture_exception(error=None, additional_properties=None):
+    import structlog
+    logger = structlog.get_logger(__name__)
+    logger.exception(error)
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: posthog/exceptions_capture.py
+Line: 16:42
+
+Comment:
+The entire exception logging functionality has been removed. This function now does nothing (`pass`), which means exceptions won't be logged to `structlog` anymore. The commented code shows that even when `api_key` was not set, exceptions were still logged via `logger.exception(error)`.
+
+This will make debugging production issues much harder. Consider keeping at least the basic logging:
+
+```suggestion
+def capture_exception(error=None, additional_properties=None):
+    import structlog
+    logger = structlog.get_logger(__name__)
+    logger.exception(error)
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/46531#discussion_r2754129728,,2026-02-02T12:36:25+00:00,logic,high,"Greptile correctly identified that the `pass` statement at the beginning of `capture_exception()` causes the function to return immediately, meaning no exceptions will be logged anymore - not even to structlog. This is a real bug that will affect production debugging. The PR title says 'WIP' but this catch prevents silent exception swallowing that could make it to production.",2026-02-02T14:29:34.861319+00:00
+openreplay/openreplay,4283,refactor(DB): changed DB scripts,https://github.com/openreplay/openreplay/pull/4283,"Missing `CREATE MATERIALIZED VIEW` after this DROP statement. The v1.24.0 schema includes `users_all_properties_extractor_mv` with columns `display_name`, `description`, `status`, and `_edited_by_user`. The rollback should recreate this view:
+
+```suggestion
+DROP TABLE IF EXISTS product_analytics.users_all_properties_extractor_mv;
+CREATE MATERIALIZED VIEW IF NOT EXISTS product_analytics.users_all_properties_extractor_mv
+    TO product_analytics.all_properties AS
+SELECT project_id,
+       'users'                                 AS source,
+       property_name,
+       FALSE                                   AS is_event_property,
+       auto_captured_property                  AS auto_captured,
+       or_property_display_name(property_name) AS display_name,
+       ''                                      AS description,
+       or_property_visibility(property_name)   AS status,
+       0                                       AS data_count,
+       0                                       AS query_count,
+       _timestamp                              AS created_at,
+       FALSE                                   AS _edited_by_user
+FROM product_analytics.user_properties;
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: ee/scripts/schema/db/rollback_dbs/clickhouse/1.25.0/1.25.0.sql
+Line: 41:41
+
+Comment:
+Missing `CREATE MATERIALIZED VIEW` after this DROP statement. The v1.24.0 schema includes `users_all_properties_extractor_mv` with columns `display_name`, `description`, `status`, and `_edited_by_user`. The rollback should recreate this view:
+
+```suggestion
+DROP TABLE IF EXISTS product_analytics.users_all_properties_extractor_mv;
+CREATE MATERIALIZED VIEW IF NOT EXISTS product_analytics.users_all_properties_extractor_mv
+    TO product_analytics.all_properties AS
+SELECT project_id,
+       'users'                                 AS source,
+       property_name,
+       FALSE                                   AS is_event_property,
+       auto_captured_property                  AS auto_captured,
+       or_property_display_name(property_name) AS display_name,
+       ''                                      AS description,
+       or_property_visibility(property_name)   AS status,
+       0                                       AS data_count,
+       0                                       AS query_count,
+       _timestamp                              AS created_at,
+       FALSE                                   AS _edited_by_user
+FROM product_analytics.user_properties;
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/openreplay/openreplay/pull/4283#discussion_r2754406936,,2026-02-02T13:44:19+00:00,data_integrity,high,"This is a legitimate catch of an incomplete database rollback script. The script drops `users_all_properties_extractor_mv` but fails to recreate it, which would leave the database in an inconsistent state during rollback operations. This would cause the materialized view to be missing after a rollback, breaking functionality that depends on it. Comment 0 is more detailed than Comment 1 which is a duplicate.",2026-02-02T14:29:34.861425+00:00
