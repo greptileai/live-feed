@@ -1753,3 +1753,60 @@ This workflow triggers on any push to `main` (including merges, reverts, and aut
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/RunanywhereAI/runanywhere-sdks/pull/323#discussion_r2753353558,,2026-02-02T09:21:06+00:00,logic,high,"This catch identifies a critical feedback loop bug: Phase 2 commits to main, which triggers Phase 1 to create another tag, which triggers Phase 2 again, causing infinite tag churn. This is a real CI/CD bug that would cause production issues in the release pipeline. The analysis is correct and actionable.",2026-02-02T10:33:32.391973+00:00
+nvidia/dali,6185,"Update DALI_DEPS: libsound, openssl",https://github.com/NVIDIA/DALI/pull/6185,"The commit hash has been replaced with ""FIXME"" placeholder. This will break the Docker build process.
+
+The `DALI_DEPS_VERSION` file must contain a valid Git commit SHA from the DALI_deps repository. The Dockerfile at `docker/Dockerfile.deps:38` uses this value to `git checkout ${DALI_DEPS_VERSION_SHA}`, which will fail with ""FIXME"".
+
+According to the PR description, this should propagate updates from https://github.com/NVIDIA/DALI_deps/pull/151. You need to replace ""FIXME"" with the actual commit hash from that merged PR.
+
+```suggestion
+<actual-commit-hash-from-DALI_deps-PR-151>
+```",https://github.com/NVIDIA/DALI/pull/6185#discussion_r2753765641,,2026-02-02T10:59:23+00:00,runtime,high,"This catch identifies that a critical version file was replaced with a 'FIXME' placeholder, which will cause the Docker build to fail at runtime when attempting to checkout a non-existent git reference. This is a clear build-breaking issue that would affect anyone trying to build the project, and the analysis correctly identifies the exact failure point in the Dockerfile.",2026-02-02T12:28:03.705517+00:00
+gptme/gptme,1218,fix: use VITE_GPTME_FLEET_BASE_URL as env var for base urls,https://github.com/gptme/gptme/pull/1218,"`VITE_GPTME_FLEET_BASE_URL` is being used for both `FLEET_OPERATOR_URL` (line 5) and `baseUrl` (line 105). These serve different purposes:
+- `FLEET_OPERATOR_URL` should point to the fleet operator service (`https://fleet.gptme.ai`) for auth code exchange
+- `baseUrl` should point to the specific gptme API instance URL
+
+Using the same env var for both will cause the fleet operator exchange URL to incorrectly point to the instance URL, breaking auth code exchange. The previous code used `VITE_API_URL` for `baseUrl` which was separate from `VITE_FLEET_OPERATOR_URL`.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: webui/src/utils/connectionConfig.ts
+Line: 102:106
+
+Comment:
+`VITE_GPTME_FLEET_BASE_URL` is being used for both `FLEET_OPERATOR_URL` (line 5) and `baseUrl` (line 105). These serve different purposes:
+- `FLEET_OPERATOR_URL` should point to the fleet operator service (`https://fleet.gptme.ai`) for auth code exchange
+- `baseUrl` should point to the specific gptme API instance URL
+
+Using the same env var for both will cause the fleet operator exchange URL to incorrectly point to the instance URL, breaking auth code exchange. The previous code used `VITE_API_URL` for `baseUrl` which was separate from `VITE_FLEET_OPERATOR_URL`.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/gptme/gptme/pull/1218#discussion_r2753685529,,2026-02-02T10:38:47+00:00,logic,high,Greptile correctly identified that using the same environment variable (VITE_GPTME_FLEET_BASE_URL) for two different purposes - fleet operator URL for auth exchange AND the API base URL - will break authentication. The fleet operator URL needs to point to the auth service while baseUrl should point to the API instance. This conflation would cause auth code exchange to fail in production when users configure their own instance URL.,2026-02-02T12:28:03.705605+00:00
+getarcaneapp/arcane,1635,feat(autoupdate/prune): implement container exclusion and prune notif…,https://github.com/getarcaneapp/arcane/pull/1635,"`result.SpaceReclaimed` already contains the container space from line 68. Adding it again to `ContainerSpaceReclaimed` creates double counting since `SpaceReclaimed` is set in `pruneContainers` at line 284.
+
+```suggestion
+		} else {
+			result.ContainerSpaceReclaimed = result.SpaceReclaimed
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: backend/internal/services/system_service.go
+Line: 71:71
+
+Comment:
+`result.SpaceReclaimed` already contains the container space from line 68. Adding it again to `ContainerSpaceReclaimed` creates double counting since `SpaceReclaimed` is set in `pruneContainers` at line 284.
+
+```suggestion
+		} else {
+			result.ContainerSpaceReclaimed = result.SpaceReclaimed
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/getarcaneapp/arcane/pull/1635#discussion_r2753783923,fixed in commit 2cd8b76e,2026-02-02T11:04:01+00:00,data_integrity,medium,"Greptile correctly identified a double-counting bug where space reclaimed values would be incorrectly reported. The developer confirmed and fixed this issue. While not critical, this is a real data integrity bug that would cause incorrect metrics to be displayed to users.",2026-02-02T12:28:03.705681+00:00
