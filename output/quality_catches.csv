@@ -1734,3 +1734,22 @@ Workflow can be triggered by any user who can comment, including external contri
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/twentyhq/twenty/pull/17615#discussion_r2753128267,,2026-02-02T08:21:17+00:00,security,high,"This is a legitimate security concern - the workflow can be triggered by any external contributor who can comment on issues/PRs, potentially allowing them to run Claude Code actions on the repository. The PR description claims 'Only users with write access can trigger the workflow' but the code doesn't enforce this restriction. This could allow unauthorized users to consume API credits or potentially trigger unintended actions.",2026-02-02T08:29:10.754097+00:00
+runanywhereai/runanywhere-sdks,323,"ci(swift): Swift CI/CD only – auto-tag, build-release, release, Packa…",https://github.com/RunanywhereAI/runanywhere-sdks/pull/323,"[P1] Broad trigger: tags on every push to `main`
+
+This workflow triggers on any push to `main` (including merges, reverts, and automated commits from other workflows). If Phase 2 commits to `main`, that commit will also trigger Phase 1 and create another tag unless you add a guard (e.g., skip when actor is `github-actions[bot]` or when commit message matches the checksum update). Otherwise you can end up in a tag churn/feedback loop.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: .github/workflows/swift-auto-tag.yml
+Line: 15:21
+
+Comment:
+[P1] Broad trigger: tags on every push to `main`
+
+This workflow triggers on any push to `main` (including merges, reverts, and automated commits from other workflows). If Phase 2 commits to `main`, that commit will also trigger Phase 1 and create another tag unless you add a guard (e.g., skip when actor is `github-actions[bot]` or when commit message matches the checksum update). Otherwise you can end up in a tag churn/feedback loop.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/RunanywhereAI/runanywhere-sdks/pull/323#discussion_r2753353558,,2026-02-02T09:21:06+00:00,logic,high,"This catch identifies a critical feedback loop bug: Phase 2 commits to main, which triggers Phase 1 to create another tag, which triggers Phase 2 again, causing infinite tag churn. This is a real CI/CD bug that would cause production issues in the release pipeline. The analysis is correct and actionable.",2026-02-02T10:33:32.391973+00:00
