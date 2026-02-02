@@ -1896,3 +1896,279 @@ FROM product_analytics.user_properties;
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/openreplay/openreplay/pull/4283#discussion_r2754406936,,2026-02-02T13:44:19+00:00,data_integrity,high,"This is a legitimate catch of an incomplete database rollback script. The script drops `users_all_properties_extractor_mv` but fails to recreate it, which would leave the database in an inconsistent state during rollback operations. This would cause the materialized view to be missing after a rollback, breaking functionality that depends on it. Comment 0 is more detailed than Comment 1 which is a duplicate.",2026-02-02T14:29:34.861425+00:00
+posthog/posthog,46552,fix(billing): Implement a proxy for usage signals to avoid CH timeouts,https://github.com/PostHog/posthog/pull/46552,"`heatmaps` missing from `usage_to_product` mapping
+
+The `usage_to_product` dict only maps 3 products but `PRODUCT_EVENT_MAP` defines 4 products including `heatmaps`. Orgs with heatmap usage won't be detected as having active products.
+
+Either add heatmaps to the mapping, or document why it's intentionally excluded.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: ee/billing/dags/productled_outbound_targets.py
+Line: 244:249
+
+Comment:
+`heatmaps` missing from `usage_to_product` mapping
+
+The `usage_to_product` dict only maps 3 products but `PRODUCT_EVENT_MAP` defines 4 products including `heatmaps`. Orgs with heatmap usage won't be detected as having active products.
+
+Either add heatmaps to the mapping, or document why it's intentionally excluded.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/46552#discussion_r2754935933,Resolved with: [`ce4a5de` (this PR)](https://github.com/PostHog/posthog/pull/46552/commits/ce4a5deef4bd9d27454ae77b73c88c5df2f4fa6b),2026-02-02T15:31:53+00:00,data_integrity,medium,"Greptile correctly identified that the `usage_to_product` mapping was missing 'heatmaps' while the original `PRODUCT_EVENT_MAP` included 4 products. This would cause organizations using heatmaps to not be detected as having active products, affecting billing/usage tracking. The developer confirmed and fixed the issue, validating it was a real bug.",2026-02-02T16:22:28.170611+00:00
+posthog/posthog,46549,feat(logs): allow filtering on resource_fingerprint,https://github.com/PostHog/posthog/pull/46549,"<details>
+<summary>Additional Comments (1)</summary>
+
+**`products/logs/backend/logs_query_runner.py`**
+the `resourceFingerprint` filter is not being applied in the `where()` method. the parameter is accepted in the schema and API but never checked here. add a filter like:
+
+```suggestion
+    def where(self) -> ast.Expr:
+        exprs: list[ast.Expr] = []
+
+        if self.query.serviceNames:
+            exprs.append(
+                parse_expr(
+                    ""service_name IN {serviceNames}"",
+                    placeholders={
+                        ""serviceNames"": ast.Tuple(exprs=[ast.Constant(value=str(sn)) for sn in self.query.serviceNames])
+                    },
+                )
+            )
+
+        if self.query.resourceFingerprint:
+            exprs.append(
+                parse_expr(
+                    ""resource_fingerprint = {resourceFingerprint}"",
+                    placeholders={
+                        ""resourceFingerprint"": ast.Constant(value=self.query.resourceFingerprint)
+                    },
+                )
+            )
+
+        if self.query.filterGroup:
+            exprs.append(self.resource_filter(existing_filters=exprs))
+
+            if self.attribute_filters:
+                exprs.append(property_to_expr(self.attribute_filters, team=self.team))
+
+            if self.log_filters:
+                exprs.append(property_to_expr(self.log_filters, team=self.team))
+
+        exprs.append(ast.Placeholder(expr=ast.Field(chain=[""filters""])))
+
+        if self.query.severityLevels:
+            exprs.append(
+                parse_expr(
+                    ""severity_text IN {severityLevels}"",
+                    placeholders={
+                        ""severityLevels"": ast.Tuple(
+                            exprs=[ast.Constant(value=str(sl)) for sl in self.query.severityLevels]
+                        )
+                    },
+                )
+            )
+
+        if self.query.liveLogsCheckpoint:
+            exprs.append(
+                parse_expr(
+                    ""observed_timestamp >= {liveLogsCheckpoint}"",
+                    placeholders={""liveLogsCheckpoint"": ast.Constant(value=self.query.liveLogsCheckpoint)},
+                )
+            )
+
+        if self.query.after:
+            try:
+                cursor = json.loads(base64.b64decode(self.query.after).decode(""utf-8""))
+                cursor_ts = dt.datetime.fromisoformat(cursor[""timestamp""])
+                cursor_uuid = cursor[""uuid""]
+            except (KeyError, ValueError, json.JSONDecodeError) as e:
+                raise ValueError(f""Invalid cursor format: {e}"")
+            # For ASC (earliest first): get rows where (timestamp, uuid) > cursor
+            # For DESC (latest first, default): get rows where (timestamp, uuid) < cursor
+            op = "">"" if self.query.orderBy == ""earliest"" else ""<""
+            ts_op = "">="" if self.query.orderBy == ""earliest"" else ""<=""
+            # The logs table is sorted by (team_id, time_bucket, ..., timestamp) where
+            # time_bucket = toStartOfDay(timestamp). ClickHouse only prunes efficiently when
+            # the WHERE clause matches the sorting key. A tuple comparison like
+            # (timestamp, uuid) < (x, y) won't trigger pruning.
+            # We add explicit scalar bounds on both time_bucket and timestamp to ensure
+            # ClickHouse can use the primary index and skip irrelevant parts.
+            exprs.append(
+                parse_expr(
+                    f""time_bucket {ts_op} toStartOfDay({{cursor_ts}})"",
+                    placeholders={""cursor_ts"": ast.Constant(value=cursor_ts)},
+                )
+            )
+            exprs.append(
+                parse_expr(
+                    f""timestamp {ts_op} {{cursor_ts}}"",
+                    placeholders={""cursor_ts"": ast.Constant(value=cursor_ts)},
+                )
+            )
+            # Tuple comparison handles the exact cursor position (same timestamp, different uuid)
+            exprs.append(
+                parse_expr(
+                    f""(timestamp, uuid) {op} ({{cursor_ts}}, {{cursor_uuid}})"",
+                    placeholders={
+                        ""cursor_ts"": ast.Constant(value=cursor_ts),
+                        ""cursor_uuid"": ast.Constant(value=cursor_uuid),
+                    },
+                )
+            )
+
+        return ast.And(exprs=exprs)
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: products/logs/backend/logs_query_runner.py
+Line: 242:326
+
+Comment:
+the `resourceFingerprint` filter is not being applied in the `where()` method. the parameter is accepted in the schema and API but never checked here. add a filter like:
+
+```suggestion
+    def where(self) -> ast.Expr:
+        exprs: list[ast.Expr] = []
+
+        if self.query.serviceNames:
+            exprs.append(
+                parse_expr(
+                    ""service_name IN {serviceNames}"",
+                    placeholders={
+                        ""serviceNames"": ast.Tuple(exprs=[ast.Constant(value=str(sn)) for sn in self.query.serviceNames])
+                    },
+                )
+            )
+
+        if self.query.resourceFingerprint:
+            exprs.append(
+                parse_expr(
+                    ""resource_fingerprint = {resourceFingerprint}"",
+                    placeholders={
+                        ""resourceFingerprint"": ast.Constant(value=self.query.resourceFingerprint)
+                    },
+                )
+            )
+
+        if self.query.filterGroup:
+            exprs.append(self.resource_filter(existing_filters=exprs))
+
+            if self.attribute_filters:
+                exprs.append(property_to_expr(self.attribute_filters, team=self.team))
+
+            if self.log_filters:
+                exprs.append(property_to_expr(self.log_filters, team=self.team))
+
+        exprs.append(ast.Placeholder(expr=ast.Field(chain=[""filters""])))
+
+        if self.query.severityLevels:
+            exprs.append(
+                parse_expr(
+                    ""severity_text IN {severityLevels}"",
+                    placeholders={
+                        ""severityLevels"": ast.Tuple(
+                            exprs=[ast.Constant(value=str(sl)) for sl in self.query.severityLevels]
+                        )
+                    },
+                )
+            )
+
+        if self.query.liveLogsCheckpoint:
+            exprs.append(
+                parse_expr(
+                    ""observed_timestamp >= {liveLogsCheckpoint}"",
+                    placeholders={""liveLogsCheckpoint"": ast.Constant(value=self.query.liveLogsCheckpoint)},
+                )
+            )
+
+        if self.query.after:
+            try:
+                cursor = json.loads(base64.b64decode(self.query.after).decode(""utf-8""))
+                cursor_ts = dt.datetime.fromisoformat(cursor[""timestamp""])
+                cursor_uuid = cursor[""uuid""]
+            except (KeyError, ValueError, json.JSONDecodeError) as e:
+                raise ValueError(f""Invalid cursor format: {e}"")
+            # For ASC (earliest first): get rows where (timestamp, uuid) > cursor
+            # For DESC (latest first, default): get rows where (timestamp, uuid) < cursor
+            op = "">"" if self.query.orderBy == ""earliest"" else ""<""
+            ts_op = "">="" if self.query.orderBy == ""earliest"" else ""<=""
+            # The logs table is sorted by (team_id, time_bucket, ..., timestamp) where
+            # time_bucket = toStartOfDay(timestamp). ClickHouse only prunes efficiently when
+            # the WHERE clause matches the sorting key. A tuple comparison like
+            # (timestamp, uuid) < (x, y) won't trigger pruning.
+            # We add explicit scalar bounds on both time_bucket and timestamp to ensure
+            # ClickHouse can use the primary index and skip irrelevant parts.
+            exprs.append(
+                parse_expr(
+                    f""time_bucket {ts_op} toStartOfDay({{cursor_ts}})"",
+                    placeholders={""cursor_ts"": ast.Constant(value=cursor_ts)},
+                )
+            )
+            exprs.append(
+                parse_expr(
+                    f""timestamp {ts_op} {{cursor_ts}}"",
+                    placeholders={""cursor_ts"": ast.Constant(value=cursor_ts)},
+                )
+            )
+            # Tuple comparison handles the exact cursor position (same timestamp, different uuid)
+            exprs.append(
+                parse_expr(
+                    f""(timestamp, uuid) {op} ({{cursor_ts}}, {{cursor_uuid}})"",
+                    placeholders={
+                        ""cursor_ts"": ast.Constant(value=cursor_ts),
+                        ""cursor_uuid"": ast.Constant(value=cursor_uuid),
+                    },
+                )
+            )
+
+        return ast.And(exprs=exprs)
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>
+</details>",https://github.com/PostHog/posthog/pull/46549#issuecomment-3835611906,,2026-02-02T14:54:06+00:00,logic,high,"Greptile correctly identified that the `resourceFingerprint` parameter is accepted in the schema/API but never actually applied in the `where()` method, meaning the feature is completely broken - users would expect filtering by resource fingerprint to work, but queries would return unfiltered results. Comment 0 is a duplicate identifying the same issue from the test perspective. This is a clear functional bug that would affect users in normal usage.",2026-02-02T16:22:28.170686+00:00
+posthog/posthog,46546,[WIP] feat(dashboards): use ai to explain changes,https://github.com/PostHog/posthog/pull/46546,"missing validation allows users to access other users' cached data by providing arbitrary cache keys
+
+The endpoint accepts any cache key from the request body without verifying it belongs to the current user and dashboard. This allows unauthorized access to cached analysis data from other users' sessions.
+
+Validate that the provided cache key matches the format created in the `retrieve` method for this specific user and dashboard before using it.
+
+**Context Used:** Context from `dashboard` - When implementing new features, ensure that ownership validation is included to prevent unauthorized... ([source](https://app.greptile.com/review/custom-context?memory=9655b466-451a-401a-9ba0-5bf3e7b7f9f8))
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: posthog/api/dashboards/dashboard.py
+Line: 885:896
+
+Comment:
+missing validation allows users to access other users' cached data by providing arbitrary cache keys
+
+The endpoint accepts any cache key from the request body without verifying it belongs to the current user and dashboard. This allows unauthorized access to cached analysis data from other users' sessions.
+
+Validate that the provided cache key matches the format created in the `retrieve` method for this specific user and dashboard before using it.
+
+**Context Used:** Context from `dashboard` - When implementing new features, ensure that ownership validation is included to prevent unauthorized... ([source](https://app.greptile.com/review/custom-context?memory=9655b466-451a-401a-9ba0-5bf3e7b7f9f8))
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/46546#discussion_r2754684248,,2026-02-02T14:41:47+00:00,security,critical,Comment 0 identifies a security vulnerability where the endpoint accepts arbitrary cache keys from request body without validating ownership. This allows users to access other users' cached AI analysis data by guessing/providing cache keys. This is a real data exposure issue that could leak sensitive dashboard analysis information between users.,2026-02-02T16:22:28.170906+00:00
+nvidia/nvflare,4089,[2.7] amplify tutorial updates,https://github.com/NVIDIA/NVFlare/pull/4089,"String interpolation uses `$task` instead of f-string or `.format()` syntax. In Python, this will print the literal text ""Combing $task CSV data"" instead of the actual task name.
+
+```suggestion
+    print(f""Combing {task} CSV data"")
+```",https://github.com/NVIDIA/NVFlare/pull/4089#discussion_r2755039646,fixed,2026-02-02T15:54:06+00:00,runtime,medium,"Greptile correctly identified a Python string interpolation bug where `$task` was used instead of f-string syntax `{task}`. This would cause the code to print the literal text '$task' instead of the actual task name, breaking the expected functionality. The developer confirmed and fixed the issue.",2026-02-02T16:22:28.170954+00:00
+nvidia/nvflare,4088,Update amplify tutorial notebook,https://github.com/NVIDIA/NVFlare/pull/4088,"String interpolation syntax incorrect - `$task` won't work in Python
+
+```suggestion
+    print(f""Combing {task} CSV data"")
+```",https://github.com/NVIDIA/NVFlare/pull/4088#discussion_r2754997517,fixed,2026-02-02T15:45:42+00:00,runtime,low,"Greptile correctly identified that `$task` is shell/Perl interpolation syntax, not valid Python f-string syntax. The code would print the literal string '$task' instead of the variable value. Developer confirmed and fixed. However, this is in a tutorial notebook and is a fairly obvious syntax error that would be caught quickly during testing.",2026-02-02T16:22:28.170976+00:00
