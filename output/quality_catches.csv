@@ -2172,3 +2172,340 @@ nvidia/nvflare,4088,Update amplify tutorial notebook,https://github.com/NVIDIA/N
 ```suggestion
     print(f""Combing {task} CSV data"")
 ```",https://github.com/NVIDIA/NVFlare/pull/4088#discussion_r2754997517,fixed,2026-02-02T15:45:42+00:00,runtime,low,"Greptile correctly identified that `$task` is shell/Perl interpolation syntax, not valid Python f-string syntax. The code would print the literal string '$task' instead of the variable value. Developer confirmed and fixed. However, this is in a tutorial notebook and is a fairly obvious syntax error that would be caught quickly during testing.",2026-02-02T16:22:28.170976+00:00
+posthog/posthog,46571,feat(mcp): add queryable memory system to MCP server,https://github.com/PostHog/posthog/pull/46571,"The HogQL query in the `/query/` endpoint doesn't filter by team_id in the `document_embeddings` table. This means users could potentially query memories from other teams if they can guess document IDs.
+
+Add team filtering in the WHERE clause:
+
+```suggestion
+        query = f""""""
+            SELECT
+                document_id,
+                content,
+                metadata,
+                cosineDistance(embedding, embedText({{query_text}}, {{model_name}})) as distance
+            FROM (
+                SELECT
+                    document_id,
+                    argMax(content, inserted_at) as content,
+                    argMax(metadata, inserted_at) as metadata,
+                    argMax(embedding, inserted_at) as embedding
+                FROM document_embeddings
+                WHERE model_name = {{model_name}}
+                  AND product = 'posthog-ai'
+                  AND document_type = 'memory'
+                  AND team_id = {{team_id}}
+                GROUP BY document_id, model_name, product, document_type, rendering
+            )
+            WHERE ({{skip_user_filter}} OR JSONExtractString(metadata, 'user_id') = {{user_id}})
+              AND NOT JSONExtractBool(metadata, 'deleted')
+              AND ({metadata_filter_sql})
+            ORDER BY distance ASC
+            LIMIT {{limit}}
+        """"""
+```
+
+**Context Used:** Context from `dashboard` - When implementing new features, ensure that ownership validation is included to prevent unauthorized... ([source](https://app.greptile.com/review/custom-context?memory=9655b466-451a-401a-9ba0-5bf3e7b7f9f8))
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: products/posthog_ai/backend/api.py
+Line: 101:124
+
+Comment:
+The HogQL query in the `/query/` endpoint doesn't filter by team_id in the `document_embeddings` table. This means users could potentially query memories from other teams if they can guess document IDs.
+
+Add team filtering in the WHERE clause:
+
+```suggestion
+        query = f""""""
+            SELECT
+                document_id,
+                content,
+                metadata,
+                cosineDistance(embedding, embedText({{query_text}}, {{model_name}})) as distance
+            FROM (
+                SELECT
+                    document_id,
+                    argMax(content, inserted_at) as content,
+                    argMax(metadata, inserted_at) as metadata,
+                    argMax(embedding, inserted_at) as embedding
+                FROM document_embeddings
+                WHERE model_name = {{model_name}}
+                  AND product = 'posthog-ai'
+                  AND document_type = 'memory'
+                  AND team_id = {{team_id}}
+                GROUP BY document_id, model_name, product, document_type, rendering
+            )
+            WHERE ({{skip_user_filter}} OR JSONExtractString(metadata, 'user_id') = {{user_id}})
+              AND NOT JSONExtractBool(metadata, 'deleted')
+              AND ({metadata_filter_sql})
+            ORDER BY distance ASC
+            LIMIT {{limit}}
+        """"""
+```
+
+**Context Used:** Context from `dashboard` - When implementing new features, ensure that ownership validation is included to prevent unauthorized... ([source](https://app.greptile.com/review/custom-context?memory=9655b466-451a-401a-9ba0-5bf3e7b7f9f8))
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/46571#discussion_r2755592219,,2026-02-02T17:59:48+00:00,security,critical,"This is a legitimate security vulnerability - the HogQL query searches the document_embeddings table without filtering by team_id, which means users could potentially access memories from other teams. Comment 0 and 1 are related (0 identifies the missing WHERE clause, 1 adds the placeholder), but Comment 0 is the primary catch that identifies the root security issue. This is a classic multi-tenant data isolation bug that could expose sensitive data across organizational boundaries.",2026-02-02T18:27:23.493934+00:00
+twentyhq/twenty,17637,Files field - add files field display and input + filtering,https://github.com/twentyhq/twenty/pull/17637,"[P0] This file references `FieldFileValue` but does not import or define it, so it won’t type-check/compile.
+
+```suggestion
+import { type FilesFilter, type FieldFileValue } from '@/types';
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/twenty-shared/src/utils/filter/utils/isMatchingFilesFilter.ts
+Line: 1:3
+
+Comment:
+[P0] This file references `FieldFileValue` but does not import or define it, so it won’t type-check/compile.
+
+```suggestion
+import { type FilesFilter, type FieldFileValue } from '@/types';
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/twentyhq/twenty/pull/17637#discussion_r2755634397,,2026-02-02T18:11:43+00:00,type_error,high,"Comment 7 identifies a clear compilation error where `FieldFileValue` type is used but never imported or defined in the file. This would cause TypeScript compilation to fail, preventing the code from building. This is a straightforward, verifiable bug that would break the build.",2026-02-02T18:27:23.494034+00:00
+twentyhq/twenty,17646,Migrate workflow serverless to logic,https://github.com/twentyhq/twenty/pull/17646,"Check that files are successfully uploaded before cleanup - if `applicationUniversalIdentifier` is undefined, files are migrated to temp but never uploaded, then deleted at line 228. This could result in data loss.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/twenty-server/src/database/commands/upgrade-version-command/1-17/1-17-migrate-workflow-code-steps.command.ts
+Line: 219:226
+
+Comment:
+Check that files are successfully uploaded before cleanup - if `applicationUniversalIdentifier` is undefined, files are migrated to temp but never uploaded, then deleted at line 228. This could result in data loss.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/twentyhq/twenty/pull/17646#discussion_r2755394467,,2026-02-02T17:11:17+00:00,data_integrity,high,This catch identifies a potential data loss scenario in a migration command where files could be deleted from temporary storage after migration but before successful upload if the applicationUniversalIdentifier is undefined. Migration commands that can cause data loss are serious issues since they affect production data and are typically run once.,2026-02-02T18:27:23.494067+00:00
+nvidia/nvflare,4087,[2.7] Fix xgboost recipes,https://github.com/NVIDIA/NVFlare/pull/4087,"<details>
+<summary>Additional Comments (1)</summary>
+
+**`nvflare/app_opt/xgboost/recipes/vertical.py`**
+missing `data_loader` parameter in `__init__` signature, but line 202 references `data_loader` variable causing `NameError`
+
+```suggestion
+        data_loader: Optional[""XGBDataLoader""] = None,
+```
+</details>",https://github.com/NVIDIA/NVFlare/pull/4087#issuecomment-3836812838,,2026-02-02T18:03:29+00:00,runtime,high,"This identifies a clear NameError bug where `data_loader` is referenced on line 202 but never defined as a parameter in the `__init__` signature. This would cause a runtime crash when the code path using `data_loader` is executed, affecting users in normal usage of the vertical XGBoost recipe.",2026-02-02T18:27:23.494095+00:00
+nvidia/nvflare,4090,[2.7] Fix incorrect test_filter.py and resources.json,https://github.com/NVIDIA/NVFlare/pull/4090,"Missing parentheses in `super()` call causes runtime error
+
+```suggestion
+        super().__init__()
+```",https://github.com/NVIDIA/NVFlare/pull/4090#discussion_r2755431542,,2026-02-02T17:18:55+00:00,runtime,high,"This is a genuine bug that will cause a runtime error. Using `super.__init__()` instead of `super().__init__()` will fail when the class is instantiated because `super` without parentheses returns the super type object, not a bound super object. This will affect any normal usage of the TestFilter class.",2026-02-02T18:27:23.494113+00:00
+ever-co/ever-teams,4245,Refactor: Separate useTeamTasks into more atomic Hooks,https://github.com/ever-co/ever-teams/pull/4245,"Removed critical data synchronization effect that syncs React Query data with Jotai state. The original code had:
+
+```typescript
+useConditionalUpdateEffect(
+  () => {
+    if (teamTasksQuery.data?.items) {
+      deepCheckAndUpdateTasks(teamTasksQuery.data.items, true);
+    }
+  },
+  [teamTasksQuery.data?.items],
+  Boolean(tasks?.length)
+);
+```
+
+This effect ensures that when React Query fetches new data, it's synchronized with the Jotai store. Without it, components relying on the Jotai state won't see updates from the server.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: apps/web/core/hooks/organizations/teams/use-team-tasks.ts
+Line: 454:454
+
+Comment:
+Removed critical data synchronization effect that syncs React Query data with Jotai state. The original code had:
+
+```typescript
+useConditionalUpdateEffect(
+  () => {
+    if (teamTasksQuery.data?.items) {
+      deepCheckAndUpdateTasks(teamTasksQuery.data.items, true);
+    }
+  },
+  [teamTasksQuery.data?.items],
+  Boolean(tasks?.length)
+);
+```
+
+This effect ensures that when React Query fetches new data, it's synchronized with the Jotai store. Without it, components relying on the Jotai state won't see updates from the server.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/ever-co/ever-teams/pull/4245#discussion_r2755604568,,2026-02-02T18:03:22+00:00,data_integrity,high,"This catch identifies a critical data synchronization issue where the refactoring removed the effect that syncs React Query data with Jotai state. Without this synchronization, components relying on Jotai state won't see server updates, causing stale data to be displayed to users in normal usage. This is a real functional bug that would affect all users.",2026-02-02T18:27:23.494164+00:00
+constellation-labs/tessellation,1410,fix: fixing wrong incremental mpt update and optimizing batch insertion,https://github.com/Constellation-Labs/tessellation/pull/1410,"Grouping by first nibble doesn't provide the optimization claimed in the comment. The sequential `foldLeftM` on line 66-72 still processes entries one at a time, and grouping them by first nibble only helps if multiple entries have the same prefix. However, this grouping adds overhead for the common case where entries have different prefixes. Consider whether this optimization is measurably beneficial for your workload.
+
+<sub>Note: If this suggestion doesn't match your team's coding style, reply to this and let me know. I'll remember it for next time!</sub>
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: modules/shared/src/main/scala/io/constellationnetwork/schema/mpt/IncrementalTrieOps.scala
+Line: 53:63
+
+Comment:
+Grouping by first nibble doesn't provide the optimization claimed in the comment. The sequential `foldLeftM` on line 66-72 still processes entries one at a time, and grouping them by first nibble only helps if multiple entries have the same prefix. However, this grouping adds overhead for the common case where entries have different prefixes. Consider whether this optimization is measurably beneficial for your workload.
+
+<sub>Note: If this suggestion doesn't match your team's coding style, reply to this and let me know. I'll remember it for next time!</sub>
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/Constellation-Labs/tessellation/pull/1410#discussion_r2755338377,"The comment is right, this is a hallucination because the keys all share a common `0` starting char
+```
+
+  /** Insert multiple entries sequentially.
+    *
+    * Note: Parallelization by prefix grouping is not effective here because GlobalStateKey serialization
+    * (see GlobalStateKey.toHex) produces keys where the first nibble is always 0 (namespace type bytes
+    * 0x00, 0x01, 0x02 all start with '0'). This means all entries would fall into the same group,
+    * making prefix-based batching a no-op with added overhead.
+    */
+  def insertMultiple[F[_]: Async: Hasher](
+    root: MerklePatriciaNode,
+    entries: List[(Hex, Hash)]
+  ): F[MerklePatriciaNode] =
+    entries.foldLeftM(root) { case (node, (key, hash)) => insert(node, key, hash) }
+```
+---
+I've marked wrongly as resolved, I've rolled back this",2026-02-02T16:57:10+00:00,performance,medium,"Greptile correctly identified that the optimization of grouping by first nibble would be ineffective. The developer confirmed this was a 'hallucination' because all keys share a common '0' starting character due to GlobalStateKey serialization, making the prefix-based batching a no-op with added overhead. The code was rolled back based on this catch.",2026-02-02T18:27:23.494202+00:00
+alpaca-network/gatewayz-backend,1024,Autofix Backend / #1018: Migrate to model_name and centralized credits,https://github.com/Alpaca-Network/gatewayz-backend/pull/1024,"<details>
+<summary>Additional Comments (2)</summary>
+
+**`src/db/chat_completion_requests.py`**
+[P1] Still references removed pricing_* columns in model search results
+
+`search_models_with_chat_summary` now notes `models.model_id` was removed, but it still reads `model.get('pricing_prompt')` / `model.get('pricing_completion')`. If those columns were dropped along with the migration to `model_pricing`, this will always return `None` (or raise if select no longer includes them), and any callers expecting pricing will regress.
+
+This should source pricing from the `model_pricing` relationship (similar to `failover_db.py`) or remove these fields from the response if they're no longer part of the schema.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: src/db/chat_completion_requests.py
+Line: 964:974
+
+Comment:
+[P1] Still references removed pricing_* columns in model search results
+
+`search_models_with_chat_summary` now notes `models.model_id` was removed, but it still reads `model.get('pricing_prompt')` / `model.get('pricing_completion')`. If those columns were dropped along with the migration to `model_pricing`, this will always return `None` (or raise if select no longer includes them), and any callers expecting pricing will regress.
+
+This should source pricing from the `model_pricing` relationship (similar to `failover_db.py`) or remove these fields from the response if they're no longer part of the schema.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>
+
+---
+
+**`src/routes/chat.py`**
+[P2] Tracing cost uses sync `calculate_cost` while billing uses async pricing
+
+In the main request path, the trace cost is computed via `calculate_cost(...)` (sync) while actual billing now goes through `handle_credits_and_usage` → `calculate_cost_async`. If live pricing or DB pricing differs from cache/default, traces can diverge from billed cost, which makes audit/debug harder.
+
+Consider computing trace cost via the same pricing path used for billing, or explicitly marking trace cost as an estimate.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: src/routes/chat.py
+Line: 2639:2651
+
+Comment:
+[P2] Tracing cost uses sync `calculate_cost` while billing uses async pricing
+
+In the main request path, the trace cost is computed via `calculate_cost(...)` (sync) while actual billing now goes through `handle_credits_and_usage` → `calculate_cost_async`. If live pricing or DB pricing differs from cache/default, traces can diverge from billed cost, which makes audit/debug harder.
+
+Consider computing trace cost via the same pricing path used for billing, or explicitly marking trace cost as an estimate.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>
+</details>",https://github.com/Alpaca-Network/gatewayz-backend/pull/1024#issuecomment-3836582344,,2026-02-02T17:17:08+00:00,data_integrity,high,"The comment identifies that `search_models_with_chat_summary` still references `pricing_prompt` and `pricing_completion` columns that were removed in the migration to `model_pricing`. This will cause pricing data to always return `None`, breaking any callers expecting pricing information. This is a concrete regression from the migration that will affect users in normal usage.",2026-02-02T18:27:23.494255+00:00
+posthog/posthog-dotnet,150,"feat: SDK compliance - retry logic, gzip compression, and UUID generation",https://github.com/PostHog/posthog-dotnet/pull/150,"The `finally` block disposes `response` (line 108) even when returning from the success path, potentially closing the stream from `ReadAsStreamAsync` before deserialization completes in `DeserializeFromCamelCaseJsonAsync`.
+
+Move response disposal to after deserialization by wrapping the success path with `using (response)`, then skip disposal in the finally block for this path. This ensures the stream remains open during deserialization.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: src/PostHog/Library/HttpClientExtensions.cs
+Line: 81:87
+
+Comment:
+The `finally` block disposes `response` (line 108) even when returning from the success path, potentially closing the stream from `ReadAsStreamAsync` before deserialization completes in `DeserializeFromCamelCaseJsonAsync`.
+
+Move response disposal to after deserialization by wrapping the success path with `using (response)`, then skip disposal in the finally block for this path. This ensures the stream remains open during deserialization.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog-dotnet/pull/150#discussion_r2755460252,,2026-02-02T17:25:42+00:00,resource_leak,high,This is a legitimate concurrency/resource issue where the finally block disposes the HttpResponseMessage before the stream from ReadAsStreamAsync can be fully consumed for deserialization. This could cause runtime errors or data corruption in normal usage when processing successful API responses. The analysis correctly identifies the timing issue between stream access and disposal.,2026-02-02T18:27:23.494330+00:00
+rapidsai/cugraph-gnn,395,restore conda-python-tests on CUDA 13,https://github.com/rapidsai/cugraph-gnn/pull/395,"Version constraint mismatch: `dependencies.yaml:417` specifies `pytorch_geometric>=2.5,<2.8` but this file uses `<2.7`
+
+```suggestion
+    - pytorch_geometric >=2.5,<2.8
+```",https://github.com/rapidsai/cugraph-gnn/pull/395#discussion_r2755253467,"You're right, looks like we missed that in #360
+
+Updated in https://github.com/rapidsai/cugraph-gnn/pull/395/commits/e67bef10fa047e18ff2f02a894b15a5812299e95",2026-02-02T16:38:54+00:00,data_integrity,medium,"Greptile correctly identified a version constraint mismatch between dependencies.yaml and recipe.yaml that would cause inconsistent behavior across build configurations. The developer confirmed this was indeed missed in a previous PR and fixed it. While not a critical bug, catching dependency version inconsistencies prevents potential compatibility issues in production environments.",2026-02-02T18:27:23.494364+00:00
+huskit/website-agent,30,Feat/intergrate langfuse,https://github.com/HuskIT/website-agent/pull/30,"Breaking change: response structure changed from returning `data: BusinessData` to markdown-only format. `CreateProjectDialog.tsx:214` still expects `result.data` and will break.
+
+```suggestion
+    // Return response with both markdown AND business data for backward compatibility
+    return json(
+      {
+        success: true,
+        session_id: sessionId,
+        data: result.data, // Keep for CreateProjectDialog.tsx
+        google_maps_markdown: googleMapsMarkdown,
+        website_markdown: websiteMarkdown,
+        has_website: !!crawledWebsiteUrl,
+      },
+      { status: 200 },
+    );
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: app/routes/api.crawler.extract.ts
+Line: 323:333
+
+Comment:
+Breaking change: response structure changed from returning `data: BusinessData` to markdown-only format. `CreateProjectDialog.tsx:214` still expects `result.data` and will break.
+
+```suggestion
+    // Return response with both markdown AND business data for backward compatibility
+    return json(
+      {
+        success: true,
+        session_id: sessionId,
+        data: result.data, // Keep for CreateProjectDialog.tsx
+        google_maps_markdown: googleMapsMarkdown,
+        website_markdown: websiteMarkdown,
+        has_website: !!crawledWebsiteUrl,
+      },
+      { status: 200 },
+    );
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/HuskIT/website-agent/pull/30#discussion_r2755186253,,2026-02-02T16:24:46+00:00,logic,high,Comment 0 identifies a breaking API change where the response structure was modified to remove `result.data` that `CreateProjectDialog.tsx:214` depends on. This will cause the frontend to break in normal usage when trying to access the now-missing property. The reviewer correctly identified the backward compatibility issue and provided a concrete fix.,2026-02-02T18:27:23.494385+00:00
