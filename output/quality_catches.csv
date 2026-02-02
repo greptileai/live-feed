@@ -1612,3 +1612,40 @@ If this is intentional, both the config description and documentation need updat
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/twentyhq/twenty/pull/17610#discussion_r2751958736,,2026-02-01T21:05:01+00:00,logic,high,"Greptile correctly identified that the code change removes the 'first workspace' exception, which contradicts both the configuration documentation and user-facing docs that explicitly state users can still create their first workspace during initial signup. This is a real functional regression that would break the documented behavior for new users trying to sign up when workspace creation is restricted to admins.",2026-02-01T22:14:51.006028+00:00
+democratizedspace/dspace,3294,Add canonical routes catalog and prefer canonical-route-index in docs RAG,https://github.com/democratizedspace/dspace/pull/3294,"<details>
+<summary>Additional Comments (1)</summary>
+
+**`scripts/build-docs-rag-index.mjs`**
+The route paths (like `/contentbackup`, `/quests`) are wrapped in backticks in the ROUTES.md markdown table and are being stripped by this regex, making the canonical route table useless for RAG queries.
+
+Checked the generated chunk with `anchor: ""canonical-route-index""` and confirmed it contains `| Home | | Homepage. | Main nav |` instead of `| Home | / | Homepage. | Main nav |` - the `/` route is missing.
+
+This defeats the PR's goal of preventing /chat hallucinations about routes since the actual route paths aren't in the indexed content.
+</details>",https://github.com/democratizedspace/dspace/pull/3294#issuecomment-3832310515,,2026-02-01T23:49:45+00:00,logic,high,"Comment 1 identifies a critical flaw where the regex strips backtick-wrapped route paths from the markdown table during indexing, making the entire PR's goal ineffective. The reviewer verified this by checking the actual generated chunk content, proving routes like `/` and `/contentbackup` are missing from the indexed data. This completely defeats the feature's purpose of providing canonical route information to prevent hallucinations.",2026-02-02T00:52:34.870299+00:00
+traceroot-ai/traceroot,402,[AgentOps][Refactor] Migrate from SqlAlchmey to Prisma for Postgres DB [1/n],https://github.com/traceroot-ai/traceroot/pull/402,"Schema changed table names from `membership_invitations` to `invites`, `organization_memberships` to `workspace_members`, and `organizations` to `workspaces`, but no Prisma migration was included. This will break on existing databases.
+
+You need to either:
+1. Create a Prisma migration to rename the tables: `npx prisma migrate dev --name rename_org_to_workspace`
+2. Manually create SQL ALTER TABLE RENAME statements in a migration file
+
+Without migrations, `prisma migrate deploy` will fail in production.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: ui/prisma/schema.prisma
+Line: 28:41
+
+Comment:
+Schema changed table names from `membership_invitations` to `invites`, `organization_memberships` to `workspace_members`, and `organizations` to `workspaces`, but no Prisma migration was included. This will break on existing databases.
+
+You need to either:
+1. Create a Prisma migration to rename the tables: `npx prisma migrate dev --name rename_org_to_workspace`
+2. Manually create SQL ALTER TABLE RENAME statements in a migration file
+
+Without migrations, `prisma migrate deploy` will fail in production.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/traceroot-ai/traceroot/pull/402#discussion_r2752147969,,2026-02-02T00:04:16+00:00,data_integrity,high,"This catch identifies a critical migration issue - table names were changed in the Prisma schema without including database migrations. This WILL cause production deployment failures when `prisma migrate deploy` is run against existing databases, potentially causing data loss or service outages. The issue is concrete, verifiable from the schema changes, and requires action before deployment.",2026-02-02T00:52:34.870359+00:00
