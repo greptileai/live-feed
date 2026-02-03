@@ -3268,3 +3268,13 @@ Also appears in: gptme/llm/llm_openai_subscription.py:302-309.
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/gptme/gptme/pull/1225#discussion_r2759919986,,2026-02-03T16:25:17+00:00,logic,high,"This identifies a critical API mismatch where the streaming parser expects OpenAI Chat Completions format (`choices[0].delta.content`) but the actual Codex endpoint returns a different format (`response.output_text.delta`). This would cause the feature to silently return empty/no output even on successful API calls, making the entire subscription provider non-functional. This is a fundamental implementation bug that would affect all users attempting to use this new feature.",2026-02-03T16:33:20.976741+00:00
+nvidia/nvflare,4105,[2.7] Chapter 8 Fixes,https://github.com/NVIDIA/NVFlare/pull/4105,"<details>
+<summary>Additional Comments (1)</summary>
+
+**`examples/tutorials/self-paced-training/part-4_advanced_federated_learning/chapter-8_federated_LLM_training/08.2_llm_sft/utils/hf_sft_peft_iter.py`**
+`model` is not PEFT-wrapped here since you removed `get_peft_model()`. This line executes before `SFTTrainer` wraps it. Use `trainer.model` after trainer initialization or move this block after line 141.
+
+```suggestion
+        params = get_peft_model_state_dict(trainer.model)
+```
+</details>",https://github.com/NVIDIA/NVFlare/pull/4105#issuecomment-3842362343,,2026-02-03T16:33:48+00:00,logic,high,This catch identifies a real bug where `get_peft_model_state_dict()` is called on a model that hasn't been PEFT-wrapped yet (since `get_peft_model()` was removed). This would cause incorrect behavior or runtime errors during normal usage of the LLM training workflow. The fix to use `trainer.model` after trainer initialization is correct.,2026-02-03T18:34:31.330032+00:00
