@@ -3317,3 +3317,18 @@ Comment:
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/Credal-ai/actions-sdk/pull/485#discussion_r2760526065,,2026-02-03T18:51:02+00:00,logic,high,"Comment 1 identifies a real bug: after moving a Jira ticket to a new project, the issue key changes, but the code refetches using the old key which will 404. This causes the function to return incorrect/stale data (old key and URL) even though the move succeeded. This will affect users in normal usage whenever they move tickets between projects.",2026-02-03T20:27:24.694193+00:00
+posthog/posthog,46744,feat(docs): inkeep agent workflow,https://github.com/PostHog/posthog/pull/46744,"This file is structured as a workflow file but placed in the actions directory. Files in `.github/actions/` should be composite actions (with `runs:`, `inputs:`, `outputs:`), while workflow files (with `on:`, `jobs:`, `permissions:`) belong in `.github/workflows/`. Move this to `.github/workflows/inkeep-content-writer.yml`.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: .github/actions/inkeep-content-writer/action.yml
+Line: 1:27
+
+Comment:
+This file is structured as a workflow file but placed in the actions directory. Files in `.github/actions/` should be composite actions (with `runs:`, `inputs:`, `outputs:`), while workflow files (with `on:`, `jobs:`, `permissions:`) belong in `.github/workflows/`. Move this to `.github/workflows/inkeep-content-writer.yml`.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/46744#discussion_r2760879502,oops lol fixed,2026-02-03T20:34:37+00:00,runtime,medium,Greptile correctly identified that a workflow file was placed in the wrong directory (.github/actions/ instead of .github/workflows/). This would cause the workflow to not execute at all since GitHub Actions only recognizes workflow files in the workflows directory. The developer confirmed the issue with 'oops lol fixed'.,2026-02-03T22:21:51.346364+00:00
