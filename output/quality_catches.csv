@@ -3278,3 +3278,42 @@ nvidia/nvflare,4105,[2.7] Chapter 8 Fixes,https://github.com/NVIDIA/NVFlare/pull
         params = get_peft_model_state_dict(trainer.model)
 ```
 </details>",https://github.com/NVIDIA/NVFlare/pull/4105#issuecomment-3842362343,,2026-02-03T16:33:48+00:00,logic,high,This catch identifies a real bug where `get_peft_model_state_dict()` is called on a model that hasn't been PEFT-wrapped yet (since `get_peft_model()` was removed). This would cause incorrect behavior or runtime errors during normal usage of the LLM training workflow. The fix to use `trainer.model` after trainer initialization is correct.,2026-02-03T18:34:31.330032+00:00
+posthog/posthog,46738,refactor(hogql): move or_null logic to function metadata,https://github.com/PostHog/posthog/pull/46738,"The `ADD_OR_NULL_DATETIME_FUNCTIONS` constant was removed but it's still imported and used in `posthog/hogql/printer/base.py:641`. This will cause an `ImportError` at runtime.
+
+The refactor is incomplete - the printer needs to be updated to check `func_meta.use_or_null_variant` instead of checking membership in the removed constant.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: posthog/hogql/functions/config.py
+Line: 25:25
+
+Comment:
+The `ADD_OR_NULL_DATETIME_FUNCTIONS` constant was removed but it's still imported and used in `posthog/hogql/printer/base.py:641`. This will cause an `ImportError` at runtime.
+
+The refactor is incomplete - the printer needs to be updated to check `func_meta.use_or_null_variant` instead of checking membership in the removed constant.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/46738#discussion_r2760778167,,2026-02-03T20:03:47+00:00,runtime,high,Greptile correctly identified that removing the `ADD_OR_NULL_DATETIME_FUNCTIONS` constant without updating the code that imports it would cause an ImportError at runtime. This is a clear incomplete refactoring issue that would break the application when the affected code path is executed. The catch identifies both the problem and the correct solution.,2026-02-03T20:27:24.694126+00:00
+nvidia/nvflare,4112,Update jobapi pt example,https://github.com/NVIDIA/NVFlare/pull/4112,"Task name mismatch: controller expects `validate` but script checks for `is_evaluate()` (which expects task name `evaluate`)
+
+```suggestion
+        validation_task_name=""evaluate"",
+```",https://github.com/NVIDIA/NVFlare/pull/4112#discussion_r2760607562,"good catch, updated",2026-02-03T19:14:37+00:00,logic,high,"This catches a task name mismatch where the controller expects 'validate' but the script checks for 'evaluate' via `flare.is_evaluate()`. This would cause the validation phase to silently fail in normal usage - a real bug that users would encounter. The developer confirmed it with 'good catch, updated'.",2026-02-03T20:27:24.694174+00:00
+credal-ai/actions-sdk,485,Added jira move action,https://github.com/Credal-ai/actions-sdk/pull/485,"[P1] After the move completes you refetch the issue via `${apiUrl}/issue/${currentIssueKey}` (key, not immutable id). If moving projects changes the issue key, this lookup can 404 and you’ll return the old `newTicketKey`/`ticketUrl` even though the move succeeded. Consider requesting/storing the issue’s immutable `id` from the initial GET and refetching by id, or using the bulk move task result if it provides the new key.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: src/actions/providers/jira/moveJiraTicketToProject.ts
+Line: 214:219
+
+Comment:
+[P1] After the move completes you refetch the issue via `${apiUrl}/issue/${currentIssueKey}` (key, not immutable id). If moving projects changes the issue key, this lookup can 404 and you’ll return the old `newTicketKey`/`ticketUrl` even though the move succeeded. Consider requesting/storing the issue’s immutable `id` from the initial GET and refetching by id, or using the bulk move task result if it provides the new key.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/Credal-ai/actions-sdk/pull/485#discussion_r2760526065,,2026-02-03T18:51:02+00:00,logic,high,"Comment 1 identifies a real bug: after moving a Jira ticket to a new project, the issue key changes, but the code refetches using the old key which will 404. This causes the function to return incorrect/stale data (old key and URL) even though the move succeeded. This will affect users in normal usage whenever they move tickets between projects.",2026-02-03T20:27:24.694193+00:00
