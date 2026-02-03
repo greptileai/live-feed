@@ -3134,3 +3134,76 @@ raycast/extensions,25101,File Content Search: add extension,https://github.com/r
 `buildGrepCommand` returns a single shell string that is executed via `spawn(""sh"", [""-c"", command])` (see `useGrep.ts`). While the query is single-quoted, `path` is only wrapped in double quotes and `excludedDirectories`/`excludedExtensions` are interpolated unquoted. A preference value like `excludedDirectories: ""foo --exclude-dir=$(rm -rf ~)""` or a search path containing `""` / `$()` can break quoting and inject arbitrary shell commands. This matters whenever a user sets these preferences (or picks a directory with special characters).
 
 Consider building the grep invocation with `spawn` args (no shell) or robustly escaping all interpolated values (path + exclude args), not just the query.",https://github.com/raycast/extensions/pull/25101#discussion_r2758321896,,2026-02-03T10:18:40+00:00,security,critical,"This is a genuine shell command injection vulnerability. The code builds a shell command string that's executed via `spawn('sh', ['-c', command])`, and while the query is single-quoted, the `path` parameter and exclude values from user preferences are not properly escaped. A malicious path or preference value containing shell metacharacters like `$()` or backticks could execute arbitrary commands. This is a serious security issue that could affect any user of this extension.",2026-02-03T10:27:09.955750+00:00
+twentyhq/twenty,17662,Improve cache-clear behavior,https://github.com/twentyhq/twenty/pull/17662,"The `scan` method is being called with positional string arguments ('MATCH', pattern, 'COUNT', '100'), but based on `cache-storage.service.ts:193`, the cache Redis client (same IORedis library) uses an object-based API: `scan(cursor, { MATCH: pattern, COUNT: 100 })`. These are different calling conventions for the same IORedis library.
+
+```suggestion
+        const result = await redisClient.scan(cursor, {
+          MATCH: pattern,
+          COUNT: 100,
+        });
+
+        cursor = result.cursor.toString();
+        const keys = result.keys;
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/twenty-server/src/engine/core-modules/cache-storage/commands/flush-cache.command.ts
+Line: 77:83
+
+Comment:
+The `scan` method is being called with positional string arguments ('MATCH', pattern, 'COUNT', '100'), but based on `cache-storage.service.ts:193`, the cache Redis client (same IORedis library) uses an object-based API: `scan(cursor, { MATCH: pattern, COUNT: 100 })`. These are different calling conventions for the same IORedis library.
+
+```suggestion
+        const result = await redisClient.scan(cursor, {
+          MATCH: pattern,
+          COUNT: 100,
+        });
+
+        cursor = result.cursor.toString();
+        const keys = result.keys;
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/twentyhq/twenty/pull/17662#discussion_r2758581673,,2026-02-03T11:21:39+00:00,runtime,high,"Greptile correctly identifies that the Redis scan method is being called with the wrong API convention. The code uses positional string arguments ('MATCH', pattern, 'COUNT', '100') but IORedis uses an object-based API. This would cause the scan operation to fail or behave incorrectly in production, breaking the cache flush functionality entirely.",2026-02-03T12:27:51.998700+00:00
+twentyhq/twenty,17661,Files v2 - File table migration + data migration command,https://github.com/twentyhq/twenty/pull/17661,"verify that `DeleteFileRecordsCommand` runs before this and successfully deletes all file records - dropping columns `name`, `fullPath`, and `type` that may contain existing data will cause data loss if any records remain
+
+**Context Used:** Rule from `dashboard` - Database migrations that touch uniqueness constraints must be tested on production-like datasets bef... ([source](https://app.greptile.com/review/custom-context?memory=afbb9dab-0419-4839-9ab7-73551d42b0ae))
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/twenty-server/src/database/typeorm/core/migrations/utils/1768572831179-updateFileTable.util.ts
+Line: 6:8
+
+Comment:
+verify that `DeleteFileRecordsCommand` runs before this and successfully deletes all file records - dropping columns `name`, `fullPath`, and `type` that may contain existing data will cause data loss if any records remain
+
+**Context Used:** Rule from `dashboard` - Database migrations that touch uniqueness constraints must be tested on production-like datasets bef... ([source](https://app.greptile.com/review/custom-context?memory=afbb9dab-0419-4839-9ab7-73551d42b0ae))
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/twentyhq/twenty/pull/17661#discussion_r2758399970,,2026-02-03T10:35:57+00:00,data_integrity,high,"This comment identifies a critical data integrity issue - the migration drops columns containing existing data without ensuring records are deleted first. If DeleteFileRecordsCommand fails or doesn't run, the migration will cause permanent data loss in production. This is a concrete, verifiable concern about the migration execution order and its consequences.",2026-02-03T12:27:51.998823+00:00
+gptme/gptme,1224,Fix/server fd leak minimal,https://github.com/gptme/gptme/pull/1224,"[P1] `ShellSession.close()` now closes stdout/stderr before terminating the process group, which can raise and skip termination.
+
+Closing `self.process.stdout/stderr` can throw (e.g., already closed, or I/O errors). Since it happens before the `try:` that sends SIGTERM/SIGKILL, an exception here would prevent the process group from being terminated, leaving a running bash + children (worse than an fd leak). Wrapping the pipe closes in the existing `try:` (or guarding with `contextlib.suppress(Exception)`) would ensure termination still happens even if a pipe close fails.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: gptme/tools/shell.py
+Line: 730:737
+
+Comment:
+[P1] `ShellSession.close()` now closes stdout/stderr before terminating the process group, which can raise and skip termination.
+
+Closing `self.process.stdout/stderr` can throw (e.g., already closed, or I/O errors). Since it happens before the `try:` that sends SIGTERM/SIGKILL, an exception here would prevent the process group from being terminated, leaving a running bash + children (worse than an fd leak). Wrapping the pipe closes in the existing `try:` (or guarding with `contextlib.suppress(Exception)`) would ensure termination still happens even if a pipe close fails.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/gptme/gptme/pull/1224#discussion_r2758802930,,2026-02-03T12:21:30+00:00,resource_leak,high,"Greptile correctly identifies that closing stdout/stderr pipes before the try block that terminates the process group could raise an exception and skip process termination entirely. This would leave orphaned bash processes running, which is worse than the original file descriptor leak the PR was trying to fix. The fix is straightforward (wrap pipe closes in try/except or use contextlib.suppress).",2026-02-03T12:27:51.998889+00:00
