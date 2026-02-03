@@ -3041,3 +3041,91 @@ Loading remote JavaScript via `importScripts()` from an external CDN without Sub
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/PostHog/posthog/pull/46633#discussion_r2757290409,,2026-02-03T05:39:05+00:00,security,critical,"Loading remote JavaScript via importScripts() in a service worker without SRI checks is a legitimate critical security vulnerability. Service workers have elevated privileges and can intercept all network requests. If the CDN is compromised, attackers could execute arbitrary code with full access to intercept and modify all application traffic.",2026-02-03T06:32:37.323347+00:00
+posthog/posthog,46640,ci(storybook): add diagnostic logging for webkit timeout issues,https://github.com/PostHog/posthog/pull/46640,"timing measurement won't capture `page.goto` timeout
+
+the load event listener is registered before `page.goto` is called, but if `page.goto` times out (the issue being diagnosed), the load event never fires, so the listener never executes. the measurement will be incomplete for the exact failure case you're trying to diagnose.
+
+to measure `page.goto` time, move this timing code to wrap around the actual `page.goto` call, or add timeout handling:
+
+```suggestion
+        // Log timing for webkit tests to diagnose timeout issues
+        const browserContext = page.context()
+        const browserName = browserContext.browser()?.browserType().name()
+        if (browserName === 'webkit' && process.env.CI) {
+            const pageLoadStart = Date.now()
+            // Listen for load event to measure actual load time
+            page.once('load', () => {
+                const loadTime = Date.now() - pageLoadStart
+                if (loadTime > 15000) {
+                    // eslint-disable-next-line no-console
+                    console.warn(
+                        `[webkit-diagnostics] SLOW page load: ${loadTime}ms for ${context.id} (threshold: 15000ms)`
+                    )
+                } else if (loadTime > 10000) {
+                    // eslint-disable-next-line no-console
+                    console.log(`[webkit-diagnostics] Page load: ${loadTime}ms for ${context.id}`)
+                }
+            })
+            // Add timeout warning if load event doesn't fire within 25s
+            setTimeout(() => {
+                // eslint-disable-next-line no-console
+                console.error(`[webkit-diagnostics] page.goto timeout - load event not fired after 25s for ${context.id}`)
+            }, 25000)
+        }
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: common/storybook/.storybook/test-runner.ts
+Line: 105:119
+
+Comment:
+timing measurement won't capture `page.goto` timeout
+
+the load event listener is registered before `page.goto` is called, but if `page.goto` times out (the issue being diagnosed), the load event never fires, so the listener never executes. the measurement will be incomplete for the exact failure case you're trying to diagnose.
+
+to measure `page.goto` time, move this timing code to wrap around the actual `page.goto` call, or add timeout handling:
+
+```suggestion
+        // Log timing for webkit tests to diagnose timeout issues
+        const browserContext = page.context()
+        const browserName = browserContext.browser()?.browserType().name()
+        if (browserName === 'webkit' && process.env.CI) {
+            const pageLoadStart = Date.now()
+            // Listen for load event to measure actual load time
+            page.once('load', () => {
+                const loadTime = Date.now() - pageLoadStart
+                if (loadTime > 15000) {
+                    // eslint-disable-next-line no-console
+                    console.warn(
+                        `[webkit-diagnostics] SLOW page load: ${loadTime}ms for ${context.id} (threshold: 15000ms)`
+                    )
+                } else if (loadTime > 10000) {
+                    // eslint-disable-next-line no-console
+                    console.log(`[webkit-diagnostics] Page load: ${loadTime}ms for ${context.id}`)
+                }
+            })
+            // Add timeout warning if load event doesn't fire within 25s
+            setTimeout(() => {
+                // eslint-disable-next-line no-console
+                console.error(`[webkit-diagnostics] page.goto timeout - load event not fired after 25s for ${context.id}`)
+            }, 25000)
+        }
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/46640#discussion_r2757503346,Good catch! Added a 25s timeout warning that logs an error if the load event hasn't fired yet. This will capture the exact failure case where `page.goto` is about to timeout (30s). The warning fires 5s before the timeout to give us diagnostic output before the test fails.,2026-02-03T06:54:11+00:00,logic,medium,"Greptile correctly identified that the diagnostic logging code won't capture the exact failure case it's meant to diagnose - if page.goto times out, the load event never fires, so the listener never executes. The developer confirmed this with 'Good catch!' and implemented the suggested fix. This is a meaningful logic error in diagnostic code that would have made the debugging effort ineffective.",2026-02-03T08:24:47.142399+00:00
+democratizedspace/dspace,3354,Fix ci-image workflow heredoc for SHA check,https://github.com/democratizedspace/dspace/pull/3354,"heredoc terminator must be at column 1 without leading spaces. With `<<'NODE'`, bash requires the terminating `NODE` marker to have no leading whitespace. The current indentation will cause bash to not recognize this as the terminator, resulting in ""here-document delimited by end-of-file"" error.
+
+```suggestion
+NODE
+```",https://github.com/democratizedspace/dspace/pull/3354#discussion_r2757698082,,2026-02-03T07:53:16+00:00,runtime,high,"This is a correct and important catch - bash heredoc terminators must be at column 1 with no leading whitespace, or bash will fail to recognize the end of the heredoc, causing a 'here-document delimited by end-of-file' error. This would cause the CI workflow to fail 100% of the time when this job runs, breaking the build pipeline.",2026-02-03T08:24:47.142489+00:00
+mrmps/smry,59,feat: adding ai chatbot feature replacing the our exisiting summary section,https://github.com/mrmps/SMRY/pull/59,"[P0] Rate limiting key can be `undefined` for anonymous requests
+
+`rateLimitKey` is set as `userId || clientIp` (server/routes/chat.ts:85), but `extractClientIp(request)` can be falsy depending on deployment/proxy headers. In that case `dailyRateLimit.limit(rateLimitKey)` will be called with `undefined` (server/routes/chat.ts:91), which can cause Upstash Ratelimit to throw or effectively bucket all such requests together, breaking throttling for anonymous users.
+
+Consider ensuring you always have a non-empty string key (e.g., fallback to something derived from request headers) before calling `.limit()`.
+",https://github.com/mrmps/SMRY/pull/59#discussion_r2757710484,,2026-02-03T07:56:17+00:00,security,high,"This catch identifies that the rate limiting key can be undefined when both userId and clientIp are falsy, causing all anonymous requests without identifiable IPs to share the same rate limit bucket. This effectively breaks rate limiting for anonymous users and could allow abuse. This is a real security issue that would affect production users.",2026-02-03T08:24:47.142510+00:00
