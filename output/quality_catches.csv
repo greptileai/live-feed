@@ -2996,3 +2996,26 @@ function buildHtmlEmail(params: EmailContentParams): string {
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/traceroot-ai/traceroot/pull/407#discussion_r2756486103,fixed.,2026-02-02T23:43:54+00:00,security,high,"This is a legitimate XSS vulnerability where user-provided data (inviterName, inviterEmail, workspaceName) is directly interpolated into HTML email content without escaping. While email client XSS is generally more limited than browser XSS, it's still a real security concern. The developer confirmed and fixed the issue, validating the catch.",2026-02-03T01:00:18.069345+00:00
+browserbase/stagehand,1650,feat: prefer CSS selectors over XPath in resolveSelector,https://github.com/browserbase/stagehand/pull/1650,"CSS selectors in `cssMap` are per-frame only and cannot traverse iframes like XPath. When an element is inside an iframe, the CSS selector will fail when called from the root page context, because CSS selectors aren't prefixed with iframe paths during snapshot capture (see `capture.ts:446`). 
+
+The `deepLocator` only treats selectors starting with `/` or `xpath=` as XPath that can cross iframe boundaries. A plain CSS selector like `#button-id` will only search in the current frame.
+
+Consider checking if the CSS selector contains iframe navigation (e.g., `>>` notation) or if the ref is known to be in an iframe before preferring CSS.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/cli/src/index.ts
+Line: 749:752
+
+Comment:
+CSS selectors in `cssMap` are per-frame only and cannot traverse iframes like XPath. When an element is inside an iframe, the CSS selector will fail when called from the root page context, because CSS selectors aren't prefixed with iframe paths during snapshot capture (see `capture.ts:446`). 
+
+The `deepLocator` only treats selectors starting with `/` or `xpath=` as XPath that can cross iframe boundaries. A plain CSS selector like `#button-id` will only search in the current frame.
+
+Consider checking if the CSS selector contains iframe navigation (e.g., `>>` notation) or if the ref is known to be in an iframe before preferring CSS.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/browserbase/stagehand/pull/1650#discussion_r2756657312,,2026-02-03T00:58:55+00:00,logic,high,"The comment identifies a real functional bug where CSS selectors cannot traverse iframes like XPath can. When elements are inside iframes, preferring CSS selectors will cause the selector to fail since CSS only searches in the current frame context. This would break functionality for any page using iframes, which is common in web applications.",2026-02-03T03:15:16.253241+00:00
