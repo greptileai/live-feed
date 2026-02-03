@@ -2509,3 +2509,490 @@ Breaking change: response structure changed from returning `data: BusinessData` 
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/HuskIT/website-agent/pull/30#discussion_r2755186253,,2026-02-02T16:24:46+00:00,logic,high,Comment 0 identifies a breaking API change where the response structure was modified to remove `result.data` that `CreateProjectDialog.tsx:214` depends on. This will cause the frontend to break in normal usage when trying to access the now-missing property. The reviewer correctly identified the backward compatibility issue and provided a concrete fix.,2026-02-02T18:27:23.494385+00:00
+posthog/posthog,46598,fix(flags): Validate flag matching operators on create,https://github.com/PostHog/posthog/pull/46598,"`SUPPORTED_OPERATORS` is missing `PropertyOperator.SEMVER_CARET` and `PropertyOperator.SEMVER_WILDCARD` which are present in the Rust `OperatorType` enum (property_models.rs:24-25). This will cause flags using these operators to be rejected even though they're supported by the evaluation service.
+
+```suggestion
+    # Validate all operators are supported by remote feature flag evaluation
+    # Keep in sync with `OperatorType` enum in rust/feature-flags/src/properties/property_models.rs
+    SUPPORTED_OPERATORS = {
+        PropertyOperator.EXACT,
+        PropertyOperator.IS_NOT,
+        PropertyOperator.ICONTAINS,
+        PropertyOperator.NOT_ICONTAINS,
+        PropertyOperator.REGEX,
+        PropertyOperator.NOT_REGEX,
+        PropertyOperator.GT,
+        PropertyOperator.GTE,
+        PropertyOperator.LT,
+        PropertyOperator.LTE,
+        PropertyOperator.IS_SET,
+        PropertyOperator.IS_NOT_SET,
+        PropertyOperator.IS_DATE_EXACT,
+        PropertyOperator.IS_DATE_BEFORE,
+        PropertyOperator.IS_DATE_AFTER,
+        PropertyOperator.IN_,
+        PropertyOperator.NOT_IN,
+        PropertyOperator.FLAG_EVALUATES_TO,
+        PropertyOperator.SEMVER_EQ,
+        PropertyOperator.SEMVER_NEQ,
+        PropertyOperator.SEMVER_GT,
+        PropertyOperator.SEMVER_GTE,
+        PropertyOperator.SEMVER_LT,
+        PropertyOperator.SEMVER_LTE,
+        PropertyOperator.SEMVER_TILDE,
+        PropertyOperator.SEMVER_CARET,
+        PropertyOperator.SEMVER_WILDCARD,
+        None,  # operator can be omitted (defaults to ""exact"")
+    }
+
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: posthog/api/feature_flag.py
+Line: 388:415
+
+Comment:
+`SUPPORTED_OPERATORS` is missing `PropertyOperator.SEMVER_CARET` and `PropertyOperator.SEMVER_WILDCARD` which are present in the Rust `OperatorType` enum (property_models.rs:24-25). This will cause flags using these operators to be rejected even though they're supported by the evaluation service.
+
+```suggestion
+    # Validate all operators are supported by remote feature flag evaluation
+    # Keep in sync with `OperatorType` enum in rust/feature-flags/src/properties/property_models.rs
+    SUPPORTED_OPERATORS = {
+        PropertyOperator.EXACT,
+        PropertyOperator.IS_NOT,
+        PropertyOperator.ICONTAINS,
+        PropertyOperator.NOT_ICONTAINS,
+        PropertyOperator.REGEX,
+        PropertyOperator.NOT_REGEX,
+        PropertyOperator.GT,
+        PropertyOperator.GTE,
+        PropertyOperator.LT,
+        PropertyOperator.LTE,
+        PropertyOperator.IS_SET,
+        PropertyOperator.IS_NOT_SET,
+        PropertyOperator.IS_DATE_EXACT,
+        PropertyOperator.IS_DATE_BEFORE,
+        PropertyOperator.IS_DATE_AFTER,
+        PropertyOperator.IN_,
+        PropertyOperator.NOT_IN,
+        PropertyOperator.FLAG_EVALUATES_TO,
+        PropertyOperator.SEMVER_EQ,
+        PropertyOperator.SEMVER_NEQ,
+        PropertyOperator.SEMVER_GT,
+        PropertyOperator.SEMVER_GTE,
+        PropertyOperator.SEMVER_LT,
+        PropertyOperator.SEMVER_LTE,
+        PropertyOperator.SEMVER_TILDE,
+        PropertyOperator.SEMVER_CARET,
+        PropertyOperator.SEMVER_WILDCARD,
+        None,  # operator can be omitted (defaults to ""exact"")
+    }
+
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/46598#discussion_r2756264013,argh I thought I'd fixed this!,2026-02-02T22:07:22+00:00,logic,medium,"Greptile correctly identified that the SUPPORTED_OPERATORS set was missing SEMVER_CARET and SEMVER_WILDCARD operators that are supported in the Rust evaluation service. This would cause valid feature flags using these operators to be incorrectly rejected during validation. The developer confirmed this was a real bug with 'argh I thought I'd fixed this!', validating the catch.",2026-02-03T01:00:18.068635+00:00
+greptileai/react-mirror,452,I added a test that asserts malformed profiling operations do not throw and that errors/warnings are logged,https://github.com/greptileai/react-mirror/pull/452,"using `break` here without advancing `i` past all ADD operation parameters will cause subsequent parameters to be misinterpreted as operation codes. For non-root nodes, there are still 5+ parameters to skip (parentID, ownerID, displayNameStringID, keyStringID, name prop). This will corrupt the operation stream parsing.
+
+need to advance `i` to skip remaining parameters before breaking, similar to how the normal ADD case increments `i` throughout lines 234-248
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/react-devtools-shared/src/devtools/views/Profiler/CommitTreeBuilder.js
+Line: 202:207
+
+Comment:
+using `break` here without advancing `i` past all ADD operation parameters will cause subsequent parameters to be misinterpreted as operation codes. For non-root nodes, there are still 5+ parameters to skip (parentID, ownerID, displayNameStringID, keyStringID, name prop). This will corrupt the operation stream parsing.
+
+need to advance `i` to skip remaining parameters before breaking, similar to how the normal ADD case increments `i` throughout lines 234-248
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/greptileai/react-mirror/pull/452#discussion_r2756449165,,2026-02-02T23:24:13+00:00,logic,high,"Greptile correctly identifies that using `break` without advancing the index `i` past the remaining ADD operation parameters will cause stream corruption. The operation stream uses variable-length parameter sequences, and early breaking without consuming all parameters will cause subsequent bytes to be misinterpreted as operation codes, leading to unpredictable behavior and likely crashes. This is a real bug that would affect users during profiling with malformed operations.",2026-02-03T01:00:18.068782+00:00
+infisical/infisical,5346,feat(pki): add slack webhook to alerts,https://github.com/Infisical/infisical/pull/5346,"Missing SSRF (Server-Side Request Forgery) protection. The Slack webhook URL is not validated against private/internal IP addresses before making the HTTP request.
+
+**Security Risk:** An attacker could configure a Slack webhook URL pointing to internal services (e.g., internal metadata endpoints, database servers, or other private infrastructure). This could expose sensitive internal infrastructure.
+
+**How to exploit:** Create a PKI alert with a malicious Slack webhook URL that resolves to an internal IP address, bypassing the `hooks.slack.com` domain check through DNS rebinding or URL manipulation.
+
+**Fix:** Use the existing `blockLocalAndPrivateIpAddresses` function before making webhook requests. This function is already used in other parts of the codebase (e.g., `backend/src/services/app-connection/github/github-connection-fns.ts`).
+
+```typescript
+import { blockLocalAndPrivateIpAddresses } from ""@app/lib/validator/validate-url"";
+
+// Before triggerSlackWebhook
+await blockLocalAndPrivateIpAddresses(config.webhookUrl);
+```",https://github.com/Infisical/infisical/pull/5346#discussion_r2756158957,Fixed - added `blockLocalAndPrivateIpAddresses()` check before triggering webhook.,2026-02-02T21:21:26+00:00,security,critical,"This is a legitimate SSRF vulnerability catch. The code was accepting user-provided Slack webhook URLs and making HTTP requests to them without validating they don't point to internal/private IP addresses. An attacker could exploit this to access internal infrastructure, metadata endpoints, or other private services. The developer confirmed and fixed the issue by adding the `blockLocalAndPrivateIpAddresses()` check.",2026-02-03T01:00:18.068855+00:00
+ethyca/fides,7292,ENG-2338 - Configure when Banners resurface,https://github.com/ethyca/fides/pull/7292,"enum values use uppercase ('REJECT', 'DISMISS') but Python model uses lowercase ('reject', 'dismiss'). This mismatch will cause runtime errors.
+
+```suggestion
+    op.execute(
+        ""CREATE TYPE resurfacebehavior AS ENUM ('reject', 'dismiss')""
+    )
+```",https://github.com/ethyca/fides/pull/7292#discussion_r2755891925,,2026-02-02T19:33:20+00:00,runtime,high,"Comments 0-3 all identify the same critical issue: the database migration creates an enum with uppercase values ('REJECT', 'DISMISS') but the Python model uses lowercase values ('reject', 'dismiss'). This mismatch WILL cause runtime errors when the application tries to store/retrieve these enum values in production. Comment 0 is the best-written as it explains the root cause and provides the fix at the enum creation point.",2026-02-03T01:00:18.068916+00:00
+nvidia/nvflare,4096,[2.7] Job CLI Tutorial Fixes,https://github.com/NVIDIA/NVFlare/pull/4096,"Loss averaging logic appears incorrect. `running_loss` accumulates losses but is divided by 3000 regardless of actual iterations. At iteration 0, this divides a very small accumulated loss by 3000. Should track actual number of iterations since last print or reset running_loss after each print.",https://github.com/NVIDIA/NVFlare/pull/4096#discussion_r2756019680,fixed by only computing loss at end of epoch,2026-02-02T20:23:47+00:00,logic,medium,"Comment 0 correctly identifies a loss averaging bug where running_loss is divided by 3000 regardless of actual iterations, producing incorrect loss values especially at iteration 0. The developer confirmed the issue with 'fixed by only computing loss at end of epoch'. While this is tutorial code, it's a real logic bug that would cause misleading training metrics.",2026-02-03T01:00:18.069001+00:00
+ever-co/ever-gauzy,9406,[Feat] Implement load more functionality,https://github.com/ever-co/ever-gauzy/pull/9406,"Initial load uses `skip: 1` which skips the first item
+
+Standard pagination starts at `skip: 0` to get items 0-9. Using `skip: 1` will skip the first plugin:
+
+```suggestion
+					this.loadPendingPlugins(plugins, { skip: 0, take: 10 }).pipe(
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/desktop-ui-lib/src/lib/settings/plugins/component/+state/pending-installation.effect.ts
+Line: 140:140
+
+Comment:
+Initial load uses `skip: 1` which skips the first item
+
+Standard pagination starts at `skip: 0` to get items 0-9. Using `skip: 1` will skip the first plugin:
+
+```suggestion
+					this.loadPendingPlugins(plugins, { skip: 0, take: 10 }).pipe(
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/ever-co/ever-gauzy/pull/9406#discussion_r2755740981,,2026-02-02T18:41:06+00:00,logic,high,"Comments 2, 3, and 0 all relate to the same pagination bug where skip starts at 1 instead of 0. Comment 2 best identifies the user-facing impact: using skip: 1 on initial load will skip the first plugin entirely, meaning users will never see the first item in the list. This is a real bug that WILL affect all users in normal usage.",2026-02-03T01:00:18.069038+00:00
+openreplay/openreplay,4287,fix(chalice): fixed get event's properties,https://github.com/openreplay/openreplay/pull/4287,"INNER JOIN only on `property_name` could match properties from different projects. Consider adding `project_id` to the join condition:
+
+```suggestion
+                        INNER JOIN product_analytics.all_properties USING (project_id, property_name)
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: api/chalicelib/core/product_analytics/properties.py
+Line: 325:325
+
+Comment:
+INNER JOIN only on `property_name` could match properties from different projects. Consider adding `project_id` to the join condition:
+
+```suggestion
+                        INNER JOIN product_analytics.all_properties USING (project_id, property_name)
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/openreplay/openreplay/pull/4287#discussion_r2756042249,,2026-02-02T20:32:56+00:00,data_integrity,high,"The INNER JOIN on only `property_name` without `project_id` could cause cross-tenant data leakage in a multi-tenant system, returning properties from other projects. This is a real bug that would affect users in production - properties with the same name across different projects would incorrectly be joined together, leading to wrong data being returned.",2026-02-03T01:00:18.069087+00:00
+openreplay/openreplay,4286,fix(chalice): fixed get event's properties,https://github.com/openreplay/openreplay/pull/4286,"`all_properties_customized` doesn't have a `value_type` column. Should be `event_properties.value_type`
+
+```suggestion
+                      array_agg(DISTINCT event_properties.value_type) AS possible_types
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: api/chalicelib/core/product_analytics/properties.py
+Line: 323:323
+
+Comment:
+`all_properties_customized` doesn't have a `value_type` column. Should be `event_properties.value_type`
+
+```suggestion
+                      array_agg(DISTINCT event_properties.value_type) AS possible_types
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/openreplay/openreplay/pull/4286#discussion_r2756012891,,2026-02-02T20:21:04+00:00,runtime,high,"Greptile correctly identified that the PR introduced a bug by referencing `all_properties_customized.value_type` when this column doesn't exist on that table - it should be `event_properties.value_type`. This would cause a SQL query error at runtime when users try to get event properties, breaking core functionality.",2026-02-03T01:00:18.069135+00:00
+alpaca-network/gatewayz-backend,1027,Audit API credit deductions and provider-based image pricing,https://github.com/Alpaca-Network/gatewayz-backend/pull/1027,"<details>
+<summary>Additional Comments (3)</summary>
+
+**`src/routes/images.py`**
+[P0] Tracing cost fields are now inconsistent with actual image pricing
+
+`trace_ctx.set_cost(cost)` still uses the old `tokens_charged = 100 * req.n` math (`images.py:270-272`), but credits are deducted using `total_cost` from `get_image_cost()` (`images.py:292-305`). This will make tracing/observability report a different cost than billing/usage, which will break cost dashboards and audits for images.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: src/routes/images.py
+Line: 266:273
+
+Comment:
+[P0] Tracing cost fields are now inconsistent with actual image pricing
+
+`trace_ctx.set_cost(cost)` still uses the old `tokens_charged = 100 * req.n` math (`images.py:270-272`), but credits are deducted using `total_cost` from `get_image_cost()` (`images.py:292-305`). This will make tracing/observability report a different cost than billing/usage, which will break cost dashboards and audits for images.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>
+
+---
+
+**`src/routes/images.py`**
+[P2] ThreadPoolExecutor is created per-request and never used as a context manager
+
+`executor = ThreadPoolExecutor()` is created for every request (`images.py:148`) and only shut down with `wait=False` in `finally`. This can cause unnecessary thread churn under load; consider using a shared executor or `with ThreadPoolExecutor() as executor:` so threads are deterministically joined.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: src/routes/images.py
+Line: 147:149
+
+Comment:
+[P2] ThreadPoolExecutor is created per-request and never used as a context manager
+
+`executor = ThreadPoolExecutor()` is created for every request (`images.py:148`) and only shut down with `wait=False` in `finally`. This can cause unnecessary thread churn under load; consider using a shared executor or `with ThreadPoolExecutor() as executor:` so threads are deterministically joined.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>
+
+---
+
+**`tests/routes/test_images.py`**
+[P0] Tests still assert old token-based billing fields and will fail after this PR
+
+The route now returns `gateway_usage.cost_usd`/`cost_per_image` and deducts `total_cost`, but success-path tests still assert `gateway_usage['tokens_charged'] == 100` and expect `deduct_credits(..., 100)` (`test_images.py:158-166`, also `:224-229`, `:292-300`, `:590-601`). These assertions no longer match the updated API contract and deduction behavior introduced in this PR.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: tests/routes/test_images.py
+Line: 158:166
+
+Comment:
+[P0] Tests still assert old token-based billing fields and will fail after this PR
+
+The route now returns `gateway_usage.cost_usd`/`cost_per_image` and deducts `total_cost`, but success-path tests still assert `gateway_usage['tokens_charged'] == 100` and expect `deduct_credits(..., 100)` (`test_images.py:158-166`, also `:224-229`, `:292-300`, `:590-601`). These assertions no longer match the updated API contract and deduction behavior introduced in this PR.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>
+</details>",https://github.com/Alpaca-Network/gatewayz-backend/pull/1027#issuecomment-3837541902,,2026-02-02T21:47:52+00:00,data_integrity,high,"Greptile identified a real inconsistency where tracing/observability uses the old hardcoded cost calculation (100 * req.n) while billing now uses the new dynamic pricing from get_image_cost(). This will cause cost dashboards and audits to show incorrect data that doesn't match actual billing, which is a significant data integrity issue affecting production observability.",2026-02-03T01:00:18.069180+00:00
+beanie-brick-band/leopard,100,feat(vscode-extension): move convex url from env to vscode settings,https://github.com/Beanie-Brick-Band/leopard/pull/100,"<details>
+<summary>Additional Comments (1)</summary>
+
+**`apps/vscode-extension/src/env.ts`**
+Deleting this file breaks `extension.ts` which still imports and uses it on lines 9 and 18. Need to update `extension.ts` to use the new VS Code configuration:
+
+```typescript
+const config = vscode.workspace.getConfiguration('leopard');
+const convexUrl = config.get<string>('convexUrl');
+const client = new ConvexHttpClient(convexUrl);
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: apps/vscode-extension/src/env.ts
+Line: 1:7
+
+Comment:
+Deleting this file breaks `extension.ts` which still imports and uses it on lines 9 and 18. Need to update `extension.ts` to use the new VS Code configuration:
+
+```typescript
+const config = vscode.workspace.getConfiguration('leopard');
+const convexUrl = config.get<string>('convexUrl');
+const client = new ConvexHttpClient(convexUrl);
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>
+</details>",https://github.com/Beanie-Brick-Band/leopard/pull/100#issuecomment-3837831363,,2026-02-02T23:36:50+00:00,runtime,high,"Greptile correctly identified that deleting env.ts breaks extension.ts which still imports from it on lines 9 and 18. This would cause a guaranteed runtime error when the extension loads, completely breaking the VS Code extension functionality. This is a straightforward but important catch that prevents a broken build/runtime.",2026-02-03T01:00:18.069264+00:00
+nvidia/dgx-cloud-examples,40,fix: OIDC token expiration for long-running deployments,https://github.com/NVIDIA/dgx-cloud-examples/pull/40,"The API call here doesn't use the `_with_retry()` wrapper, so if the reloaded config still has an expired token, this will throw a 401 and mark auth as expired. However, the whole point of the periodic refresh is to proactively prevent expiration. Consider whether this should attempt retry to align with the reactive 401 handling elsewhere
+
+```suggestion
+                _analyzer.pvc_service.k8s._with_retry(lambda: _analyzer.pvc_service.k8s.core_v1.list_namespace(limit=1))
+```
+
+<sub>Note: If this suggestion doesn't match your team's coding style, reply to this and let me know. I'll remember it for next time!</sub>",https://github.com/NVIDIA/dgx-cloud-examples/pull/40#discussion_r2755757679,"Good point — addressed in commit `cfa9f48`.
+
+The periodic refresh verification now uses `K8sClient._with_retry(lambda: core_v1.list_namespace(limit=1))` after `_reload_config()`. This aligns the proactive refresh verification with the same retry semantics used by normal request paths.",2026-02-02T18:46:27+00:00,logic,medium,"Greptile correctly identified an inconsistency in the token refresh implementation - the periodic refresh verification doesn't use the retry wrapper, meaning it could fail even after config reload if the token is still expired. The developer confirmed this was a valid catch and fixed it in a follow-up commit, showing it was a real issue that would have affected the OIDC token refresh functionality in edge cases.",2026-02-03T01:00:18.069310+00:00
+traceroot-ai/traceroot,407,[AgentOps] Support membership invite [1/n],https://github.com/traceroot-ai/traceroot/pull/407,"XSS vulnerability - user-provided data (`inviterName`, `inviterEmail`, `workspaceName`) is directly interpolated into HTML without escaping. If an attacker sets their name to `<script>alert('xss')</script>`, it will execute in the recipient's email client.
+
+```suggestion
+function buildHtmlEmail(params: EmailContentParams): string {
+  const { inviterName, inviterEmail, workspaceName, acceptLink, roleName } = params;
+  
+  // Escape HTML to prevent XSS
+  const escapeHtml = (text: string) => text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/""/g, '&quot;')
+    .replace(/'/g, '&#x27;');
+
+  return `
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset=""utf-8"">
+    <meta name=""viewport"" content=""width=device-width, initial-scale=1.0"">
+  </head>
+  <body style=""font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 20px; background-color: #fafafa;"">
+    <table cellpadding=""0"" cellspacing=""0"" border=""0"" width=""100%"" style=""max-width: 480px; margin: 0 auto; background: #fff; border: 1px solid #e5e5e5;"">
+      <!-- Logo section -->
+      <tr>
+        <td style=""padding: 40px 40px 32px 40px; text-align: center;"">
+          <img src=""https://raw.githubusercontent.com/traceroot-ai/traceroot/pivot/agentops/ui/public/images/icon.png"" alt=""TraceRoot"" width=""72"" height=""72"" style=""display: block; margin: 0 auto; border-radius: 14px;"" />
+        </td>
+      </tr>
+
+      <!-- Title -->
+      <tr>
+        <td style=""padding: 0 40px 24px 40px; text-align: center;"">
+          <h1 style=""font-size: 24px; font-weight: 600; margin: 0; color: #000; letter-spacing: -0.5px;"">
+            Join ${escapeHtml(workspaceName)} on TraceRoot
+          </h1>
+        </td>
+      </tr>
+
+      <!-- Body -->
+      <tr>
+        <td style=""padding: 0 40px 32px 40px;"">
+          <p style=""margin: 0; color: #333; font-size: 15px; line-height: 1.6; text-align: center;"">
+            <strong>${escapeHtml(inviterName)}</strong> (${escapeHtml(inviterEmail)}) has invited you to join the <strong>${escapeHtml(workspaceName)}</strong> workspace as a <strong>${escapeHtml(roleName)}</strong>.
+          </p>
+        </td>
+      </tr>
+
+      <!-- Button -->
+      <tr>
+        <td style=""padding: 0 40px 40px 40px; text-align: center;"">
+          <table cellpadding=""0"" cellspacing=""0"" border=""0"" style=""margin: 0 auto;"">
+            <tr>
+              <td style=""background-color: #000;"">
+                <a href=""${escapeHtml(acceptLink)}"" style=""display: inline-block; padding: 10px 20px; color: #ffffff; text-decoration: none; font-weight: 500; font-size: 14px;"">
+                  Accept Invitation
+                </a>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+
+      <!-- Divider -->
+      <tr>
+        <td style=""border-top: 1px solid #e5e5e5;""></td>
+      </tr>
+
+      <!-- Footer -->
+      <tr>
+        <td style=""padding: 24px 40px; background-color: #fafafa;"">
+          <p style=""color: #999; font-size: 12px; margin: 0; text-align: center;"">
+            If you were not expecting this invitation, you can ignore this email.
+          </p>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
+  `.trim();
+}
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: ui/src/lib/email/send-invite-email.ts
+Line: 68:136
+
+Comment:
+XSS vulnerability - user-provided data (`inviterName`, `inviterEmail`, `workspaceName`) is directly interpolated into HTML without escaping. If an attacker sets their name to `<script>alert('xss')</script>`, it will execute in the recipient's email client.
+
+```suggestion
+function buildHtmlEmail(params: EmailContentParams): string {
+  const { inviterName, inviterEmail, workspaceName, acceptLink, roleName } = params;
+  
+  // Escape HTML to prevent XSS
+  const escapeHtml = (text: string) => text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/""/g, '&quot;')
+    .replace(/'/g, '&#x27;');
+
+  return `
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset=""utf-8"">
+    <meta name=""viewport"" content=""width=device-width, initial-scale=1.0"">
+  </head>
+  <body style=""font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 20px; background-color: #fafafa;"">
+    <table cellpadding=""0"" cellspacing=""0"" border=""0"" width=""100%"" style=""max-width: 480px; margin: 0 auto; background: #fff; border: 1px solid #e5e5e5;"">
+      <!-- Logo section -->
+      <tr>
+        <td style=""padding: 40px 40px 32px 40px; text-align: center;"">
+          <img src=""https://raw.githubusercontent.com/traceroot-ai/traceroot/pivot/agentops/ui/public/images/icon.png"" alt=""TraceRoot"" width=""72"" height=""72"" style=""display: block; margin: 0 auto; border-radius: 14px;"" />
+        </td>
+      </tr>
+
+      <!-- Title -->
+      <tr>
+        <td style=""padding: 0 40px 24px 40px; text-align: center;"">
+          <h1 style=""font-size: 24px; font-weight: 600; margin: 0; color: #000; letter-spacing: -0.5px;"">
+            Join ${escapeHtml(workspaceName)} on TraceRoot
+          </h1>
+        </td>
+      </tr>
+
+      <!-- Body -->
+      <tr>
+        <td style=""padding: 0 40px 32px 40px;"">
+          <p style=""margin: 0; color: #333; font-size: 15px; line-height: 1.6; text-align: center;"">
+            <strong>${escapeHtml(inviterName)}</strong> (${escapeHtml(inviterEmail)}) has invited you to join the <strong>${escapeHtml(workspaceName)}</strong> workspace as a <strong>${escapeHtml(roleName)}</strong>.
+          </p>
+        </td>
+      </tr>
+
+      <!-- Button -->
+      <tr>
+        <td style=""padding: 0 40px 40px 40px; text-align: center;"">
+          <table cellpadding=""0"" cellspacing=""0"" border=""0"" style=""margin: 0 auto;"">
+            <tr>
+              <td style=""background-color: #000;"">
+                <a href=""${escapeHtml(acceptLink)}"" style=""display: inline-block; padding: 10px 20px; color: #ffffff; text-decoration: none; font-weight: 500; font-size: 14px;"">
+                  Accept Invitation
+                </a>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+
+      <!-- Divider -->
+      <tr>
+        <td style=""border-top: 1px solid #e5e5e5;""></td>
+      </tr>
+
+      <!-- Footer -->
+      <tr>
+        <td style=""padding: 24px 40px; background-color: #fafafa;"">
+          <p style=""color: #999; font-size: 12px; margin: 0; text-align: center;"">
+            If you were not expecting this invitation, you can ignore this email.
+          </p>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
+  `.trim();
+}
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/traceroot-ai/traceroot/pull/407#discussion_r2756486103,fixed.,2026-02-02T23:43:54+00:00,security,high,"This is a legitimate XSS vulnerability where user-provided data (inviterName, inviterEmail, workspaceName) is directly interpolated into HTML email content without escaping. While email client XSS is generally more limited than browser XSS, it's still a real security concern. The developer confirmed and fixed the issue, validating the catch.",2026-02-03T01:00:18.069345+00:00
