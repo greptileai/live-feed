@@ -3207,3 +3207,64 @@ Closing `self.process.stdout/stderr` can throw (e.g., already closed, or I/O err
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/gptme/gptme/pull/1224#discussion_r2758802930,,2026-02-03T12:21:30+00:00,resource_leak,high,"Greptile correctly identifies that closing stdout/stderr pipes before the try block that terminates the process group could raise an exception and skip process termination entirely. This would leave orphaned bash processes running, which is worse than the original file descriptor leak the PR was trying to fix. The fix is straightforward (wrap pipe closes in try/except or use contextlib.suppress).",2026-02-03T12:27:51.998889+00:00
+posthog/posthog,46691,fix(billing): Correctly serialize dt objects in payload to Clay,https://github.com/PostHog/posthog/pull/46691,"The format string `""%Y-%m-%dT%H:%M:%S%.fZ""` includes time components, but `pl.Date` types don't have time components. If any column is of type `pl.Date` (not `pl.Datetime`), this could fail or produce unexpected results.
+
+Consider handling Date and Datetime types separately:
+
+```suggestion
+        if selected[col_name].dtype == pl.Datetime:
+            selected = selected.with_columns(pl.col(col_name).dt.to_string(""%Y-%m-%dT%H:%M:%S%.fZ""))
+        elif selected[col_name].dtype == pl.Date:
+            selected = selected.with_columns(pl.col(col_name).dt.to_string(""%Y-%m-%d""))
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: ee/billing/dags/productled_outbound_targets.py
+Line: 300:301
+
+Comment:
+The format string `""%Y-%m-%dT%H:%M:%S%.fZ""` includes time components, but `pl.Date` types don't have time components. If any column is of type `pl.Date` (not `pl.Datetime`), this could fail or produce unexpected results.
+
+Consider handling Date and Datetime types separately:
+
+```suggestion
+        if selected[col_name].dtype == pl.Datetime:
+            selected = selected.with_columns(pl.col(col_name).dt.to_string(""%Y-%m-%dT%H:%M:%S%.fZ""))
+        elif selected[col_name].dtype == pl.Date:
+            selected = selected.with_columns(pl.col(col_name).dt.to_string(""%Y-%m-%d""))
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/46691#discussion_r2759422619,Good point! Fixed with: [`e8a8cf2` (this PR)](https://github.com/PostHog/posthog/pull/46691/commits/e8a8cf2bd4d0200d6a0aeb84518bd4205cdd3eff),2026-02-03T14:38:52+00:00,type_error,medium,Greptile correctly identified that applying a datetime format string with time components to pl.Date columns could fail or produce unexpected results. The developer confirmed this was a valid issue and implemented the suggested fix to handle Date and Datetime types separately. This is a real bug that would affect data serialization in edge cases when Date columns are present.,2026-02-03T16:33:20.976547+00:00
+raycast/extensions,25111,Add tinytoolkits extension,https://github.com/raycast/extensions/pull/25111,"[P0] `calcPy` builds a shell command using user input and runs it via `exec`, which is command-injection prone.
+
+Escaping only backslashes and double quotes is not sufficient for shell safety across platforms, and `exec` runs through a shell by default. A crafted expression can break out of quoting and execute arbitrary commands. Prefer `spawn`/`execFile` with an argument array (no shell) or avoid the external Python execution path entirely.
+
+Also appears as part of the same issue in: `extensions/tinytoolkits/src/utils/calculator.ts:119-123`.",https://github.com/raycast/extensions/pull/25111#discussion_r2759763855,,2026-02-03T15:53:36+00:00,security,critical,"Comment 3 identifies a command injection vulnerability where user input is passed to shell exec with insufficient escaping. This is the most severe security issue as it allows arbitrary command execution beyond just expression evaluation. Comments 1 and 2 cover related code execution issues (new Function and Python eval), but Comment 3's shell injection via exec is more exploitable since shell metacharacters can escape quoting regardless of the expression content.",2026-02-03T16:33:20.976685+00:00
+gptme/gptme,1225,feat(llm): add OpenAI subscription provider support,https://github.com/gptme/gptme/pull/1225,"[P0] Streaming parser expects Chat Completions shape (`choices[0].delta.content`) but endpoint is `/codex/responses`
+
+This code assumes SSE events contain `choices -> delta -> content` (like chat.completions), but the Codex `responses` API typically streams as `response.output_text.delta` / `output` items rather than `choices`. With the current parser, many/most responses will yield nothing (empty output) even on 200 OK.
+
+Also appears in: gptme/llm/llm_openai_subscription.py:302-309.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: gptme/llm/llm_openai_subscription.py
+Line: 294:309
+
+Comment:
+[P0] Streaming parser expects Chat Completions shape (`choices[0].delta.content`) but endpoint is `/codex/responses`
+
+This code assumes SSE events contain `choices -> delta -> content` (like chat.completions), but the Codex `responses` API typically streams as `response.output_text.delta` / `output` items rather than `choices`. With the current parser, many/most responses will yield nothing (empty output) even on 200 OK.
+
+Also appears in: gptme/llm/llm_openai_subscription.py:302-309.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/gptme/gptme/pull/1225#discussion_r2759919986,,2026-02-03T16:25:17+00:00,logic,high,"This identifies a critical API mismatch where the streaming parser expects OpenAI Chat Completions format (`choices[0].delta.content`) but the actual Codex endpoint returns a different format (`response.output_text.delta`). This would cause the feature to silently return empty/no output even on successful API calls, making the entire subscription provider non-functional. This is a fundamental implementation bug that would affect all users attempting to use this new feature.",2026-02-03T16:33:20.976741+00:00
