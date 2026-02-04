@@ -3457,3 +3457,42 @@ Also note this introduces production `console.log` usage, which conflicts with t
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/generaltranslation/gt/pull/982#discussion_r2761833652,Valid and fixed,2026-02-04T02:07:09+00:00,logic,medium,Comment 1 correctly identifies that outputting JSON errors to stdout via console.log will corrupt machine-readable output for commands that need clean stdout. The developer confirmed this was valid and fixed it. This is a real bug that would affect users who depend on clean JSON output from the CLI.,2026-02-04T03:13:02.885307+00:00
+workos/workos-ruby,430,Optional parameter to choose what algorithm to seal the session,https://github.com/workos/workos-ruby/pull/430,"PBKDF2 with only 1 iteration is cryptographically weak
+
+```suggestion
+      def derive_key(password, salt, key_length)
+        OpenSSL::KDF.pbkdf2_hmac(
+          password,
+          salt: salt,
+          iterations: 100000,
+          length: key_length,
+          hash: OpenSSL::Digest.new('SHA256'),
+        )
+      end
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: lib/workos/iron_seal_unseal.rb
+Line: 96:104
+
+Comment:
+PBKDF2 with only 1 iteration is cryptographically weak
+
+```suggestion
+      def derive_key(password, salt, key_length)
+        OpenSSL::KDF.pbkdf2_hmac(
+          password,
+          salt: salt,
+          iterations: 100000,
+          length: key_length,
+          hash: OpenSSL::Digest.new('SHA256'),
+        )
+      end
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/workos/workos-ruby/pull/430#discussion_r2762290722,,2026-02-04T05:34:40+00:00,security,critical,"Using PBKDF2 with only 1 iteration for key derivation is a serious cryptographic weakness that makes the encryption easily brute-forceable. This is a critical security vulnerability in a session sealing mechanism that protects authentication data. Industry standards recommend at least 100,000 iterations for PBKDF2-HMAC-SHA256.",2026-02-04T06:31:27.682013+00:00
