@@ -3657,3 +3657,72 @@ Missing i18n assets configuration. The `TranslateModule` expects translation fil
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/ever-co/ever-gauzy/pull/9419#discussion_r2763700212,,2026-02-04T12:11:08+00:00,runtime,high,"This catch identifies a critical missing configuration that would cause the translation fix to not work at runtime. The PR is specifically about fixing 'desktop translate not loaded', but without copying the i18n asset files during build, the TranslateModule would fail to load any translation files at runtime. This is a high-severity issue that directly undermines the PR's purpose.",2026-02-04T12:29:19.369426+00:00
+twentyhq/twenty,17720,Improve workflow crons,https://github.com/twentyhq/twenty/pull/17720,"[P1] Swallowing trigger errors changes behavior and can leave failing workflow triggers silently retried forever.
+
+This job used to route errors through `handleWorkflowTriggerException` and removed the cron on failure. Now it logs and `return`s for missing workflow / missing published version / inactive version, which means the job will still be considered “successful” by the queue and any cron that enqueues it (if applicable) won’t be removed. If these conditions are permanent (deleted workflow, unpublished workflow), this can create noisy repeated executions without any remediation.
+
+If the intent is “don’t throw to avoid Sentry timeouts”, it’s still worth explicitly removing/disabling the cron (or marking the job as failed in a controlled way) for non-recoverable conditions.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/twenty-server/src/modules/workflow/workflow-trigger/jobs/workflow-trigger.job.ts
+Line: 51:66
+
+Comment:
+[P1] Swallowing trigger errors changes behavior and can leave failing workflow triggers silently retried forever.
+
+This job used to route errors through `handleWorkflowTriggerException` and removed the cron on failure. Now it logs and `return`s for missing workflow / missing published version / inactive version, which means the job will still be considered “successful” by the queue and any cron that enqueues it (if applicable) won’t be removed. If these conditions are permanent (deleted workflow, unpublished workflow), this can create noisy repeated executions without any remediation.
+
+If the intent is “don’t throw to avoid Sentry timeouts”, it’s still worth explicitly removing/disabling the cron (or marking the job as failed in a controlled way) for non-recoverable conditions.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/twentyhq/twenty/pull/17720#discussion_r2764832701,,2026-02-04T16:20:18+00:00,logic,high,"This catch identifies a significant behavioral change where workflow trigger errors are now silently swallowed instead of being properly handled. This could lead to permanent failure conditions (deleted workflows, unpublished versions) causing infinite silent retries, creating noisy repeated executions without any remediation. The comment correctly identifies that the previous error handling and cron removal logic was removed, changing the system's behavior in a way that affects production workflows.",2026-02-04T16:31:32.755523+00:00
+twentyhq/twenty,17719,Fix typeorm internal query builder missing twenty internal context,https://github.com/twentyhq/twenty/pull/17719,"[P0] Lazy getter never caches instance (recreates per access)
+
+Both getters return `this._relationNestedQueries ?? new RelationNestedQueries(...)` / `this._filesFieldSync ?? new FilesFieldSync(...)` but never assign back to the private field. That means each access creates a new instance, which can lead to duplicate work and inconsistent state if these classes hold any state or caches. If the intent is lazy *initialization*, it should cache, e.g. `return (this._filesFieldSync ??= new FilesFieldSync(this.internalContext));`.
+
+Also appears in `packages/twenty-server/src/engine/twenty-orm/repository/workspace-insert-query-builder.ts:53-62`.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/twenty-server/src/engine/twenty-orm/repository/workspace-update-query-builder.ts
+Line: 64:72
+
+Comment:
+[P0] Lazy getter never caches instance (recreates per access)
+
+Both getters return `this._relationNestedQueries ?? new RelationNestedQueries(...)` / `this._filesFieldSync ?? new FilesFieldSync(...)` but never assign back to the private field. That means each access creates a new instance, which can lead to duplicate work and inconsistent state if these classes hold any state or caches. If the intent is lazy *initialization*, it should cache, e.g. `return (this._filesFieldSync ??= new FilesFieldSync(this.internalContext));`.
+
+Also appears in `packages/twenty-server/src/engine/twenty-orm/repository/workspace-insert-query-builder.ts:53-62`.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/twentyhq/twenty/pull/17719#discussion_r2764819809,"Oops, yes 👍 ",2026-02-04T16:17:29+00:00,logic,medium,"Greptile correctly identified that the lazy getters never cache their instances - using `??` instead of `??=` means every property access creates a new instance. This was confirmed by the developer with 'Oops, yes 👍'. While not critical, this could cause inconsistent state if these classes hold any state or caches, and causes unnecessary object allocations.",2026-02-04T16:31:32.755668+00:00
+gptme/gptme,1226,fix(llm): handle httpx transport errors during streaming,https://github.com/gptme/gptme/pull/1226,"Union syntax `|` used with `isinstance()` is not supported in Python. The expression `isinstance(e, httpx.NetworkError | httpx.ProtocolError)` will fail at runtime because `isinstance()` expects a tuple, not a union type.
+
+```suggestion
+    elif httpx is not None and isinstance(e, (httpx.NetworkError, httpx.ProtocolError)):
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: gptme/llm/llm_openai.py
+Line: 399:399
+
+Comment:
+Union syntax `|` used with `isinstance()` is not supported in Python. The expression `isinstance(e, httpx.NetworkError | httpx.ProtocolError)` will fail at runtime because `isinstance()` expects a tuple, not a union type.
+
+```suggestion
+    elif httpx is not None and isinstance(e, (httpx.NetworkError, httpx.ProtocolError)):
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/gptme/gptme/pull/1226#discussion_r2764816226,,2026-02-04T16:16:36+00:00,runtime,high,"Greptile correctly identified that using union syntax `|` with `isinstance()` is not supported in Python versions before 3.10, and even in 3.10+ it only works for type hints, not runtime `isinstance()` checks. This would cause a TypeError at runtime when the error handling code path is triggered, breaking the retry mechanism for httpx transport errors. The fix to use a tuple `(httpx.NetworkError, httpx.ProtocolError)` is correct and necessary.",2026-02-04T16:31:32.755759+00:00
