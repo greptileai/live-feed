@@ -3496,3 +3496,43 @@ PBKDF2 with only 1 iteration is cryptographically weak
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/workos/workos-ruby/pull/430#discussion_r2762290722,,2026-02-04T05:34:40+00:00,security,critical,"Using PBKDF2 with only 1 iteration for key derivation is a serious cryptographic weakness that makes the encryption easily brute-forceable. This is a critical security vulnerability in a session sealing mechanism that protects authentication data. Industry standards recommend at least 100,000 iterations for PBKDF2-HMAC-SHA256.",2026-02-04T06:31:27.682013+00:00
+mellanox/hw-mgmt,2280,hw-mgmt: Add initial support for NVL144 stacked systems,https://github.com/Mellanox/hw-mgmt/pull/2280,"redeclares `n61xxld_swb_alternatives` (already declared on line 521), overwriting previous definitions - should be `n63xxld_swb_alternatives` or a unique name for HI185",https://github.com/Mellanox/hw-mgmt/pull/2280#discussion_r2762763323,,2026-02-04T08:20:25+00:00,logic,high,"This comment correctly identifies that `n61xxld_swb_alternatives` is being redeclared, which will overwrite the previous definitions from line 521. This is a real bug that will cause the original hardware configurations to be lost, affecting hardware management functionality for existing systems. The array should have a unique name for the HI185 platform.",2026-02-04T08:26:17.951074+00:00
+traceroot-ai/traceroot,416,"[AgentOps][Bugfix] keyword search, time range search, pagination support [3/n]",https://github.com/traceroot-ai/traceroot/pull/416,"`resetPage` has stale closure over `page` and `limit` which may cause unnecessary URL updates or skip necessary ones
+
+```suggestion
+  const resetPage = useCallback(() => {
+    setPageState((currentPage) => {
+      if (currentPage !== DEFAULT_PAGE) {
+        updateUrl(DEFAULT_PAGE, limit);
+        return DEFAULT_PAGE;
+      }
+      return currentPage;
+    });
+  }, [limit, updateUrl]);
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: ui/src/features/traces/hooks/use-url-pagination.ts
+Line: 96:101
+
+Comment:
+`resetPage` has stale closure over `page` and `limit` which may cause unnecessary URL updates or skip necessary ones
+
+```suggestion
+  const resetPage = useCallback(() => {
+    setPageState((currentPage) => {
+      if (currentPage !== DEFAULT_PAGE) {
+        updateUrl(DEFAULT_PAGE, limit);
+        return DEFAULT_PAGE;
+      }
+      return currentPage;
+    });
+  }, [limit, updateUrl]);
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/traceroot-ai/traceroot/pull/416#discussion_r2762566692,fixed already,2026-02-04T07:19:34+00:00,logic,medium,"The stale closure bug in resetPage is a real issue where the callback captures old values of page and limit, potentially causing incorrect URL updates. The developer confirmed they fixed it with 'fixed already', validating this as a legitimate catch. This is a common but subtle React hooks bug that could cause unexpected pagination behavior.",2026-02-04T08:26:17.951117+00:00
