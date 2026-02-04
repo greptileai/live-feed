@@ -3536,3 +3536,73 @@ Comment:
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/traceroot-ai/traceroot/pull/416#discussion_r2762566692,fixed already,2026-02-04T07:19:34+00:00,logic,medium,"The stale closure bug in resetPage is a real issue where the callback captures old values of page and limit, potentially causing incorrect URL updates. The developer confirmed they fixed it with 'fixed already', validating this as a legitimate catch. This is a common but subtle React hooks bug that could cause unexpected pagination behavior.",2026-02-04T08:26:17.951117+00:00
+raycast/extensions,25132,Update wsl-manager extension,https://github.com/raycast/extensions/pull/25132,"command injection vulnerability - distro name is not escaped, allowing arbitrary command execution if a malicious distro name exists (e.g., `Ubuntu""; rm -rf /""`)
+
+wrap the distro name in quotes:
+```suggestion
+      await execAsync(`start wsl -d ""${name}""`);
+```",https://github.com/raycast/extensions/pull/25132#discussion_r2763047725,,2026-02-04T09:31:18+00:00,security,critical,"Comment 1 identifies a genuine command injection vulnerability where user-controlled distro names are passed unsanitized to shell commands via execAsync. A malicious distro name could execute arbitrary commands. This is a critical security issue that could lead to system compromise. Comments 1-8 all identify the same class of vulnerability across different files, so picking the first and best-explained instance.",2026-02-04T10:27:50.403423+00:00
+twentyhq/twenty,17703,Billing - Fix inactivity,https://github.com/twentyhq/twenty/pull/17703,"Missing data backfill for existing suspended workspaces. Workspaces with `activationStatus = SUSPENDED` before this migration will have `suspendedAt = NULL`, causing `computeDaysSinceSuspended()` to return null and skip cleanup processing. This breaks the cleanup flow for all currently suspended workspaces.
+
+Add a second query to backfill `suspendedAt` for existing suspended workspaces:
+
+```suggestion
+    await queryRunner.query(
+      `ALTER TABLE ""core"".""workspace"" ADD ""suspendedAt"" TIMESTAMP WITH TIME ZONE`,
+    );
+    await queryRunner.query(
+      `UPDATE ""core"".""workspace"" 
+       SET ""suspendedAt"" = ""updatedAt"" 
+       WHERE ""activationStatus"" = 'SUSPENDED' AND ""suspendedAt"" IS NULL`,
+    );
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/twenty-server/src/database/typeorm/core/migrations/common/1770198374736-addSuspendedAtColumnOnWorkspaceTable.ts
+Line: 9:11
+
+Comment:
+Missing data backfill for existing suspended workspaces. Workspaces with `activationStatus = SUSPENDED` before this migration will have `suspendedAt = NULL`, causing `computeDaysSinceSuspended()` to return null and skip cleanup processing. This breaks the cleanup flow for all currently suspended workspaces.
+
+Add a second query to backfill `suspendedAt` for existing suspended workspaces:
+
+```suggestion
+    await queryRunner.query(
+      `ALTER TABLE ""core"".""workspace"" ADD ""suspendedAt"" TIMESTAMP WITH TIME ZONE`,
+    );
+    await queryRunner.query(
+      `UPDATE ""core"".""workspace"" 
+       SET ""suspendedAt"" = ""updatedAt"" 
+       WHERE ""activationStatus"" = 'SUSPENDED' AND ""suspendedAt"" IS NULL`,
+    );
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/twentyhq/twenty/pull/17703#discussion_r2763194231,,2026-02-04T10:04:46+00:00,data_integrity,high,"This is a legitimate data migration issue - existing workspaces with SUSPENDED status will have NULL suspendedAt after this migration, breaking the cleanup flow since computeDaysSinceSuspended() returns null for NULL values. The suggested fix to backfill using updatedAt is practical and addresses a real production concern that would affect all currently suspended workspaces.",2026-02-04T10:27:50.403506+00:00
+gptme/gptme-contrib,244,feat(gptme-ace): add Generator and Reflector modules for trajectory analysis,https://github.com/gptme/gptme-contrib/pull/244,"Hardcoded model name `claude-sonnet-4-5` - doesn't exist
+
+```suggestion
+        self.model = ""claude-sonnet-4-20250514""
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: plugins/gptme-ace/src/gptme_ace/generator.py
+Line: 266:266
+
+Comment:
+Hardcoded model name `claude-sonnet-4-5` - doesn't exist
+
+```suggestion
+        self.model = ""claude-sonnet-4-20250514""
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/gptme/gptme-contrib/pull/244#discussion_r2763238458,✅ Fixed in commit 959dc71 - model name updated to claude-sonnet-4-20250514,2026-02-04T10:15:10+00:00,runtime,high,The hardcoded model name 'claude-sonnet-4-5' doesn't exist in Anthropic's API - this would cause runtime failures for all API calls in production. Developer confirmed and fixed immediately. This is a clear bug that would break the core functionality of the code.,2026-02-04T10:27:50.403556+00:00
