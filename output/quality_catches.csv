@@ -3726,3 +3726,194 @@ Union syntax `|` used with `isinstance()` is not supported in Python. The expres
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/gptme/gptme/pull/1226#discussion_r2764816226,,2026-02-04T16:16:36+00:00,runtime,high,"Greptile correctly identified that using union syntax `|` with `isinstance()` is not supported in Python versions before 3.10, and even in 3.10+ it only works for type hints, not runtime `isinstance()` checks. This would cause a TypeError at runtime when the error handling code path is triggered, breaking the retry mechanism for httpx transport errors. The fix to use a tuple `(httpx.NetworkError, httpx.ProtocolError)` is correct and necessary.",2026-02-04T16:31:32.755759+00:00
+posthog/posthog,46869,fix(ph-ai): plan product analytics read only mode,https://github.com/PostHog/posthog/pull/46869,"`self.mode_registry` accessed before `self._mode_registry` is initialized. This property (line 240-241) returns `self._mode_registry`, but that attribute isn't set until line 217, causing an `AttributeError`.
+
+```suggestion
+        temp_registry = self.supermode_registries[supermode]
+        self._mode = (
+            state.agent_mode
+            if state.agent_mode and state.agent_mode in temp_registry
+            else AgentMode.PRODUCT_ANALYTICS
+        )
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: ee/hogai/research_agent/mode_manager.py
+Line: 209:213
+
+Comment:
+`self.mode_registry` accessed before `self._mode_registry` is initialized. This property (line 240-241) returns `self._mode_registry`, but that attribute isn't set until line 217, causing an `AttributeError`.
+
+```suggestion
+        temp_registry = self.supermode_registries[supermode]
+        self._mode = (
+            state.agent_mode
+            if state.agent_mode and state.agent_mode in temp_registry
+            else AgentMode.PRODUCT_ANALYTICS
+        )
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/46869#discussion_r2765255103,,2026-02-04T17:53:05+00:00,runtime,high,"Greptile correctly identified that `self.mode_registry` property is accessed before `self._mode_registry` is initialized on line 217, which would cause an AttributeError at runtime. This is a real bug that would crash the code whenever this initialization path is executed. The fix suggestion using a temp_registry variable is correct.",2026-02-04T18:32:05.265882+00:00
+posthog/posthog,46863,ci(playwright): add resource monitoring during E2E tests,https://github.com/PostHog/posthog/pull/46863,"final resource state output goes to step stdout, not to log files. Won't be in artifacts for analysis.
+
+```suggestion
+                  if [ -f /tmp/resource-monitor.pid ]; then
+                    kill $(cat /tmp/resource-monitor.pid) 2>/dev/null || true
+                  fi
+                  # Capture final resource state to log files
+                  echo ""=== Final Resource State $(date -Iseconds) ==="" >> /tmp/resource-logs/final-state.log
+                  echo ""Memory:"" >> /tmp/resource-logs/final-state.log
+                  free -h >> /tmp/resource-logs/final-state.log 2>&1
+                  echo ""CPU cores:"" >> /tmp/resource-logs/final-state.log
+                  nproc >> /tmp/resource-logs/final-state.log 2>&1
+                  echo ""Load average:"" >> /tmp/resource-logs/final-state.log
+                  cat /proc/loadavg >> /tmp/resource-logs/final-state.log 2>&1
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: .github/workflows/ci-e2e-playwright.yml
+Line: 495:499
+
+Comment:
+final resource state output goes to step stdout, not to log files. Won't be in artifacts for analysis.
+
+```suggestion
+                  if [ -f /tmp/resource-monitor.pid ]; then
+                    kill $(cat /tmp/resource-monitor.pid) 2>/dev/null || true
+                  fi
+                  # Capture final resource state to log files
+                  echo ""=== Final Resource State $(date -Iseconds) ==="" >> /tmp/resource-logs/final-state.log
+                  echo ""Memory:"" >> /tmp/resource-logs/final-state.log
+                  free -h >> /tmp/resource-logs/final-state.log 2>&1
+                  echo ""CPU cores:"" >> /tmp/resource-logs/final-state.log
+                  nproc >> /tmp/resource-logs/final-state.log 2>&1
+                  echo ""Load average:"" >> /tmp/resource-logs/final-state.log
+                  cat /proc/loadavg >> /tmp/resource-logs/final-state.log 2>&1
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/46863#discussion_r2764952982,Good catch! Fixed in 94725a9 - final resource state now writes to `/tmp/resource-logs/final-state.log` so it's included in the uploaded artifacts.,2026-02-04T16:48:03+00:00,logic,low,"Greptile correctly identified that the final resource state output would go to stdout instead of log files, meaning it wouldn't be captured in the artifacts for later analysis. The developer confirmed this was a valid catch and fixed it. While the severity is low (CI/debugging infrastructure, not production code), it's a legitimate bug that would have defeated the purpose of the monitoring feature.",2026-02-04T18:32:05.265996+00:00
+stack-auth/stack-auth,1158,"""Require publishable client key"" toggle",https://github.com/stack-auth/stack-auth/pull/1158,"inconsistent default
+
+Fallback is true but schema default is false
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: apps/backend/src/route-handlers/smart-request.tsx
+Line: 262:262
+
+Comment:
+inconsistent default
+
+Fallback is true but schema default is false
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/stack-auth/stack-auth/pull/1158#discussion_r2765162246,,2026-02-04T17:32:22+00:00,logic,high,"Greptile correctly identified an inconsistency between the fallback default (true) in the code and the schema default (false). This could cause authentication behavior to differ unexpectedly between new projects (schema default: false = no key required) and existing/null tenancy cases (fallback: true = key required), leading to confusing security behavior.",2026-02-04T18:32:05.266122+00:00
+runanywhereai/runanywhere-sdks,330,Optimised llamacpp_backend.cpp,https://github.com/RunanywhereAI/runanywhere-sdks/pull/330,"the `process()` method doesn't update `state` correctly - the return value indicates if a character completed a valid sequence, but the state itself is internal to the DFA
+
+```suggestion
+    bool process(uint8_t byte) {
+        static const uint8_t utf8d[] = {
+            0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 00..1f
+            0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 20..3f
+            0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 40..5f
+            0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 60..7f
+            1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9, // 80..9f
+            7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7, // a0..bf
+            8,8,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2, // c0..df
+            0xa,0x3,0x3,0x3,0x3,0x3,0x3,0x3,0x3,0x3,0x3,0x3,0x3,0x4,0x3,0x3, // e0..ef
+            0xb,0x6,0x6,0x6,0x5,0x8,0x8,0x8,0x8,0x8,0x8,0x8,0x8,0x8,0x8,0x8, // f0..ff
+            0x0,0x1,0x2,0x3,0x5,0x8,0x7,0x1,0x1,0x1,0x4,0x6,0x1,0x1,0x1,0x1, // s0..s0
+            1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1,1,1,1,1,0,1,0,1,1,1,1,1,1, // s1..s2
+            1,2,1,1,1,1,1,2,1,2,1,1,1,1,1,1,1,1,1,1,1,1,1,2,1,1,1,1,1,1,1,1, // s3..s4
+            1,2,1,1,1,1,1,1,1,2,1,1,1,1,1,1,1,1,1,1,1,1,1,3,1,3,1,1,1,1,1,1, // s5..s6
+            1,3,1,1,1,1,1,3,1,3,1,1,1,1,1,1,1,3,1,1,1,1,1,1,1,1,1,1,1,1,1,1, // s7..s8
+        };
+
+        uint32_t type = utf8d[byte];
+        uint32_t new_state = utf8d[256 + state * 16 + type];
+        state = new_state;
+        return (state == 0);
+    }
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: sdk/runanywhere-commons/src/backends/llamacpp/llamacpp_backend.cpp
+Line: 26:46
+
+Comment:
+the `process()` method doesn't update `state` correctly - the return value indicates if a character completed a valid sequence, but the state itself is internal to the DFA
+
+```suggestion
+    bool process(uint8_t byte) {
+        static const uint8_t utf8d[] = {
+            0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 00..1f
+            0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 20..3f
+            0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 40..5f
+            0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 60..7f
+            1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9, // 80..9f
+            7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7, // a0..bf
+            8,8,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2, // c0..df
+            0xa,0x3,0x3,0x3,0x3,0x3,0x3,0x3,0x3,0x3,0x3,0x3,0x3,0x4,0x3,0x3, // e0..ef
+            0xb,0x6,0x6,0x6,0x5,0x8,0x8,0x8,0x8,0x8,0x8,0x8,0x8,0x8,0x8,0x8, // f0..ff
+            0x0,0x1,0x2,0x3,0x5,0x8,0x7,0x1,0x1,0x1,0x4,0x6,0x1,0x1,0x1,0x1, // s0..s0
+            1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1,1,1,1,1,0,1,0,1,1,1,1,1,1, // s1..s2
+            1,2,1,1,1,1,1,2,1,2,1,1,1,1,1,1,1,1,1,1,1,1,1,2,1,1,1,1,1,1,1,1, // s3..s4
+            1,2,1,1,1,1,1,1,1,2,1,1,1,1,1,1,1,1,1,1,1,1,1,3,1,3,1,1,1,1,1,1, // s5..s6
+            1,3,1,1,1,1,1,3,1,3,1,1,1,1,1,1,1,3,1,1,1,1,1,1,1,1,1,1,1,1,1,1, // s7..s8
+        };
+
+        uint32_t type = utf8d[byte];
+        uint32_t new_state = utf8d[256 + state * 16 + type];
+        state = new_state;
+        return (state == 0);
+    }
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/RunanywhereAI/runanywhere-sdks/pull/330#discussion_r2764964697,,2026-02-04T16:50:30+00:00,logic,high,"The UTF-8 DFA state machine implementation is missing the critical state transition table rows (s1..s8) that enable proper multi-byte character validation. The `process()` method reads from `utf8d[256 + state * 16 + type]` but the table is truncated at 'only 11 elements after s0..s0' comment line, meaning the state machine will access uninitialized/incorrect memory or have undefined behavior for multi-byte UTF-8 sequences. This would cause incorrect UTF-8 validation in production affecting all text processing.",2026-02-04T18:32:05.266163+00:00
+alpic-ai/skybridge,435,feat: use openai widget state shape,https://github.com/alpic-ai/skybridge/pull/435,"`setWidgetState` incorrectly wraps the state parameter. The parameter already has the shape `{ modelContent: ... }` (passed from `adaptor.ts:77`), but line 53 wraps it again creating `{ modelContent: { modelContent: ... } }`.
+
+```suggestion
+    setWidgetState: async (state: UnknownObject) => {
+      log(""setWidgetState"", state);
+      openai.widgetState = state;
+      setValue(""widgetState"", state);
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/devtools/src/components/layout/tool-panel/widget/create-openai-mock.ts
+Line: 51:54
+
+Comment:
+`setWidgetState` incorrectly wraps the state parameter. The parameter already has the shape `{ modelContent: ... }` (passed from `adaptor.ts:77`), but line 53 wraps it again creating `{ modelContent: { modelContent: ... } }`.
+
+```suggestion
+    setWidgetState: async (state: UnknownObject) => {
+      log(""setWidgetState"", state);
+      openai.widgetState = state;
+      setValue(""widgetState"", state);
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/alpic-ai/skybridge/pull/435#discussion_r2765280675,,2026-02-04T17:57:59+00:00,data_integrity,high,"Greptile correctly identified a double-wrapping bug where state that already has the shape `{ modelContent: ... }` gets wrapped again into `{ modelContent: { modelContent: ... } }`. This would cause incorrect widget state in production, breaking the expected data structure. The analysis traces the data flow from adaptor.ts to show the parameter is already wrapped.",2026-02-04T18:32:05.266280+00:00
