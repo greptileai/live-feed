@@ -3332,3 +3332,99 @@ This file is structured as a workflow file but placed in the actions directory. 
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/PostHog/posthog/pull/46744#discussion_r2760879502,oops lol fixed,2026-02-03T20:34:37+00:00,runtime,medium,Greptile correctly identified that a workflow file was placed in the wrong directory (.github/actions/ instead of .github/workflows/). This would cause the workflow to not execute at all since GitHub Actions only recognizes workflow files in the workflows directory. The developer confirmed the issue with 'oops lol fixed'.,2026-02-03T22:21:51.346364+00:00
+posthog/posthog,46771,fix: oauth redirect + team scope,https://github.com/PostHog/posthog/pull/46771,"Query bypasses permission checks - grants access to all teams where user is a member, regardless of membership level or RBAC
+
+The query `Team.objects.filter(organization__members=request.user)` includes ALL teams where the user is a member of the organization, without checking if they actually have permission to access each team. This differs from the POST flow (lines 96-111) which validates team access via `user_permissions.team(team).effective_membership_level`.
+
+For first-party apps, this should use the same permission validation logic:
+
+```suggestion
+                user_permissions = UserPermissions(request.user)
+                teams = [team.pk for team in user_permissions.teams_visible_for_user]
+                credentials[""scoped_teams""] = teams
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: posthog/api/oauth/views.py
+Line: 276:277
+
+Comment:
+Query bypasses permission checks - grants access to all teams where user is a member, regardless of membership level or RBAC
+
+The query `Team.objects.filter(organization__members=request.user)` includes ALL teams where the user is a member of the organization, without checking if they actually have permission to access each team. This differs from the POST flow (lines 96-111) which validates team access via `user_permissions.team(team).effective_membership_level`.
+
+For first-party apps, this should use the same permission validation logic:
+
+```suggestion
+                user_permissions = UserPermissions(request.user)
+                teams = [team.pk for team in user_permissions.teams_visible_for_user]
+                credentials[""scoped_teams""] = teams
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/46771#discussion_r2761593490,,2026-02-04T00:17:29+00:00,security,high,"Greptile correctly identified an authorization bypass where the GET flow grants OAuth access to all teams in an organization without checking RBAC permissions, while the POST flow properly validates team access via `effective_membership_level`. This could allow users to gain OAuth access to teams they shouldn't be able to access, which is a real security issue. The suggested fix using `UserPermissions` is appropriate and consistent with the POST flow.",2026-02-04T00:49:48.802917+00:00
+onyx-dot-app/onyx,8147,"Revert ""chore(document index): Remove offset""",https://github.com/onyx-dot-app/onyx/pull/8147,"`offset` parameter is hardcoded to `0` but should use the passed `offset` parameter value
+
+```suggestion
+            ""offset"": offset,
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: backend/onyx/document_index/vespa/index.py
+Line: 834:834
+
+Comment:
+`offset` parameter is hardcoded to `0` but should use the passed `offset` parameter value
+
+```suggestion
+            ""offset"": offset,
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/8147#discussion_r2761522698,,2026-02-03T23:44:24+00:00,logic,high,Greptile correctly identified that the `offset` parameter is added to the function signature but then hardcoded to `0` instead of using the passed value. This is a clear copy-paste or incomplete implementation bug that would cause pagination to completely fail in admin_retrieval - users would always get the first page of results regardless of what offset they request.,2026-02-04T00:49:48.803066+00:00
+isaac-sim/isaaclab,4526,Flexiv Rizon4s Reach Policy Support,https://github.com/isaac-sim/IsaacLab/pull/4526,"hardcoded absolute path `/home/shauryad/workspaces/...` will fail for other users
+
+should use nucleus path constants like other robot configs:
+
+```suggestion
+        usd_path=f""{ISAAC_NUCLEUS_DIR}/Robots/Flexiv/Rizon4s/rizon4s.usd"",
+```
+
+and import the constant:
+```python
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
+```",https://github.com/isaac-sim/IsaacLab/pull/4526#discussion_r2761310613,we need to talk to @stevfeng if we have to publish this USD. Or if the place you got this USD is publicly hosted. We could pull from there as well.,2026-02-03T22:40:39+00:00,runtime,high,"The hardcoded absolute path `/home/shauryad/workspaces/...` will cause a guaranteed runtime failure for any user other than the original developer. This is a real bug that will break the robot configuration for all other users, and the developer confirmed this needs to be addressed. This is the most impactful catch as it affects basic functionality.",2026-02-04T00:49:48.803129+00:00
+nvidia/nvflare,4117,[2.7] Add dict config and initial_ckpt support to standard recipes (Part 2),https://github.com/NVIDIA/NVFlare/pull/4117,"private RSA key should never be committed to version control
+
+```suggestion
+```
+
+Remove this file completely and add `*.key` to `.gitignore`.",https://github.com/NVIDIA/NVFlare/pull/4117#discussion_r2761646149,,2026-02-04T00:39:46+00:00,security,critical,"Greptile correctly identified that private RSA keys (rootCA.key, server.key) and certificates are being committed to version control, which is a critical security vulnerability. These cryptographic materials should never be in source control as they could be used to compromise the system's security. Comments 4, 5, and 6 all relate to this same security issue of committing sensitive cryptographic files.",2026-02-04T00:49:48.803181+00:00
+nvidia/spark-rapids,14260,Predicate pushdown for deletion vectors,https://github.com/NVIDIA/spark-rapids/pull/14260,"The `mergeProjects` implementation may produce incorrect results. When merging consecutive `GpuProjectExec` nodes, the outer project's expressions (`projList1`) likely reference attributes from the inner project's output. Simply discarding the inner project and using its child directly could break these references.
+
+Standard Spark approach requires substituting attribute references in `projList1` with the corresponding expressions from the inner project's list before merging. Consider using expression substitution similar to Spark's `CollapseProject` rule.
+
+```suggestion
+  def mergeProjects(plan: SparkPlan): SparkPlan = {
+    plan.transformUp {
+      case GpuProjectExec(projList1,
+      GpuProjectExec(projList2, child, enablePreSplit1), enablePreSplit2) =>
+        // Substitute references in projList1 with expressions from projList2
+        val substitutionMap = AttributeMap(
+          projList2.map(ne => (ne.toAttribute, ne))
+        )
+        val substitutedList = projList1.map(_.transform {
+          case a: Attribute => substitutionMap.getOrElse(a, a)
+        }.asInstanceOf[NamedExpression])
+        GpuProjectExec(substitutedList, child, enablePreSplit1 && enablePreSplit2)
+    }
+  }
+```",https://github.com/NVIDIA/spark-rapids/pull/14260#discussion_r2761370418,Good point. Will address it soon.,2026-02-03T22:54:55+00:00,logic,high,This catch identifies a real bug in the mergeProjects implementation where attribute references in the outer project will break when the inner project is removed without proper expression substitution. The developer confirmed it with 'Good point. Will address it soon.' This is a correctness issue that would cause query failures or incorrect results in production when deletion vector predicates are pushed down.,2026-02-04T00:49:48.803220+00:00
