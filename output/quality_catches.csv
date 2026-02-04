@@ -3428,3 +3428,32 @@ Standard Spark approach requires substituting attribute references in `projList1
     }
   }
 ```",https://github.com/NVIDIA/spark-rapids/pull/14260#discussion_r2761370418,Good point. Will address it soon.,2026-02-03T22:54:55+00:00,logic,high,This catch identifies a real bug in the mergeProjects implementation where attribute references in the outer project will break when the inner project is removed without proper expression substitution. The developer confirmed it with 'Good point. Will address it soon.' This is a correctness issue that would cause query failures or incorrect results in production when deletion vector predicates are pushed down.,2026-02-04T00:49:48.803220+00:00
+nvidia/nvflare,4117,[2.7] Add dict config and initial_ckpt support to standard recipes (Part 2),https://github.com/NVIDIA/NVFlare/pull/4117,"private RSA key committed to repository - CRITICAL SECURITY ISSUE
+
+Remove this file immediately and rotate the key. Never commit private keys to version control.
+
+```suggestion
+```",https://github.com/NVIDIA/NVFlare/pull/4117#discussion_r2761660192,,2026-02-04T00:46:36+00:00,security,critical,"A private RSA key was committed to the repository, which is a critical security vulnerability. Private keys should never be stored in version control as they can be used to compromise the system's security. This needs immediate removal and key rotation.",2026-02-04T03:13:02.885243+00:00
+generaltranslation/gt,982,New CLI Flags: no logo and json errors,https://github.com/generaltranslation/gt/pull/982,"[P0] `exitSync()` now prints JSON errors to `stdout` via `console.log`, which will violate the “no stray output” expectation for commands that are supposed to emit machine-readable output on `stdout` (and it also conflicts with existing output on `stdout`, e.g. headers). If `--json-errors` is enabled, this should likely go to `stderr` or be gated so it only prints when the process is actually exiting due to an error.
+
+Also note this introduces production `console.log` usage, which conflicts with the repo instruction to remove debug logging before merge.
+
+**Context Used:** Rule from `dashboard` - Remove console.log statements and debug logging from production code before merging. ([source](https://app.greptile.com/review/custom-context?memory=ea076fa4-7856-4d31-9266-35f86e49f4b6))
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/cli/src/console/logging.ts
+Line: 29:36
+
+Comment:
+[P0] `exitSync()` now prints JSON errors to `stdout` via `console.log`, which will violate the “no stray output” expectation for commands that are supposed to emit machine-readable output on `stdout` (and it also conflicts with existing output on `stdout`, e.g. headers). If `--json-errors` is enabled, this should likely go to `stderr` or be gated so it only prints when the process is actually exiting due to an error.
+
+Also note this introduces production `console.log` usage, which conflicts with the repo instruction to remove debug logging before merge.
+
+**Context Used:** Rule from `dashboard` - Remove console.log statements and debug logging from production code before merging. ([source](https://app.greptile.com/review/custom-context?memory=ea076fa4-7856-4d31-9266-35f86e49f4b6))
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/generaltranslation/gt/pull/982#discussion_r2761833652,Valid and fixed,2026-02-04T02:07:09+00:00,logic,medium,Comment 1 correctly identifies that outputting JSON errors to stdout via console.log will corrupt machine-readable output for commands that need clean stdout. The developer confirmed this was valid and fixed it. This is a real bug that would affect users who depend on clean JSON output from the CLI.,2026-02-04T03:13:02.885307+00:00
