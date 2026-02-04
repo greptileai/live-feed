@@ -3931,3 +3931,61 @@ nvidia/nvflare,4124,[2.7] Fix broadcast snapshot backward compatibility and para
 ```suggestion
         snapshot_task.props = copy.deepcopy(task.props) if task.props else {}
 ```",https://github.com/NVIDIA/NVFlare/pull/4124#discussion_r2765598687,fixed,2026-02-04T19:15:05+00:00,data_integrity,medium,"Comment 3 identifies a real data integrity bug where shallow copy of the props dict means nested mutable objects are shared between snapshot and original task, causing unintended state leakage between tasks when callbacks modify nested structures. The developer confirmed and fixed this issue. This is a subtle but important bug in a distributed computing framework where task isolation is critical.",2026-02-04T20:21:40.782529+00:00
+posthog/posthog,46899,fix(experiments): updating query runner for consitency,https://github.com/PostHog/posthog/pull/46899,"`get_action()` method doesn't accept any parameters. This will cause a TypeError at runtime.
+
+```suggestion
+            action = entity.get_action()
+```
+
+After this fix, you'll need to add team validation separately to maintain ownership validation (the intent of this PR):
+
+```python
+action = entity.get_action()
+if action.team_id != team.pk:
+    raise ValidationError(f""Action {action.id} does not belong to team {team.pk}"")
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: ee/clickhouse/queries/experiments/utils.py
+Line: 28:28
+
+Comment:
+`get_action()` method doesn't accept any parameters. This will cause a TypeError at runtime.
+
+```suggestion
+            action = entity.get_action()
+```
+
+After this fix, you'll need to add team validation separately to maintain ownership validation (the intent of this PR):
+
+```python
+action = entity.get_action()
+if action.team_id != team.pk:
+    raise ValidationError(f""Action {action.id} does not belong to team {team.pk}"")
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/46899#discussion_r2766143931,,2026-02-04T21:53:45+00:00,runtime,high,"Greptile correctly identified that `get_action()` method doesn't accept parameters, so passing `team.pk` would cause a TypeError at runtime. This is a real bug that would crash the code path whenever an experiment uses action-type entities. Looking at the diff, the change from `entity.get_action()` to `entity.get_action(team.pk)` would indeed break existing functionality.",2026-02-04T22:19:09.842387+00:00
+simstudioai/sim,3135,improvement(openai): migrate to responses api,https://github.com/simstudioai/sim/pull/3135,"**Token accounting mismatch**
+
+`parseResponsesUsage` treats `completionTokens` as `output_tokens + reasoning_tokens` (`apps/sim/providers/responses-utils.ts:268-273`). In the Responses API usage schema, `output_tokens` already includes reasoning tokens; adding `reasoning_tokens` again will double-count completions and inflate `totalTokens`. This will over-bill/over-report usage everywhere this helper is used (wand usage logging + provider cost calculation).
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: apps/sim/providers/responses-utils.ts
+Line: 268:273
+
+Comment:
+**Token accounting mismatch**
+
+`parseResponsesUsage` treats `completionTokens` as `output_tokens + reasoning_tokens` (`apps/sim/providers/responses-utils.ts:268-273`). In the Responses API usage schema, `output_tokens` already includes reasoning tokens; adding `reasoning_tokens` again will double-count completions and inflate `totalTokens`. This will over-bill/over-report usage everywhere this helper is used (wand usage logging + provider cost calculation).
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/simstudioai/sim/pull/3135#discussion_r2766077781,,2026-02-04T21:36:09+00:00,data_integrity,high,"This identifies a real token accounting bug where reasoning_tokens are being double-counted because output_tokens already includes them in the Responses API schema. This will cause incorrect billing/cost calculations for all users, affecting normal usage. The analysis is specific and verifiable against OpenAI's API documentation.",2026-02-04T22:19:09.842491+00:00
