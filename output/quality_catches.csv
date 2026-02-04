@@ -3606,3 +3606,54 @@ Hardcoded model name `claude-sonnet-4-5` - doesn't exist
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/gptme/gptme-contrib/pull/244#discussion_r2763238458,✅ Fixed in commit 959dc71 - model name updated to claude-sonnet-4-20250514,2026-02-04T10:15:10+00:00,runtime,high,The hardcoded model name 'claude-sonnet-4-5' doesn't exist in Anthropic's API - this would cause runtime failures for all API calls in production. Developer confirmed and fixed immediately. This is a clear bug that would break the core functionality of the code.,2026-02-04T10:27:50.403556+00:00
+posthog/posthog,46815,feat(dp): bring back the pipelines V3 changes,https://github.com/PostHog/posthog/pull/46815,"Logic issue: if Redis connection fails, `_get_redis_client()` yields `None` (line 29), which causes `is_batch_already_processed()` to return `False` (line 45) and `mark_batch_as_processed()` to silently fail with a warning (line 56-62). This means batches will be reprocessed on transient Redis failures, potentially causing duplicate data writes to Delta Lake without any clear indication that idempotency is broken. Consider raising an exception when Redis is unavailable to fail fast, or implement a more robust fallback strategy.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: posthog/temporal/data_imports/pipelines/pipeline_v3/load/idempotency.py
+Line: 16:34
+
+Comment:
+Logic issue: if Redis connection fails, `_get_redis_client()` yields `None` (line 29), which causes `is_batch_already_processed()` to return `False` (line 45) and `mark_batch_as_processed()` to silently fail with a warning (line 56-62). This means batches will be reprocessed on transient Redis failures, potentially causing duplicate data writes to Delta Lake without any clear indication that idempotency is broken. Consider raising an exception when Redis is unavailable to fail fast, or implement a more robust fallback strategy.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/46815#discussion_r2763472207,,2026-02-04T11:13:38+00:00,data_integrity,high,"This comment correctly identifies a critical flaw in the idempotency mechanism: when Redis fails, `is_batch_already_processed()` returns `False` and `mark_batch_as_processed()` silently fails, meaning batches will be reprocessed on transient Redis failures causing duplicate data writes to Delta Lake. This is a real data integrity bug that will cause incorrect behavior in production when Redis has connectivity issues, and the silent failure mode makes it hard to detect.",2026-02-04T12:29:19.369325+00:00
+raycast/extensions,25136,Add Dutch Article (Het of De) extension,https://github.com/raycast/extensions/pull/25136,"[P0] This is being added as a git submodule (mode `160000`), not a normal extension directory.
+
+In this repo, extensions are expected to be regular folders committed into the main repository. As-is, there’s no `.gitmodules` entry for `extensions/dutch-article` (`git submodule status` fails with “no submodule mapping found”), so a fresh checkout won’t be able to initialize the extension content and CI/build tooling won’t see any source files.
+
+Action: remove the submodule entry and commit the extension files under `extensions/dutch-article/` directly (plus required `package.json`, `src/*`, `assets`/`metadata` as applicable).",https://github.com/raycast/extensions/pull/25136#discussion_r2763307481,,2026-02-04T10:31:26+00:00,data_integrity,high,"This is a legitimate critical catch - the extension was accidentally added as a git submodule instead of regular files, which would completely break the extension for anyone checking out the repo. Without proper .gitmodules configuration, the extension content would be completely inaccessible, causing CI/build failures and preventing the extension from working at all.",2026-02-04T12:29:19.369394+00:00
+ever-co/ever-gauzy,9419,fix: desktop translate not loaded,https://github.com/ever-co/ever-gauzy/pull/9419,"Missing i18n assets configuration. The `TranslateModule` expects translation files at `./assets/i18n/*.json`, but the desktop app doesn't copy these files from `packages/ui-core/i18n/assets/i18n/` during build. Add this to the assets array:
+
+```suggestion
+				""assets"": [""apps/desktop/src/favicon.ico"", ""apps/desktop/src/assets"", {
+					""glob"": ""**/*"",
+					""input"": ""packages/ui-core/i18n/assets/i18n"",
+					""output"": ""assets/i18n/""
+				}],
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: apps/desktop/project.json
+Line: 30:30
+
+Comment:
+Missing i18n assets configuration. The `TranslateModule` expects translation files at `./assets/i18n/*.json`, but the desktop app doesn't copy these files from `packages/ui-core/i18n/assets/i18n/` during build. Add this to the assets array:
+
+```suggestion
+				""assets"": [""apps/desktop/src/favicon.ico"", ""apps/desktop/src/assets"", {
+					""glob"": ""**/*"",
+					""input"": ""packages/ui-core/i18n/assets/i18n"",
+					""output"": ""assets/i18n/""
+				}],
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/ever-co/ever-gauzy/pull/9419#discussion_r2763700212,,2026-02-04T12:11:08+00:00,runtime,high,"This catch identifies a critical missing configuration that would cause the translation fix to not work at runtime. The PR is specifically about fixing 'desktop translate not loaded', but without copying the i18n asset files during build, the TranslateModule would fail to load any translation files at runtime. This is a high-severity issue that directly undermines the PR's purpose.",2026-02-04T12:29:19.369426+00:00
