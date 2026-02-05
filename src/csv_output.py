@@ -100,6 +100,7 @@ def append_evaluated_comments_csv(
         "created_at",
         "bug_category",
         "severity",
+        "quality_score",
         "llm_reasoning",
         "evaluated_at"
     ]
@@ -125,6 +126,7 @@ def append_evaluated_comments_csv(
                 "created_at": comment.get("created_at", ""),
                 "bug_category": comment.get("bug_category", ""),
                 "severity": comment.get("severity", ""),
+                "quality_score": comment.get("quality_score", ""),
                 "llm_reasoning": comment.get("llm_reasoning", ""),
                 "evaluated_at": datetime.now(timezone.utc).isoformat()
             })

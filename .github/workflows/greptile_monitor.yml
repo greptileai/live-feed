@@ -10,10 +10,15 @@ on:
         description: 'Maximum repos to process (for testing)'
         required: false
         type: number
-      min_reviews:
-        description: 'Minimum reviews_30d filter'
+      limit:
+        description: 'Maximum addressed comments to evaluate'
         required: false
-        default: '0'
+        default: '100'
+        type: string
+      min_score:
+        description: 'Minimum quality score (1-10)'
+        required: false
+        default: '8'
         type: string
       skip_evaluation:
         description: 'Skip LLM evaluation step'
@@ -46,30 +51,27 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Run monitor (fetch new comments)
-        env:
-          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
-        run: |
-          python -m src.main \
-            --csv oss_master.csv \
-            --output output/greptile_comments.json \
-            --state-file state/last_checked.json \
-            --min-reviews ${{ inputs.min_reviews || '0' }} \
-            ${{ inputs.max_repos && format('--max-repos {0}', inputs.max_repos) || '' }} \
-            --verbose
-
-      - name: Run LLM evaluation and sync to Sheets
+      - name: Evaluate addressed comments (two-phase approach)
         if: ${{ !inputs.skip_evaluation }}
         env:
           GITHUB_TOKEN: ${{ secrets.GH_PAT }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GREPTILE_DB_URL: ${{ secrets.GREPTILE_DB_URL }}
           GOOGLE_CREDENTIALS_FILE: ${{ github.workspace }}/credentials.json
         run: |
           # Write Google credentials from secret
           echo '${{ secrets.GOOGLE_CREDENTIALS_JSON }}' > credentials.json
 
-          # Run evaluation (also syncs current run's great catches to Sheets)
-          python run_evaluation.py
+          # Run two-phase evaluation:
+          # Phase 1: Query DB for new addressed comments
+          # Phase 2: Enrich with GitHub context and evaluate
+          python run_addressed_evaluation.py \
+            --limit ${{ inputs.limit || '100' }} \
+            --min-score ${{ inputs.min_score || '8' }} \
+            --output output/quality_catches.csv \
+            --state-file state/evaluated_comments.json \
+            --sync-sheets \
+            --verbose
 
           # Clean up credentials
           rm -f credentials.json
@@ -77,10 +79,10 @@ jobs:
       - name: Upload output as artifact
         uses: actions/upload-artifact@v4
         with:
-          name: greptile-comments-${{ github.run_number }}
+          name: greptile-catches-${{ github.run_number }}
           path: |
-            output/greptile_comments.json
             output/quality_catches.csv
+            state/evaluated_comments.json
           retention-days: 30
 
       - name: Commit state back to repo
@@ -88,7 +90,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add state/last_checked.json
+          git add state/evaluated_comments.json || true
           git add output/quality_catches.csv || true
           git diff --staged --quiet || git commit -m "chore: update greptile monitor state [skip ci]"
           git pull --rebase origin main || true
@@ -96,17 +98,18 @@ jobs:
 
       - name: Summary
         run: |
-          echo "## Greptile Monitor Results" >> $GITHUB_STEP_SUMMARY
+          echo "## Greptile Addressed Comments Evaluation" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          if [ -f output/greptile_comments.json ]; then
-            jq -r '"### Fetch Results
-          - **Generated at**: \(.metadata.generated_at)
-          - **Repos processed**: \(.metadata.total_repos_processed)
-          - **PRs with comments**: \(.metadata.total_prs_with_comments)
-          - **Total comments**: \(.metadata.total_greptile_comments)"' output/greptile_comments.json >> $GITHUB_STEP_SUMMARY
+          if [ -f state/evaluated_comments.json ]; then
+            echo "### Evaluation State" >> $GITHUB_STEP_SUMMARY
+            TOTAL=$(jq '.evaluated_ids | length' state/evaluated_comments.json)
+            LAST_CHECK=$(jq -r '.last_check // "never"' state/evaluated_comments.json)
+            echo "- **Total evaluated (all time)**: $TOTAL comments" >> $GITHUB_STEP_SUMMARY
+            echo "- **Last check**: $LAST_CHECK" >> $GITHUB_STEP_SUMMARY
           fi
           echo "" >> $GITHUB_STEP_SUMMARY
           if [ -f output/quality_catches.csv ]; then
             echo "### Quality Catches" >> $GITHUB_STEP_SUMMARY
-            echo "Found $(tail -n +2 output/quality_catches.csv | wc -l | tr -d ' ') meaningful bug catches" >> $GITHUB_STEP_SUMMARY
+            TOTAL_CATCHES=$(tail -n +2 output/quality_catches.csv | wc -l | tr -d ' ')
+            echo "- **Total showcase-worthy catches**: $TOTAL_CATCHES" >> $GITHUB_STEP_SUMMARY
           fi

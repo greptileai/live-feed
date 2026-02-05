@@ -215,3 +215,185 @@ class GitHubClient:
                 file_patches[filename] = patch
 
         return file_patches
+
+    def get_pr_details(
+        self,
+        owner: str,
+        repo: str,
+        pr_number: int
+    ) -> Optional[Dict[str, Any]]:
+        """Get PR metadata."""
+        url = f"/repos/{owner}/{repo}/pulls/{pr_number}"
+        response = self._request("GET", url)
+        if response:
+            return response.json()
+        return None
+
+    def enrich_comment_with_context(
+        self,
+        comment: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Enrich an addressed comment with GitHub context.
+
+        Phase 2 of the two-phase approach:
+        - Fetch full PR diff for the relevant file
+        - Find any replies to the Greptile comment
+        - Add PR metadata
+
+        Args:
+            comment: Comment dict from fetch_new_addressed_comments()
+
+        Returns:
+            Enriched comment dict with diff context and replies
+        """
+        repo = comment.get("repo", "")
+        pr_number = comment.get("pr_number")
+        file_path = comment.get("file_path")
+
+        if "/" not in repo:
+            self.logger.warning(f"Invalid repo format: {repo}")
+            return comment
+
+        owner, repo_name = repo.split("/", 1)
+
+        # Get PR details
+        pr_details = self.get_pr_details(owner, repo_name, pr_number)
+        if pr_details:
+            comment["pr_title"] = pr_details.get("title", comment.get("pr_title"))
+            comment["pr_state"] = pr_details.get("state", comment.get("pr_state"))
+            comment["pr_url"] = pr_details.get("html_url", comment.get("pr_url"))
+
+        # Get file diff if we have a file path
+        if file_path:
+            file_patches = self.get_pr_files(owner, repo_name, pr_number)
+            comment["file_patch"] = file_patches.get(file_path, "")
+
+        # Get replies to this comment
+        comment["reply_body"] = self._find_replies_to_comment(
+            owner, repo_name, pr_number, comment.get("comment_body", "")
+        )
+
+        return comment
+
+    def _find_replies_to_comment(
+        self,
+        owner: str,
+        repo: str,
+        pr_number: int,
+        greptile_comment_body: str
+    ) -> Optional[str]:
+        """Find developer replies to a Greptile comment.
+
+        Since we match by body content, we look for comments that:
+        1. Are not from Greptile
+        2. Are in reply to a comment with matching body
+        """
+        if not greptile_comment_body:
+            return None
+
+        # Get all review comments
+        greptile_comment_id = None
+        replies = []
+
+        for comment in self.get_pr_review_comments(owner, repo, pr_number):
+            user = comment.get("user", {})
+            body = comment.get("body", "")
+
+            # Find the Greptile comment by matching body prefix
+            if self.is_greptile_user(user):
+                if greptile_comment_body[:100] in body or body[:100] in greptile_comment_body:
+                    greptile_comment_id = comment.get("id")
+            # Check if this is a reply to the Greptile comment
+            elif greptile_comment_id and comment.get("in_reply_to_id") == greptile_comment_id:
+                replies.append(body)
+
+        if replies:
+            return "\n---\n".join(replies)
+
+        return None
+
+    def enrich_comments_batch(
+        self,
+        comments: list
+    ) -> list:
+        """Enrich multiple comments with GitHub context.
+
+        Groups comments by PR to minimize API calls.
+        """
+        # Group by repo/pr_number
+        from collections import defaultdict
+        pr_comments: Dict[str, list] = defaultdict(list)
+
+        for comment in comments:
+            key = f"{comment.get('repo')}/{comment.get('pr_number')}"
+            pr_comments[key].append(comment)
+
+        enriched = []
+        total_prs = len(pr_comments)
+
+        for i, (pr_key, pr_comment_list) in enumerate(pr_comments.items()):
+            self.logger.info(f"Enriching PR {i+1}/{total_prs}: {pr_key}")
+
+            # Fetch context once per PR
+            first_comment = pr_comment_list[0]
+            repo = first_comment.get("repo", "")
+            pr_number = first_comment.get("pr_number")
+
+            if "/" not in repo:
+                enriched.extend(pr_comment_list)
+                continue
+
+            owner, repo_name = repo.split("/", 1)
+
+            # Get PR details and files once
+            pr_details = self.get_pr_details(owner, repo_name, pr_number)
+            file_patches = self.get_pr_files(owner, repo_name, pr_number)
+
+            # Get all review comments for reply detection
+            all_review_comments = list(self.get_pr_review_comments(owner, repo_name, pr_number))
+
+            for comment in pr_comment_list:
+                # Add PR details
+                if pr_details:
+                    comment["pr_title"] = pr_details.get("title", comment.get("pr_title"))
+                    comment["pr_state"] = pr_details.get("state", comment.get("pr_state"))
+                    comment["pr_url"] = pr_details.get("html_url", comment.get("pr_url"))
+
+                # Add file patch
+                file_path = comment.get("file_path")
+                if file_path:
+                    comment["file_patch"] = file_patches.get(file_path, "")
+
+                # Find replies
+                comment["reply_body"] = self._find_reply_in_comments(
+                    all_review_comments,
+                    comment.get("comment_body", "")
+                )
+
+                enriched.append(comment)
+
+        return enriched
+
+    def _find_reply_in_comments(
+        self,
+        all_comments: list,
+        greptile_body: str
+    ) -> Optional[str]:
+        """Find replies to a Greptile comment from pre-fetched comments."""
+        if not greptile_body:
+            return None
+
+        greptile_comment_id = None
+        replies = []
+
+        for comment in all_comments:
+            user = comment.get("user", {})
+            body = comment.get("body", "")
+
+            if self.is_greptile_user(user):
+                if greptile_body[:100] in body or body[:100] in greptile_body:
+                    greptile_comment_id = comment.get("id")
+            elif greptile_comment_id and comment.get("in_reply_to_id") == greptile_comment_id:
+                replies.append(body)
+
+        return "\n---\n".join(replies) if replies else None

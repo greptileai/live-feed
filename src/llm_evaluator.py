@@ -18,25 +18,39 @@ YOUR TASK:
 3. Verify if Greptile's claim is actually correct by examining the code
 4. If a developer replied, treat their feedback as ground truth
 
-GREAT CATCH criteria (must meet ALL):
-- Real bug that causes incorrect behavior, crashes, security issues, or data loss
-- Non-obvious: a typical reviewer would likely miss it
-- Greptile's analysis is CORRECT (you must verify against the code)
-- Specific and actionable
+QUALITY SCORE CRITERIA (be strict and calibrated):
 
-REJECT these (when in doubt, reject):
-- Style/formatting/naming suggestions
-- Vague advice ("consider adding error handling")
-- Documentation suggestions
-- Refactoring that doesn't fix a bug
-- Theoretical concerns without concrete evidence
-- Config/build/CI file issues
-- Test file feedback
-- Obvious issues anyone would catch
-- FALSE POSITIVES where Greptile misread the code
+HIGH SCORES (8-10) - Reserve for genuine code bugs with real impact:
+- 10: Critical security vulnerability (auth bypass, injection, data exposure) or guaranteed production crash
+- 9: Significant bug causing data corruption, race condition, or wrong behavior affecting users
+- 8: Meaningful logic/runtime bug that would cause problems in production
+
+MEDIUM SCORES (5-7) - Valid issues but less impressive:
+- 7: Solid catch but somewhat obvious, or edge case with lower impact
+- 6: Minor bug, unlikely edge case, or code quality issue
+- 5: Technically correct but low value, nitpick-level
+
+LOW SCORES (1-4) - NOT showcase-worthy:
+- 4: Process/submission issues (wrong files, git problems, PR description mismatches)
+- 3: Style, formatting, naming suggestions, or documentation issues
+- 2: Duplicate of another comment, or vague/generic advice
+- 1: False positive or completely wrong analysis
+
+CALIBRATION RULES (follow strictly):
+- SECURITY issues (SQL injection, XSS, auth bypass, credential exposure) → Score 8-10
+- Process/submission issues (wrong git submodule, wrong files, PR metadata) → Score 3-4
+- Duplicate catches → Score 2-3
+- Test file issues → Score 5-6 max unless it hides a production bug
+- "Discrepancy with PR description" → Score 4-5 (process issue, not code bug)
+
+OBVIOUS ISSUES (cap at 6, never 8+):
+- Compilation/import errors caught immediately by build/IDE → Score 5-6
+- Missing imports, undefined variables, NameError → Score 5-6
+- Dependency version mismatches (React/npm peer deps) that npm/pip would flag → Score 5-6
+- Build config issues that would fail immediately on first run → Score 5-6
 
 DEVELOPER REPLIES:
-- If developer says Greptile is WRONG → reject (false positive)
+- If developer says Greptile is WRONG → reject (false positive, score 1-2)
 - If developer says "good catch", "fixed", "thanks" → validates the catch
 - If NO reply → evaluate based on code analysis alone
 
@@ -57,31 +71,70 @@ Greptile's confidence score: {score}/5
 {developer_reply_section}
 ---
 
-Examine the code. Is Greptile's claim correct? Is this a great catch?
+Examine the code. Is Greptile's claim correct? Assign a calibrated quality score.
 
 Respond with JSON only:
 {{
   "is_great_catch": true/false,
-  "bug_category": "security|logic|runtime|performance|concurrency|data_integrity|type_error|resource_leak|null",
+  "bug_category": "security|logic|runtime|performance|concurrency|data_integrity|type_error|resource_leak|process|null",
   "severity": "critical|high|medium|low|null",
-  "reasoning": "1-2 sentences: what you verified in the code and why this is/isn't a great catch"
+  "quality_score": <1-10 integer>,
+  "reasoning": "1-2 sentences: what you verified in the code and why this score"
 }}"""
 
 
 BATCH_EVALUATION_PROMPT = """You are evaluating ALL comments from an AI code reviewer (Greptile) on a single PR. Your job is to find the SINGLE BEST catch worth showcasing.
 
-STRICT SEVERITY CRITERIA:
-- critical: Security vulnerability (auth bypass, injection, data exposure) OR guaranteed data loss/corruption in production
-- high: Bug that WILL cause incorrect behavior affecting users in normal usage (not edge cases)
-- medium: Bug in edge cases or error paths that could cause issues under specific conditions
-- low: Minor issues, unlikely edge cases, or "nice to fix" items
+IMPORTANT: These comments were ADDRESSED by the developer (they made changes based on Greptile's feedback). Your job is to assess HOW IMPRESSIVE the catch was.
+
+QUALITY SCORE CRITERIA (be strict and calibrated):
+
+HIGH SCORES (8-10) - Reserve for genuine code bugs with real impact:
+- 10: Critical security vulnerability (auth bypass, injection, data exposure) or guaranteed production crash
+- 9: Significant bug causing data corruption, race condition, or wrong behavior affecting users
+- 8: Meaningful logic/runtime bug that would cause problems in production
+
+MEDIUM SCORES (5-7) - Valid issues but less impressive:
+- 7: Solid catch but somewhat obvious, or edge case with lower impact
+- 6: Minor bug, unlikely edge case, or code quality issue
+- 5: Technically correct but low value, nitpick-level
+
+LOW SCORES (1-4) - NOT showcase-worthy:
+- 4: Process/submission issues (wrong files, git problems, PR description mismatches)
+- 3: Style, formatting, naming suggestions, or documentation issues
+- 2: Duplicate of another comment, or vague/generic advice
+- 1: False positive or completely wrong analysis
+
+CALIBRATION RULES (follow strictly):
+- SECURITY issues (SQL injection, XSS, auth bypass, credential exposure) → Score 8-10
+- SECURITY patterns in code (f-string SQL, unescaped user input, missing auth checks) → Score 7-9
+- Process/submission issues (wrong git submodule, wrong files, PR metadata) → Score 3-4
+- Duplicate catches (same issue already flagged in another comment) → Score 2-3
+- Test file issues → Score 5-6 max unless it hides a production bug
+- "Discrepancy with PR description" → Score 4-5 (process issue, not code bug)
+
+OBVIOUS ISSUES (cap at 6, never 8+):
+- Compilation/import errors caught immediately by build/IDE → Score 5-6
+- Missing imports, undefined variables, NameError → Score 5-6
+- Dependency version mismatches (React/npm peer deps) that npm/pip would flag → Score 5-6
+- Build config issues that would fail immediately on first run → Score 5-6
+- Type mismatches that TypeScript/linter would catch → Score 5-6
+
+UNCERTAINTY PENALTY:
+- If comment says "Unable to retrieve content" or content couldn't be verified → Cap at 5
+- If the issue is speculative without concrete code evidence → Cap at 6
+
+SEVERITY CRITERIA:
+- critical: Security vulnerability (auth bypass, injection, data exposure) OR guaranteed data loss/corruption
+- high: Bug that WILL cause incorrect behavior affecting users in normal usage
+- medium: Bug in edge cases or error paths that could cause issues
+- low: Minor issues, unlikely edge cases
 
 EVALUATION RULES:
 1. DE-DUPLICATE: Multiple comments about the same underlying issue = pick the best-written one
 2. VERIFY: Check that Greptile's analysis is actually correct against the code
-3. PRIORITIZE: Developer-confirmed catches ("good catch", "fixed") are more valuable
-4. BE STRICT: Only return a catch if it's truly impressive and showcase-worthy
-5. ONE WINNER: Return only the single best catch, or none if nothing qualifies
+3. BE VERY STRICT: Only quality_score >= 8 is showcase-worthy
+4. ONE WINNER: Return only the single best catch, or none if nothing qualifies
 
 REJECT (when in doubt, reject):
 - Style/formatting/naming suggestions
@@ -92,6 +145,7 @@ REJECT (when in doubt, reject):
 - Config/build/CI/test file issues
 - Obvious issues any developer would catch
 - FALSE POSITIVES where Greptile misunderstood the code
+- Process/submission issues (wrong files, git submodules, PR description mismatches)
 
 ---
 
@@ -112,6 +166,7 @@ Respond with JSON only:
   "selected_comment_index": <0-based index of best comment, or null if none>,
   "bug_category": "security|logic|runtime|performance|concurrency|data_integrity|type_error|resource_leak|null",
   "severity": "critical|high|medium|low|null",
+  "quality_score": <1-10 integer, where 10 = exceptional catch that would impress any senior engineer, 8+ = showcase-worthy, 5-7 = decent but not remarkable, 1-4 = low value or likely false positive>,
   "reasoning": "2-3 sentences: why this is the best catch and what makes it showcase-worthy (or why none qualify)",
   "duplicates_found": ["brief description of any duplicate/similar issues that were consolidated"]
 }}"""
@@ -130,7 +185,12 @@ Write a brief summary of the bug(s) Greptile identified. Focus on the actual iss
 class LLMEvaluator:
     """Evaluates Greptile comments using Claude API."""
 
-    def __init__(self, api_key: Optional[str] = None, model: str = "claude-opus-4-5-20251101"):
+    def __init__(
+        self,
+        api_key: Optional[str] = None,
+        model: str = "claude-opus-4-5-20251101",
+        min_quality_score: int = 8
+    ):
         self.api_key = api_key or os.environ.get("ANTHROPIC_API_KEY")
         if not self.api_key:
             raise ValueError("ANTHROPIC_API_KEY environment variable required")
@@ -138,6 +198,7 @@ class LLMEvaluator:
         self.client = anthropic.Anthropic(api_key=self.api_key)
         self.model = model
         self.summary_model = "claude-sonnet-4-20250514"
+        self.min_quality_score = min_quality_score
         self.logger = logging.getLogger(__name__)
 
     def evaluate_comment(
@@ -241,6 +302,7 @@ Developer's reply to Greptile:
             "is_great_catch": evaluation.get("is_great_catch", False),
             "bug_category": evaluation.get("bug_category"),
             "severity": evaluation.get("severity"),
+            "quality_score": evaluation.get("quality_score"),
             "llm_reasoning": evaluation.get("reasoning", "")
         }
 
@@ -439,6 +501,7 @@ Developer's reply to Greptile:
             "created_at": selected_comment.created_at.isoformat(),
             "bug_category": evaluation.get("bug_category"),
             "severity": evaluation.get("severity"),
+            "quality_score": evaluation.get("quality_score"),
             "llm_reasoning": evaluation.get("reasoning", "")
         }
 
@@ -481,17 +544,15 @@ Developer's reply to Greptile:
             best_catch = self.evaluate_pr_batch(pr)
 
             if best_catch:
-                severity = best_catch.get("severity", "").lower()
-                reply_body = best_catch.get("reply_body") or ""
+                quality_score = best_catch.get("quality_score") or 0
 
-                # Low/medium severity requires positive developer confirmation
-                if severity in ("low", "medium"):
-                    if not self._has_positive_reply(reply_body):
-                        self.logger.info(
-                            f"Skipping {pr.repo} PR#{pr.pr_number} - {severity} severity "
-                            f"without positive developer reply"
-                        )
-                        continue
+                # Filter by minimum quality score
+                if quality_score < self.min_quality_score:
+                    self.logger.info(
+                        f"Skipping {pr.repo} PR#{pr.pr_number} - quality_score {quality_score} "
+                        f"below threshold {self.min_quality_score}"
+                    )
+                    continue
 
                 quality_catches.append(best_catch)
                 prs_with_catches += 1
@@ -683,4 +744,322 @@ Respond with JSON only:
             return None
         except Exception as e:
             self.logger.error(f"LLM API error: {e}")
+            return None
+
+    def evaluate_addressed_comment(
+        self,
+        comment: Dict[str, Any]
+    ) -> Optional[Dict[str, Any]]:
+        """Evaluate a single addressed comment from the DB.
+
+        Args:
+            comment: Dict with repo, pr_number, pr_title, comment_body, file_path, etc.
+
+        Returns:
+            Evaluation result dict or None if not showcase-worthy
+        """
+        prompt = f"""Evaluate this AI code review comment (by Greptile) that was ADDRESSED by the developer.
+
+IMPORTANT: The developer made changes based on this comment. Assess HOW IMPRESSIVE the catch was.
+
+QUALITY SCORE CRITERIA (be strict and calibrated):
+
+HIGH SCORES (8-10) - Reserve for genuine code bugs with real impact:
+- 10: Critical security vulnerability (auth bypass, injection, data exposure) or guaranteed production crash
+- 9: Significant bug causing data corruption, race condition, or wrong behavior affecting users
+- 8: Meaningful logic/runtime bug that would cause problems in production
+
+MEDIUM SCORES (5-7) - Valid issues but less impressive:
+- 7: Solid catch but somewhat obvious, or edge case with lower impact
+- 6: Minor bug, unlikely edge case, or code quality issue
+- 5: Technically correct but low value, nitpick-level
+
+LOW SCORES (1-4) - NOT showcase-worthy:
+- 4: Process/submission issues (wrong files, git problems, PR description mismatches)
+- 3: Style, formatting, naming suggestions, or documentation issues
+- 2: Duplicate of another comment, or vague/generic advice
+- 1: False positive or completely wrong analysis
+
+CALIBRATION RULES (follow strictly):
+- SECURITY issues (SQL injection, XSS, auth bypass, credential exposure) → Score 8-10
+- SECURITY patterns in code (f-string SQL, unescaped user input, missing auth checks) → Score 7-9
+- Process/submission issues (wrong git submodule, wrong files, PR metadata) → Score 3-4
+- Duplicate catches (same issue already flagged in another comment) → Score 2-3
+- Test file issues → Score 5-6 max unless it hides a production bug
+- "Discrepancy with PR description" → Score 4-5 (process issue, not code bug)
+
+OBVIOUS ISSUES (cap at 6, never 8+):
+- Compilation/import errors caught immediately by build/IDE → Score 5-6
+- Missing imports, undefined variables, NameError → Score 5-6
+- Dependency version mismatches (React/npm peer deps) that npm/pip would flag → Score 5-6
+- Build config issues that would fail immediately on first run → Score 5-6
+- Type mismatches that TypeScript/linter would catch → Score 5-6
+
+UNCERTAINTY PENALTY:
+- If comment says "Unable to retrieve content" or content couldn't be verified → Cap at 5
+- If the issue is speculative without concrete code evidence → Cap at 6
+
+---
+
+Repository: {comment.get('repo', 'unknown')}
+PR Title: {comment.get('pr_title', 'unknown')}
+File: {comment.get('file_path', 'N/A')}
+Line: {comment.get('line_number', 'N/A')}
+
+Greptile's comment:
+```
+{comment.get('comment_body', '')}
+```
+
+---
+
+Respond with JSON only:
+{{
+  "quality_score": <1-10 integer>,
+  "bug_category": "security|logic|runtime|performance|concurrency|data_integrity|type_error|resource_leak|process|null",
+  "severity": "critical|high|medium|low|null",
+  "reasoning": "1-2 sentences explaining why this score"
+}}"""
+
+        try:
+            response = self.client.messages.create(
+                model=self.model,
+                max_tokens=256,
+                messages=[{"role": "user", "content": prompt}]
+            )
+
+            response_text = response.content[0].text.strip()
+            if response_text.startswith("```"):
+                response_text = response_text.split("```")[1]
+                if response_text.startswith("json"):
+                    response_text = response_text[4:]
+                response_text = response_text.strip()
+
+            evaluation = json.loads(response_text)
+
+            quality_score = evaluation.get("quality_score", 0)
+            if quality_score < self.min_quality_score:
+                self.logger.debug(
+                    f"Skipping {comment.get('repo')} PR#{comment.get('pr_number')} - "
+                    f"quality_score {quality_score} < {self.min_quality_score}"
+                )
+                return None
+
+            return {
+                "repo": comment.get("repo"),
+                "pr_number": comment.get("pr_number"),
+                "pr_title": comment.get("pr_title"),
+                "pr_url": comment.get("pr_url"),
+                "comment_body": comment.get("comment_body"),
+                "comment_url": comment.get("comment_url"),
+                "reply_body": comment.get("reply_body"),
+                "file_path": comment.get("file_path"),
+                "created_at": comment.get("created_at"),
+                "addressed": True,
+                "bug_category": evaluation.get("bug_category"),
+                "severity": evaluation.get("severity"),
+                "quality_score": quality_score,
+                "llm_reasoning": evaluation.get("reasoning", "")
+            }
+
+        except Exception as e:
+            self.logger.error(f"Error evaluating comment: {e}")
+            return None
+
+    def evaluate_addressed_comments(
+        self,
+        comments: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
+        """Evaluate a list of addressed comments from the DB.
+
+        Groups comments by PR and evaluates together to handle duplicates.
+        Returns at most 1 catch per PR (the best one).
+
+        Args:
+            comments: List of comment dicts from fetch_addressed_comments()
+
+        Returns:
+            List of showcase-worthy catches (quality_score >= min_quality_score)
+        """
+        # Group comments by PR to handle duplicates
+        pr_comments: Dict[str, List[Dict]] = {}
+        for comment in comments:
+            pr_key = f"{comment.get('repo')}#{comment.get('pr_number')}"
+            if pr_key not in pr_comments:
+                pr_comments[pr_key] = []
+            pr_comments[pr_key].append(comment)
+
+        self.logger.info(
+            f"Grouped {len(comments)} comments into {len(pr_comments)} PRs"
+        )
+
+        quality_catches = []
+
+        for i, (pr_key, pr_comment_list) in enumerate(pr_comments.items()):
+            self.logger.info(
+                f"Evaluating PR {i+1}/{len(pr_comments)}: {pr_key} "
+                f"({len(pr_comment_list)} comments)"
+            )
+
+            if len(pr_comment_list) == 1:
+                # Single comment - evaluate directly
+                result = self.evaluate_addressed_comment(pr_comment_list[0])
+            else:
+                # Multiple comments - evaluate together to deduplicate
+                result = self._evaluate_addressed_pr_batch(pr_comment_list)
+
+            if result:
+                quality_catches.append(result)
+                self.logger.info(
+                    f"  -> Quality catch! Score: {result['quality_score']}, "
+                    f"Category: {result['bug_category']}"
+                )
+
+        self.logger.info(
+            f"Evaluated {len(pr_comments)} PRs ({len(comments)} comments), "
+            f"found {len(quality_catches)} showcase-worthy (score >= {self.min_quality_score})"
+        )
+        return quality_catches
+
+    def _evaluate_addressed_pr_batch(
+        self,
+        comments: List[Dict[str, Any]]
+    ) -> Optional[Dict[str, Any]]:
+        """Evaluate multiple addressed comments from the same PR together.
+
+        Handles deduplication and returns only the single best catch.
+        """
+        if not comments:
+            return None
+
+        # Get PR info from first comment
+        repo = comments[0].get("repo", "unknown")
+        pr_number = comments[0].get("pr_number", "")
+        pr_title = comments[0].get("pr_title", "unknown")
+        pr_url = comments[0].get("pr_url", "")
+
+        # Format comments for batch evaluation
+        comments_text = []
+        for i, c in enumerate(comments):
+            parts = [f"[Comment {i}]"]
+            parts.append(f"File: {c.get('file_path', 'N/A')}")
+            parts.append(f"Line: {c.get('line_number', 'N/A')}")
+            if c.get('file_patch'):
+                parts.append(f"Diff:\n```diff\n{c['file_patch'][:2000]}\n```")
+            parts.append(f"Comment:\n```\n{c.get('comment_body', '')}\n```")
+            if c.get('reply_body'):
+                parts.append(f"Developer reply:\n```\n{c['reply_body']}\n```")
+            comments_text.append("\n".join(parts))
+
+        comments_section = "\n\n---\n\n".join(comments_text)
+
+        prompt = f"""Evaluate these AI code review comments (by Greptile) from a single PR. All were ADDRESSED by the developer.
+
+IMPORTANT: Find the SINGLE BEST catch. If multiple comments are about the same issue, pick the best-written one.
+
+QUALITY SCORE CRITERIA (be strict and calibrated):
+
+HIGH SCORES (8-10) - Reserve for genuine code bugs with real impact:
+- 10: Critical security vulnerability (auth bypass, injection, data exposure) or guaranteed production crash
+- 9: Significant bug causing data corruption, race condition, or wrong behavior affecting users
+- 8: Meaningful logic/runtime bug that would cause problems in production
+
+MEDIUM SCORES (5-7) - Valid issues but less impressive:
+- 7: Solid catch but somewhat obvious, or edge case with lower impact
+- 6: Minor bug, unlikely edge case, or code quality issue
+- 5: Technically correct but low value, nitpick-level
+
+LOW SCORES (1-4) - NOT showcase-worthy:
+- 4: Process/submission issues (wrong files, git problems, PR description mismatches)
+- 3: Style, formatting, naming suggestions, or documentation issues
+- 2: Duplicate of another comment, or vague/generic advice
+- 1: False positive or completely wrong analysis
+
+CALIBRATION RULES (follow strictly):
+- SECURITY issues (SQL injection, XSS, auth bypass, credential exposure) → Score 8-10
+- Process/submission issues (wrong git submodule, wrong files, PR metadata) → Score 3-4
+- Duplicate catches (same issue already flagged in another comment) → Score 2-3
+- Test file issues → Score 5-6 max unless it hides a production bug
+
+OBVIOUS ISSUES (cap at 6, never 8+):
+- Compilation/import errors caught immediately by build/IDE → Score 5-6
+- Missing imports, undefined variables, NameError → Score 5-6
+- Dependency version mismatches (React/npm peer deps) that npm/pip would flag → Score 5-6
+
+---
+
+Repository: {repo}
+PR Title: {pr_title}
+
+COMMENTS TO EVALUATE:
+{comments_section}
+
+---
+
+Pick the SINGLE BEST catch (if any qualifies as 8+). Consolidate duplicates.
+
+Respond with JSON only:
+{{
+  "selected_comment_index": <0-based index of best comment, or null if none qualify>,
+  "quality_score": <1-10 integer>,
+  "bug_category": "security|logic|runtime|performance|concurrency|data_integrity|type_error|resource_leak|process|null",
+  "severity": "critical|high|medium|low|null",
+  "reasoning": "1-2 sentences explaining why this is the best catch",
+  "duplicates_found": ["brief description of any duplicate issues consolidated"]
+}}"""
+
+        try:
+            response = self.client.messages.create(
+                model=self.model,
+                max_tokens=512,
+                messages=[{"role": "user", "content": prompt}]
+            )
+
+            response_text = response.content[0].text.strip()
+            if response_text.startswith("```"):
+                response_text = response_text.split("```")[1]
+                if response_text.startswith("json"):
+                    response_text = response_text[4:]
+                response_text = response_text.strip()
+
+            evaluation = json.loads(response_text)
+
+            if evaluation.get("duplicates_found"):
+                self.logger.info(f"  Duplicates consolidated: {evaluation['duplicates_found']}")
+
+            quality_score = evaluation.get("quality_score", 0)
+            if quality_score < self.min_quality_score:
+                self.logger.debug(
+                    f"Skipping {repo} PR#{pr_number} - "
+                    f"quality_score {quality_score} < {self.min_quality_score}"
+                )
+                return None
+
+            # Get the selected comment
+            selected_idx = evaluation.get("selected_comment_index")
+            if selected_idx is None or selected_idx >= len(comments):
+                self.logger.warning(f"Invalid selected_comment_index: {selected_idx}")
+                return None
+
+            selected = comments[selected_idx]
+
+            return {
+                "repo": repo,
+                "pr_number": pr_number,
+                "pr_title": pr_title,
+                "pr_url": pr_url,
+                "comment_body": selected.get("comment_body"),
+                "comment_url": selected.get("comment_url"),
+                "reply_body": selected.get("reply_body"),
+                "file_path": selected.get("file_path"),
+                "created_at": selected.get("created_at"),
+                "addressed": True,
+                "bug_category": evaluation.get("bug_category"),
+                "severity": evaluation.get("severity"),
+                "quality_score": quality_score,
+                "llm_reasoning": evaluation.get("reasoning", "")
+            }
+
+        except Exception as e:
+            self.logger.error(f"Error evaluating PR batch: {e}")
             return None

@@ -135,3 +135,64 @@ class SheetsSync:
             f"Synced {len(new_rows)} new catches to '{worksheet_name}'"
         )
         return len(new_rows)
+
+    def clear_and_sync(
+        self,
+        catches: list,
+        worksheet_name: str = "Quality Catches"
+    ) -> int:
+        """Clear worksheet and sync fresh data.
+
+        Clears all existing data and writes new catches.
+
+        Args:
+            catches: List of catch dicts to write
+            worksheet_name: Name of worksheet to update
+
+        Returns:
+            Number of rows written
+        """
+        if not catches:
+            self.logger.info("No catches to sync")
+            return 0
+
+        spreadsheet = self._get_spreadsheet()
+
+        # Get or create worksheet
+        try:
+            worksheet = spreadsheet.worksheet(worksheet_name)
+        except gspread.WorksheetNotFound:
+            worksheet = spreadsheet.add_worksheet(
+                title=worksheet_name, rows=1000, cols=20
+            )
+            self.logger.info(f"Created new worksheet: {worksheet_name}")
+
+        # Clear all existing data
+        worksheet.clear()
+        self.logger.info(f"Cleared worksheet: {worksheet_name}")
+
+        # Define headers (consistent with CSV output)
+        headers = [
+            "repo", "pr_number", "pr_title", "pr_url",
+            "comment_body", "comment_url", "reply_body", "created_at",
+            "bug_category", "severity", "quality_score", "llm_reasoning",
+            "evaluated_at"
+        ]
+
+        # Write header row
+        worksheet.append_row(headers)
+
+        # Prepare data rows
+        values = []
+        for catch in catches:
+            row = [str(catch.get(h, "")) for h in headers]
+            values.append(row)
+
+        # Batch append all rows
+        if values:
+            worksheet.append_rows(values)
+
+        self.logger.info(
+            f"Wrote {len(values)} catches to '{worksheet_name}'"
+        )
+        return len(values)
