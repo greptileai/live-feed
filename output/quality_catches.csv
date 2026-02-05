@@ -4085,3 +4085,24 @@ This currently rejects valid inputs like `(lmax=4, mmax=2)` and will break the S
 nvidia/physicsnemo,1370,Geometry Guardrail,https://github.com/NVIDIA/physicsnemo/pull/1370,"**Invalid constructor kwargs**
 
 The example calls `GeometryGuardrail(..., covariance_type=""full"", ...)` (lines 65-72), but `GeometryGuardrail.__init__` in `physicsnemo/experimental/guardrails/geometry/ood_detector.py:205` does not accept `covariance_type`. Running the example will raise `TypeError: __init__() got an unexpected keyword argument 'covariance_type'`.",https://github.com/NVIDIA/physicsnemo/pull/1370#discussion_r2766226268,Fixed.,2026-02-04T22:20:28+00:00,runtime,medium,"This is a clear, developer-confirmed bug where the example code passes an invalid keyword argument 'covariance_type' to GeometryGuardrail's constructor. Running the example would immediately fail with a TypeError. The developer confirmed and fixed this issue, validating the catch.",2026-02-05T00:54:20.276712+00:00
+generaltranslation/gt,988,cli validate json errors function,https://github.com/generaltranslation/gt/pull/988,"**Map result isn't JSON**
+
+`ValidationResult` is a `Map`, but `JSON.stringify(new Map(...))` produces `{}`. Since this function is named `getValidateJson` and the PR description says it “export errors … as json”, callers trying to emit/consume JSON will lose the data unless they manually convert the Map first. Consider returning a JSON-serializable shape (e.g., `Record<string, ValidationMessage[]>` or an array of `{file, messages}` entries) instead.
+
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/cli/src/translation/validate.ts
+Line: 18:18
+
+Comment:
+**Map result isn't JSON**
+
+`ValidationResult` is a `Map`, but `JSON.stringify(new Map(...))` produces `{}`. Since this function is named `getValidateJson` and the PR description says it “export errors … as json”, callers trying to emit/consume JSON will lose the data unless they manually convert the Map first. Consider returning a JSON-serializable shape (e.g., `Record<string, ValidationMessage[]>` or an array of `{file, messages}` entries) instead.
+
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/generaltranslation/gt/pull/988#discussion_r2766626830,,2026-02-05T01:12:13+00:00,data_integrity,high,"This is a genuine bug where the function `getValidateJson` promises to return JSON-serializable data, but `JSON.stringify(new Map(...))` produces `{}`, causing complete data loss. The PR title explicitly mentions 'json errors function' and the comment correctly identifies that callers expecting to serialize validation results will lose all data. However, looking at the type definition `ValidationResult = Record<string, ValidationMessage[]>`, it's actually defined as a Record, not a Map - so Greptile may have misread the code. Let me re-verify... The type says `Record<string, ValidationMessage[]>` which IS JSON-serializable. This appears to be a false positive.",2026-02-05T03:14:23.276586+00:00
