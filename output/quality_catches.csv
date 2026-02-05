@@ -1846,3 +1846,52 @@ Comment:
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/assistant-ui/assistant-ui/pull/3222#discussion_r2769640185,,2026-02-05T15:03:19+00:00,runtime,high,8,"This is a meaningful catch of a runtime bug where the middleware would simply never execute due to incorrect file naming/export conventions in Next.js. The proxy logic would be completely non-functional, causing 405 errors to persist. This isn't immediately obvious from build/compile errors and requires understanding Next.js middleware conventions.",2026-02-05T22:30:01.289165+00:00
+generaltranslation/gt,989,feat: translation manager,https://github.com/generaltranslation/gt/pull/989,"**Critical Bug: Missing config fields causes `getGTClass()` to fail**
+
+The `standardizeConfig` function returns only `enableI18n`, `defaultLocale`, `locales`, and `customMapping`, but the `I18nManagerConfig` type (and `getGTClass()` usage) requires `projectId`, `runtimeUrl`, and credential fields.
+
+These fields are never copied from the input `config` parameter:
+- `this.config.projectId` will be `undefined` (used at line 129)
+- `this.config.runtimeUrl` will be `undefined` (used at line 130)
+- Credential fields will be `undefined` (used at lines 131-132)
+
+This breaks any GT API functionality that depends on these values. The function should spread additional fields from the input config to ensure they are preserved in the returned config object.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/i18n/src/i18n-manager/I18nManager.ts
+Line: 157:168
+
+Comment:
+**Critical Bug: Missing config fields causes `getGTClass()` to fail**
+
+The `standardizeConfig` function returns only `enableI18n`, `defaultLocale`, `locales`, and `customMapping`, but the `I18nManagerConfig` type (and `getGTClass()` usage) requires `projectId`, `runtimeUrl`, and credential fields.
+
+These fields are never copied from the input `config` parameter:
+- `this.config.projectId` will be `undefined` (used at line 129)
+- `this.config.runtimeUrl` will be `undefined` (used at line 130)
+- Credential fields will be `undefined` (used at lines 131-132)
+
+This breaks any GT API functionality that depends on these values. The function should spread additional fields from the input config to ensure they are preserved in the returned config object.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",,,2026-02-05T03:31:13.861000,logic,high,8,"This comment identifies a critical configuration bug where standardizeConfig() drops essential fields (projectId, runtimeUrl, apiKey, devApiKey) that getGTClass() needs, causing all GT API functionality to fail with undefined values. This is a real production bug that would break core translation features.",2026-02-05T22:59:40.429080+00:00
+raycast/extensions,25173,Update microsoft-onedrive extension,https://github.com/raycast/extensions/pull/25173,"**Conflict check uses wrong endpoint**
+
+`itemExistsInFolder()` builds `.../items/{folderId}:/{encodeURIComponent(itemName)}` (missing the trailing `:`). Microsoft Graph path-based addressing requires the `:/path:/` form; without the final `:`, this will hit the wrong route (typically 400/404) and you’ll treat existing items as non-existent, skipping the conflict prompt + folder renaming logic.
+
+```suggestion
+    const endpoint = `${GRAPH_API_BASE}${drivePrefix}${folderPath}:/${encodeURIComponent(itemName)}:`;
+```",,Done.,2026-02-05T18:02:46.808000,logic,high,8,"The missing trailing colon in the Microsoft Graph API path-based addressing would cause the conflict check to always fail (400/404), making the code incorrectly treat existing items as non-existent. This bypasses the conflict prompt and folder renaming logic, potentially causing data overwrites or unexpected behavior in production.",2026-02-05T22:59:40.429166+00:00
+mellanox/hw-mgmt,2281,Add SN66XX_LD platform support to master,https://github.com/Mellanox/hw-mgmt/pull/2281,"**Leak on core_init failure**
+`nvsw_host_probe()` acquires an I2C adapter (`i2c_get_adapter`) and creates an I2C client (`i2c_new_client_device`), but then returns `nvsw_core_init(nvsw_core)` directly. If `nvsw_core_init()` fails, the probe returns an error without unregistering the I2C client or putting the adapter reference, leaking both resources.
+
+Also expected in the corresponding 6.12 patch (same probe structure).",,,2026-02-05T20:30:13.490000,resource_leak,high,8,"Comment 3 identifies a resource leak in kernel driver code where I2C adapter and client resources are not cleaned up when nvsw_core_init() fails during probe. This is a meaningful bug that would cause resource leaks in production when initialization fails, affecting kernel driver reliability.",2026-02-05T22:59:40.429195+00:00
+nvidia/nvflare,4139,LLM updates to main,https://github.com/NVIDIA/NVFlare/pull/4139,"**PEFT save assumes adapters exist**
+
+In PEFT mode you now save initial params via `get_peft_model_state_dict(trainer.model)` (`hf_sft_peft_iter.py:176-180`). Since this PR removed explicit `get_peft_model(...)` wrapping, this will crash if `SFTTrainer` didn’t apply PEFT (i.e., `trainer.model` is a plain `AutoModelForCausalLM`). Same issue applies later when loading via `set_peft_model_state_dict(trainer.model, ...)`.
+
+Please ensure the trainer’s model is actually PEFT-wrapped before using PEFT state-dict helpers, otherwise PEFT runs will fail at startup.",,good point! added PEFT check,2026-02-05T16:39:31.894000,runtime,high,8,Comment 10 identifies a genuine runtime crash where PEFT state dict functions are called on a model that may not be PEFT-wrapped after removing the explicit `get_peft_model()` call. This would cause PEFT training runs to fail at startup. The developer confirmed this was a valid issue and added a PEFT check.,2026-02-05T22:59:40.429215+00:00
