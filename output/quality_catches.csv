@@ -4372,3 +4372,44 @@ How can I resolve this? If you propose a fix, please make it concise.
 isaac-sim/isaaclab,4547,Reorganized the deprecation to be on the base classes.,https://github.com/isaac-sim/IsaacLab/pull/4547,"**Runtime error in warning**
 
 `logger.warning(...)` is being called with `DeprecationWarning` and `stacklevel=2` as extra args (lines 696-700). The `logging` API treats extra positional args as `%` formatting parameters; since the message has no formatting placeholders, accessing `root_physx_view` will raise a `TypeError` at runtime. This should be `warnings.warn(..., DeprecationWarning, stacklevel=2)` (like `Articulation.root_physx_view`) or a plain `logger.warning(""..."")` without the extra args.",https://github.com/isaac-sim/IsaacLab/pull/4547#discussion_r2767918075,,2026-02-05T09:18:54+00:00,runtime,high,"This is a legitimate runtime error catch. The code incorrectly passes `DeprecationWarning` and `stacklevel=2` as positional arguments to `logger.warning()`, which expects format arguments. Since the message has no format placeholders, this will raise a TypeError at runtime whenever the deprecated property is accessed. This is a clear bug that will affect users in normal usage.",2026-02-05T10:28:29.344353+00:00
+posthog/posthog,46962,feat(data-warehouse): make import_data_activity_sync fully async,https://github.com/PostHog/posthog/pull/46962,"list comprehension with `await` inside `sum()` doesn't work - this will fail at runtime
+
+The current code attempts to use a list comprehension with `await` inside `sum()`, but this creates a list of coroutines, not awaited results.
+
+```suggestion
+        existing_rows_in_progress = sum([await get_all_rows_for_team(t_id) for t_id in all_teams_in_org])
+```
+
+Should be:
+
+```python
+        results = await asyncio.gather(*[get_all_rows_for_team(t_id) for t_id in all_teams_in_org])
+        existing_rows_in_progress = sum(results)
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: posthog/temporal/data_imports/row_tracking.py
+Line: 223:223
+
+Comment:
+list comprehension with `await` inside `sum()` doesn't work - this will fail at runtime
+
+The current code attempts to use a list comprehension with `await` inside `sum()`, but this creates a list of coroutines, not awaited results.
+
+```suggestion
+        existing_rows_in_progress = sum([await get_all_rows_for_team(t_id) for t_id in all_teams_in_org])
+```
+
+Should be:
+
+```python
+        results = await asyncio.gather(*[get_all_rows_for_team(t_id) for t_id in all_teams_in_org])
+        existing_rows_in_progress = sum(results)
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/46962#discussion_r2768947023,,2026-02-05T12:35:57+00:00,runtime,high,"This is a clear runtime error - using `await` inside a list comprehension that's passed to `sum()` doesn't work in Python. The list comprehension creates a list of coroutine objects, not awaited results, which would cause a TypeError when `sum()` tries to add them. This would fail immediately in production when this code path is hit.",2026-02-05T14:32:17.430546+00:00
