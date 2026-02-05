@@ -55,7 +55,7 @@ def write_results_csv(catches: list, output_file: str) -> int:
     fieldnames = [
         "repo", "pr_number", "pr_title", "pr_url",
         "comment_body", "comment_url", "reply_body", "created_at",
-        "bug_category", "severity", "quality_score", "llm_reasoning",
+        "title", "bug_category", "severity", "quality_score", "llm_reasoning",
         "evaluated_at"
     ]
 

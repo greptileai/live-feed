@@ -816,6 +816,7 @@ Greptile's comment:
 Respond with JSON only:
 {{
   "quality_score": <1-10 integer>,
+  "title": "Short title (5-10 words) describing the bug caught, e.g. 'Race condition in workflow deduplication returns wrong asset'",
   "bug_category": "security|logic|runtime|performance|concurrency|data_integrity|type_error|resource_leak|process|null",
   "severity": "critical|high|medium|low|null",
   "reasoning": "1-2 sentences explaining why this score"
@@ -824,7 +825,7 @@ Respond with JSON only:
         try:
             response = self.client.messages.create(
                 model=self.model,
-                max_tokens=256,
+                max_tokens=300,
                 messages=[{"role": "user", "content": prompt}]
             )
 
@@ -856,6 +857,7 @@ Respond with JSON only:
                 "file_path": comment.get("file_path"),
                 "created_at": comment.get("created_at"),
                 "addressed": True,
+                "title": evaluation.get("title", ""),
                 "bug_category": evaluation.get("bug_category"),
                 "severity": evaluation.get("severity"),
                 "quality_score": quality_score,
@@ -1002,6 +1004,7 @@ Respond with JSON only:
 {{
   "selected_comment_index": <0-based index of best comment, or null if none qualify>,
   "quality_score": <1-10 integer>,
+  "title": "Short title (5-10 words) describing the bug caught, e.g. 'Race condition in workflow deduplication returns wrong asset'",
   "bug_category": "security|logic|runtime|performance|concurrency|data_integrity|type_error|resource_leak|process|null",
   "severity": "critical|high|medium|low|null",
   "reasoning": "1-2 sentences explaining why this is the best catch",
@@ -1054,6 +1057,7 @@ Respond with JSON only:
                 "file_path": selected.get("file_path"),
                 "created_at": selected.get("created_at"),
                 "addressed": True,
+                "title": evaluation.get("title", ""),
                 "bug_category": evaluation.get("bug_category"),
                 "severity": evaluation.get("severity"),
                 "quality_score": quality_score,

@@ -1,4 +1,4 @@
-repo,pr_number,pr_title,pr_url,comment_body,comment_url,reply_body,created_at,bug_category,severity,quality_score,llm_reasoning,evaluated_at
+repo,pr_number,pr_title,pr_url,comment_body,comment_url,reply_body,created_at,title,bug_category,severity,quality_score,llm_reasoning,evaluated_at
 posthog/posthog,46208,fix(sig): re-use ongoing video export workflow,https://github.com/PostHog/posthog/pull/46208,"<details>
 <summary>Additional Comments (1)</summary>
 
@@ -30,7 +30,7 @@ the workflow_id is based on `team_id` and `session_id`, but each request creates
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>
-</details>",https://github.com/PostHog/posthog/pull/46208#issuecomment-3814257126,,2026-01-28T22:28:21+00:00,logic,high,8,"This is a meaningful logic bug in concurrent workflow handling - when catching WorkflowAlreadyStartedError, the code returns a newly created asset ID that will never be populated with data, while the actual export is happening for a different asset. This would cause silent data integrity issues where users receive empty/unpopulated assets, a non-obvious bug requiring understanding of the temporal workflow semantics.",2026-02-05T22:30:01.283882+00:00
+</details>",https://github.com/PostHog/posthog/pull/46208#issuecomment-3814257126,,2026-01-28T22:28:21+00:00,Wrong Asset ID Returned After WorkflowAlreadyStartedError,logic,high,8,"This is a meaningful logic bug in concurrent workflow handling - when catching WorkflowAlreadyStartedError, the code returns a newly created asset ID that will never be populated with data, while the actual export is happening for a different asset. This would cause silent data integrity issues where users receive empty/unpopulated assets, a non-obvious bug requiring understanding of the temporal workflow semantics.",2026-02-05T22:30:01.283882+00:00
 posthog/posthog,46262,feat(logs): json parse log lines in log-ingestion based on team settings,https://github.com/PostHog/posthog/pull/46262,"Double stringification - `value` is already a string from `flattenJson` (line 117-145 converts everything to strings), so `value.toString()` returns the same string, then `JSON.stringify()` adds extra quotes around it. This means a value like `""info""` becomes `""\""info\""""`.
 
 ```suggestion
@@ -53,7 +53,7 @@ Double stringification - `value` is already a string from `flattenJson` (line 11
 
 How can I resolve this? If you propose a fix, please make it concise.
 `````
-</details>",https://github.com/PostHog/posthog/pull/46262#discussion_r2742153502,,2026-01-29T15:14:36+00:00,data_integrity,high,8,"This catches a real data corruption bug where double stringification would corrupt log attribute values (turning 'info' into '""info""'). This would affect all logs processed through this ingestion pipeline, causing data quality issues that would be confusing to debug and would corrupt production data.",2026-02-05T22:30:01.285066+00:00
+</details>",https://github.com/PostHog/posthog/pull/46262#discussion_r2742153502,,2026-01-29T15:14:36+00:00,Double stringification causing extra quotes in attributes,data_integrity,high,8,"This catches a real data corruption bug where double stringification would corrupt log attribute values (turning 'info' into '""info""'). This would affect all logs processed through this ingestion pipeline, causing data quality issues that would be confusing to debug and would corrupt production data.",2026-02-05T22:30:01.285066+00:00
 onyx-dot-app/onyx,7977,fix: input masking,https://github.com/onyx-dot-app/onyx/pull/7977,"<details>
 <summary>Additional Comments (1)</summary>
 
@@ -95,7 +95,7 @@ Missing `data-ph-no-capture` attribute. Since PostHog's `maskAllInputs` is now s
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>
-</details>",https://github.com/onyx-dot-app/onyx/pull/7977#issuecomment-3819293947,,2026-01-29T17:57:22+00:00,security,critical,9,This is a significant security catch - disabling PostHog's maskAllInputs globally would expose API keys in session recordings without the explicit data-ph-no-capture attribute. The reviewer correctly identified that changing the masking setting creates a credential exposure risk that requires explicit protection on sensitive inputs.,2026-02-05T22:30:01.285094+00:00
+</details>",https://github.com/onyx-dot-app/onyx/pull/7977#issuecomment-3819293947,,2026-01-29T17:57:22+00:00,API Key Input Missing PostHog Privacy Attribute,security,critical,9,This is a significant security catch - disabling PostHog's maskAllInputs globally would expose API keys in session recordings without the explicit data-ph-no-capture attribute. The reviewer correctly identified that changing the masking setting creates a credential exposure risk that requires explicit protection on sensitive inputs.,2026-02-05T22:30:01.285094+00:00
 openreplay/openreplay,4265,refactor(chalice): changed displayName&description handling refactor(DB): changed displayName&description handling,https://github.com/openreplay/openreplay/pull/4265,"Missing data migration - existing `display_name`, `description`, and `status` values should be migrated to the new `_customized` tables before dropping columns
 
 <details><summary>Prompt To Fix With AI</summary>
@@ -110,7 +110,7 @@ Missing data migration - existing `display_name`, `description`, and `status` va
 
 How can I resolve this? If you propose a fix, please make it concise.
 `````
-</details>",https://github.com/openreplay/openreplay/pull/4265#discussion_r2742737361,,2026-01-29T17:25:46+00:00,data_integrity,high,8,This catches a significant data integrity issue - dropping database columns without first migrating existing data to new tables would result in permanent data loss in production. This is a meaningful catch that prevents real user data from being lost during the schema migration.,2026-02-05T22:30:01.285124+00:00
+</details>",https://github.com/openreplay/openreplay/pull/4265#discussion_r2742737361,,2026-01-29T17:25:46+00:00,Missing data migration to _customized tables,data_integrity,high,8,This catches a significant data integrity issue - dropping database columns without first migrating existing data to new tables would result in permanent data loss in production. This is a meaningful catch that prevents real user data from being lost during the schema migration.,2026-02-05T22:30:01.285124+00:00
 gptme/gptme-contrib,230,feat(plugins): add gptme-retrieval plugin for automatic context retrieval,https://github.com/gptme/gptme-contrib/pull/230,"Shell injection vulnerability - user-controlled `backend` value passed directly to shell. If backend comes from untrusted config, this allows arbitrary command execution.
 
 ```suggestion
@@ -133,7 +133,7 @@ Shell injection vulnerability - user-controlled `backend` value passed directly 
 
 How can I resolve this? If you propose a fix, please make it concise.
 `````
-</details>",https://github.com/gptme/gptme-contrib/pull/230#discussion_r2744032789,,2026-01-30T00:02:55+00:00,security,high,8,"Shell injection vulnerability is a genuine security issue - if a user-controlled backend value is passed to shell execution, it could allow arbitrary command execution. The fix correctly switches from shell string to list-based command execution which prevents injection. This is a meaningful security catch, though the exploitability depends on how 'backend' is actually sourced (from config which may or may not be user-controlled).",2026-02-05T22:30:01.285144+00:00
+</details>",https://github.com/gptme/gptme-contrib/pull/230#discussion_r2744032789,,2026-01-30T00:02:55+00:00,Shell injection via unsanitized backend parameter,security,high,8,"Shell injection vulnerability is a genuine security issue - if a user-controlled backend value is passed to shell execution, it could allow arbitrary command execution. The fix correctly switches from shell string to list-based command execution which prevents injection. This is a meaningful security catch, though the exploitability depends on how 'backend' is actually sourced (from config which may or may not be user-controlled).",2026-02-05T22:30:01.285144+00:00
 gptme/gptme-contrib,229,fix(gptodo): ensure tmux sessions inherit environment variables,https://github.com/gptme/gptme-contrib/pull/229,"`workspace` is not shell-escaped, creating command injection vulnerability if workspace path contains special characters
 
 ```suggestion
@@ -156,7 +156,7 @@ Comment:
 
 How can I resolve this? If you propose a fix, please make it concise.
 `````
-</details>",https://github.com/gptme/gptme-contrib/pull/229#discussion_r2743888735,✅ Fixed in commit ee90d31 - added `safe_workspace = shlex.quote(str(workspace))` before using it in the command.,2026-01-29T23:01:24+00:00,security,high,8,"This is a legitimate command injection vulnerability where unescaped workspace paths containing special characters (like semicolons or backticks) could allow arbitrary command execution. The fix correctly applies shell escaping using shlex.quote(). While command injection is a serious security issue, the attack vector requires a malicious workspace path which is a somewhat constrained scenario.",2026-02-05T22:30:01.285784+00:00
+</details>",https://github.com/gptme/gptme-contrib/pull/229#discussion_r2743888735,✅ Fixed in commit ee90d31 - added `safe_workspace = shlex.quote(str(workspace))` before using it in the command.,2026-01-29T23:01:24+00:00,Workspace path not shell-escaped enables command injection,security,high,8,"This is a legitimate command injection vulnerability where unescaped workspace paths containing special characters (like semicolons or backticks) could allow arbitrary command execution. The fix correctly applies shell escaping using shlex.quote(). While command injection is a serious security issue, the attack vector requires a malicious workspace path which is a somewhat constrained scenario.",2026-02-05T22:30:01.285784+00:00
 posthog/posthog,46349,chore(ducklake): simplify schema and table naming,https://github.com/PostHog/posthog/pull/46349,"removing `_{schema.id.hex[:8]}` from table names will cause naming conflicts when a team has multiple `ExternalDataSchema` objects with the same `source_type` and `normalized_name`. The codebase explicitly acknowledges this possibility (see `external_data_schema.py:368`), and the schema's unique ID is used in `folder_path()` to avoid conflicts. Without the schema ID suffix, `CREATE OR REPLACE TABLE` will overwrite data from different schemas.
 
 <details><summary>Prompt To Fix With AI</summary>
@@ -171,7 +171,7 @@ removing `_{schema.id.hex[:8]}` from table names will cause naming conflicts whe
 
 How can I resolve this? If you propose a fix, please make it concise.
 `````
-</details>",https://github.com/PostHog/posthog/pull/46349#discussion_r2744668903,,2026-01-30T05:28:21+00:00,data_integrity,high,8,"This is a meaningful catch of a data integrity bug - removing the schema ID suffix from table names would cause data overwrites when multiple schemas share the same source_type and normalized_name. The reviewer demonstrates deep understanding of the codebase by referencing the specific location where this edge case is acknowledged, showing this isn't an obvious issue but requires understanding the domain logic.",2026-02-05T22:30:01.285804+00:00
+</details>",https://github.com/PostHog/posthog/pull/46349#discussion_r2744668903,,2026-01-30T05:28:21+00:00,Table naming conflicts from removed schema ID suffix,data_integrity,high,8,"This is a meaningful catch of a data integrity bug - removing the schema ID suffix from table names would cause data overwrites when multiple schemas share the same source_type and normalized_name. The reviewer demonstrates deep understanding of the codebase by referencing the specific location where this edge case is acknowledged, showing this isn't an obvious issue but requires understanding the domain logic.",2026-02-05T22:30:01.285804+00:00
 green-coding-solutions/green-metrics-tool,1529,(fix): Hardware Info Root Sudoers entry was possible to hijack,https://github.com/green-coding-solutions/green-metrics-tool/pull/1529,"**CRITICAL: Sudoers entry doesn't match actual code invocations**
 
 The sudoers entries now require direct path format:
@@ -185,7 +185,7 @@ These won't match the sudoers entry and sudo will prompt for password or fail.
 
 **Fix:** Either update `scenario_runner.py` and `utils.py` to use direct path invocation, OR keep the sudoers entry using `-m lib.hardware_info_root` format (which was the original vulnerable format that this PR aims to fix).
 
-The secure solution is to update the code invocations to match the new sudoers format.",https://github.com/green-coding-solutions/green-metrics-tool/pull/1529#discussion_r2745104559,,2026-01-30T08:04:48+00:00,security,high,8,"This catches a critical mismatch between sudoers entries and actual code invocations that would break the security fix entirely. The PR is meant to fix a sudoers hijacking vulnerability, but the code still uses the old vulnerable module invocation format (-m lib.hardware_info_root) while sudoers was updated to require direct path format, meaning either the fix won't work or sudo will fail.",2026-02-05T22:30:01.285832+00:00
+The secure solution is to update the code invocations to match the new sudoers format.",https://github.com/green-coding-solutions/green-metrics-tool/pull/1529#discussion_r2745104559,,2026-01-30T08:04:48+00:00,Sudoers Path Mismatch with Module Invocation Format,security,high,8,"This catches a critical mismatch between sudoers entries and actual code invocations that would break the security fix entirely. The PR is meant to fix a sudoers hijacking vulnerability, but the code still uses the old vulnerable module invocation format (-m lib.hardware_info_root) while sudoers was updated to require direct path format, meaning either the fix won't work or sudo will fail.",2026-02-05T22:30:01.285832+00:00
 openreplay/openreplay,4268,fix(chalice): fixed idp_group_prefixes default value,https://github.com/openreplay/openreplay/pull/4268,"Migration drops columns with existing data but doesn't migrate that data to the new `all_events_customized` table. Any existing `display_name`, `description`, or `status` values will be permanently lost.
 
 <details><summary>Prompt To Fix With AI</summary>
@@ -200,7 +200,7 @@ Migration drops columns with existing data but doesn't migrate that data to the 
 
 How can I resolve this? If you propose a fix, please make it concise.
 `````
-</details>",https://github.com/openreplay/openreplay/pull/4268#discussion_r2746479945,,2026-01-30T14:05:07+00:00,data_integrity,high,8,This catches a real data loss issue in a database migration - dropping columns without migrating existing data to the new table would permanently destroy user data. This is a meaningful production bug that could cause significant problems and wouldn't be caught by automated tools.,2026-02-05T22:30:01.285848+00:00
+</details>",https://github.com/openreplay/openreplay/pull/4268#discussion_r2746479945,,2026-01-30T14:05:07+00:00,Migration drops columns without preserving existing data,data_integrity,high,8,This catches a real data loss issue in a database migration - dropping columns without migrating existing data to the new table would permanently destroy user data. This is a meaningful production bug that could cause significant problems and wouldn't be caught by automated tools.,2026-02-05T22:30:01.285848+00:00
 helixdb/helix-db,845,impr (hql+core): nested ids and math ops,https://github.com/HelixDB/helix-db/pull/845,"Division by zero not handled - `wrapping_div` panics on zero divisor
 
 ```suggestion
@@ -221,7 +221,7 @@ helixdb/helix-db,845,impr (hql+core): nested ids and math ops,https://github.com
                 if b == 0 { return Value::Empty; }
                 Value::I64(a.wrapping_div(b))
             }
-```",https://github.com/HelixDB/helix-db/pull/845#discussion_r2746255502,,2026-01-30T13:22:47+00:00,runtime,high,8,"Division by zero causing a panic is a genuine runtime bug that would crash the program in production. The `wrapping_div` function in Rust panics when the divisor is zero, so this catch prevents a production crash. This is a meaningful bug that isn't immediately obvious since the wrapping_* functions handle overflow but not zero division.",2026-02-05T22:30:01.285862+00:00
+```",https://github.com/HelixDB/helix-db/pull/845#discussion_r2746255502,,2026-01-30T13:22:47+00:00,Missing zero divisor checks in wrapping_div operations,runtime,high,8,"Division by zero causing a panic is a genuine runtime bug that would crash the program in production. The `wrapping_div` function in Rust panics when the divisor is zero, so this catch prevents a production crash. This is a meaningful bug that isn't immediately obvious since the wrapping_* functions handle overflow but not zero division.",2026-02-05T22:30:01.285862+00:00
 infisical/infisical,5325,feat(ui): add app connection id permission condition to secret syncs,https://github.com/Infisical/infisical/pull/5325,"<details>
 <summary>Additional Comments (1)</summary>
 
@@ -258,7 +258,7 @@ if (params.connectionId && params.connectionId !== connectionId) {
 ```
 
 Note: Secret rotation correctly prevents this by excluding `connectionId` from `TUpdateSecretRotationV2DTO`.
-</details>",https://github.com/Infisical/infisical/pull/5325#issuecomment-3824534353,,2026-01-30T16:16:14+00:00,security,critical,9,"This is a critical security vulnerability - a permission bypass that allows users to update secret syncs to use connections they don't have access to. The comment provides a clear attack scenario demonstrating how the old connectionId is checked but the new one isn't, enabling unauthorized access to connections. This is exactly the type of authorization bypass that could lead to data exposure in production.",2026-02-05T22:30:01.285896+00:00
+</details>",https://github.com/Infisical/infisical/pull/5325#issuecomment-3824534353,,2026-01-30T16:16:14+00:00,Permission bypass when updating connectionId in secret sync,security,critical,9,"This is a critical security vulnerability - a permission bypass that allows users to update secret syncs to use connections they don't have access to. The comment provides a clear attack scenario demonstrating how the old connectionId is checked but the new one isn't, enabling unauthorized access to connections. This is exactly the type of authorization bypass that could lead to data exposure in production.",2026-02-05T22:30:01.285896+00:00
 openucx/ucc,1260,TL/NCCL: add user buffer registration via memmap,https://github.com/openucx/ucc/pull/1260,"buffer size calculation is incorrect for variable-size collectives (ALLTOALLV, ALLGATHERV, GATHERV, SCATTERV). For these collectives, `coll_args->args.src` uses the `info_v` union member with `counts*` array, not `info.count` scalar. Accessing `.info.count` reads the `counts` pointer as an integer, resulting in incorrect buffer size. Need to check `coll_args->args.coll_type` and use appropriate buffer size calculation for each collective type.
 
 ```suggestion
@@ -269,7 +269,7 @@ openucx/ucc,1260,TL/NCCL: add user buffer registration via memmap,https://github
                 coll_args->args.src.info.buffer,
                 coll_args->args.src.info.count *
                     ucc_dt_size(coll_args->args.src.info.datatype),
-```",https://github.com/openucx/ucc/pull/1260#discussion_r2747554746,,2026-01-30T18:55:12+00:00,logic,high,8,"This is a meaningful logic bug where accessing `.info.count` on variable-size collectives (ALLTOALLV, etc.) would incorrectly interpret a pointer as an integer value, leading to completely wrong buffer size calculations. This could cause memory corruption, incorrect data transfers, or crashes in production MPI/collective operations. The catch requires understanding of the union structure and collective operation semantics.",2026-02-05T22:30:01.285923+00:00
+```",https://github.com/openucx/ucc/pull/1260#discussion_r2747554746,,2026-01-30T18:55:12+00:00,Wrong union member used for variable-size collective buffer calculation,logic,high,8,"This is a meaningful logic bug where accessing `.info.count` on variable-size collectives (ALLTOALLV, etc.) would incorrectly interpret a pointer as an integer value, leading to completely wrong buffer size calculations. This could cause memory corruption, incorrect data transfers, or crashes in production MPI/collective operations. The catch requires understanding of the union structure and collective operation semantics.",2026-02-05T22:30:01.285923+00:00
 huskit/website-agent,28,Feat/improve template flow,https://github.com/HuskIT/website-agent/pull/28,"path traversal check uses simple string matching which doesn't catch all encoding variants
 
 The current `isPathSafe` implementation checks for `..` using `includes('...')` which misses encoded variants like:
@@ -342,7 +342,7 @@ function isPathSafe(filePath: string): boolean {
 
 How can I resolve this? If you propose a fix, please make it concise.
 `````
-</details>",https://github.com/HuskIT/website-agent/pull/28#discussion_r2749161211,,2026-01-31T07:32:56+00:00,security,critical,9,"This is a legitimate path traversal vulnerability catch in a zip file extraction utility. The comment correctly identifies that simple string matching for '..' is insufficient and can be bypassed with URL encoding (%2e%2e), Unicode normalization, or mixed separators. Path traversal in file extraction is a well-known security vulnerability (Zip Slip) that could allow attackers to write files outside the intended directory.",2026-02-05T22:30:01.285942+00:00
+</details>",https://github.com/HuskIT/website-agent/pull/28#discussion_r2749161211,,2026-01-31T07:32:56+00:00,Path traversal bypass via encoded dot sequences,security,critical,9,"This is a legitimate path traversal vulnerability catch in a zip file extraction utility. The comment correctly identifies that simple string matching for '..' is insufficient and can be bypassed with URL encoding (%2e%2e), Unicode normalization, or mixed separators. Path traversal in file extraction is a well-known security vulnerability (Zip Slip) that could allow attackers to write files outside the intended directory.",2026-02-05T22:30:01.285942+00:00
 mrmps/smry,57,"Add Gravity micro/inline ads, AI copy menu, and buy-click device metadata",https://github.com/mrmps/SMRY/pull/57,"`setState` called during render (lines 73-74) will cause infinite re-renders. Use `useEffect` instead.
 
 ```suggestion
@@ -354,7 +354,7 @@ mrmps/smry,57,"Add Gravity micro/inline ads, AI copy menu, and buy-click device 
       if (deselectedSources.size > 0) setDeselectedSources(new Set());
     }
   }, [sources.length, prevSourcesLen, deselectedSources.size]);
-```",https://github.com/mrmps/SMRY/pull/57#discussion_r2749168539,,2026-01-31T07:46:34+00:00,runtime,high,8,"Calling setState during render causes infinite re-renders, which is a genuine React anti-pattern that would cause the component to crash or freeze in production. This is a meaningful runtime bug, though experienced React developers would likely catch it quickly during development.",2026-02-05T22:30:01.285970+00:00
+```",https://github.com/mrmps/SMRY/pull/57#discussion_r2749168539,,2026-01-31T07:46:34+00:00,setState called during render causes infinite loop,runtime,high,8,"Calling setState during render causes infinite re-renders, which is a genuine React anti-pattern that would cause the component to crash or freeze in production. This is a meaningful runtime bug, though experienced React developers would likely catch it quickly during development.",2026-02-05T22:30:01.285970+00:00
 twentyhq/twenty,17602,feat(imap): Enterprise-Grade IDLE + Chunked Sync,https://github.com/twentyhq/twenty/pull/17602,"[P0] `startIdle` awaits `client.idle()`, which typically only resolves when IDLE ends. This means `startIdle` likely never returns while the connection is healthy, and `activeClients.set(accountId, client)` / the ""IDLE started"" log may never execute. In practice this can block whatever code path calls `startIdle` and prevent tracking the active client.
 
 If you want IDLE to run in the background, it usually needs to be started without awaiting completion (or managed in a long-lived task), and `activeClients` should be set before entering the long wait.
@@ -373,7 +373,7 @@ If you want IDLE to run in the background, it usually needs to be started withou
 
 How can I resolve this? If you propose a fix, please make it concise.
 `````
-</details>",https://github.com/twentyhq/twenty/pull/17602#discussion_r2749733668,,2026-01-31T16:48:54+00:00,concurrency,high,8,"This is a meaningful concurrency/async bug where awaiting a long-running IDLE operation would block the function indefinitely, preventing the client from being tracked in activeClients and blocking the calling code path. This is a real architectural issue that would cause problems in production with IMAP idle connections.",2026-02-05T22:30:01.285989+00:00
+</details>",https://github.com/twentyhq/twenty/pull/17602#discussion_r2749733668,,2026-01-31T16:48:54+00:00,Blocking await on IMAP IDLE prevents client tracking,concurrency,high,8,"This is a meaningful concurrency/async bug where awaiting a long-running IDLE operation would block the function indefinitely, preventing the client from being tracked in activeClients and blocking the calling code path. This is a real architectural issue that would cause problems in production with IMAP idle connections.",2026-02-05T22:30:01.285989+00:00
 sqlfluff/sqlfluff,7414,Support globs in COMMA_SEPARATED_PATH_KEYS,https://github.com/sqlfluff/sqlfluff/pull/7414,"<details>
 <summary>Additional Comments (1)</summary>
 
@@ -391,7 +391,7 @@ The fix requires handling the list return value. For single path keys, take the 
             matches = _resolve_path(filepath, val)
             config[key] = matches[0] if matches else val
 ```
-</details>",https://github.com/sqlfluff/sqlfluff/pull/7414#issuecomment-3829312171,,2026-01-31T20:51:10+00:00,type_error,high,8,"This catches a real breaking change where a function's return type changed from string to list, which would cause runtime errors in production code that expects string operations like os.path.join(). The comment identifies the specific downstream code location (jinja.py:266) that would break and provides a concrete fix.",2026-02-05T22:30:01.286013+00:00
+</details>",https://github.com/sqlfluff/sqlfluff/pull/7414#issuecomment-3829312171,,2026-01-31T20:51:10+00:00,_resolve_path() returns list but string expected,type_error,high,8,"This catches a real breaking change where a function's return type changed from string to list, which would cause runtime errors in production code that expects string operations like os.path.join(). The comment identifies the specific downstream code location (jinja.py:266) that would break and provides a concrete fix.",2026-02-05T22:30:01.286013+00:00
 raycast/extensions,25035,Update moneybird extension: paginating contacts/lists (#24390) and repeat time entry (#23438),https://github.com/raycast/extensions/pull/25035,"infinite loop if `links.next` is not present - `nextUrl` is never set to null
 
 ```suggestion
@@ -408,7 +408,7 @@ raycast/extensions,25035,Update moneybird extension: paginating contacts/lists (
       break;
     }
   }
-```",https://github.com/raycast/extensions/pull/25035#discussion_r2750134117,,2026-01-31T22:41:40+00:00,logic,high,8,"This catches a genuine infinite loop bug - if the API response doesn't include a 'next' link in the headers, `nextUrl` would never be set to null, causing the loop to run forever. This would freeze the extension and potentially cause resource exhaustion. A meaningful logic bug that would cause real problems in production.",2026-02-05T22:30:01.286029+00:00
+```",https://github.com/raycast/extensions/pull/25035#discussion_r2750134117,,2026-01-31T22:41:40+00:00,Missing nextUrl null assignment causes infinite loop,logic,high,8,"This catches a genuine infinite loop bug - if the API response doesn't include a 'next' link in the headers, `nextUrl` would never be set to null, causing the loop to run forever. This would freeze the extension and potentially cause resource exhaustion. A meaningful logic bug that would cause real problems in production.",2026-02-05T22:30:01.286029+00:00
 onyx-dot-app/onyx,8056,refactor(craft): make usage limit overrides feature flags instead of env vars,https://github.com/onyx-dot-app/onyx/pull/8056,"`_should_skip_rate_limiting` unconditionally uses `get_default_feature_flag_provider().feature_enabled(...)`, but unlike `is_onyx_craft_enabled` it doesn’t fall back when PostHog isn’t configured (NoOp provider). If NoOp returns False by default, this will make `not has_rate_limit` = True and effectively grant unlimited usage to *all* cloud users whenever PostHog is unavailable/misconfigured.
 
 Consider mirroring the existing pattern:
@@ -429,7 +429,7 @@ Consider mirroring the existing pattern:
 
 How can I resolve this? If you propose a fix, please make it concise.
 `````
-</details>",https://github.com/onyx-dot-app/onyx/pull/8056#discussion_r2750167381,,2026-01-31T23:19:36+00:00,security,high,8,"This is a meaningful security/logic bug where a NoOp feature flag provider returning False would cause `not has_rate_limit` to be True, effectively bypassing rate limits for all cloud users when PostHog is unavailable. This could lead to resource abuse and is a real production concern that requires understanding the feature flag fallback pattern.",2026-02-05T22:30:01.286298+00:00
+</details>",https://github.com/onyx-dot-app/onyx/pull/8056#discussion_r2750167381,,2026-01-31T23:19:36+00:00,Rate limiting bypassed when PostHog provider unavailable,security,high,8,"This is a meaningful security/logic bug where a NoOp feature flag provider returning False would cause `not has_rate_limit` to be True, effectively bypassing rate limits for all cloud users when PostHog is unavailable. This could lead to resource abuse and is a real production concern that requires understanding the feature flag fallback pattern.",2026-02-05T22:30:01.286298+00:00
 traceroot-ai/traceroot,397,Support org and project management #373,https://github.com/traceroot-ai/traceroot/pull/397,"[P0] API key endpoints no longer enforce any project existence or user authorization.
 
 In this PR, `ProjectAccess` and the explicit `get_active_project_by_id` check were removed from `create_api_key_endpoint`, `list_api_keys_endpoint`, and `delete_api_key_endpoint`, meaning anyone who can reach the API can create/list/delete keys for any `project_id` (including IDs they don’t own), and `create` will also succeed for non-existent projects unless DB constraints reject it. If these routes are intended to be protected (even in MVP), they need to reintroduce an auth/access dependency or at least verify the project exists + caller has access.
@@ -448,7 +448,7 @@ In this PR, `ProjectAccess` and the explicit `get_active_project_by_id` check we
 
 How can I resolve this? If you propose a fix, please make it concise.
 `````
-</details>",https://github.com/traceroot-ai/traceroot/pull/397#discussion_r2750210955,,2026-01-31T23:51:03+00:00,security,critical,9,"This is a critical security vulnerability - the removal of authorization checks means any authenticated user (or potentially unauthenticated user) can create, list, and delete API keys for any project, including ones they don't own. This is a classic authorization bypass (IDOR) that could lead to unauthorized access and data exposure. The catch requires understanding the security implications of removing access control dependencies.",2026-02-05T22:30:01.286334+00:00
+</details>",https://github.com/traceroot-ai/traceroot/pull/397#discussion_r2750210955,,2026-01-31T23:51:03+00:00,API Key Endpoints Missing Authorization Controls,security,critical,9,"This is a critical security vulnerability - the removal of authorization checks means any authenticated user (or potentially unauthenticated user) can create, list, and delete API keys for any project, including ones they don't own. This is a classic authorization bypass (IDOR) that could lead to unauthorized access and data exposure. The catch requires understanding the security implications of removing access control dependencies.",2026-02-05T22:30:01.286334+00:00
 getarcaneapp/arcane,1614,fix: container exec sessions not being cleaned up after websockets close,https://github.com/getarcaneapp/arcane/pull/1614,"using cancelled context for timeout won't work
 
 When this cleanup is called from `watchExecContext` (line 489), the `ctx` will already be cancelled. `context.WithTimeout(ctx, 5*time.Second)` inherits the cancellation from the parent, so `cleanupCtx` will be immediately cancelled.
@@ -475,7 +475,7 @@ When this cleanup is called from `watchExecContext` (line 489), the `ctx` will a
 
 How can I resolve this? If you propose a fix, please make it concise.
 `````
-</details>",https://github.com/getarcaneapp/arcane/pull/1614#discussion_r2750334846,,2026-02-01T01:14:07+00:00,logic,high,8,"This is a meaningful logic bug where cleanup operations would silently fail due to using an already-cancelled context. The cleanup of exec sessions would never actually execute, leading to resource leaks in production. This requires understanding Go's context propagation and the specific call flow, making it a non-trivial catch.",2026-02-05T22:30:01.286604+00:00
+</details>",https://github.com/getarcaneapp/arcane/pull/1614#discussion_r2750334846,,2026-02-01T01:14:07+00:00,Context timeout using already cancelled parent context,logic,high,8,"This is a meaningful logic bug where cleanup operations would silently fail due to using an already-cancelled context. The cleanup of exec sessions would never actually execute, leading to resource leaks in production. This requires understanding Go's context propagation and the specific call flow, making it a non-trivial catch.",2026-02-05T22:30:01.286604+00:00
 nvidia/warp,1206,Fix:Automatic workaround for CUDA compiler crash with local matrices …,https://github.com/NVIDIA/warp/pull/1206,"Pattern check happens before `kernel.adj.build(self)` on line 2099, but the detection flags are only populated during the build process, so this check will always evaluate to `False`
 
 Move this check to after line 2099:
@@ -492,7 +492,7 @@ if warp.config.auto_detect_cuda_compiler_bugs:
 However, this creates a new problem: by the time we detect the pattern, the kernel has already been built with -O3. The architecture needs redesign to either:
 1. Build the kernel, check the pattern, then rebuild if needed (inefficient)
 2. Do a pre-scan pass before building to detect patterns (complex)
-3. Check the pattern after build and mark kernel for rebuild on next use (better)",https://github.com/NVIDIA/warp/pull/1206#discussion_r2750574738,,2026-02-01T05:37:25+00:00,logic,high,8,"This is a meaningful logic bug catch - the pattern detection check is placed before the build process that populates the detection flags, meaning the check would always evaluate to False and the automatic workaround feature would never trigger. The reviewer not only identified the timing issue but also thoughtfully analyzed the architectural implications of fixing it, providing multiple solution approaches.",2026-02-05T22:30:01.286625+00:00
+3. Check the pattern after build and mark kernel for rebuild on next use (better)",https://github.com/NVIDIA/warp/pull/1206#discussion_r2750574738,,2026-02-01T05:37:25+00:00,Pattern check executes before required build process,logic,high,8,"This is a meaningful logic bug catch - the pattern detection check is placed before the build process that populates the detection flags, meaning the check would always evaluate to False and the automatic workaround feature would never trigger. The reviewer not only identified the timing issue but also thoughtfully analyzed the architectural implications of fixing it, providing multiple solution approaches.",2026-02-05T22:30:01.286625+00:00
 traceroot-ai/traceroot,401,[AgentOps] Backend support for org and project management,https://github.com/traceroot-ai/traceroot/pull/401,"[P1] Org-scoping bug in delete: the handler authorizes against `orgId`, but deletes by `where: { id: invitationId }` without verifying the invitation belongs to that org. An OWNER/ADMIN in Org A could delete an invitation in Org B if they know/guess its ID.
 
 Consider deleting with an org-scoped predicate (e.g., `id` + `org_id`) or fetching and validating `invitation.org_id === orgId` first.
@@ -511,7 +511,7 @@ Consider deleting with an org-scoped predicate (e.g., `id` + `org_id`) or fetchi
 
 How can I resolve this? If you propose a fix, please make it concise.
 `````
-</details>",https://github.com/traceroot-ai/traceroot/pull/401#discussion_r2750674454,,2026-02-01T07:35:05+00:00,security,critical,9,This is a serious authorization bypass vulnerability (IDOR - Insecure Direct Object Reference). An admin in one organization could delete invitations belonging to a completely different organization by guessing invitation IDs. This is a significant security bug that could lead to unauthorized data manipulation across tenant boundaries.,2026-02-05T22:30:01.286926+00:00
+</details>",https://github.com/traceroot-ai/traceroot/pull/401#discussion_r2750674454,,2026-02-01T07:35:05+00:00,Missing org-scoped authorization in invitation deletion,security,critical,9,This is a serious authorization bypass vulnerability (IDOR - Insecure Direct Object Reference). An admin in one organization could delete invitations belonging to a completely different organization by guessing invitation IDs. This is a significant security bug that could lead to unauthorized data manipulation across tenant boundaries.,2026-02-05T22:30:01.286926+00:00
 ever-co/ever-gauzy,9401,Apps,https://github.com/ever-co/ever-gauzy/pull/9401,"[P0] TypeORM ManyToOne decorator can receive the *options object* as the inverse-side argument.
 
 In `MultiORMManyToOne`, when `inverseSideOrOptions` is an object it is treated as `options` and `inverseSideProperty` remains unset, but the TypeORM branch still calls `TypeOrmManyToOne(..., inverseSideOrOptions as TypeORMInverseSide<T>, ...)`. Under TypeORM, calls like `MultiORMManyToOne(User, { nullable: true })` will pass that options object as the inverse side and likely break relation metadata registration.
@@ -530,7 +530,7 @@ In `MultiORMManyToOne`, when `inverseSideOrOptions` is an object it is treated a
 
 How can I resolve this? If you propose a fix, please make it concise.
 `````
-</details>",https://github.com/ever-co/ever-gauzy/pull/9401#discussion_r2751743497,,2026-02-01T18:08:56+00:00,logic,high,8,"This is a meaningful logic bug in a decorator that handles argument overloading. When options are passed as the second argument, the code incorrectly forwards them to TypeORM as if they were the inverse side function, which would break relation metadata registration. This is a subtle issue in argument parsing logic that would cause real problems in production when developers use the common pattern of passing only options without an inverse side.",2026-02-05T22:30:01.287182+00:00
+</details>",https://github.com/ever-co/ever-gauzy/pull/9401#discussion_r2751743497,,2026-02-01T18:08:56+00:00,TypeORM options object incorrectly passed as inverse side,logic,high,8,"This is a meaningful logic bug in a decorator that handles argument overloading. When options are passed as the second argument, the code incorrectly forwards them to TypeORM as if they were the inverse side function, which would break relation metadata registration. This is a subtle issue in argument parsing logic that would cause real problems in production when developers use the common pattern of passing only options without an inverse side.",2026-02-05T22:30:01.287182+00:00
 stack-auth/stack-auth,1145,Queries view,https://github.com/stack-auth/stack-auth/pull/1145,"`onRetry` is being invoked immediately with `onRetry()` instead of passing the function reference. This causes the async operation to execute during render.
 
 ```suggestion
@@ -553,7 +553,7 @@ Comment:
 
 How can I resolve this? If you propose a fix, please make it concise.
 `````
-</details>",https://github.com/stack-auth/stack-auth/pull/1145#discussion_r2752407305,,2026-02-02T03:41:01+00:00,runtime,high,8,"This is a meaningful React bug where calling `onRetry()` instead of passing the function reference causes the async operation to execute during render, which violates React's render purity and would cause unintended side effects and potential infinite re-render loops. This is a real bug that would cause problems in production.",2026-02-05T22:30:01.287216+00:00
+</details>",https://github.com/stack-auth/stack-auth/pull/1145#discussion_r2752407305,,2026-02-02T03:41:01+00:00,Function invoked during render instead of passed as reference,runtime,high,8,"This is a meaningful React bug where calling `onRetry()` instead of passing the function reference causes the async operation to execute during render, which violates React's render purity and would cause unintended side effects and potential infinite re-render loops. This is a real bug that would cause problems in production.",2026-02-05T22:30:01.287216+00:00
 twentyhq/twenty,17615,Add Claude Code GitHub Workflow,https://github.com/twentyhq/twenty/pull/17615,"Workflow can be triggered by any user who can comment, including external contributors. While the PR description mentions ""Only users with write access can trigger the workflow,"" the conditional checks don't enforce this. Consider adding an authorization check:
 
 ```suggestion
@@ -590,7 +590,7 @@ Workflow can be triggered by any user who can comment, including external contri
 
 How can I resolve this? If you propose a fix, please make it concise.
 `````
-</details>",https://github.com/twentyhq/twenty/pull/17615#discussion_r2753128267,,2026-02-02T08:21:17+00:00,security,high,8,"This is a meaningful security catch - the workflow could be triggered by any external contributor who can comment, potentially allowing unauthorized users to run Claude Code with repository access. The AI correctly identified that the PR description claimed write-access restriction but the code didn't enforce it, which could lead to resource abuse or unintended code execution.",2026-02-05T22:30:01.287231+00:00
+</details>",https://github.com/twentyhq/twenty/pull/17615#discussion_r2753128267,,2026-02-02T08:21:17+00:00,Missing GitHub Workflow Authorization Check for External Contributors,security,high,8,"This is a meaningful security catch - the workflow could be triggered by any external contributor who can comment, potentially allowing unauthorized users to run Claude Code with repository access. The AI correctly identified that the PR description claimed write-access restriction but the code didn't enforce it, which could lead to resource abuse or unintended code execution.",2026-02-05T22:30:01.287231+00:00
 openreplay/openreplay,4283,refactor(DB): changed DB scripts,https://github.com/openreplay/openreplay/pull/4283,"Missing `CREATE MATERIALIZED VIEW` after this DROP statement. The v1.24.0 schema includes `users_all_properties_extractor_mv` with columns `display_name`, `description`, `status`, and `_edited_by_user`. The rollback should recreate this view:
 
 ```suggestion
@@ -643,7 +643,7 @@ FROM product_analytics.user_properties;
 
 How can I resolve this? If you propose a fix, please make it concise.
 `````
-</details>",https://github.com/openreplay/openreplay/pull/4283#discussion_r2754406936,,2026-02-02T13:44:19+00:00,data_integrity,high,8,"This catches a real database rollback bug where a materialized view is dropped but never recreated, which would cause data loss and break functionality when rolling back from v1.25.0 to v1.24.0. The rollback script would leave the database in an inconsistent state, potentially causing production issues during version downgrades.",2026-02-05T22:30:01.287258+00:00
+</details>",https://github.com/openreplay/openreplay/pull/4283#discussion_r2754406936,,2026-02-02T13:44:19+00:00,Missing CREATE statement after DROP materialized view,data_integrity,high,8,"This catches a real database rollback bug where a materialized view is dropped but never recreated, which would cause data loss and break functionality when rolling back from v1.25.0 to v1.24.0. The rollback script would leave the database in an inconsistent state, potentially causing production issues during version downgrades.",2026-02-05T22:30:01.287258+00:00
 posthog/posthog,46549,feat(logs): allow filtering on resource_fingerprint,https://github.com/PostHog/posthog/pull/46549,"<details>
 <summary>Additional Comments (1)</summary>
 
@@ -859,7 +859,7 @@ the `resourceFingerprint` filter is not being applied in the `where()` method. t
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>
-</details>",https://github.com/PostHog/posthog/pull/46549#issuecomment-3835611906,,2026-02-02T14:54:06+00:00,logic,high,8,"This is a meaningful logic bug - the PR title explicitly says 'allow filtering on resource_fingerprint' but the filter was never actually applied in the query builder. Users would be able to specify the filter parameter but it would silently have no effect, causing incorrect/unfiltered results. This is a real functional bug that would affect users in production.",2026-02-05T22:30:01.287298+00:00
+</details>",https://github.com/PostHog/posthog/pull/46549#issuecomment-3835611906,,2026-02-02T14:54:06+00:00,ResourceFingerprint filter parameter not applied in query execution,logic,high,8,"This is a meaningful logic bug - the PR title explicitly says 'allow filtering on resource_fingerprint' but the filter was never actually applied in the query builder. Users would be able to specify the filter parameter but it would silently have no effect, causing incorrect/unfiltered results. This is a real functional bug that would affect users in production.",2026-02-05T22:30:01.287298+00:00
 posthog/posthog,46546,[WIP] feat(dashboards): use ai to explain changes,https://github.com/PostHog/posthog/pull/46546,"missing validation allows users to access other users' cached data by providing arbitrary cache keys
 
 The endpoint accepts any cache key from the request body without verifying it belongs to the current user and dashboard. This allows unauthorized access to cached analysis data from other users' sessions.
@@ -886,7 +886,7 @@ Validate that the provided cache key matches the format created in the `retrieve
 
 How can I resolve this? If you propose a fix, please make it concise.
 `````
-</details>",https://github.com/PostHog/posthog/pull/46546#discussion_r2754684248,,2026-02-02T14:41:47+00:00,security,critical,9,"This is a significant security vulnerability - an authorization bypass that allows users to access other users' cached analysis data by providing arbitrary cache keys. This is an IDOR (Insecure Direct Object Reference) vulnerability that could expose sensitive dashboard data across user boundaries, making it a high-impact security issue that warrants a score of 9.",2026-02-05T22:30:01.287876+00:00
+</details>",https://github.com/PostHog/posthog/pull/46546#discussion_r2754684248,,2026-02-02T14:41:47+00:00,Cache Key Authorization Bypass Vulnerability,security,critical,9,"This is a significant security vulnerability - an authorization bypass that allows users to access other users' cached analysis data by providing arbitrary cache keys. This is an IDOR (Insecure Direct Object Reference) vulnerability that could expose sensitive dashboard data across user boundaries, making it a high-impact security issue that warrants a score of 9.",2026-02-05T22:30:01.287876+00:00
 posthog/posthog,46571,feat(mcp): add queryable memory system to MCP server,https://github.com/PostHog/posthog/pull/46571,"The HogQL query in the `/query/` endpoint doesn't filter by team_id in the `document_embeddings` table. This means users could potentially query memories from other teams if they can guess document IDs.
 
 Add team filtering in the WHERE clause:
@@ -965,7 +965,7 @@ Add team filtering in the WHERE clause:
 
 How can I resolve this? If you propose a fix, please make it concise.
 `````
-</details>",https://github.com/PostHog/posthog/pull/46571#discussion_r2755592219,,2026-02-02T17:59:48+00:00,security,critical,9,"This is a critical security vulnerability - missing team_id filtering in a database query allows cross-tenant data access. Users could query and retrieve memories belonging to other teams, which is a significant data exposure issue in a multi-tenant SaaS application.",2026-02-05T22:30:01.287904+00:00
+</details>",https://github.com/PostHog/posthog/pull/46571#discussion_r2755592219,,2026-02-02T17:59:48+00:00,Missing team_id filter enables cross-team data access,security,critical,9,"This is a critical security vulnerability - missing team_id filtering in a database query allows cross-tenant data access. Users could query and retrieve memories belonging to other teams, which is a significant data exposure issue in a multi-tenant SaaS application.",2026-02-05T22:30:01.287904+00:00
 twentyhq/twenty,17646,Migrate workflow serverless to logic,https://github.com/twentyhq/twenty/pull/17646,"Check that files are successfully uploaded before cleanup - if `applicationUniversalIdentifier` is undefined, files are migrated to temp but never uploaded, then deleted at line 228. This could result in data loss.
 
 <details><summary>Prompt To Fix With AI</summary>
@@ -980,7 +980,7 @@ Check that files are successfully uploaded before cleanup - if `applicationUnive
 
 How can I resolve this? If you propose a fix, please make it concise.
 `````
-</details>",https://github.com/twentyhq/twenty/pull/17646#discussion_r2755394467,,2026-02-02T17:11:17+00:00,data_integrity,high,8,"This catches a genuine data loss scenario where files could be migrated to temp storage, fail to upload due to undefined applicationUniversalIdentifier, and then be deleted during cleanup. This is a meaningful data integrity bug that would cause real problems in production during the migration process.",2026-02-05T22:30:01.288113+00:00
+</details>",https://github.com/twentyhq/twenty/pull/17646#discussion_r2755394467,,2026-02-02T17:11:17+00:00,Missing Upload Validation Causes File Deletion Data Loss,data_integrity,high,8,"This catches a genuine data loss scenario where files could be migrated to temp storage, fail to upload due to undefined applicationUniversalIdentifier, and then be deleted during cleanup. This is a meaningful data integrity bug that would cause real problems in production during the migration process.",2026-02-05T22:30:01.288113+00:00
 ever-co/ever-teams,4245,Refactor: Separate useTeamTasks into more atomic Hooks,https://github.com/ever-co/ever-teams/pull/4245,"Removed critical data synchronization effect that syncs React Query data with Jotai state. The original code had:
 
 ```typescript
@@ -1023,7 +1023,7 @@ This effect ensures that when React Query fetches new data, it's synchronized wi
 
 How can I resolve this? If you propose a fix, please make it concise.
 `````
-</details>",https://github.com/ever-co/ever-teams/pull/4245#discussion_r2755604568,,2026-02-02T18:03:22+00:00,data_integrity,high,8,"This catches a critical data synchronization bug where removing the effect would cause React Query data to never sync with Jotai state, meaning components using Jotai would show stale/outdated data and miss server updates. This is a meaningful architectural bug that would cause real user-facing problems in production.",2026-02-05T22:30:01.288133+00:00
+</details>",https://github.com/ever-co/ever-teams/pull/4245#discussion_r2755604568,,2026-02-02T18:03:22+00:00,Removed React Query to Jotai synchronization effect,data_integrity,high,8,"This catches a critical data synchronization bug where removing the effect would cause React Query data to never sync with Jotai state, meaning components using Jotai would show stale/outdated data and miss server updates. This is a meaningful architectural bug that would cause real user-facing problems in production.",2026-02-05T22:30:01.288133+00:00
 posthog/posthog-dotnet,150,"feat: SDK compliance - retry logic, gzip compression, and UUID generation",https://github.com/PostHog/posthog-dotnet/pull/150,"The `finally` block disposes `response` (line 108) even when returning from the success path, potentially closing the stream from `ReadAsStreamAsync` before deserialization completes in `DeserializeFromCamelCaseJsonAsync`.
 
 Move response disposal to after deserialization by wrapping the success path with `using (response)`, then skip disposal in the finally block for this path. This ensures the stream remains open during deserialization.
@@ -1042,7 +1042,7 @@ Move response disposal to after deserialization by wrapping the success path wit
 
 How can I resolve this? If you propose a fix, please make it concise.
 `````
-</details>",https://github.com/PostHog/posthog-dotnet/pull/150#discussion_r2755460252,,2026-02-02T17:25:42+00:00,resource_leak,high,8,"This catches a real runtime bug where the response stream is disposed before deserialization completes, which would cause intermittent failures or data corruption when reading HTTP responses. This is a subtle resource management issue that could cause production problems and wouldn't be caught by static analysis tools.",2026-02-05T22:30:01.288158+00:00
+</details>",https://github.com/PostHog/posthog-dotnet/pull/150#discussion_r2755460252,,2026-02-02T17:25:42+00:00,HttpResponse Disposed Before Stream Deserialization Completes,resource_leak,high,8,"This catches a real runtime bug where the response stream is disposed before deserialization completes, which would cause intermittent failures or data corruption when reading HTTP responses. This is a subtle resource management issue that could cause production problems and wouldn't be caught by static analysis tools.",2026-02-05T22:30:01.288158+00:00
 huskit/website-agent,30,Feat/intergrate langfuse,https://github.com/HuskIT/website-agent/pull/30,"Breaking change: response structure changed from returning `data: BusinessData` to markdown-only format. `CreateProjectDialog.tsx:214` still expects `result.data` and will break.
 
 ```suggestion
@@ -1087,7 +1087,7 @@ Breaking change: response structure changed from returning `data: BusinessData` 
 
 How can I resolve this? If you propose a fix, please make it concise.
 `````
-</details>",https://github.com/HuskIT/website-agent/pull/30#discussion_r2755186253,,2026-02-02T16:24:46+00:00,runtime,high,8,"This catches a breaking API change where the response structure was modified to remove `data: BusinessData`, but a consumer component (`CreateProjectDialog.tsx:214`) still expects `result.data`. This would cause a runtime error or undefined behavior in production when the dialog tries to access the missing property. The reviewer demonstrated cross-file awareness to identify this compatibility issue.",2026-02-05T22:30:01.288176+00:00
+</details>",https://github.com/HuskIT/website-agent/pull/30#discussion_r2755186253,,2026-02-02T16:24:46+00:00,API Response Structure Breaking Change Missing Data Field,runtime,high,8,"This catches a breaking API change where the response structure was modified to remove `data: BusinessData`, but a consumer component (`CreateProjectDialog.tsx:214`) still expects `result.data`. This would cause a runtime error or undefined behavior in production when the dialog tries to access the missing property. The reviewer demonstrated cross-file awareness to identify this compatibility issue.",2026-02-05T22:30:01.288176+00:00
 greptileai/react-mirror,452,I added a test that asserts malformed profiling operations do not throw and that errors/warnings are logged,https://github.com/greptileai/react-mirror/pull/452,"using `break` here without advancing `i` past all ADD operation parameters will cause subsequent parameters to be misinterpreted as operation codes. For non-root nodes, there are still 5+ parameters to skip (parentID, ownerID, displayNameStringID, keyStringID, name prop). This will corrupt the operation stream parsing.
 
 need to advance `i` to skip remaining parameters before breaking, similar to how the normal ADD case increments `i` throughout lines 234-248
@@ -1106,7 +1106,7 @@ need to advance `i` to skip remaining parameters before breaking, similar to how
 
 How can I resolve this? If you propose a fix, please make it concise.
 `````
-</details>",https://github.com/greptileai/react-mirror/pull/452#discussion_r2756449165,,2026-02-02T23:24:13+00:00,logic,high,8,"This is a meaningful logic bug where breaking from a loop without advancing the index past remaining parameters would corrupt the operation stream parsing, causing subsequent data to be misinterpreted as operation codes. This would cause incorrect behavior in the React DevTools profiler, affecting debugging functionality. The catch demonstrates good understanding of the parsing logic and stream processing.",2026-02-05T22:30:01.288420+00:00
+</details>",https://github.com/greptileai/react-mirror/pull/452#discussion_r2756449165,,2026-02-02T23:24:13+00:00,Break statement skips ADD operation parameters corrupting stream parsing,logic,high,8,"This is a meaningful logic bug where breaking from a loop without advancing the index past remaining parameters would corrupt the operation stream parsing, causing subsequent data to be misinterpreted as operation codes. This would cause incorrect behavior in the React DevTools profiler, affecting debugging functionality. The catch demonstrates good understanding of the parsing logic and stream processing.",2026-02-05T22:30:01.288420+00:00
 infisical/infisical,5346,feat(pki): add slack webhook to alerts,https://github.com/Infisical/infisical/pull/5346,"Missing SSRF (Server-Side Request Forgery) protection. The Slack webhook URL is not validated against private/internal IP addresses before making the HTTP request.
 
 **Security Risk:** An attacker could configure a Slack webhook URL pointing to internal services (e.g., internal metadata endpoints, database servers, or other private infrastructure). This could expose sensitive internal infrastructure.
@@ -1120,7 +1120,7 @@ import { blockLocalAndPrivateIpAddresses } from ""@app/lib/validator/validate-ur
 
 // Before triggerSlackWebhook
 await blockLocalAndPrivateIpAddresses(config.webhookUrl);
-```",https://github.com/Infisical/infisical/pull/5346#discussion_r2756158957,Fixed - added `blockLocalAndPrivateIpAddresses()` check before triggering webhook.,2026-02-02T21:21:26+00:00,security,critical,9,"This is a genuine SSRF vulnerability catch in production code. The comment correctly identifies that user-controlled webhook URLs could be abused to probe internal infrastructure, provides a concrete exploitation path (DNS rebinding), and recommends using an existing project pattern for the fix. SSRF is a well-known critical security issue that could expose internal services and metadata endpoints.",2026-02-05T22:30:01.288441+00:00
+```",https://github.com/Infisical/infisical/pull/5346#discussion_r2756158957,Fixed - added `blockLocalAndPrivateIpAddresses()` check before triggering webhook.,2026-02-02T21:21:26+00:00,Missing SSRF validation on Slack webhook URLs,security,critical,9,"This is a genuine SSRF vulnerability catch in production code. The comment correctly identifies that user-controlled webhook URLs could be abused to probe internal infrastructure, provides a concrete exploitation path (DNS rebinding), and recommends using an existing project pattern for the fix. SSRF is a well-known critical security issue that could expose internal services and metadata endpoints.",2026-02-05T22:30:01.288441+00:00
 openreplay/openreplay,4287,fix(chalice): fixed get event's properties,https://github.com/openreplay/openreplay/pull/4287,"INNER JOIN only on `property_name` could match properties from different projects. Consider adding `project_id` to the join condition:
 
 ```suggestion
@@ -1143,7 +1143,7 @@ INNER JOIN only on `property_name` could match properties from different project
 
 How can I resolve this? If you propose a fix, please make it concise.
 `````
-</details>",https://github.com/openreplay/openreplay/pull/4287#discussion_r2756042249,,2026-02-02T20:32:56+00:00,data_integrity,high,8,"This is a meaningful data integrity bug where a SQL JOIN missing the project_id condition could cause cross-project data leakage, returning properties from unrelated projects. This is a real bug that would affect production correctness and could have security/privacy implications in a multi-tenant system.",2026-02-05T22:30:01.288468+00:00
+</details>",https://github.com/openreplay/openreplay/pull/4287#discussion_r2756042249,,2026-02-02T20:32:56+00:00,INNER JOIN missing project_id causes cross-project property matching,data_integrity,high,8,"This is a meaningful data integrity bug where a SQL JOIN missing the project_id condition could cause cross-project data leakage, returning properties from unrelated projects. This is a real bug that would affect production correctness and could have security/privacy implications in a multi-tenant system.",2026-02-05T22:30:01.288468+00:00
 traceroot-ai/traceroot,407,[AgentOps] Support membership invite [1/n],https://github.com/traceroot-ai/traceroot/pull/407,"XSS vulnerability - user-provided data (`inviterName`, `inviterEmail`, `workspaceName`) is directly interpolated into HTML without escaping. If an attacker sets their name to `<script>alert('xss')</script>`, it will execute in the recipient's email client.
 
 ```suggestion
@@ -1320,7 +1320,7 @@ function buildHtmlEmail(params: EmailContentParams): string {
 
 How can I resolve this? If you propose a fix, please make it concise.
 `````
-</details>",https://github.com/traceroot-ai/traceroot/pull/407#discussion_r2756486103,fixed.,2026-02-02T23:43:54+00:00,security,high,8,"This is a legitimate XSS vulnerability where user-controlled data (inviterName, inviterEmail, workspaceName) is directly interpolated into HTML email content without escaping. While email client XSS is more limited than browser XSS, it's still a real security issue that could execute malicious scripts in some email clients. The fix with proper HTML escaping is correct and necessary.",2026-02-05T22:30:01.288486+00:00
+</details>",https://github.com/traceroot-ai/traceroot/pull/407#discussion_r2756486103,fixed.,2026-02-02T23:43:54+00:00,XSS vulnerability in email HTML interpolation,security,high,8,"This is a legitimate XSS vulnerability where user-controlled data (inviterName, inviterEmail, workspaceName) is directly interpolated into HTML email content without escaping. While email client XSS is more limited than browser XSS, it's still a real security issue that could execute malicious scripts in some email clients. The fix with proper HTML escaping is correct and necessary.",2026-02-05T22:30:01.288486+00:00
 browserbase/stagehand,1650,feat: prefer CSS selectors over XPath in resolveSelector,https://github.com/browserbase/stagehand/pull/1650,"CSS selectors in `cssMap` are per-frame only and cannot traverse iframes like XPath. When an element is inside an iframe, the CSS selector will fail when called from the root page context, because CSS selectors aren't prefixed with iframe paths during snapshot capture (see `capture.ts:446`). 
 
 The `deepLocator` only treats selectors starting with `/` or `xpath=` as XPath that can cross iframe boundaries. A plain CSS selector like `#button-id` will only search in the current frame.
@@ -1343,14 +1343,14 @@ Consider checking if the CSS selector contains iframe navigation (e.g., `>>` not
 
 How can I resolve this? If you propose a fix, please make it concise.
 `````
-</details>",https://github.com/browserbase/stagehand/pull/1650#discussion_r2756657312,,2026-02-03T00:58:55+00:00,logic,high,8,"This catch identifies a real functional bug where CSS selectors will silently fail for elements inside iframes, while XPath would work correctly. This is a non-obvious cross-frame navigation issue that would cause incorrect behavior in production for any page with iframes, and requires domain knowledge of how selectors and frames interact.",2026-02-05T22:30:01.288553+00:00
+</details>",https://github.com/browserbase/stagehand/pull/1650#discussion_r2756657312,,2026-02-03T00:58:55+00:00,CSS selectors fail for iframe elements,logic,high,8,"This catch identifies a real functional bug where CSS selectors will silently fail for elements inside iframes, while XPath would work correctly. This is a non-obvious cross-frame navigation issue that would cause incorrect behavior in production for any page with iframes, and requires domain knowledge of how selectors and frames interact.",2026-02-05T22:30:01.288553+00:00
 ethyca/fides,7284,Add RBAC management UI with alpha feature flag,https://github.com/ethyca/fides/pull/7284,"[P1] `selectThisUsersScopes` treats an empty RBAC permission set as “not loaded” and silently falls back to legacy permissions, which can grant UI access when RBAC is enabled but the user legitimately has 0 permissions (or the RBAC endpoint returns `[]`). This is most likely for brand-new users/roles or when the RBAC service is up but returns no scopes.
 
 Concretely, the gate `if (rbacPermissions && rbacPermissions.length > 0)` means `[]` will fall back to `user/{id}/permission`, potentially rendering screens based on legacy scopes even though RBAC is enabled.
 
 Suggestion: distinguish “query not loaded / errored” from “loaded empty”, and if RBAC is enabled + query succeeded, return the RBAC permissions even if empty.
 
-Also appears in: `clients/admin-ui/src/features/common/CommonSubscriptions.tsx` (RBAC prefetch assumes selector uses cache).",https://github.com/ethyca/fides/pull/7284#discussion_r2757017517,,2026-02-03T03:32:15+00:00,security,critical,9,"This is a significant security vulnerability where the RBAC permission check incorrectly treats an empty permission set as 'not loaded', causing fallback to legacy permissions. This could grant unauthorized UI access to users who legitimately should have zero permissions under RBAC, representing a privilege escalation issue. The analysis is specific, identifies the exact problematic condition, and explains the real-world impact.",2026-02-05T22:30:01.288583+00:00
+Also appears in: `clients/admin-ui/src/features/common/CommonSubscriptions.tsx` (RBAC prefetch assumes selector uses cache).",https://github.com/ethyca/fides/pull/7284#discussion_r2757017517,,2026-02-03T03:32:15+00:00,RBAC empty permissions fallback to legacy grants unauthorized access,security,critical,9,"This is a significant security vulnerability where the RBAC permission check incorrectly treats an empty permission set as 'not loaded', causing fallback to legacy permissions. This could grant unauthorized UI access to users who legitimately should have zero permissions under RBAC, representing a privilege escalation issue. The analysis is specific, identifies the exact problematic condition, and explains the real-world impact.",2026-02-05T22:30:01.288583+00:00
 posthog/posthog,46633,feat: add Enhance SDK,https://github.com/PostHog/posthog/pull/46633,"Loading remote JavaScript via `importScripts()` from an external CDN without Subresource Integrity (SRI) checks creates a critical security vulnerability. If the CDN is compromised or the response is intercepted, arbitrary malicious code could be executed with service worker privileges, potentially compromising the entire application and user data.
 
 <details><summary>Prompt To Fix With AI</summary>
@@ -1365,12 +1365,12 @@ Loading remote JavaScript via `importScripts()` from an external CDN without Sub
 
 How can I resolve this? If you propose a fix, please make it concise.
 `````
-</details>",https://github.com/PostHog/posthog/pull/46633#discussion_r2757290409,,2026-02-03T05:39:05+00:00,security,critical,9,"This is a critical security vulnerability - loading external JavaScript in a service worker without SRI checks could allow arbitrary code execution if the CDN is compromised, with elevated service worker privileges that could compromise the entire application. Service workers have significant power over network requests and caching, making this a high-impact security issue.",2026-02-05T22:30:01.288602+00:00
+</details>",https://github.com/PostHog/posthog/pull/46633#discussion_r2757290409,,2026-02-03T05:39:05+00:00,Missing SRI checks for importScripts CDN resources,security,critical,9,"This is a critical security vulnerability - loading external JavaScript in a service worker without SRI checks could allow arbitrary code execution if the CDN is compromised, with elevated service worker privileges that could compromise the entire application. Service workers have significant power over network requests and caching, making this a high-impact security issue.",2026-02-05T22:30:01.288602+00:00
 raycast/extensions,25101,File Content Search: add extension,https://github.com/raycast/extensions/pull/25101,"[P0] Shell command injection via unescaped `path` / exclude values
 
 `buildGrepCommand` returns a single shell string that is executed via `spawn(""sh"", [""-c"", command])` (see `useGrep.ts`). While the query is single-quoted, `path` is only wrapped in double quotes and `excludedDirectories`/`excludedExtensions` are interpolated unquoted. A preference value like `excludedDirectories: ""foo --exclude-dir=$(rm -rf ~)""` or a search path containing `""` / `$()` can break quoting and inject arbitrary shell commands. This matters whenever a user sets these preferences (or picks a directory with special characters).
 
-Consider building the grep invocation with `spawn` args (no shell) or robustly escaping all interpolated values (path + exclude args), not just the query.",https://github.com/raycast/extensions/pull/25101#discussion_r2758321896,,2026-02-03T10:18:40+00:00,security,critical,9,"This is a legitimate shell command injection vulnerability where user-controlled values (path, excludedDirectories, excludedExtensions) are interpolated into a shell command without proper escaping. The comment provides a concrete exploit example showing how arbitrary commands could be executed. This is a serious security issue that wouldn't be caught by automated tools.",2026-02-05T22:30:01.288619+00:00
+Consider building the grep invocation with `spawn` args (no shell) or robustly escaping all interpolated values (path + exclude args), not just the query.",https://github.com/raycast/extensions/pull/25101#discussion_r2758321896,,2026-02-03T10:18:40+00:00,Shell command injection via unescaped path parameters,security,critical,9,"This is a legitimate shell command injection vulnerability where user-controlled values (path, excludedDirectories, excludedExtensions) are interpolated into a shell command without proper escaping. The comment provides a concrete exploit example showing how arbitrary commands could be executed. This is a serious security issue that wouldn't be caught by automated tools.",2026-02-05T22:30:01.288619+00:00
 gptme/gptme,1224,Fix/server fd leak minimal,https://github.com/gptme/gptme/pull/1224,"[P1] `ShellSession.close()` now closes stdout/stderr before terminating the process group, which can raise and skip termination.
 
 Closing `self.process.stdout/stderr` can throw (e.g., already closed, or I/O errors). Since it happens before the `try:` that sends SIGTERM/SIGKILL, an exception here would prevent the process group from being terminated, leaving a running bash + children (worse than an fd leak). Wrapping the pipe closes in the existing `try:` (or guarding with `contextlib.suppress(Exception)`) would ensure termination still happens even if a pipe close fails.
@@ -1389,12 +1389,12 @@ Closing `self.process.stdout/stderr` can throw (e.g., already closed, or I/O err
 
 How can I resolve this? If you propose a fix, please make it concise.
 `````
-</details>",https://github.com/gptme/gptme/pull/1224#discussion_r2758802930,,2026-02-03T12:21:30+00:00,resource_leak,high,8,"This is a meaningful catch identifying that an exception during stdout/stderr closing could prevent process termination, leaving orphan processes running - which is actually worse than the original fd leak the PR was trying to fix. The comment identifies a real logic bug in exception handling order that could cause resource leaks in production.",2026-02-05T22:30:01.288639+00:00
+</details>",https://github.com/gptme/gptme/pull/1224#discussion_r2758802930,,2026-02-03T12:21:30+00:00,Exception in pipe close prevents process termination,resource_leak,high,8,"This is a meaningful catch identifying that an exception during stdout/stderr closing could prevent process termination, leaving orphan processes running - which is actually worse than the original fd leak the PR was trying to fix. The comment identifies a real logic bug in exception handling order that could cause resource leaks in production.",2026-02-05T22:30:01.288639+00:00
 raycast/extensions,25111,Add tinytoolkits extension,https://github.com/raycast/extensions/pull/25111,"[P0] `calcPy` builds a shell command using user input and runs it via `exec`, which is command-injection prone.
 
 Escaping only backslashes and double quotes is not sufficient for shell safety across platforms, and `exec` runs through a shell by default. A crafted expression can break out of quoting and execute arbitrary commands. Prefer `spawn`/`execFile` with an argument array (no shell) or avoid the external Python execution path entirely.
 
-Also appears as part of the same issue in: `extensions/tinytoolkits/src/utils/calculator.ts:119-123`.",https://github.com/raycast/extensions/pull/25111#discussion_r2759763855,,2026-02-03T15:53:36+00:00,security,critical,9,"This is a genuine command injection vulnerability where user input is passed to exec() with inadequate escaping. The comment correctly identifies that escaping only backslashes and double quotes is insufficient for shell safety, and that exec() runs through a shell by default, allowing crafted expressions to break out of quoting and execute arbitrary commands. This is a critical security issue that could allow remote code execution.",2026-02-05T22:30:01.288664+00:00
+Also appears as part of the same issue in: `extensions/tinytoolkits/src/utils/calculator.ts:119-123`.",https://github.com/raycast/extensions/pull/25111#discussion_r2759763855,,2026-02-03T15:53:36+00:00,Command injection vulnerability in calcPy function,security,critical,9,"This is a genuine command injection vulnerability where user input is passed to exec() with inadequate escaping. The comment correctly identifies that escaping only backslashes and double quotes is insufficient for shell safety, and that exec() runs through a shell by default, allowing crafted expressions to break out of quoting and execute arbitrary commands. This is a critical security issue that could allow remote code execution.",2026-02-05T22:30:01.288664+00:00
 gptme/gptme,1225,feat(llm): add OpenAI subscription provider support,https://github.com/gptme/gptme/pull/1225,"[P0] Streaming parser expects Chat Completions shape (`choices[0].delta.content`) but endpoint is `/codex/responses`
 
 This code assumes SSE events contain `choices -> delta -> content` (like chat.completions), but the Codex `responses` API typically streams as `response.output_text.delta` / `output` items rather than `choices`. With the current parser, many/most responses will yield nothing (empty output) even on 200 OK.
@@ -1417,7 +1417,7 @@ Also appears in: gptme/llm/llm_openai_subscription.py:302-309.
 
 How can I resolve this? If you propose a fix, please make it concise.
 `````
-</details>",https://github.com/gptme/gptme/pull/1225#discussion_r2759919986,,2026-02-03T16:25:17+00:00,logic,high,8,"This is a meaningful API compatibility bug - the code is parsing streaming responses using the wrong data structure format, which would cause the feature to silently fail (return empty output) even on successful API calls. This is a non-obvious integration issue that wouldn't be caught by linters or type checkers, and would cause real user-facing problems in production.",2026-02-05T22:30:01.288680+00:00
+</details>",https://github.com/gptme/gptme/pull/1225#discussion_r2759919986,,2026-02-03T16:25:17+00:00,Streaming parser uses wrong schema for Codex responses endpoint,logic,high,8,"This is a meaningful API compatibility bug - the code is parsing streaming responses using the wrong data structure format, which would cause the feature to silently fail (return empty output) even on successful API calls. This is a non-obvious integration issue that wouldn't be caught by linters or type checkers, and would cause real user-facing problems in production.",2026-02-05T22:30:01.288680+00:00
 credal-ai/actions-sdk,485,Added jira move action,https://github.com/Credal-ai/actions-sdk/pull/485,"[P1] After the move completes you refetch the issue via `${apiUrl}/issue/${currentIssueKey}` (key, not immutable id). If moving projects changes the issue key, this lookup can 404 and you’ll return the old `newTicketKey`/`ticketUrl` even though the move succeeded. Consider requesting/storing the issue’s immutable `id` from the initial GET and refetching by id, or using the bulk move task result if it provides the new key.
 
 <details><summary>Prompt To Fix With AI</summary>
@@ -1432,7 +1432,7 @@ Comment:
 
 How can I resolve this? If you propose a fix, please make it concise.
 `````
-</details>",https://github.com/Credal-ai/actions-sdk/pull/485#discussion_r2760526065,,2026-02-03T18:51:02+00:00,logic,high,8,"This is a meaningful logic bug that would cause incorrect behavior in production. When moving a Jira ticket between projects, the issue key changes, so fetching by the old key would 404 and return stale/incorrect data to users. This is a non-obvious edge case in the Jira API that requires domain knowledge to catch.",2026-02-05T22:30:01.288699+00:00
+</details>",https://github.com/Credal-ai/actions-sdk/pull/485#discussion_r2760526065,,2026-02-03T18:51:02+00:00,Issue refetch uses mutable key after project move,logic,high,8,"This is a meaningful logic bug that would cause incorrect behavior in production. When moving a Jira ticket between projects, the issue key changes, so fetching by the old key would 404 and return stale/incorrect data to users. This is a non-obvious edge case in the Jira API that requires domain knowledge to catch.",2026-02-05T22:30:01.288699+00:00
 posthog/posthog,46771,fix: oauth redirect + team scope,https://github.com/PostHog/posthog/pull/46771,"Query bypasses permission checks - grants access to all teams where user is a member, regardless of membership level or RBAC
 
 The query `Team.objects.filter(organization__members=request.user)` includes ALL teams where the user is a member of the organization, without checking if they actually have permission to access each team. This differs from the POST flow (lines 96-111) which validates team access via `user_permissions.team(team).effective_membership_level`.
@@ -1467,7 +1467,7 @@ For first-party apps, this should use the same permission validation logic:
 
 How can I resolve this? If you propose a fix, please make it concise.
 `````
-</details>",https://github.com/PostHog/posthog/pull/46771#discussion_r2761593490,,2026-02-04T00:17:29+00:00,security,critical,9,"This is a significant authorization bypass vulnerability where the OAuth flow grants access to all teams in an organization regardless of the user's actual RBAC permissions. This could allow users to access teams they shouldn't have permission to view, which is a serious security issue in a multi-tenant system. The catch correctly identifies inconsistency with the POST flow's permission validation and provides a concrete fix.",2026-02-05T22:30:01.288718+00:00
+</details>",https://github.com/PostHog/posthog/pull/46771#discussion_r2761593490,,2026-02-04T00:17:29+00:00,OAuth query bypasses RBAC team permission validation,security,critical,9,"This is a significant authorization bypass vulnerability where the OAuth flow grants access to all teams in an organization regardless of the user's actual RBAC permissions. This could allow users to access teams they shouldn't have permission to view, which is a serious security issue in a multi-tenant system. The catch correctly identifies inconsistency with the POST flow's permission validation and provides a concrete fix.",2026-02-05T22:30:01.288718+00:00
 onyx-dot-app/onyx,8147,"Revert ""chore(document index): Remove offset""",https://github.com/onyx-dot-app/onyx/pull/8147,"`offset` parameter is hardcoded to `0` but should use the passed `offset` parameter value
 
 ```suggestion
@@ -1490,13 +1490,13 @@ Comment:
 
 How can I resolve this? If you propose a fix, please make it concise.
 `````
-</details>",https://github.com/onyx-dot-app/onyx/pull/8147#discussion_r2761522698,,2026-02-03T23:44:24+00:00,logic,high,8,"This is a meaningful logic bug where the offset parameter is passed to the function but ignored (hardcoded to 0), causing pagination to always return results from the beginning instead of the requested offset. This would cause incorrect behavior in production when users try to paginate through search results, making it a solid catch that wasn't just a style issue.",2026-02-05T22:30:01.288747+00:00
+</details>",https://github.com/onyx-dot-app/onyx/pull/8147#discussion_r2761522698,,2026-02-03T23:44:24+00:00,Hardcoded offset parameter ignores passed value,logic,high,8,"This is a meaningful logic bug where the offset parameter is passed to the function but ignored (hardcoded to 0), causing pagination to always return results from the beginning instead of the requested offset. This would cause incorrect behavior in production when users try to paginate through search results, making it a solid catch that wasn't just a style issue.",2026-02-05T22:30:01.288747+00:00
 nvidia/nvflare,4117,[2.7] Add dict config and initial_ckpt support to standard recipes (Part 2),https://github.com/NVIDIA/NVFlare/pull/4117,"private RSA key committed to repository - CRITICAL SECURITY ISSUE
 
 Remove this file immediately and rotate the key. Never commit private keys to version control.
 
 ```suggestion
-```",https://github.com/NVIDIA/NVFlare/pull/4117#discussion_r2761660192,,2026-02-04T00:46:36+00:00,security,critical,9,Catching a private RSA key committed to version control is a critical security vulnerability. This is a genuine security issue that could lead to unauthorized access if the key is used for authentication or encryption. The comment correctly identifies it as critical and recommends immediate removal and key rotation.,2026-02-05T22:30:01.288761+00:00
+```",https://github.com/NVIDIA/NVFlare/pull/4117#discussion_r2761660192,,2026-02-04T00:46:36+00:00,Private RSA key committed to repository,security,critical,9,Catching a private RSA key committed to version control is a critical security vulnerability. This is a genuine security issue that could lead to unauthorized access if the key is used for authentication or encryption. The comment correctly identifies it as critical and recommends immediate removal and key rotation.,2026-02-05T22:30:01.288761+00:00
 nvidia/spark-rapids,14260,Predicate pushdown for deletion vectors,https://github.com/NVIDIA/spark-rapids/pull/14260,"The `mergeProjects` implementation may produce incorrect results. When merging consecutive `GpuProjectExec` nodes, the outer project's expressions (`projList1`) likely reference attributes from the inner project's output. Simply discarding the inner project and using its child directly could break these references.
 
 Standard Spark approach requires substituting attribute references in `projList1` with the corresponding expressions from the inner project's list before merging. Consider using expression substitution similar to Spark's `CollapseProject` rule.
@@ -1516,7 +1516,7 @@ Standard Spark approach requires substituting attribute references in `projList1
         GpuProjectExec(substitutedList, child, enablePreSplit1 && enablePreSplit2)
     }
   }
-```",https://github.com/NVIDIA/spark-rapids/pull/14260#discussion_r2761370418,Good point. Will address it soon.,2026-02-03T22:54:55+00:00,logic,high,8,"This is a meaningful logic bug catch. When merging consecutive GpuProjectExec nodes, simply discarding the inner project without properly substituting attribute references would break the query semantics and produce incorrect results. This is a non-obvious correctness issue that requires understanding of Spark's expression evaluation model, and the suggested fix using AttributeMap substitution is the correct approach mirroring Spark's CollapseProject rule.",2026-02-05T22:30:01.288771+00:00
+```",https://github.com/NVIDIA/spark-rapids/pull/14260#discussion_r2761370418,Good point. Will address it soon.,2026-02-03T22:54:55+00:00,Missing attribute reference substitution in project merge,logic,high,8,"This is a meaningful logic bug catch. When merging consecutive GpuProjectExec nodes, simply discarding the inner project without properly substituting attribute references would break the query semantics and produce incorrect results. This is a non-obvious correctness issue that requires understanding of Spark's expression evaluation model, and the suggested fix using AttributeMap substitution is the correct approach mirroring Spark's CollapseProject rule.",2026-02-05T22:30:01.288771+00:00
 workos/workos-ruby,430,Optional parameter to choose what algorithm to seal the session,https://github.com/workos/workos-ruby/pull/430,"PBKDF2 with only 1 iteration is cryptographically weak
 
 ```suggestion
@@ -1555,13 +1555,13 @@ PBKDF2 with only 1 iteration is cryptographically weak
 
 How can I resolve this? If you propose a fix, please make it concise.
 `````
-</details>",https://github.com/workos/workos-ruby/pull/430#discussion_r2762290722,,2026-02-04T05:34:40+00:00,security,critical,9,"PBKDF2 with only 1 iteration is a serious cryptographic vulnerability that makes key derivation trivially brute-forceable. This is a critical security issue for session sealing that could lead to session token compromise. The recommendation to use 100,000 iterations aligns with security best practices.",2026-02-05T22:30:01.288795+00:00
+</details>",https://github.com/workos/workos-ruby/pull/430#discussion_r2762290722,,2026-02-04T05:34:40+00:00,PBKDF2 Using Only 1 Iteration Instead of 100000,security,critical,9,"PBKDF2 with only 1 iteration is a serious cryptographic vulnerability that makes key derivation trivially brute-forceable. This is a critical security issue for session sealing that could lead to session token compromise. The recommendation to use 100,000 iterations aligns with security best practices.",2026-02-05T22:30:01.288795+00:00
 raycast/extensions,25132,Update wsl-manager extension,https://github.com/raycast/extensions/pull/25132,"command injection vulnerability - distro name is not escaped, allowing arbitrary command execution if a malicious distro name exists (e.g., `Ubuntu""; rm -rf /""`)
 
 wrap the distro name in quotes:
 ```suggestion
       await execAsync(`start wsl -d ""${name}""`);
-```",https://github.com/raycast/extensions/pull/25132#discussion_r2763047725,,2026-02-04T09:31:18+00:00,security,critical,9,"This is a legitimate command injection vulnerability where an unescaped distro name could allow arbitrary command execution. While the attack vector (malicious WSL distro name) requires some setup, the potential impact is severe (arbitrary code execution), making this a high-value security catch.",2026-02-05T22:30:01.288811+00:00
+```",https://github.com/raycast/extensions/pull/25132#discussion_r2763047725,,2026-02-04T09:31:18+00:00,Command injection via unescaped distro name parameter,security,critical,9,"This is a legitimate command injection vulnerability where an unescaped distro name could allow arbitrary command execution. While the attack vector (malicious WSL distro name) requires some setup, the potential impact is severe (arbitrary code execution), making this a high-value security catch.",2026-02-05T22:30:01.288811+00:00
 twentyhq/twenty,17703,Billing - Fix inactivity,https://github.com/twentyhq/twenty/pull/17703,"Missing data backfill for existing suspended workspaces. Workspaces with `activationStatus = SUSPENDED` before this migration will have `suspendedAt = NULL`, causing `computeDaysSinceSuspended()` to return null and skip cleanup processing. This breaks the cleanup flow for all currently suspended workspaces.
 
 Add a second query to backfill `suspendedAt` for existing suspended workspaces:
@@ -1602,7 +1602,7 @@ Add a second query to backfill `suspendedAt` for existing suspended workspaces:
 
 How can I resolve this? If you propose a fix, please make it concise.
 `````
-</details>",https://github.com/twentyhq/twenty/pull/17703#discussion_r2763194231,,2026-02-04T10:04:46+00:00,data_integrity,high,8,"This is a meaningful catch of a data migration bug that would cause all existing suspended workspaces to be silently skipped during cleanup processing. The reviewer correctly identified that adding a new column without backfilling existing data would break business logic for current users, which could lead to data integrity issues and incorrect system behavior in production.",2026-02-05T22:30:01.288833+00:00
+</details>",https://github.com/twentyhq/twenty/pull/17703#discussion_r2763194231,,2026-02-04T10:04:46+00:00,Missing backfill breaks suspended workspace cleanup flow,data_integrity,high,8,"This is a meaningful catch of a data migration bug that would cause all existing suspended workspaces to be silently skipped during cleanup processing. The reviewer correctly identified that adding a new column without backfilling existing data would break business logic for current users, which could lead to data integrity issues and incorrect system behavior in production.",2026-02-05T22:30:01.288833+00:00
 posthog/posthog,46815,feat(dp): bring back the pipelines V3 changes,https://github.com/PostHog/posthog/pull/46815,"Logic issue: if Redis connection fails, `_get_redis_client()` yields `None` (line 29), which causes `is_batch_already_processed()` to return `False` (line 45) and `mark_batch_as_processed()` to silently fail with a warning (line 56-62). This means batches will be reprocessed on transient Redis failures, potentially causing duplicate data writes to Delta Lake without any clear indication that idempotency is broken. Consider raising an exception when Redis is unavailable to fail fast, or implement a more robust fallback strategy.
 
 <details><summary>Prompt To Fix With AI</summary>
@@ -1617,7 +1617,7 @@ Logic issue: if Redis connection fails, `_get_redis_client()` yields `None` (lin
 
 How can I resolve this? If you propose a fix, please make it concise.
 `````
-</details>",https://github.com/PostHog/posthog/pull/46815#discussion_r2763472207,,2026-02-04T11:13:38+00:00,data_integrity,high,8,"This is a meaningful logic bug that could cause duplicate data writes to Delta Lake during transient Redis failures, silently breaking idempotency guarantees. The catch identifies a non-obvious failure mode where the system continues operating but loses data integrity protection, which would be difficult to debug in production.",2026-02-05T22:30:01.288857+00:00
+</details>",https://github.com/PostHog/posthog/pull/46815#discussion_r2763472207,,2026-02-04T11:13:38+00:00,Redis failure breaks batch idempotency causing duplicate writes,data_integrity,high,8,"This is a meaningful logic bug that could cause duplicate data writes to Delta Lake during transient Redis failures, silently breaking idempotency guarantees. The catch identifies a non-obvious failure mode where the system continues operating but loses data integrity protection, which would be difficult to debug in production.",2026-02-05T22:30:01.288857+00:00
 twentyhq/twenty,17720,Improve workflow crons,https://github.com/twentyhq/twenty/pull/17720,"[P1] Swallowing trigger errors changes behavior and can leave failing workflow triggers silently retried forever.
 
 This job used to route errors through `handleWorkflowTriggerException` and removed the cron on failure. Now it logs and `return`s for missing workflow / missing published version / inactive version, which means the job will still be considered “successful” by the queue and any cron that enqueues it (if applicable) won’t be removed. If these conditions are permanent (deleted workflow, unpublished workflow), this can create noisy repeated executions without any remediation.
@@ -1640,10 +1640,10 @@ If the intent is “don’t throw to avoid Sentry timeouts”, it’s still wort
 
 How can I resolve this? If you propose a fix, please make it concise.
 `````
-</details>",https://github.com/twentyhq/twenty/pull/17720#discussion_r2764832701,,2026-02-04T16:20:18+00:00,logic,high,8,"This catches a significant behavioral regression where error handling was changed from properly removing failed crons to silently swallowing errors. This would cause permanent failures (deleted/unpublished workflows) to retry indefinitely, creating noisy repeated executions and wasted resources without any remediation - a real production bug that would be difficult to notice without careful code review.",2026-02-05T22:30:01.288877+00:00
+</details>",https://github.com/twentyhq/twenty/pull/17720#discussion_r2764832701,,2026-02-04T16:20:18+00:00,Workflow trigger errors bypass exception handler causing infinite retries,logic,high,8,"This catches a significant behavioral regression where error handling was changed from properly removing failed crons to silently swallowing errors. This would cause permanent failures (deleted/unpublished workflows) to retry indefinitely, creating noisy repeated executions and wasted resources without any remediation - a real production bug that would be difficult to notice without careful code review.",2026-02-05T22:30:01.288877+00:00
 raycast/extensions,25154,Add proton-pass-client extension,https://github.com/raycast/extensions/pull/25154,"**Shell injection via cliPath**
 
-`cliPath` comes from preferences and is interpolated into a shell command (`execAsync(`${this.cliPath} ...`)`). A crafted value (or a path containing shell metacharacters/spaces) will be executed by the shell, which is a real RCE vector on the local machine. Use `execFile`/`spawn` with an args array (no shell), and treat vault names similarly (see also `client.ts:67`).",https://github.com/raycast/extensions/pull/25154#discussion_r2765696865,,2026-02-04T19:40:41+00:00,security,critical,9,"This is a legitimate shell injection/RCE vulnerability where user-controlled preference input (cliPath) is interpolated directly into a shell command via execAsync. The reviewer correctly identifies the attack vector and provides the proper fix (use execFile/spawn with args array). While this is a local extension, RCE through crafted preferences is a serious security flaw that could be exploited through malicious configuration sharing or social engineering.",2026-02-05T22:30:01.288904+00:00
+`cliPath` comes from preferences and is interpolated into a shell command (`execAsync(`${this.cliPath} ...`)`). A crafted value (or a path containing shell metacharacters/spaces) will be executed by the shell, which is a real RCE vector on the local machine. Use `execFile`/`spawn` with an args array (no shell), and treat vault names similarly (see also `client.ts:67`).",https://github.com/raycast/extensions/pull/25154#discussion_r2765696865,,2026-02-04T19:40:41+00:00,Shell injection through user-controlled cliPath preference,security,critical,9,"This is a legitimate shell injection/RCE vulnerability where user-controlled preference input (cliPath) is interpolated directly into a shell command via execAsync. The reviewer correctly identifies the attack vector and provides the proper fix (use execFile/spawn with args array). While this is a local extension, RCE through crafted preferences is a serious security flaw that could be exploited through malicious configuration sharing or social engineering.",2026-02-05T22:30:01.288904+00:00
 simstudioai/sim,3135,improvement(openai): migrate to responses api,https://github.com/simstudioai/sim/pull/3135,"**Token accounting mismatch**
 
 `parseResponsesUsage` treats `completionTokens` as `output_tokens + reasoning_tokens` (`apps/sim/providers/responses-utils.ts:268-273`). In the Responses API usage schema, `output_tokens` already includes reasoning tokens; adding `reasoning_tokens` again will double-count completions and inflate `totalTokens`. This will over-bill/over-report usage everywhere this helper is used (wand usage logging + provider cost calculation).
@@ -1662,7 +1662,7 @@ Comment:
 
 How can I resolve this? If you propose a fix, please make it concise.
 `````
-</details>",https://github.com/simstudioai/sim/pull/3135#discussion_r2766077781,,2026-02-04T21:36:09+00:00,logic,high,8,"This is a meaningful logic bug that would cause token double-counting, leading to incorrect billing and usage reporting in production. The catch requires understanding the Responses API's token accounting semantics - that output_tokens already includes reasoning_tokens - which is not immediately obvious and would silently inflate costs for users.",2026-02-05T22:30:01.288921+00:00
+</details>",https://github.com/simstudioai/sim/pull/3135#discussion_r2766077781,,2026-02-04T21:36:09+00:00,Double-counting reasoning tokens in completion usage calculation,logic,high,8,"This is a meaningful logic bug that would cause token double-counting, leading to incorrect billing and usage reporting in production. The catch requires understanding the Responses API's token accounting semantics - that output_tokens already includes reasoning_tokens - which is not immediately obvious and would silently inflate costs for users.",2026-02-05T22:30:01.288921+00:00
 posthog/posthog,46617,feat(flags): add bulk delete functionality for feature flags,https://github.com/PostHog/posthog/pull/46617,"**Missing auth scope on action**
 
 `bulk_delete` is a destructive endpoint but it lacks `required_scopes`/permission configuration, unlike other actions in this viewset (e.g. `dependent_flags` has `required_scopes=[""feature_flag:read""]`). As written, this endpoint won't be protected by the API-scopes layer and may be callable by tokens that shouldn’t be able to delete feature flags. Please add the appropriate write scope/permission requirements consistent with the rest of the feature flag API.
@@ -1685,7 +1685,7 @@ Comment:
 
 How can I resolve this? If you propose a fix, please make it concise.
 `````
-</details>",https://github.com/PostHog/posthog/pull/46617#discussion_r2766393311,,2026-02-04T23:25:00+00:00,security,high,8,"This is a genuine security vulnerability - a destructive bulk delete endpoint for feature flags lacks required API scopes, meaning tokens without delete permissions could potentially delete feature flags. This is a meaningful authorization bypass that could affect production systems, though it requires specific API token access scenarios to exploit.",2026-02-05T22:30:01.288944+00:00
+</details>",https://github.com/PostHog/posthog/pull/46617#discussion_r2766393311,,2026-02-04T23:25:00+00:00,Missing auth scope on bulk_delete endpoint,security,high,8,"This is a genuine security vulnerability - a destructive bulk delete endpoint for feature flags lacks required API scopes, meaning tokens without delete permissions could potentially delete feature flags. This is a meaningful authorization bypass that could affect production systems, though it requires specific API token access scenarios to exploit.",2026-02-05T22:30:01.288944+00:00
 posthog/posthog,46908,feat(duckling): add efficient full export mode for persons backfill,https://github.com/PostHog/posthog/pull/46908,"**Full export misses persons**
 
 `export_persons_full_to_duckling_s3` uses an `INNER JOIN` from `person` to `person_distinct_id2`. Any person without at least one `person_distinct_id2` row will be omitted entirely from the export, which is a correctness regression versus “export all persons”. If the intent is truly all persons, this needs a `LEFT JOIN` (and a decision on how to represent missing `distinct_id` rows) or a separate export path for persons with no distinct IDs.
@@ -1704,7 +1704,7 @@ Comment:
 
 How can I resolve this? If you propose a fix, please make it concise.
 `````
-</details>",https://github.com/PostHog/posthog/pull/46908#discussion_r2766372358,,2026-02-04T23:15:42+00:00,data_integrity,high,8,"This is a meaningful data integrity bug where an INNER JOIN would silently exclude valid persons from a 'full export' operation, causing incomplete data backfills. The catch identifies a real correctness issue that could lead to missing data in production exports, which is a significant problem for data pipelines.",2026-02-05T22:30:01.288971+00:00
+</details>",https://github.com/PostHog/posthog/pull/46908#discussion_r2766372358,,2026-02-04T23:15:42+00:00,INNER JOIN excludes persons without distinct IDs,data_integrity,high,8,"This is a meaningful data integrity bug where an INNER JOIN would silently exclude valid persons from a 'full export' operation, causing incomplete data backfills. The catch identifies a real correctness issue that could lead to missing data in production exports, which is a significant problem for data pipelines.",2026-02-05T22:30:01.288971+00:00
 nvidia/nvflare,4126,[2.7] Snapshot task data only,https://github.com/NVIDIA/NVFlare/pull/4126,"<details>
 <summary>Additional Comments (1)</summary>
 
@@ -1712,7 +1712,7 @@ nvidia/nvflare,4126,[2.7] Snapshot task data only,https://github.com/NVIDIA/NVFl
 **Shared headers leak**
 
 `task_data` points to `task._broadcast_data` for broadcast tasks, and this code mutates headers on that shared object (`set_header` for `TASK_ID` / `MSG_ROOT_ID` / `MSG_ROOT_TTL`) before returning `make_copy(task_data)`. Because `_broadcast_data` is reused across clients, concurrent/overlapping `process_task_request` calls can race and overwrite each other’s headers, so a client may receive a payload whose system headers correspond to a different client/task request. To avoid this, add per-client headers to the per-client copy (e.g., `out = make_copy(task_data)` then set headers on `out`) or otherwise ensure headers aren’t written into the shared `_broadcast_data` object.
-</details>",https://github.com/NVIDIA/NVFlare/pull/4126#issuecomment-3850332732,,2026-02-04T23:59:00+00:00,concurrency,high,9,"Excellent catch of a race condition where shared broadcast data has headers mutated before copying, allowing concurrent task requests to receive incorrect system headers belonging to different clients/tasks. This is a subtle concurrency bug that could cause data integrity issues in production and is not something a compiler or linter would catch.",2026-02-05T22:30:01.288991+00:00
+</details>",https://github.com/NVIDIA/NVFlare/pull/4126#issuecomment-3850332732,,2026-02-04T23:59:00+00:00,Shared broadcast data headers overwritten by concurrent requests,concurrency,high,9,"Excellent catch of a race condition where shared broadcast data has headers mutated before copying, allowing concurrent task requests to receive incorrect system headers belonging to different clients/tasks. This is a subtle concurrency bug that could cause data integrity issues in production and is not something a compiler or linter would catch.",2026-02-05T22:30:01.288991+00:00
 nvidia/physicsnemo,1372,Equivariant layers in three dimensions,https://github.com/NVIDIA/physicsnemo/pull/1372,"**Incorrect lmax/mmax check**
 
 In `rotate_grid_coefficients`, the shape validation checks `if x.shape[1] < x.shape[2]: raise ValueError(""Expected lmax (dim 1) <= mmax (dim 2)"")`. This condition and message are inverted: with grid-layout SH coefficients you need `mmax <= lmax` (i.e., `x.shape[2] <= x.shape[1]`), so the check should error when `x.shape[2] > x.shape[1]`.
@@ -1722,7 +1722,7 @@ This currently rejects valid inputs like `(lmax=4, mmax=2)` and will break the S
 ```suggestion
         if x.shape[2] > x.shape[1]:
             raise ValueError(f""Expected mmax (dim 2) <= lmax (dim 1), got {x.shape}"")
-```",https://github.com/NVIDIA/physicsnemo/pull/1372#discussion_r2766527420,,2026-02-05T00:29:16+00:00,logic,high,8,"This is a genuine logic bug where the validation condition is inverted - it would reject valid inputs (lmax=4, mmax=2) while potentially accepting invalid ones. This affects the correctness of spherical harmonic coefficient processing and would break real workflows. The catch requires understanding of the mathematical constraints (mmax <= lmax) and is not something a linter or compiler would flag.",2026-02-05T22:30:01.289015+00:00
+```",https://github.com/NVIDIA/physicsnemo/pull/1372#discussion_r2766527420,,2026-02-05T00:29:16+00:00,Inverted lmax/mmax validation condition in rotate_grid_coefficients,logic,high,8,"This is a genuine logic bug where the validation condition is inverted - it would reject valid inputs (lmax=4, mmax=2) while potentially accepting invalid ones. This affects the correctness of spherical harmonic coefficient processing and would break real workflows. The catch requires understanding of the mathematical constraints (mmax <= lmax) and is not something a linter or compiler would flag.",2026-02-05T22:30:01.289015+00:00
 generaltranslation/gt,988,cli validate json errors function,https://github.com/generaltranslation/gt/pull/988,"**Map result isn't JSON**
 
 `ValidationResult` is a `Map`, but `JSON.stringify(new Map(...))` produces `{}`. Since this function is named `getValidateJson` and the PR description says it “export errors … as json”, callers trying to emit/consume JSON will lose the data unless they manually convert the Map first. Consider returning a JSON-serializable shape (e.g., `Record<string, ValidationMessage[]>` or an array of `{file, messages}` entries) instead.
@@ -1743,7 +1743,7 @@ Comment:
 
 How can I resolve this? If you propose a fix, please make it concise.
 `````
-</details>",https://github.com/generaltranslation/gt/pull/988#discussion_r2766626830,,2026-02-05T01:12:13+00:00,data_integrity,high,8,"This is a meaningful bug catch - JSON.stringify() on a Map produces '{}', which would silently lose all validation data when the function is specifically designed to export errors as JSON. This is a non-obvious JavaScript gotcha that would cause silent data loss in production, not something a compiler/linter would catch.",2026-02-05T22:30:01.289030+00:00
+</details>",https://github.com/generaltranslation/gt/pull/988#discussion_r2766626830,,2026-02-05T01:12:13+00:00,Map Not JSON Serializable in Validation Function,data_integrity,high,8,"This is a meaningful bug catch - JSON.stringify() on a Map produces '{}', which would silently lose all validation data when the function is specifically designed to export errors as JSON. This is a non-obvious JavaScript gotcha that would cause silent data loss in production, not something a compiler/linter would catch.",2026-02-05T22:30:01.289030+00:00
 generaltranslation/gt,989,feat: translation manager,https://github.com/generaltranslation/gt/pull/989,"**Critical Bug: Missing config fields causes `getGTClass()` to fail**
 
 The `standardizeConfig` function returns only `enableI18n`, `defaultLocale`, `locales`, and `customMapping`, but the `I18nManagerConfig` type (and `getGTClass()` usage) requires `projectId`, `runtimeUrl`, and credential fields.
@@ -1776,12 +1776,12 @@ This breaks any GT API functionality that depends on these values. The function 
 
 How can I resolve this? If you propose a fix, please make it concise.
 `````
-</details>",https://github.com/generaltranslation/gt/pull/989#discussion_r2766888949,,2026-02-05T03:31:07+00:00,logic,high,8,"This is a genuine logic bug where the standardizeConfig function fails to preserve required config fields (projectId, runtimeUrl, credentials), causing downstream API functionality to break with undefined values. This would cause runtime failures in production when attempting to use GT API features.",2026-02-05T22:30:01.289051+00:00
+</details>",https://github.com/generaltranslation/gt/pull/989#discussion_r2766888949,,2026-02-05T03:31:07+00:00,Missing config fields in standardizeConfig causes undefined values,logic,high,8,"This is a genuine logic bug where the standardizeConfig function fails to preserve required config fields (projectId, runtimeUrl, credentials), causing downstream API functionality to break with undefined values. This would cause runtime failures in production when attempting to use GT API features.",2026-02-05T22:30:01.289051+00:00
 nvidia/spark-rapids,14264,Fix GpuHashAggregateExec outputPartitioning for aliased grouping keys [databricks],https://github.com/NVIDIA/spark-rapids/pull/14264,"**Invalid child/output zip map**
 
 `GpuHashAggregateExec.buildAttributeMap()` uses `child.output.zip(output).toMap` (`GpuAggregateExec.scala:2062`) but aggregate `output` is derived from `resultExpressions`, which is not guaranteed to be 1:1 positional with `child.output`. This can create incorrect mappings (e.g., mapping a non-grouping child attribute to an aggregate output attribute), which then causes `GpuPartitioningPreservingUnaryExecNode.outputPartitioning` to remap/dismiss partitioning incorrectly.
 
-Fix: don’t build a positional `child.output`→`output` map here; for hash aggregate, only map explicitly aliased grouping attributes from `resultExpressions` (and otherwise rely on the trait’s identity behavior when outputs match).",https://github.com/NVIDIA/spark-rapids/pull/14264#discussion_r2766868937,Removed the child output zip map.,2026-02-05T03:18:47+00:00,logic,high,8,"This catch identifies a subtle but significant logic bug where a positional zip mapping between child output and aggregate output creates incorrect attribute mappings when they aren't 1:1 aligned. This could cause incorrect query partitioning behavior in production Spark workloads, affecting data correctness. The bug requires understanding of Spark internals and isn't immediately obvious from surface-level code review.",2026-02-05T22:30:01.289082+00:00
+Fix: don’t build a positional `child.output`→`output` map here; for hash aggregate, only map explicitly aliased grouping attributes from `resultExpressions` (and otherwise rely on the trait’s identity behavior when outputs match).",https://github.com/NVIDIA/spark-rapids/pull/14264#discussion_r2766868937,Removed the child output zip map.,2026-02-05T03:18:47+00:00,Incorrect positional mapping between child output and aggregate result expressions,logic,high,8,"This catch identifies a subtle but significant logic bug where a positional zip mapping between child output and aggregate output creates incorrect attribute mappings when they aren't 1:1 aligned. This could cause incorrect query partitioning behavior in production Spark workloads, affecting data correctness. The bug requires understanding of Spark internals and isn't immediately obvious from surface-level code review.",2026-02-05T22:30:01.289082+00:00
 generaltranslation/gt,991,feat: node i18n,https://github.com/generaltranslation/gt/pull/991,"`enterWith()` is unsafe in async contexts - it modifies the context for ALL concurrent requests. Use `run()` to create isolated scopes instead, or consider making `setItem` return the new store value so callers can pass it to `run()`.
 
 See Node.js docs: ""The `enterWith` method is not recommended for production use as it can lead to unexpected behavior in async contexts.""
@@ -1800,7 +1800,7 @@ See Node.js docs: ""The `enterWith` method is not recommended for production use
 
 How can I resolve this? If you propose a fix, please make it concise.
 `````
-</details>",https://github.com/generaltranslation/gt/pull/991#discussion_r2767220332,,2026-02-05T05:33:12+00:00,concurrency,high,8,This is a legitimate concurrency bug catch - using enterWith() in async contexts can cause request context bleeding where one user's data could leak to another concurrent request. This is a real production issue that could cause data integrity problems and potential security implications in a multi-user environment.,2026-02-05T22:30:01.289106+00:00
+</details>",https://github.com/generaltranslation/gt/pull/991#discussion_r2767220332,,2026-02-05T05:33:12+00:00,enterWith() causes context leakage across concurrent requests,concurrency,high,8,This is a legitimate concurrency bug catch - using enterWith() in async contexts can cause request context bleeding where one user's data could leak to another concurrent request. This is a real production issue that could cause data integrity problems and potential security implications in a multi-user environment.,2026-02-05T22:30:01.289106+00:00
 posthog/posthog,46940,fix: invalidate keys on quota,https://github.com/PostHog/posthog/pull/46940,"**Rate-limit invalidates key**
 
 `rate_limit` is being treated as an API-key state error and persisted via `update_key_state_activity`, which will flip BYOK keys into `ERROR` on transient provider throttling. This will effectively disable otherwise-valid keys for users experiencing a temporary burst, and can cause repeated “your API key is ERROR” failures until manually reset.
@@ -1823,10 +1823,10 @@ If the intent is only to reduce internal error spam, consider *not* updating key
 
 How can I resolve this? If you propose a fix, please make it concise.
 `````
-</details>",https://github.com/PostHog/posthog/pull/46940#discussion_r2768007010,,2026-02-05T09:39:44+00:00,logic,high,8,"This catches a meaningful logic bug where transient rate limiting (a temporary condition) incorrectly persists an ERROR state on API keys, effectively bricking valid BYOK keys until manual reset. This is a real user-impacting issue that would cause frustration and support tickets, not something a linter or compiler would catch.",2026-02-05T22:30:01.289129+00:00
+</details>",https://github.com/PostHog/posthog/pull/46940#discussion_r2768007010,,2026-02-05T09:39:44+00:00,Rate-limit errors permanently disable valid API keys,logic,high,8,"This catches a meaningful logic bug where transient rate limiting (a temporary condition) incorrectly persists an ERROR state on API keys, effectively bricking valid BYOK keys until manual reset. This is a real user-impacting issue that would cause frustration and support tickets, not something a linter or compiler would catch.",2026-02-05T22:30:01.289129+00:00
 isaac-sim/isaaclab,4547,Reorganized the deprecation to be on the base classes.,https://github.com/isaac-sim/IsaacLab/pull/4547,"**Runtime error in warning**
 
-`logger.warning(...)` is being called with `DeprecationWarning` and `stacklevel=2` as extra args (lines 696-700). The `logging` API treats extra positional args as `%` formatting parameters; since the message has no formatting placeholders, accessing `root_physx_view` will raise a `TypeError` at runtime. This should be `warnings.warn(..., DeprecationWarning, stacklevel=2)` (like `Articulation.root_physx_view`) or a plain `logger.warning(""..."")` without the extra args.",https://github.com/isaac-sim/IsaacLab/pull/4547#discussion_r2767918075,,2026-02-05T09:18:54+00:00,runtime,high,8,This is a genuine runtime bug - passing DeprecationWarning and stacklevel as positional args to logger.warning() will cause a TypeError at runtime since the message has no format placeholders. This would crash the application when the deprecated property is accessed. The catch demonstrates understanding of both the logging and warnings APIs.,2026-02-05T22:30:01.289152+00:00
+`logger.warning(...)` is being called with `DeprecationWarning` and `stacklevel=2` as extra args (lines 696-700). The `logging` API treats extra positional args as `%` formatting parameters; since the message has no formatting placeholders, accessing `root_physx_view` will raise a `TypeError` at runtime. This should be `warnings.warn(..., DeprecationWarning, stacklevel=2)` (like `Articulation.root_physx_view`) or a plain `logger.warning(""..."")` without the extra args.",https://github.com/isaac-sim/IsaacLab/pull/4547#discussion_r2767918075,,2026-02-05T09:18:54+00:00,Logger.warning called with incorrect formatting arguments,runtime,high,8,This is a genuine runtime bug - passing DeprecationWarning and stacklevel as positional args to logger.warning() will cause a TypeError at runtime since the message has no format placeholders. This would crash the application when the deprecated property is accessed. The catch demonstrates understanding of both the logging and warnings APIs.,2026-02-05T22:30:01.289152+00:00
 assistant-ui/assistant-ui,3222,Docs assistant: high-signal chat analytics,https://github.com/assistant-ui/assistant-ui/pull/3222,"**Next.js middleware not executed**
 
 `apps/docs/proxy.ts` won’t run in Next.js as written: Next looks for `middleware.(ts|js)` with an exported `middleware`/default function, not a `proxy()` export in `proxy.ts`. As a result, GET/HEAD `/umami/api/send` will still hit the rewrite target and keep producing 405s. Rename this file to `apps/docs/middleware.ts` (or integrate the logic into an existing middleware) and export `export default function middleware(request: NextRequest)` (or `export function middleware`) so `config.matcher` is applied.
@@ -1845,53 +1845,4 @@ Comment:
 
 How can I resolve this? If you propose a fix, please make it concise.
 `````
-</details>",https://github.com/assistant-ui/assistant-ui/pull/3222#discussion_r2769640185,,2026-02-05T15:03:19+00:00,runtime,high,8,"This is a meaningful catch of a runtime bug where the middleware would simply never execute due to incorrect file naming/export conventions in Next.js. The proxy logic would be completely non-functional, causing 405 errors to persist. This isn't immediately obvious from build/compile errors and requires understanding Next.js middleware conventions.",2026-02-05T22:30:01.289165+00:00
-generaltranslation/gt,989,feat: translation manager,https://github.com/generaltranslation/gt/pull/989,"**Critical Bug: Missing config fields causes `getGTClass()` to fail**
-
-The `standardizeConfig` function returns only `enableI18n`, `defaultLocale`, `locales`, and `customMapping`, but the `I18nManagerConfig` type (and `getGTClass()` usage) requires `projectId`, `runtimeUrl`, and credential fields.
-
-These fields are never copied from the input `config` parameter:
-- `this.config.projectId` will be `undefined` (used at line 129)
-- `this.config.runtimeUrl` will be `undefined` (used at line 130)
-- Credential fields will be `undefined` (used at lines 131-132)
-
-This breaks any GT API functionality that depends on these values. The function should spread additional fields from the input config to ensure they are preserved in the returned config object.
-
-<details><summary>Prompt To Fix With AI</summary>
-
-`````markdown
-This is a comment left during a code review.
-Path: packages/i18n/src/i18n-manager/I18nManager.ts
-Line: 157:168
-
-Comment:
-**Critical Bug: Missing config fields causes `getGTClass()` to fail**
-
-The `standardizeConfig` function returns only `enableI18n`, `defaultLocale`, `locales`, and `customMapping`, but the `I18nManagerConfig` type (and `getGTClass()` usage) requires `projectId`, `runtimeUrl`, and credential fields.
-
-These fields are never copied from the input `config` parameter:
-- `this.config.projectId` will be `undefined` (used at line 129)
-- `this.config.runtimeUrl` will be `undefined` (used at line 130)
-- Credential fields will be `undefined` (used at lines 131-132)
-
-This breaks any GT API functionality that depends on these values. The function should spread additional fields from the input config to ensure they are preserved in the returned config object.
-
-How can I resolve this? If you propose a fix, please make it concise.
-`````
-</details>",,,2026-02-05T03:31:13.861000,logic,high,8,"This comment identifies a critical configuration bug where standardizeConfig() drops essential fields (projectId, runtimeUrl, apiKey, devApiKey) that getGTClass() needs, causing all GT API functionality to fail with undefined values. This is a real production bug that would break core translation features.",2026-02-05T22:59:40.429080+00:00
-raycast/extensions,25173,Update microsoft-onedrive extension,https://github.com/raycast/extensions/pull/25173,"**Conflict check uses wrong endpoint**
-
-`itemExistsInFolder()` builds `.../items/{folderId}:/{encodeURIComponent(itemName)}` (missing the trailing `:`). Microsoft Graph path-based addressing requires the `:/path:/` form; without the final `:`, this will hit the wrong route (typically 400/404) and you’ll treat existing items as non-existent, skipping the conflict prompt + folder renaming logic.
-
-```suggestion
-    const endpoint = `${GRAPH_API_BASE}${drivePrefix}${folderPath}:/${encodeURIComponent(itemName)}:`;
-```",,Done.,2026-02-05T18:02:46.808000,logic,high,8,"The missing trailing colon in the Microsoft Graph API path-based addressing would cause the conflict check to always fail (400/404), making the code incorrectly treat existing items as non-existent. This bypasses the conflict prompt and folder renaming logic, potentially causing data overwrites or unexpected behavior in production.",2026-02-05T22:59:40.429166+00:00
-mellanox/hw-mgmt,2281,Add SN66XX_LD platform support to master,https://github.com/Mellanox/hw-mgmt/pull/2281,"**Leak on core_init failure**
-`nvsw_host_probe()` acquires an I2C adapter (`i2c_get_adapter`) and creates an I2C client (`i2c_new_client_device`), but then returns `nvsw_core_init(nvsw_core)` directly. If `nvsw_core_init()` fails, the probe returns an error without unregistering the I2C client or putting the adapter reference, leaking both resources.
-
-Also expected in the corresponding 6.12 patch (same probe structure).",,,2026-02-05T20:30:13.490000,resource_leak,high,8,"Comment 3 identifies a resource leak in kernel driver code where I2C adapter and client resources are not cleaned up when nvsw_core_init() fails during probe. This is a meaningful bug that would cause resource leaks in production when initialization fails, affecting kernel driver reliability.",2026-02-05T22:59:40.429195+00:00
-nvidia/nvflare,4139,LLM updates to main,https://github.com/NVIDIA/NVFlare/pull/4139,"**PEFT save assumes adapters exist**
-
-In PEFT mode you now save initial params via `get_peft_model_state_dict(trainer.model)` (`hf_sft_peft_iter.py:176-180`). Since this PR removed explicit `get_peft_model(...)` wrapping, this will crash if `SFTTrainer` didn’t apply PEFT (i.e., `trainer.model` is a plain `AutoModelForCausalLM`). Same issue applies later when loading via `set_peft_model_state_dict(trainer.model, ...)`.
-
-Please ensure the trainer’s model is actually PEFT-wrapped before using PEFT state-dict helpers, otherwise PEFT runs will fail at startup.",,good point! added PEFT check,2026-02-05T16:39:31.894000,runtime,high,8,Comment 10 identifies a genuine runtime crash where PEFT state dict functions are called on a model that may not be PEFT-wrapped after removing the explicit `get_peft_model()` call. This would cause PEFT training runs to fail at startup. The developer confirmed this was a valid issue and added a PEFT check.,2026-02-05T22:59:40.429215+00:00
+</details>",https://github.com/assistant-ui/assistant-ui/pull/3222#discussion_r2769640185,,2026-02-05T15:03:19+00:00,Next.js middleware file naming convention violated,runtime,high,8,"This is a meaningful catch of a runtime bug where the middleware would simply never execute due to incorrect file naming/export conventions in Next.js. The proxy logic would be completely non-functional, causing 405 errors to persist. This isn't immediately obvious from build/compile errors and requires understanding Next.js middleware conventions.",2026-02-05T22:30:01.289165+00:00

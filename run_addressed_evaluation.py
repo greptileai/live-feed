@@ -71,6 +71,7 @@ def write_results_csv(
         "comment_url",
         "reply_body",
         "created_at",
+        "title",
         "bug_category",
         "severity",
         "quality_score",
