@@ -4724,3 +4724,88 @@ How can I resolve this? If you propose a fix, please make it concise.
 raycast/extensions,25178,Add mobile-provisions extension,https://github.com/raycast/extensions/pull/25178,"**Binary-to-utf8 conversion breaks parse**
 
 `parseProvisioningProfile()` converts the entire `.mobileprovision` (a CMS container) to a UTF-8 string and then searches for `<?xml` / `</plist>`. This will corrupt bytes for many profiles and can cause `indexOf` to miss the XML or produce an invalid plist substring. Extract the XML from the raw `Buffer` without UTF-8 decoding (e.g., search in a `latin1`/binary string, or use a CMS parser and then decode just the plist payload).",https://github.com/raycast/extensions/pull/25178#discussion_r2770653822,,2026-02-05T18:57:42+00:00,data_integrity,high,"This is a legitimate bug catch - converting binary CMS container data to UTF-8 string will corrupt non-ASCII bytes in the provisioning profile, causing the XML extraction to fail or produce corrupted output for many profiles. This would affect normal usage when parsing valid .mobileprovision files that contain binary certificate data before the XML section.",2026-02-05T20:22:11.998638+00:00
+nvidia/fuser,5923,Reduce-based MM+RS in MultiDeviceExecutor,https://github.com/NVIDIA/Fuser/pull/5923,"<details>
+<summary>Additional Comments (1)</summary>
+
+**`csrc/host_ir/pass/stream_parallel_type.cpp`**
+**Dropped expr when using input stream axis**
+
+In `groupStreamParallelRegions`, when `stream_axis == nullptr` and you fall back to using the *input* tensor’s stream axis, you set `is_input=true` and then skip both the merge path and the `for_loop` creation via `else if (!is_input)` (line ~265). In the case where `canMergeWithPreviousForLoop(...)` is false (e.g., first such expr or previous expr not mergeable), the expression is not pushed into `new_top_level_exprs` at all, so it gets dropped from the IR. This will break any fusion where this fallback triggers. Consider either creating a new loop even for the input-stream-axis case or pushing `expr` as-is when you can’t merge.
+
+Also appears in: same block controls all exprs that hit the fallback path in this function.
+</details>",https://github.com/NVIDIA/Fuser/pull/5923#issuecomment-3856249490,,2026-02-05T21:13:20+00:00,logic,high,"This comment identifies a genuine logic bug where expressions can be completely dropped from the IR when using the input-stream-axis fallback path. When canMergeWithPreviousForLoop() returns false for such expressions, they are neither merged nor added to new_top_level_exprs, causing silent data loss in the IR. This would break any fusion hitting this code path, making it a high-severity bug affecting normal usage.",2026-02-05T22:20:48.644034+00:00
+ethyca/fides,7324,fix: ensure `ClientDetail.monitors` are populated upon creation of `ClientDetails`,https://github.com/ethyca/fides/pull/7324,"`user.monitor_ids` doesn't exist on `FidesUser`. Should be `user.stewarded_monitor_ids` like line 83.
+
+```suggestion
+            client.monitors = user.stewarded_monitor_ids  # type: ignore
+```",https://github.com/ethyca/fides/pull/7324#discussion_r2771228914,fixed in [5565d7d](https://github.com/ethyca/fides/pull/7324/commits/5565d7d14e47be600be20d5da6cbffb601e4c9e2),2026-02-05T21:27:01+00:00,type_error,high,"Greptile correctly identified that `user.monitor_ids` doesn't exist on the FidesUser model and should be `user.stewarded_monitor_ids`. This would cause an AttributeError at runtime during user login when refreshing client details. The developer confirmed and fixed it, making this a verified bug catch that would affect normal usage.",2026-02-05T22:20:48.644141+00:00
+nvidia/nvflare,4130,[2.7] Recipe Interface Part 3: Dict Model Config and Initial Checkpoint Support,https://github.com/NVIDIA/NVFlare/pull/4130,"**Custom dataset key changed**
+
+This change breaks backwards compatibility for `custom_dataset` inputs: `_create_data_loader` now reads `self.custom_dataset[""labels""]` (plural) but the previous contract (and callers) used `""label""` (singular). Any existing integrations passing `{""data"": ..., ""label"": ...}` will now raise a `KeyError` during initialization.
+
+If the intent is to support both, consider accepting both keys (prefer one) or updating all call sites/docs/tests accordingly.",https://github.com/NVIDIA/NVFlare/pull/4130#discussion_r2771095483,,2026-02-05T20:50:23+00:00,runtime,high,"This is a legitimate backwards compatibility bug where the code changed from expecting 'label' (singular) to 'labels' (plural) in custom_dataset dict keys. This would cause KeyError for any existing users passing the old format. Comment 1 confirms the same issue exists in test data, validating this is a real problem.",2026-02-05T22:20:48.644188+00:00
+generaltranslation/gt,992,feat(cli): enable branching,https://github.com/generaltranslation/gt/pull/992,"**Enable-branching default is broken**
+
+`branchOptions.enabled` is set via `flags.enableBranching ?? gtConfig.branchOptions?.enabled ?? true`, but `--enable-branching` is declared as a boolean option in commander (`flags.ts:105`). Commander boolean options default to `false` when the flag is not provided, so `flags.enableBranching` will be `false` (not `undefined`) and will always win this `??` chain. Result: branching is *not* enabled by default, and config-provided `branchOptions.enabled: true` can be overridden back to `false` unless the CLI flag is explicitly passed. This needs a different flag shape (e.g., `--no-enable-branching` or tri-state parsing) so “unset” can be distinguished from “explicitly disable”.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/cli/src/config/generateSettings.ts
+Line: 248:252
+
+Comment:
+**Enable-branching default is broken**
+
+`branchOptions.enabled` is set via `flags.enableBranching ?? gtConfig.branchOptions?.enabled ?? true`, but `--enable-branching` is declared as a boolean option in commander (`flags.ts:105`). Commander boolean options default to `false` when the flag is not provided, so `flags.enableBranching` will be `false` (not `undefined`) and will always win this `??` chain. Result: branching is *not* enabled by default, and config-provided `branchOptions.enabled: true` can be overridden back to `false` unless the CLI flag is explicitly passed. This needs a different flag shape (e.g., `--no-enable-branching` or tri-state parsing) so “unset” can be distinguished from “explicitly disable”.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/generaltranslation/gt/pull/992#discussion_r2770982531,,2026-02-05T20:19:21+00:00,logic,high,"This is a genuine logic bug where Commander boolean flags default to `false` rather than `undefined`, meaning the nullish coalescing chain (`??`) will never reach the config value or the default `true`. This means branching will always be disabled unless the user explicitly passes `--enable-branching`, completely breaking the intended default behavior. The analysis is technically correct and identifies a real issue that would affect all users.",2026-02-05T22:20:48.644231+00:00
+nvidia/physicsnemo,1377,Moving HealPix Ops into module folder,https://github.com/NVIDIA/physicsnemo/pull/1377,"**Tokenizer not an nn.Module**
+
+`HEALPixPatchTokenizer` and `HEALPixPatchDetokenizer` define `nn.Parameter`/`nn.Conv*` members and call `super().__init__()`, but neither class subclasses `torch.nn.Module`. As written, `super().__init__()` is a no-op (`object.__init__`), parameters won’t be registered, `.to()`/`.state_dict()` won’t work, and training code expecting Modules will break.",https://github.com/NVIDIA/physicsnemo/pull/1377#discussion_r2771034704,,2026-02-05T20:34:42+00:00,runtime,high,"Comment 2 identifies that HEALPixPatchTokenizer and HEALPixPatchDetokenizer classes define nn.Parameter and nn.Conv members but don't inherit from torch.nn.Module. This means parameters won't be registered, .to()/.state_dict() won't work, and the classes will be completely broken for training. This is a fundamental bug that would affect all users of these classes in normal usage.",2026-02-05T22:20:48.644333+00:00
+runanywhereai/runanywhere-sdks,334,LLM CPP Benchmark common metrics.,https://github.com/RunanywhereAI/runanywhere-sdks/pull/334,"<details>
+<summary>Additional Comments (1)</summary>
+
+**`sdk/runanywhere-commons/src/jni/runanywhere_commons_jni.cpp`**
+**Missing local-ref cleanup**
+
+`llm_stream_callback_token` creates a `jstring` with `NewStringUTF` each token but does not `DeleteLocalRef` it. In a long generation this will exhaust the local reference table and crash the JVM. (The other streaming path in this file does delete local refs, so this is an inconsistency.)
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: sdk/runanywhere-commons/src/jni/runanywhere_commons_jni.cpp
+Line: 717:721
+
+Comment:
+**Missing local-ref cleanup**
+
+`llm_stream_callback_token` creates a `jstring` with `NewStringUTF` each token but does not `DeleteLocalRef` it. In a long generation this will exhaust the local reference table and crash the JVM. (The other streaming path in this file does delete local refs, so this is an inconsistency.)
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>
+</details>",https://github.com/RunanywhereAI/runanywhere-sdks/pull/334#issuecomment-3856368669,,2026-02-05T21:34:37+00:00,resource_leak,high,"The missing DeleteLocalRef for jstrings created in llm_stream_callback_token is a real bug that will exhaust the JVM's local reference table during long text generations, causing crashes. This is a well-documented JNI pitfall that can affect production users in normal usage scenarios. The comment correctly identifies the inconsistency where other streaming paths do clean up refs.",2026-02-05T22:20:48.644362+00:00
+traceroot-ai/traceroot,427,create shared prisma package for both ui and worker-billing to access…,https://github.com/traceroot-ai/traceroot/pull/427,"**Broken package entrypoints**
+
+`main`/`types` point at `./src/index.ts`, but consumers (e.g. Next.js/server runtimes) resolve `main` at runtime and will not execute TypeScript source from `node_modules` by default. This makes `import { prisma } from ""@traceroot/core""` fail unless you add a real build output (e.g. `dist/index.js` + `dist/index.d.ts`) and point `main`/`types` (or an `exports` map) at those built files.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/core/package.json
+Line: 5:6
+
+Comment:
+**Broken package entrypoints**
+
+`main`/`types` point at `./src/index.ts`, but consumers (e.g. Next.js/server runtimes) resolve `main` at runtime and will not execute TypeScript source from `node_modules` by default. This makes `import { prisma } from ""@traceroot/core""` fail unless you add a real build output (e.g. `dist/index.js` + `dist/index.d.ts`) and point `main`/`types` (or an `exports` map) at those built files.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/traceroot-ai/traceroot/pull/427#discussion_r2771248096,,2026-02-05T21:33:01+00:00,runtime,high,"This catch identifies that the package.json points main/types to TypeScript source files, but Node.js and most runtimes won't execute .ts files from node_modules. This will cause imports from @traceroot/core to fail at runtime, breaking the shared prisma package functionality that is the entire purpose of this PR. The issue is concrete and technically accurate.",2026-02-05T22:20:48.644435+00:00
