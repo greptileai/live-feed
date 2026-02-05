@@ -4413,3 +4413,128 @@ Should be:
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/PostHog/posthog/pull/46962#discussion_r2768947023,,2026-02-05T12:35:57+00:00,runtime,high,"This is a clear runtime error - using `await` inside a list comprehension that's passed to `sum()` doesn't work in Python. The list comprehension creates a list of coroutine objects, not awaited results, which would cause a TypeError when `sum()` tries to add them. This would fail immediately in production when this code path is hit.",2026-02-05T14:32:17.430546+00:00
+posthog/posthog,46990,fix(ph-ai): remove old create dashboard tool,https://github.com/PostHog/posthog/pull/46990,"<details>
+<summary>Additional Comments (4)</summary>
+
+**`products/dashboards/backend/max_tools.py`**
+imports deleted class `DashboardCreationNode` from `ee.hogai.chat_agent.dashboards.nodes` which was removed in this PR - will cause `ImportError`
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: products/dashboards/backend/max_tools.py
+Line: 16:16
+
+Comment:
+imports deleted class `DashboardCreationNode` from `ee.hogai.chat_agent.dashboards.nodes` which was removed in this PR - will cause `ImportError`
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>
+
+---
+
+**`products/dashboards/backend/max_tools.py`**
+instantiates deleted `DashboardCreationNode` class - will fail at runtime
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: products/dashboards/backend/max_tools.py
+Line: 153:153
+
+Comment:
+instantiates deleted `DashboardCreationNode` class - will fail at runtime
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>
+
+---
+
+**`products/dashboards/backend/test/test_max_tools.py`**
+imports deleted `DashboardCreationNode` - test will fail with `ImportError`
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: products/dashboards/backend/test/test_max_tools.py
+Line: 9:9
+
+Comment:
+imports deleted `DashboardCreationNode` - test will fail with `ImportError`
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>
+
+---
+
+**`products/dashboards/backend/test/test_max_tool_integration.py`**
+imports deleted `QueryMetadata` class - test will fail with `ImportError`
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: products/dashboards/backend/test/test_max_tool_integration.py
+Line: 11:11
+
+Comment:
+imports deleted `QueryMetadata` class - test will fail with `ImportError`
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>
+</details>",https://github.com/PostHog/posthog/pull/46990#issuecomment-3854700782,,2026-02-05T16:16:15+00:00,runtime,high,"Greptile correctly identified that the PR deletes classes (DashboardCreationNode, QueryMetadata) that are still imported and used in other files not modified by this PR. This would cause ImportError at runtime, breaking the application. Multiple related comments all point to the same root cause - incomplete cleanup when removing code.",2026-02-05T16:32:19.725098+00:00
+raycast/extensions,25173,Update microsoft-onedrive extension,https://github.com/raycast/extensions/pull/25173,"**Windows folder uploads break**
+
+`ensureFolderPathExists()` splits `folderPath` using `path.sep` (likely `\\` on Windows), but the `folderPath` values you pass in are built via `path.join(...)` and/or derived from `file.relativePath`, which come from filesystem paths. Those will be `\\` on Windows, but Microsoft Graph expects URL paths with `/`. As a result, `ensureFolderExists(..., part)` may receive a single string containing backslashes (e.g., `""MyDir\\Sub""`) and create a *single* folder with backslashes in its name instead of nested folders.
+
+This will reproduce when uploading a directory on Windows. Consider normalizing to POSIX-style separators for all `relativePath` / `folderPath` values before splitting and before forming Graph paths.
+",https://github.com/raycast/extensions/pull/25173#discussion_r2769622551,Done.,2026-02-05T14:59:43+00:00,logic,high,"This is a platform-specific bug that would completely break folder uploads on Windows - a major operating system. The issue is that path separators differ between Windows (\\) and the Microsoft Graph API (/) causing folders to be created with backslashes in their names instead of as nested directories. Developer confirmed the fix with 'Done.', validating the catch.",2026-02-05T16:32:19.725261+00:00
+assistant-ui/assistant-ui,3222,Docs assistant: high-signal chat analytics,https://github.com/assistant-ui/assistant-ui/pull/3222,"**Next.js middleware not executed**
+
+`apps/docs/proxy.ts` won’t run in Next.js as written: Next looks for `middleware.(ts|js)` with an exported `middleware`/default function, not a `proxy()` export in `proxy.ts`. As a result, GET/HEAD `/umami/api/send` will still hit the rewrite target and keep producing 405s. Rename this file to `apps/docs/middleware.ts` (or integrate the logic into an existing middleware) and export `export default function middleware(request: NextRequest)` (or `export function middleware`) so `config.matcher` is applied.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: apps/docs/proxy.ts
+Line: 1:13
+
+Comment:
+**Next.js middleware not executed**
+
+`apps/docs/proxy.ts` won’t run in Next.js as written: Next looks for `middleware.(ts|js)` with an exported `middleware`/default function, not a `proxy()` export in `proxy.ts`. As a result, GET/HEAD `/umami/api/send` will still hit the rewrite target and keep producing 405s. Rename this file to `apps/docs/middleware.ts` (or integrate the logic into an existing middleware) and export `export default function middleware(request: NextRequest)` (or `export function middleware`) so `config.matcher` is applied.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/assistant-ui/assistant-ui/pull/3222#discussion_r2769640185,,2026-02-05T15:03:19+00:00,logic,high,"Greptile correctly identified that the middleware file is misconfigured - Next.js requires the file to be named `middleware.ts` and export a function named `middleware`, not `proxy.ts` with a `proxy` export. This means the intended request filtering will never execute, and the 405 errors the code is trying to prevent will continue occurring in production. This is a clear bug that would cause the feature to completely fail.",2026-02-05T16:32:19.725323+00:00
+plexe-ai/plexe,160,chore: update cicd workflows,https://github.com/plexe-ai/plexe/pull/160,"Generated docs like `plexe/CODE_INDEX.md` will trigger this check even though they're not actual code changes. Consider filtering out `.md` files or specifically excluding `CODE_INDEX.md`:
+
+```suggestion
+          if git diff --name-only origin/main...HEAD | grep -E '^plexe/.*\.py$'; then
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: .github/workflows/version-check.yml
+Line: 33:33
+
+Comment:
+Generated docs like `plexe/CODE_INDEX.md` will trigger this check even though they're not actual code changes. Consider filtering out `.md` files or specifically excluding `CODE_INDEX.md`:
+
+```suggestion
+          if git diff --name-only origin/main...HEAD | grep -E '^plexe/.*\.py$'; then
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/plexe-ai/plexe/pull/160#discussion_r2769518560,Fixed,2026-02-05T14:38:43+00:00,logic,medium,Comments 0 and 1 identify the same underlying issue - auto-generated documentation files (CODE_INDEX.md) would incorrectly trigger version bump requirements. This is a real bug that would cause CI failures and developer frustration on PRs that only update generated docs. Developer confirmed the fix. Comment 0 is selected as it's the better-written version with clearer context.,2026-02-05T16:32:19.725398+00:00
