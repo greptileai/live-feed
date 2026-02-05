@@ -4331,3 +4331,44 @@ If this should be the `threshold` parameter, use that instead:
 ```
 return torch.all(per_step > threshold, dim=1)  # (N,)
 ```",https://github.com/isaac-sim/IsaacLab/pull/4546#discussion_r2767489967,,2026-02-05T07:19:37+00:00,runtime,high,Comment 6 identifies an undefined variable `eps` that will cause a NameError at runtime. This is a clear bug that will crash the application when `ground_contact_termination_history` is called. The function uses `eps` in the return statement but it was never defined - it should likely be `threshold` based on the function signature.,2026-02-05T08:29:00.443758+00:00
+posthog/posthog,46940,fix: invalidate keys on quota,https://github.com/PostHog/posthog/pull/46940,"**Rate-limit invalidates key**
+
+`rate_limit` is being treated as an API-key state error and persisted via `update_key_state_activity`, which will flip BYOK keys into `ERROR` on transient provider throttling. This will effectively disable otherwise-valid keys for users experiencing a temporary burst, and can cause repeated “your API key is ERROR” failures until manually reset.
+
+If the intent is only to reduce internal error spam, consider *not* updating key state for rate limits (or use a separate, non-persistent signal) so transient throttling doesn’t brick keys.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: posthog/temporal/llm_analytics/run_evaluation.py
+Line: 621:623
+
+Comment:
+**Rate-limit invalidates key**
+
+`rate_limit` is being treated as an API-key state error and persisted via `update_key_state_activity`, which will flip BYOK keys into `ERROR` on transient provider throttling. This will effectively disable otherwise-valid keys for users experiencing a temporary burst, and can cause repeated “your API key is ERROR” failures until manually reset.
+
+If the intent is only to reduce internal error spam, consider *not* updating key state for rate limits (or use a separate, non-persistent signal) so transient throttling doesn’t brick keys.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/46940#discussion_r2768007010,,2026-02-05T09:39:44+00:00,logic,high,"This catch identifies a significant logic bug where rate limiting (a transient condition) is being treated the same as permanent errors like auth/quota issues, causing valid BYOK API keys to be incorrectly marked as ERROR state. This would affect users in normal usage when they experience temporary rate limiting from their API provider, effectively bricking their keys until manual intervention.",2026-02-05T10:28:29.344251+00:00
+twentyhq/twenty,17729,Add dependencies everywhere,https://github.com/twentyhq/twenty/pull/17729,"removing `twenty-ui` breaks the build - it's still exported in `src/ui/index.ts` (line 10) and referenced in `vite.config.ts` line 14 as a vendored package
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/twenty-sdk/package.json
+Line: 72:74
+
+Comment:
+removing `twenty-ui` breaks the build - it's still exported in `src/ui/index.ts` (line 10) and referenced in `vite.config.ts` line 14 as a vendored package
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/twentyhq/twenty/pull/17729#discussion_r2768160717,,2026-02-05T10:16:05+00:00,runtime,high,"Comments 0 and 1 identify the same issue - moving twenty-shared and twenty-ui from devDependencies to a new location but they are still referenced in the codebase. The diff shows these packages are being removed from lines 74-75 and added back at lines 100-101 as devDependencies, but Greptile correctly identifies they are exported/referenced in the actual source code which would break the build. This is a legitimate build-breaking issue.",2026-02-05T10:28:29.344324+00:00
+isaac-sim/isaaclab,4547,Reorganized the deprecation to be on the base classes.,https://github.com/isaac-sim/IsaacLab/pull/4547,"**Runtime error in warning**
+
+`logger.warning(...)` is being called with `DeprecationWarning` and `stacklevel=2` as extra args (lines 696-700). The `logging` API treats extra positional args as `%` formatting parameters; since the message has no formatting placeholders, accessing `root_physx_view` will raise a `TypeError` at runtime. This should be `warnings.warn(..., DeprecationWarning, stacklevel=2)` (like `Articulation.root_physx_view`) or a plain `logger.warning(""..."")` without the extra args.",https://github.com/isaac-sim/IsaacLab/pull/4547#discussion_r2767918075,,2026-02-05T09:18:54+00:00,runtime,high,"This is a legitimate runtime error catch. The code incorrectly passes `DeprecationWarning` and `stacklevel=2` as positional arguments to `logger.warning()`, which expects format arguments. Since the message has no format placeholders, this will raise a TypeError at runtime whenever the deprecated property is accessed. This is a clear bug that will affect users in normal usage.",2026-02-05T10:28:29.344353+00:00
