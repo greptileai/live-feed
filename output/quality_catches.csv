@@ -3989,3 +3989,99 @@ Comment:
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/simstudioai/sim/pull/3135#discussion_r2766077781,,2026-02-04T21:36:09+00:00,data_integrity,high,"This identifies a real token accounting bug where reasoning_tokens are being double-counted because output_tokens already includes them in the Responses API schema. This will cause incorrect billing/cost calculations for all users, affecting normal usage. The analysis is specific and verifiable against OpenAI's API documentation.",2026-02-04T22:19:09.842491+00:00
+posthog/posthog,46617,feat(flags): add bulk delete functionality for feature flags,https://github.com/PostHog/posthog/pull/46617,"**Missing auth scope on action**
+
+`bulk_delete` is a destructive endpoint but it lacks `required_scopes`/permission configuration, unlike other actions in this viewset (e.g. `dependent_flags` has `required_scopes=[""feature_flag:read""]`). As written, this endpoint won't be protected by the API-scopes layer and may be callable by tokens that shouldn’t be able to delete feature flags. Please add the appropriate write scope/permission requirements consistent with the rest of the feature flag API.
+
+**Context Used:** Context from `dashboard` - When implementing new features, ensure that ownership validation is included to prevent unauthorized... ([source](https://app.greptile.com/review/custom-context?memory=9655b466-451a-401a-9ba0-5bf3e7b7f9f8))
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: posthog/api/feature_flag.py
+Line: 1853:1856
+
+Comment:
+**Missing auth scope on action**
+
+`bulk_delete` is a destructive endpoint but it lacks `required_scopes`/permission configuration, unlike other actions in this viewset (e.g. `dependent_flags` has `required_scopes=[""feature_flag:read""]`). As written, this endpoint won't be protected by the API-scopes layer and may be callable by tokens that shouldn’t be able to delete feature flags. Please add the appropriate write scope/permission requirements consistent with the rest of the feature flag API.
+
+**Context Used:** Context from `dashboard` - When implementing new features, ensure that ownership validation is included to prevent unauthorized... ([source](https://app.greptile.com/review/custom-context?memory=9655b466-451a-401a-9ba0-5bf3e7b7f9f8))
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/46617#discussion_r2766393311,,2026-02-04T23:25:00+00:00,security,critical,"This is a legitimate security catch - the bulk_delete endpoint is a destructive operation that lacks the required_scopes configuration that other endpoints in the same viewset have. This could allow API tokens without delete permissions to call this endpoint, bypassing the API-scopes authorization layer. The comment correctly identifies the pattern (comparing to dependent_flags which has required_scopes) and the fix is clear.",2026-02-05T00:54:20.276230+00:00
+posthog/posthog,46908,feat(duckling): add efficient full export mode for persons backfill,https://github.com/PostHog/posthog/pull/46908,"**Full export misses persons**
+
+`export_persons_full_to_duckling_s3` uses an `INNER JOIN` from `person` to `person_distinct_id2`. Any person without at least one `person_distinct_id2` row will be omitted entirely from the export, which is a correctness regression versus “export all persons”. If the intent is truly all persons, this needs a `LEFT JOIN` (and a decision on how to represent missing `distinct_id` rows) or a separate export path for persons with no distinct IDs.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: posthog/dags/events_backfill_to_duckling.py
+Line: 1199:1213
+
+Comment:
+**Full export misses persons**
+
+`export_persons_full_to_duckling_s3` uses an `INNER JOIN` from `person` to `person_distinct_id2`. Any person without at least one `person_distinct_id2` row will be omitted entirely from the export, which is a correctness regression versus “export all persons”. If the intent is truly all persons, this needs a `LEFT JOIN` (and a decision on how to represent missing `distinct_id` rows) or a separate export path for persons with no distinct IDs.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/46908#discussion_r2766372358,,2026-02-04T23:15:42+00:00,data_integrity,high,"This catch identifies a real data integrity bug where an INNER JOIN between person and person_distinct_id2 tables will silently drop all persons who don't have a distinct_id mapping. For a 'full export' feature, this is a significant correctness issue that would cause incomplete data migration affecting users in normal usage.",2026-02-05T00:54:20.276402+00:00
+nvidia/nvflare,4126,[2.7] Snapshot task data only,https://github.com/NVIDIA/NVFlare/pull/4126,"<details>
+<summary>Additional Comments (1)</summary>
+
+**`nvflare/apis/impl/wf_comm_server.py`**
+**Shared headers leak**
+
+`task_data` points to `task._broadcast_data` for broadcast tasks, and this code mutates headers on that shared object (`set_header` for `TASK_ID` / `MSG_ROOT_ID` / `MSG_ROOT_TTL`) before returning `make_copy(task_data)`. Because `_broadcast_data` is reused across clients, concurrent/overlapping `process_task_request` calls can race and overwrite each other’s headers, so a client may receive a payload whose system headers correspond to a different client/task request. To avoid this, add per-client headers to the per-client copy (e.g., `out = make_copy(task_data)` then set headers on `out`) or otherwise ensure headers aren’t written into the shared `_broadcast_data` object.
+</details>",https://github.com/NVIDIA/NVFlare/pull/4126#issuecomment-3850332732,,2026-02-04T23:59:00+00:00,concurrency,high,"This comment identifies a real concurrency bug where the shared `_broadcast_data` object has per-client headers (TASK_ID, MSG_ROOT_ID, MSG_ROOT_TTL) written directly to it before `make_copy()` is called. In concurrent scenarios with multiple clients, this causes race conditions where headers can be overwritten between clients, resulting in clients receiving incorrect task identifiers. This is a data integrity issue that would affect normal multi-client usage.",2026-02-05T00:54:20.276474+00:00
+langfuse/langfuse-python,1510,feat(openai): add support for image generation tracking,https://github.com/langfuse/langfuse-python/pull/1510,"`create_variation()` doesn't accept a `prompt` parameter (only `generate()` and `edit()` do), so for that method this will always extract `None`. Consider differentiating by `resource.method` to handle the different parameter signatures:
+
+```suggestion
+    elif resource.type == ""image"":
+        # generate() and edit() accept prompt, but create_variation() does not
+        if resource.method in [""generate"", ""edit""]:
+            prompt = kwargs.get(""prompt"", None)
+        else:
+            prompt = None  # create_variation uses image input, not text prompt
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: langfuse/openai.py
+Line: 465:466
+
+Comment:
+`create_variation()` doesn't accept a `prompt` parameter (only `generate()` and `edit()` do), so for that method this will always extract `None`. Consider differentiating by `resource.method` to handle the different parameter signatures:
+
+```suggestion
+    elif resource.type == ""image"":
+        # generate() and edit() accept prompt, but create_variation() does not
+        if resource.method in [""generate"", ""edit""]:
+            prompt = kwargs.get(""prompt"", None)
+        else:
+            prompt = None  # create_variation uses image input, not text prompt
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/langfuse/langfuse-python/pull/1510#discussion_r2766238568,"Good catch! Fixed in a5f2182 — now differentiates by `resource.method` to handle `create_variation()` which only takes image input, not a text prompt.",2026-02-04T22:24:40+00:00,logic,low,"This is a developer-confirmed catch ('Good catch! Fixed') that identifies a real API mismatch - the create_variation() method doesn't accept a prompt parameter unlike generate() and edit(), so the code would always extract None for that case. The suggestion to differentiate by resource.method is correct and was implemented. While low severity (the code wouldn't crash, just always have null prompt for variations), it's a real bug with concrete evidence and developer validation.",2026-02-05T00:54:20.276533+00:00
+nvidia/physicsnemo,1372,Equivariant layers in three dimensions,https://github.com/NVIDIA/physicsnemo/pull/1372,"**Incorrect lmax/mmax check**
+
+In `rotate_grid_coefficients`, the shape validation checks `if x.shape[1] < x.shape[2]: raise ValueError(""Expected lmax (dim 1) <= mmax (dim 2)"")`. This condition and message are inverted: with grid-layout SH coefficients you need `mmax <= lmax` (i.e., `x.shape[2] <= x.shape[1]`), so the check should error when `x.shape[2] > x.shape[1]`.
+
+This currently rejects valid inputs like `(lmax=4, mmax=2)` and will break the SO(3) tests/workflow that use reduced `mmax`.
+
+```suggestion
+        if x.shape[2] > x.shape[1]:
+            raise ValueError(f""Expected mmax (dim 2) <= lmax (dim 1), got {x.shape}"")
+```",https://github.com/NVIDIA/physicsnemo/pull/1372#discussion_r2766527420,,2026-02-05T00:29:16+00:00,logic,high,"This is a clear logic bug where the validation check is inverted - it currently rejects valid inputs (like lmax=4, mmax=2) while accepting invalid ones. The condition checks `x.shape[1] < x.shape[2]` but should check `x.shape[2] > x.shape[1]` for proper mmax <= lmax validation. This would cause runtime failures for legitimate use cases in the SO(3) workflow.",2026-02-05T00:54:20.276616+00:00
+nvidia/physicsnemo,1370,Geometry Guardrail,https://github.com/NVIDIA/physicsnemo/pull/1370,"**Invalid constructor kwargs**
+
+The example calls `GeometryGuardrail(..., covariance_type=""full"", ...)` (lines 65-72), but `GeometryGuardrail.__init__` in `physicsnemo/experimental/guardrails/geometry/ood_detector.py:205` does not accept `covariance_type`. Running the example will raise `TypeError: __init__() got an unexpected keyword argument 'covariance_type'`.",https://github.com/NVIDIA/physicsnemo/pull/1370#discussion_r2766226268,Fixed.,2026-02-04T22:20:28+00:00,runtime,medium,"This is a clear, developer-confirmed bug where the example code passes an invalid keyword argument 'covariance_type' to GeometryGuardrail's constructor. Running the example would immediately fail with a TypeError. The developer confirmed and fixed this issue, validating the catch.",2026-02-05T00:54:20.276712+00:00
