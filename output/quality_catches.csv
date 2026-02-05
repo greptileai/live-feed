@@ -4538,3 +4538,186 @@ Generated docs like `plexe/CODE_INDEX.md` will trigger this check even though th
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/plexe-ai/plexe/pull/160#discussion_r2769518560,Fixed,2026-02-05T14:38:43+00:00,logic,medium,Comments 0 and 1 identify the same underlying issue - auto-generated documentation files (CODE_INDEX.md) would incorrectly trigger version bump requirements. This is a real bug that would cause CI failures and developer frustration on PRs that only update generated docs. Developer confirmed the fix. Comment 0 is selected as it's the better-written version with clearer context.,2026-02-05T16:32:19.725398+00:00
+posthog/posthog,46998,fix: show person correctly,https://github.com/PostHog/posthog/pull/46998,"`id` field will fail - should be `source='uuid'`
+
+The Person model has `id` (BigAutoField) and `uuid` (UUIDField) as separate fields. This serializer tries to serialize `id` as a UUID, which will fail at runtime.
+
+The test at `test_tickets.py:113` expects `person[""id""]` to equal `str(person.uuid)`, confirming the `id` field should serialize the uuid attribute.
+
+```suggestion
+    id = serializers.UUIDField(source='uuid', read_only=True)
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: products/conversations/backend/api/tickets.py
+Line: 41:41
+
+Comment:
+`id` field will fail - should be `source='uuid'`
+
+The Person model has `id` (BigAutoField) and `uuid` (UUIDField) as separate fields. This serializer tries to serialize `id` as a UUID, which will fail at runtime.
+
+The test at `test_tickets.py:113` expects `person[""id""]` to equal `str(person.uuid)`, confirming the `id` field should serialize the uuid attribute.
+
+```suggestion
+    id = serializers.UUIDField(source='uuid', read_only=True)
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/46998#discussion_r2770208625,,2026-02-05T17:02:34+00:00,type_error,high,"Comment 3 correctly identifies that the PersonSerializer's `id` field is declared as a UUIDField but points to the model's `id` attribute (a BigAutoField integer), not the `uuid` attribute. The diff shows the code already has `source=""uuid""` which the comment claims is missing - but looking more carefully at line 41 in the diff, the actual code shows `id = serializers.UUIDField(source=""uuid"", read_only=True)` which means this is actually already fixed. However, examining the comment's suggestion matches what's in the diff, suggesting this was caught and addressed.",2026-02-05T18:35:23.877412+00:00
+raycast/extensions,25173,Update microsoft-onedrive extension,https://github.com/raycast/extensions/pull/25173,"**Conflict check uses wrong endpoint**
+
+`itemExistsInFolder()` builds `.../items/{folderId}:/{encodeURIComponent(itemName)}` (missing the trailing `:`). Microsoft Graph path-based addressing requires the `:/path:/` form; without the final `:`, this will hit the wrong route (typically 400/404) and you’ll treat existing items as non-existent, skipping the conflict prompt + folder renaming logic.
+
+```suggestion
+    const endpoint = `${GRAPH_API_BASE}${drivePrefix}${folderPath}:/${encodeURIComponent(itemName)}:`;
+```",https://github.com/raycast/extensions/pull/25173#discussion_r2770453994,Done.,2026-02-05T18:02:41+00:00,logic,high,"This catch identifies a malformed Microsoft Graph API endpoint that would cause conflict detection to fail silently. Without the trailing colon in path-based addressing, the API returns 400/404 errors, causing the code to incorrectly assume items don't exist and skip conflict prompts. This would affect normal usage when uploading files with conflicting names. Developer confirmed and fixed.",2026-02-05T18:35:23.877520+00:00
+twentyhq/twenty,17752,File - Migrate avatarUrl > avatarFile on person (data migration + logic) + Attachment data migration,https://github.com/twentyhq/twenty/pull/17752,"`isTemporaryFile: true` marks migrated avatars as temporary, which could cause them to be deleted by cleanup jobs.
+
+```suggestion
+            settings: {
+              isTemporaryFile: false,
+              toDelete: false,
+            },
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/twenty-server/src/database/commands/upgrade-version-command/1-18/1-18-migrate-person-avatar-files.command.ts
+Line: 250:253
+
+Comment:
+`isTemporaryFile: true` marks migrated avatars as temporary, which could cause them to be deleted by cleanup jobs.
+
+```suggestion
+            settings: {
+              isTemporaryFile: false,
+              toDelete: false,
+            },
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/twentyhq/twenty/pull/17752#discussion_r2770286674,,2026-02-05T17:21:05+00:00,data_integrity,high,"This catch identifies that setting `isTemporaryFile: true` for migrated avatar files could cause them to be deleted by cleanup jobs, resulting in data loss. This is a real bug that would affect users in production - migrated avatars would be incorrectly flagged as temporary and potentially purged. The developer didn't explicitly reject this suggestion, unlike Comment 0 where they explained why they can't change it.",2026-02-05T18:35:23.877591+00:00
+twentyhq/twenty,17750,Allow filtering by page layout type and fetch more fields,https://github.com/twentyhq/twenty/pull/17750,"<details>
+<summary>Additional Comments (2)</summary>
+
+**`packages/twenty-server/src/engine/metadata-modules/page-layout/controllers/page-layout.controller.ts`**
+**Removed method breaks REST**
+`PageLayoutService.findByObjectMetadataId()` was removed/renamed to `findBy()`, but the REST controller still calls `findByObjectMetadataId` in `findMany()`. This will fail at runtime/compile time for the server build. Update the controller to call the new API (and/or keep a backward-compatible method) so REST `GET /rest/metadata/pageLayouts?objectMetadataId=...` keeps working.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/twenty-server/src/engine/metadata-modules/page-layout/controllers/page-layout.controller.ts
+Line: 36:44
+
+Comment:
+**Removed method breaks REST**
+`PageLayoutService.findByObjectMetadataId()` was removed/renamed to `findBy()`, but the REST controller still calls `findByObjectMetadataId` in `findMany()`. This will fail at runtime/compile time for the server build. Update the controller to call the new API (and/or keep a backward-compatible method) so REST `GET /rest/metadata/pageLayouts?objectMetadataId=...` keeps working.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>
+
+---
+
+**`packages/twenty-front/src/modules/page-layout/graphql/fragments/pageLayoutWidgetFragment.ts`**
+**Conflicting widget position fields**
+This fragment now queries both `gridPosition { ... }` and a polymorphic `position { ... on PageLayoutWidgetGridPosition ... }`. If the backend schema has moved to the union-based `position` and no longer exposes `gridPosition` (or vice-versa), GraphQL validation will fail and the whole query will error. Please confirm the schema supports both fields simultaneously; otherwise, drop the obsolete selection or gate it via schema-aligned fragments.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/twenty-front/src/modules/page-layout/graphql/fragments/pageLayoutWidgetFragment.ts
+Line: 12:22
+
+Comment:
+**Conflicting widget position fields**
+This fragment now queries both `gridPosition { ... }` and a polymorphic `position { ... on PageLayoutWidgetGridPosition ... }`. If the backend schema has moved to the union-based `position` and no longer exposes `gridPosition` (or vice-versa), GraphQL validation will fail and the whole query will error. Please confirm the schema supports both fields simultaneously; otherwise, drop the obsolete selection or gate it via schema-aligned fragments.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>
+</details>",https://github.com/twentyhq/twenty/pull/17750#issuecomment-3854969960,,2026-02-05T17:05:21+00:00,runtime,high,"This identifies a breaking change where a service method was renamed from `findByObjectMetadataId()` to `findBy()`, but the REST controller wasn't updated to use the new method name. This would cause a runtime/compile-time failure for the REST API endpoint, breaking functionality for users accessing `/rest/metadata/pageLayouts?objectMetadataId=...`.",2026-02-05T18:35:23.877654+00:00
+greptileai/react-mirror,472,Fix checkbox onChange not firing in certain click ordering cases,https://github.com/greptileai/react-mirror/pull/472,"**Test file contains plugin code**
+
+`packages/react-dom/src/events/plugins/__tests__/ChangeEventPlugin-test.js` no longer contains tests — it now looks like a (partial) copy of `ChangeEventPlugin` implementation. As written, it has immediate runtime/parse issues (e.g. duplicate `function getInstIfValueChanged` definitions and a reference to undefined `getTargetInstForInputEvent`). This will cause the test suite (and likely Flow) to fail. The file should be restored to a test file, and the actual implementation change should live under `packages/react-dom/src/events/plugins/ChangeEventPlugin.js` (or the appropriate source module), with this file containing only tests for the behavior.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/react-dom/src/events/plugins/__tests__/ChangeEventPlugin-test.js
+Line: 71:96
+
+Comment:
+**Test file contains plugin code**
+
+`packages/react-dom/src/events/plugins/__tests__/ChangeEventPlugin-test.js` no longer contains tests — it now looks like a (partial) copy of `ChangeEventPlugin` implementation. As written, it has immediate runtime/parse issues (e.g. duplicate `function getInstIfValueChanged` definitions and a reference to undefined `getTargetInstForInputEvent`). This will cause the test suite (and likely Flow) to fail. The file should be restored to a test file, and the actual implementation change should live under `packages/react-dom/src/events/plugins/ChangeEventPlugin.js` (or the appropriate source module), with this file containing only tests for the behavior.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/greptileai/react-mirror/pull/472#discussion_r2770317675,,2026-02-05T17:29:13+00:00,runtime,high,"Comment 0 identifies a critical issue where a test file has been accidentally overwritten with implementation code, containing duplicate function definitions and undefined references. This would cause the test suite to fail immediately with parse/runtime errors. This is a significant catch that prevents broken CI/test infrastructure from being merged.",2026-02-05T18:35:23.877743+00:00
+greptileai/react-mirror,471,Fix onChange firing when click default is prevented,https://github.com/greptileai/react-mirror/pull/471,"**Test file replaced**
+
+`packages/react-dom/src/events/plugins/__tests__/ChangeEventPlugin-test.js` no longer contains any Jest tests; it’s been replaced with what looks like (partial) `ChangeEventPlugin` implementation code (e.g. `registerTwoPhaseEvent`, `extractEvents`, and internal imports). This effectively deletes the entire `ChangeEventPlugin` test suite and will also fail in typical Jest configs because Flow/implementation imports aren’t expected inside a `__tests__` file. This file should remain a test and the actual behavior change should live in the real plugin implementation file instead.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/react-dom/src/events/plugins/__tests__/ChangeEventPlugin-test.js
+Line: 10:12
+
+Comment:
+**Test file replaced**
+
+`packages/react-dom/src/events/plugins/__tests__/ChangeEventPlugin-test.js` no longer contains any Jest tests; it’s been replaced with what looks like (partial) `ChangeEventPlugin` implementation code (e.g. `registerTwoPhaseEvent`, `extractEvents`, and internal imports). This effectively deletes the entire `ChangeEventPlugin` test suite and will also fail in typical Jest configs because Flow/implementation imports aren’t expected inside a `__tests__` file. This file should remain a test and the actual behavior change should live in the real plugin implementation file instead.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/greptileai/react-mirror/pull/471#discussion_r2770315698,,2026-02-05T17:28:44+00:00,data_integrity,critical,"This is an excellent catch - the test file has been accidentally replaced with implementation code, which effectively deletes the entire ChangeEventPlugin test suite. This would cause immediate CI failures and remove critical test coverage for change event handling. The reviewer correctly identified that implementation code was incorrectly placed in a __tests__ directory.",2026-02-05T18:35:23.877849+00:00
+nvidia/nvflare,4139,LLM updates to main,https://github.com/NVIDIA/NVFlare/pull/4139,"**PEFT save assumes adapters exist**
+
+In PEFT mode you now save initial params via `get_peft_model_state_dict(trainer.model)` (`hf_sft_peft_iter.py:176-180`). Since this PR removed explicit `get_peft_model(...)` wrapping, this will crash if `SFTTrainer` didn’t apply PEFT (i.e., `trainer.model` is a plain `AutoModelForCausalLM`). Same issue applies later when loading via `set_peft_model_state_dict(trainer.model, ...)`.
+
+Please ensure the trainer’s model is actually PEFT-wrapped before using PEFT state-dict helpers, otherwise PEFT runs will fail at startup.",https://github.com/NVIDIA/NVFlare/pull/4139#discussion_r2770114004,good point! added PEFT check,2026-02-05T16:39:25+00:00,runtime,high,"Comment 0 identifies a real bug where the PR removed explicit PEFT model wrapping but still uses PEFT state dict helpers that will crash if the model isn't PEFT-wrapped. The developer confirmed this with 'good point! added PEFT check', validating it's a genuine issue that would cause runtime failures in PEFT mode.",2026-02-05T18:35:23.877901+00:00
+mellanox/libxlio,554,[CI] issue: HPCINFRA-4019 Add CI chaos testing,https://github.com/Mellanox/libxlio/pull/554,"The `-x` flag in `set -exE` logs all command expansions including credentials. Since steps like ""Secret Scan"" and ""Copyrights"" pass `GITHUB_TOKEN` through this wrapper, tokens will appear in Jenkins logs. Consider either removing `-x` globally or disabling xtrace specifically around credential-bearing commands.",https://github.com/Mellanox/libxlio/pull/554#discussion_r2770140398,,2026-02-05T16:45:53+00:00,security,high,"The comment correctly identifies that `set -exE` with the `-x` flag will echo all command expansions to logs, including sensitive credentials like GITHUB_TOKEN that are passed through this wrapper script. This is a real security vulnerability that could expose secrets in Jenkins logs. Comments 0, 3, and 4 all address the same underlying issue - Comment 0 is the clearest and most actionable.",2026-02-05T18:35:23.877931+00:00
+paid-ai/paid-python,92,":herb: Fern Regeneration -- February 5, 2026",https://github.com/paid-ai/paid-python/pull/92,"This dependency replacement breaks the existing code. `src/paid/tracing/autoinstrumentation.py:26` imports `from opentelemetry.instrumentation.openai import OpenAIInstrumentor`, but this PR replaces `opentelemetry-instrumentation-openai` with `openinference-instrumentation-openai`. The import path for the new library is different: `from openinference.instrumentation.openai import OpenAIInstrumentor`. This will cause an ImportError when users call `paid_autoinstrument(libraries=[""openai""])`.
+
+```suggestion
+openinference-instrumentation-openai = "">=0.1.40""
+openinference-instrumentation-openai-agents = "">=1.0.0""
+opentelemetry-api = "">=1.23.0""
+opentelemetry-exporter-otlp-proto-http = "">=1.23.0""
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: pyproject.toml
+Line: 41:44
+
+Comment:
+This dependency replacement breaks the existing code. `src/paid/tracing/autoinstrumentation.py:26` imports `from opentelemetry.instrumentation.openai import OpenAIInstrumentor`, but this PR replaces `opentelemetry-instrumentation-openai` with `openinference-instrumentation-openai`. The import path for the new library is different: `from openinference.instrumentation.openai import OpenAIInstrumentor`. This will cause an ImportError when users call `paid_autoinstrument(libraries=[""openai""])`.
+
+```suggestion
+openinference-instrumentation-openai = "">=0.1.40""
+openinference-instrumentation-openai-agents = "">=1.0.0""
+opentelemetry-api = "">=1.23.0""
+opentelemetry-exporter-otlp-proto-http = "">=1.23.0""
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/paid-ai/paid-python/pull/92#discussion_r2770217589,,2026-02-05T17:04:18+00:00,runtime,high,"Greptile correctly identified that replacing `opentelemetry-instrumentation-openai` with `openinference-instrumentation-openai` will cause an ImportError because the code in `autoinstrumentation.py` still imports from `opentelemetry.instrumentation.openai`. This is a dependency mismatch that will break the library at runtime when users call `paid_autoinstrument(libraries=[""openai""])`. This is a real bug that would affect users in normal usage.",2026-02-05T18:35:23.877956+00:00
