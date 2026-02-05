@@ -4144,3 +4144,160 @@ nvidia/spark-rapids,14264,Fix GpuHashAggregateExec outputPartitioning for aliase
 `GpuHashAggregateExec.buildAttributeMap()` uses `child.output.zip(output).toMap` (`GpuAggregateExec.scala:2062`) but aggregate `output` is derived from `resultExpressions`, which is not guaranteed to be 1:1 positional with `child.output`. This can create incorrect mappings (e.g., mapping a non-grouping child attribute to an aggregate output attribute), which then causes `GpuPartitioningPreservingUnaryExecNode.outputPartitioning` to remap/dismiss partitioning incorrectly.
 
 Fix: don’t build a positional `child.output`→`output` map here; for hash aggregate, only map explicitly aliased grouping attributes from `resultExpressions` (and otherwise rely on the trait’s identity behavior when outputs match).",https://github.com/NVIDIA/spark-rapids/pull/14264#discussion_r2766868937,Removed the child output zip map.,2026-02-05T03:18:47+00:00,logic,high,Comment 0 correctly identified that using `child.output.zip(output).toMap` creates incorrect attribute mappings because aggregate output is derived from `resultExpressions` which is not positionally aligned with `child.output`. This would cause incorrect partitioning behavior in production. The developer confirmed this was a valid issue by replying 'Removed the child output zip map.',2026-02-05T04:46:26.004774+00:00
+simstudioai/sim,3141,fix(onedrive): canonical param required validation,https://github.com/simstudioai/sim/pull/3141,"<details>
+<summary>Additional Comments (5)</summary>
+
+**`apps/sim/blocks/blocks/onedrive.ts`**
+should be `'createFolderParentId'` to match the input declaration on line 411 and follow the same pattern as Google Drive
+
+```suggestion
+      canonicalParamId: 'createFolderParentId',
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: apps/sim/blocks/blocks/onedrive.ts
+Line: 183:183
+
+Comment:
+should be `'createFolderParentId'` to match the input declaration on line 411 and follow the same pattern as Google Drive
+
+```suggestion
+      canonicalParamId: 'createFolderParentId',
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>
+
+---
+
+**`apps/sim/blocks/blocks/onedrive.ts`**
+should be `'createFolderParentId'` to match the input declaration on line 411 and follow the same pattern as Google Drive
+
+```suggestion
+      canonicalParamId: 'createFolderParentId',
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: apps/sim/blocks/blocks/onedrive.ts
+Line: 204:204
+
+Comment:
+should be `'createFolderParentId'` to match the input declaration on line 411 and follow the same pattern as Google Drive
+
+```suggestion
+      canonicalParamId: 'createFolderParentId',
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>
+
+---
+
+**`apps/sim/blocks/blocks/onedrive.ts`**
+should be `'downloadFileId'` to match the input declaration on line 414 and follow the same pattern as Google Drive
+
+```suggestion
+      canonicalParamId: 'downloadFileId',
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: apps/sim/blocks/blocks/onedrive.ts
+Line: 261:261
+
+Comment:
+should be `'downloadFileId'` to match the input declaration on line 414 and follow the same pattern as Google Drive
+
+```suggestion
+      canonicalParamId: 'downloadFileId',
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>
+
+---
+
+**`apps/sim/blocks/blocks/onedrive.ts`**
+should be `'downloadFileId'` to match the input declaration on line 414 and follow the same pattern as Google Drive
+
+```suggestion
+      canonicalParamId: 'downloadFileId',
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: apps/sim/blocks/blocks/onedrive.ts
+Line: 283:283
+
+Comment:
+should be `'downloadFileId'` to match the input declaration on line 414 and follow the same pattern as Google Drive
+
+```suggestion
+      canonicalParamId: 'downloadFileId',
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>
+
+---
+
+**`apps/sim/blocks/blocks/onedrive.ts`**
+this params function uses the old field IDs (`folderSelector`, `manualFolderId`, `fileSelector`, `manualFileId`) that no longer exist after the canonical param refactoring. It needs to be updated to destructure and handle the new canonical param IDs per-operation, similar to how Google Drive was fixed.
+
+The function should:
+1. Destructure the new canonical params like `uploadFolderId`, `listFolderId`, `createFolderParentId`, `downloadFileId`, `deleteFileId`
+2. Resolve `folderId` based on the operation type (upload/create_file → uploadFolderId, list → listFolderId, create_folder → createFolderParentId)
+3. Resolve `fileId` based on the operation type (download → downloadFileId, delete → deleteFileId)
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: apps/sim/blocks/blocks/onedrive.ts
+Line: 356:396
+
+Comment:
+this params function uses the old field IDs (`folderSelector`, `manualFolderId`, `fileSelector`, `manualFileId`) that no longer exist after the canonical param refactoring. It needs to be updated to destructure and handle the new canonical param IDs per-operation, similar to how Google Drive was fixed.
+
+The function should:
+1. Destructure the new canonical params like `uploadFolderId`, `listFolderId`, `createFolderParentId`, `downloadFileId`, `deleteFileId`
+2. Resolve `folderId` based on the operation type (upload/create_file → uploadFolderId, list → listFolderId, create_folder → createFolderParentId)
+3. Resolve `fileId` based on the operation type (download → downloadFileId, delete → deleteFileId)
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>
+</details>",https://github.com/simstudioai/sim/pull/3141#issuecomment-3851117768,,2026-02-05T05:06:33+00:00,logic,high,"The comments identify a critical consistency issue where the params function uses old field IDs that no longer exist after refactoring, while the canonical params have been updated. This would cause the OneDrive operations to fail in production because the code would be looking for fields that don't exist. The last comment in the group (about the params function using old field IDs) is the most comprehensive, but since all comments are part of the same underlying issue and Comment 0 contains all of them, it represents the best consolidated catch.",2026-02-05T06:35:47.983624+00:00
+generaltranslation/gt,991,feat: node i18n,https://github.com/generaltranslation/gt/pull/991,"`enterWith()` is unsafe in async contexts - it modifies the context for ALL concurrent requests. Use `run()` to create isolated scopes instead, or consider making `setItem` return the new store value so callers can pass it to `run()`.
+
+See Node.js docs: ""The `enterWith` method is not recommended for production use as it can lead to unexpected behavior in async contexts.""
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/node/src/AsyncStorageAdapter.ts
+Line: 33:34
+
+Comment:
+`enterWith()` is unsafe in async contexts - it modifies the context for ALL concurrent requests. Use `run()` to create isolated scopes instead, or consider making `setItem` return the new store value so callers can pass it to `run()`.
+
+See Node.js docs: ""The `enterWith` method is not recommended for production use as it can lead to unexpected behavior in async contexts.""
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/generaltranslation/gt/pull/991#discussion_r2767220332,,2026-02-05T05:33:12+00:00,concurrency,high,"The catch about `enterWith()` being unsafe in async contexts is a legitimate and serious concurrency bug. In a Node.js server handling multiple concurrent requests, using `enterWith()` instead of `run()` can cause locale data to leak between requests - Request A's locale could contaminate Request B's context. This is a subtle but well-documented Node.js pitfall that would cause hard-to-debug production issues.",2026-02-05T06:35:47.983841+00:00
