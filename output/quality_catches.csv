@@ -4106,3 +4106,41 @@ Comment:
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/generaltranslation/gt/pull/988#discussion_r2766626830,,2026-02-05T01:12:13+00:00,data_integrity,high,"This is a genuine bug where the function `getValidateJson` promises to return JSON-serializable data, but `JSON.stringify(new Map(...))` produces `{}`, causing complete data loss. The PR title explicitly mentions 'json errors function' and the comment correctly identifies that callers expecting to serialize validation results will lose all data. However, looking at the type definition `ValidationResult = Record<string, ValidationMessage[]>`, it's actually defined as a Record, not a Map - so Greptile may have misread the code. Let me re-verify... The type says `Record<string, ValidationMessage[]>` which IS JSON-serializable. This appears to be a false positive.",2026-02-05T03:14:23.276586+00:00
+generaltranslation/gt,989,feat: translation manager,https://github.com/generaltranslation/gt/pull/989,"**Critical Bug: Missing config fields causes `getGTClass()` to fail**
+
+The `standardizeConfig` function returns only `enableI18n`, `defaultLocale`, `locales`, and `customMapping`, but the `I18nManagerConfig` type (and `getGTClass()` usage) requires `projectId`, `runtimeUrl`, and credential fields.
+
+These fields are never copied from the input `config` parameter:
+- `this.config.projectId` will be `undefined` (used at line 129)
+- `this.config.runtimeUrl` will be `undefined` (used at line 130)
+- Credential fields will be `undefined` (used at lines 131-132)
+
+This breaks any GT API functionality that depends on these values. The function should spread additional fields from the input config to ensure they are preserved in the returned config object.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/i18n/src/i18n-manager/I18nManager.ts
+Line: 157:168
+
+Comment:
+**Critical Bug: Missing config fields causes `getGTClass()` to fail**
+
+The `standardizeConfig` function returns only `enableI18n`, `defaultLocale`, `locales`, and `customMapping`, but the `I18nManagerConfig` type (and `getGTClass()` usage) requires `projectId`, `runtimeUrl`, and credential fields.
+
+These fields are never copied from the input `config` parameter:
+- `this.config.projectId` will be `undefined` (used at line 129)
+- `this.config.runtimeUrl` will be `undefined` (used at line 130)
+- Credential fields will be `undefined` (used at lines 131-132)
+
+This breaks any GT API functionality that depends on these values. The function should spread additional fields from the input config to ensure they are preserved in the returned config object.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/generaltranslation/gt/pull/989#discussion_r2766888949,,2026-02-05T03:31:07+00:00,logic,high,"The `standardizeConfig` function returns only 4 fields (enableI18n, defaultLocale, locales, customMapping) but the `I18nManagerConfig` type requires additional fields like projectId, runtimeUrl, apiKey, and devApiKey which are used in `getGTClass()`. This will cause all GT API functionality to fail silently with undefined values. This is a real bug that would affect normal usage of the library.",2026-02-05T04:46:26.004663+00:00
+nvidia/spark-rapids,14264,Fix GpuHashAggregateExec outputPartitioning for aliased grouping keys [databricks],https://github.com/NVIDIA/spark-rapids/pull/14264,"**Invalid child/output zip map**
+
+`GpuHashAggregateExec.buildAttributeMap()` uses `child.output.zip(output).toMap` (`GpuAggregateExec.scala:2062`) but aggregate `output` is derived from `resultExpressions`, which is not guaranteed to be 1:1 positional with `child.output`. This can create incorrect mappings (e.g., mapping a non-grouping child attribute to an aggregate output attribute), which then causes `GpuPartitioningPreservingUnaryExecNode.outputPartitioning` to remap/dismiss partitioning incorrectly.
+
+Fix: don’t build a positional `child.output`→`output` map here; for hash aggregate, only map explicitly aliased grouping attributes from `resultExpressions` (and otherwise rely on the trait’s identity behavior when outputs match).",https://github.com/NVIDIA/spark-rapids/pull/14264#discussion_r2766868937,Removed the child output zip map.,2026-02-05T03:18:47+00:00,logic,high,Comment 0 correctly identified that using `child.output.zip(output).toMap` creates incorrect attribute mappings because aggregate output is derived from `resultExpressions` which is not positionally aligned with `child.output`. This would cause incorrect partitioning behavior in production. The developer confirmed this was a valid issue by replying 'Removed the child output zip map.',2026-02-05T04:46:26.004774+00:00
