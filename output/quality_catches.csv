@@ -2667,3 +2667,108 @@ Make sure client hydration always recomputes initial state (or explicitly sets `
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",,,2026-02-05T23:34:09.102000,SSR hydration deadlock causes permanent loading state,logic,high,8,"This is a meaningful architectural bug where removing the useAuthSync effect leaves isLoading permanently true after SSR hydration, causing dependent queries and UI to never function. This would cause the app to be stuck in loading state for all users, a real production issue requiring understanding of SSR/hydration patterns to catch.",2026-02-06T16:25:25.217058+00:00
+onyx-dot-app/onyx,8217,chore(migrations): database migration runner,https://github.com/onyx-dot-app/onyx/pull/8217,"**Incorrect non-multi-tenant behavior**
+
+When `MULTI_TENANT` is false, `get_all_tenant_ids()` returns `[POSTGRES_DEFAULT_SCHEMA]` (usually `public`), but this script filters by `TENANT_ID_PREFIX` and then exits early with `""No tenant schemas found.""` instead of migrating the default schema. This makes the runner a no-op in single-tenant/self-hosted mode, which is a functional regression for a general ""run migrations"" script.
+
+Concrete path: `get_all_tenant_ids()` (returns `public`) → `tenant_schemas = [tid for tid in tenant_ids if tid.startswith(TENANT_ID_PREFIX)]` drops it → script returns 0.
+
+Consider either handling the default schema explicitly (run a normal `alembic upgrade head` with no `-x schemas=...`) or failing fast with a clear message that this runner is multi-tenant-only.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: backend/alembic/run_migrations.py
+Line: 172:175
+
+Comment:
+**Incorrect non-multi-tenant behavior**
+
+When `MULTI_TENANT` is false, `get_all_tenant_ids()` returns `[POSTGRES_DEFAULT_SCHEMA]` (usually `public`), but this script filters by `TENANT_ID_PREFIX` and then exits early with `""No tenant schemas found.""` instead of migrating the default schema. This makes the runner a no-op in single-tenant/self-hosted mode, which is a functional regression for a general ""run migrations"" script.
+
+Concrete path: `get_all_tenant_ids()` (returns `public`) → `tenant_schemas = [tid for tid in tenant_ids if tid.startswith(TENANT_ID_PREFIX)]` drops it → script returns 0.
+
+Consider either handling the default schema explicitly (run a normal `alembic upgrade head` with no `-x schemas=...`) or failing fast with a clear message that this runner is multi-tenant-only.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",,,2026-02-06T03:48:20.159000,Migration runner silently skips all schemas in single-tenant mode,logic,high,8,"This catches a functional regression where the migration script becomes a complete no-op in single-tenant/self-hosted deployments. The script filters out the default 'public' schema and exits with success, silently skipping all migrations - a meaningful logic bug that would cause real problems in production.",2026-02-06T18:27:07.039037+00:00
+twentyhq/twenty,17759,Store record page layouts in a global state,https://github.com/twentyhq/twenty/pull/17759,"**Bootstrap can deadlock**
+
+`isCurrentUserLoadedState` is now gated on `localAreRecordPageLayoutsLoaded`, but record page layouts are fetched via `useFindAllRecordPageLayoutsQuery({ skip: shouldSkip })` where `shouldSkip` includes `isCurrentUserLoaded`. If `queryLoadingRecordPageLayouts` stays `true` (e.g., network error/retry) then `isCurrentUserLoadedState` never flips, leaving `shouldSkip` false and keeping the app in a perpetual “bootstrapping” state. This introduces a new hard dependency on a non-critical query.
+
+Consider not gating `isCurrentUserLoadedState` on this query, or explicitly handling the error path (treat error as “loaded” while still reporting it elsewhere).
+",,,2026-02-06T10:47:07.641000,Bootstrap deadlock when record page layouts query fails,logic,high,8,This catch identifies a real deadlock scenario where a network error in the non-critical record page layouts query would permanently block the app from loading. The circular dependency between isCurrentUserLoadedState and the query's skip condition creates a hard failure mode that would leave users stuck in a loading state.,2026-02-06T18:27:07.039138+00:00
+ever-co/ever-gauzy,9425,Fix/desktop timer stopping timer,https://github.com/ever-co/ever-gauzy/pull/9425,"Missing `return` statement - query won't return results
+
+```suggestion
+	public async findUnfinishedSync(user: UserTO): Promise<TimerTO[]> {
+		return await this._provider
+			.connection<TimerTO>(TABLE_NAME_TIMERS)
+			.where('employeeId', user.employeeId)
+			.andWhere('stopSyncState', SyncState.SYNCING);
+	}
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/desktop-lib/src/lib/offline/dao/timer.dao.ts
+Line: 202:207
+
+Comment:
+Missing `return` statement - query won't return results
+
+```suggestion
+	public async findUnfinishedSync(user: UserTO): Promise<TimerTO[]> {
+		return await this._provider
+			.connection<TimerTO>(TABLE_NAME_TIMERS)
+			.where('employeeId', user.employeeId)
+			.andWhere('stopSyncState', SyncState.SYNCING);
+	}
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",,,2026-02-05T17:09:38.996000,Missing return statement causes query to return undefined,logic,high,8,"Comment 8 identifies a missing return statement in the `findUnfinishedSync` method that would cause the async function to return undefined instead of the query results. This is a real bug that would break the unfinished sync detection feature entirely. Looking at the actual diff, the code DOES have 'return await' - but the comment was addressed, suggesting the original code was missing it.",2026-02-06T18:27:07.039190+00:00
+posthog/posthog,46961,fix: allow filters_override instead of variables still,https://github.com/PostHog/posthog/pull/46961,"bypassing the required variable check when `filters_override` is not None creates a security vulnerability. An attacker could send an empty `filters_override: {}`, which would pass this check but wouldn't apply any filtering in `_execute_materialized_endpoint` (line 1037 checks `if data.filters_override.properties`). This would return ALL breakdown data instead of filtered data.
+
+The check should verify that `filters_override` actually contains valid filtering properties:
+
+```suggestion
+            if is_materialized and data.filters_override is None and not self._has_valid_filters_override(data.filters_override):
+```
+
+Or more simply, check if properties exist:
+
+```suggestion
+            if is_materialized and not (data.filters_override and data.filters_override.properties):
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: products/endpoints/backend/api.py
+Line: 1453:1453
+
+Comment:
+bypassing the required variable check when `filters_override` is not None creates a security vulnerability. An attacker could send an empty `filters_override: {}`, which would pass this check but wouldn't apply any filtering in `_execute_materialized_endpoint` (line 1037 checks `if data.filters_override.properties`). This would return ALL breakdown data instead of filtered data.
+
+The check should verify that `filters_override` actually contains valid filtering properties:
+
+```suggestion
+            if is_materialized and data.filters_override is None and not self._has_valid_filters_override(data.filters_override):
+```
+
+Or more simply, check if properties exist:
+
+```suggestion
+            if is_materialized and not (data.filters_override and data.filters_override.properties):
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",,,2026-02-05T12:25:47.353000,Empty filters_override bypasses required variable check exposing all data,security,high,8,"This is a meaningful security vulnerability where an attacker could send an empty `filters_override: {}` to bypass required variable validation, potentially exposing all breakdown data instead of properly filtered results. The analysis correctly identifies the gap between the None check and the actual filtering logic, showing genuine understanding of the security implications.",2026-02-06T18:27:07.039246+00:00
