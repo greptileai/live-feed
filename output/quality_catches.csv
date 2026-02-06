@@ -1873,3 +1873,36 @@ Consider either handling the default schema explicitly (run a normal `alembic up
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",None,None,2026-02-06T03:48:20.159000,Migration runner silently skips all migrations in single-tenant mode,logic,high,8,"This catches a functional regression where the migration script becomes a complete no-op in single-tenant/self-hosted deployments. The script would exit with success code 0 while performing zero migrations, which could lead to production databases being out of sync with the codebase.",
+onyx-dot-app/onyx,8217,chore(migrations): database migration runner,https://github.com/onyx-dot-app/onyx/pull/8217,"**Incorrect non-multi-tenant behavior**
+
+When `MULTI_TENANT` is false, `get_all_tenant_ids()` returns `[POSTGRES_DEFAULT_SCHEMA]` (usually `public`), but this script filters by `TENANT_ID_PREFIX` and then exits early with `""No tenant schemas found.""` instead of migrating the default schema. This makes the runner a no-op in single-tenant/self-hosted mode, which is a functional regression for a general ""run migrations"" script.
+
+Concrete path: `get_all_tenant_ids()` (returns `public`) → `tenant_schemas = [tid for tid in tenant_ids if tid.startswith(TENANT_ID_PREFIX)]` drops it → script returns 0.
+
+Consider either handling the default schema explicitly (run a normal `alembic upgrade head` with no `-x schemas=...`) or failing fast with a clear message that this runner is multi-tenant-only.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: backend/alembic/run_migrations.py
+Line: 172:175
+
+Comment:
+**Incorrect non-multi-tenant behavior**
+
+When `MULTI_TENANT` is false, `get_all_tenant_ids()` returns `[POSTGRES_DEFAULT_SCHEMA]` (usually `public`), but this script filters by `TENANT_ID_PREFIX` and then exits early with `""No tenant schemas found.""` instead of migrating the default schema. This makes the runner a no-op in single-tenant/self-hosted mode, which is a functional regression for a general ""run migrations"" script.
+
+Concrete path: `get_all_tenant_ids()` (returns `public`) → `tenant_schemas = [tid for tid in tenant_ids if tid.startswith(TENANT_ID_PREFIX)]` drops it → script returns 0.
+
+Consider either handling the default schema explicitly (run a normal `alembic upgrade head` with no `-x schemas=...`) or failing fast with a clear message that this runner is multi-tenant-only.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",,,2026-02-06T03:48:20.159000,Migration runner silently skips all schemas in single-tenant mode,logic,high,8,"This catches a functional regression where the migration script becomes a complete no-op in single-tenant/self-hosted deployments. The script filters out the default 'public' schema and exits with success, silently skipping all migrations - this would cause production deployments to fail to apply database migrations.",2026-02-06T20:17:20.643300+00:00
+twentyhq/twenty,17759,Store record page layouts in a global state,https://github.com/twentyhq/twenty/pull/17759,"**Bootstrap can deadlock**
+
+`isCurrentUserLoadedState` is now gated on `localAreRecordPageLayoutsLoaded`, but record page layouts are fetched via `useFindAllRecordPageLayoutsQuery({ skip: shouldSkip })` where `shouldSkip` includes `isCurrentUserLoaded`. If `queryLoadingRecordPageLayouts` stays `true` (e.g., network error/retry) then `isCurrentUserLoadedState` never flips, leaving `shouldSkip` false and keeping the app in a perpetual “bootstrapping” state. This introduces a new hard dependency on a non-critical query.
+
+Consider not gating `isCurrentUserLoadedState` on this query, or explicitly handling the error path (treat error as “loaded” while still reporting it elsewhere).
+",,,2026-02-06T10:47:07.641000,Bootstrap deadlock when record page layouts query fails,logic,high,8,This catches a real deadlock scenario where the app bootstrap can get stuck indefinitely. The circular dependency between isCurrentUserLoadedState and the record page layouts query means a network error or retry would leave users in a perpetual loading state with no way to recover. This is a meaningful production bug affecting user experience.,2026-02-06T20:17:20.643362+00:00
