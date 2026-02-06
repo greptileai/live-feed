@@ -1846,3 +1846,36 @@ Comment:
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/assistant-ui/assistant-ui/pull/3222#discussion_r2769640185,,2026-02-05T15:03:19+00:00,Next.js middleware file naming convention violated,runtime,high,8,"This is a meaningful catch of a runtime bug where the middleware would simply never execute due to incorrect file naming/export conventions in Next.js. The proxy logic would be completely non-functional, causing 405 errors to persist. This isn't immediately obvious from build/compile errors and requires understanding Next.js middleware conventions.",2026-02-05T22:30:01.289165+00:00
+onyx-dot-app/onyx,8217,chore(migrations): database migration runner,https://github.com/onyx-dot-app/onyx/pull/8217,"**Incorrect non-multi-tenant behavior**
+
+When `MULTI_TENANT` is false, `get_all_tenant_ids()` returns `[POSTGRES_DEFAULT_SCHEMA]` (usually `public`), but this script filters by `TENANT_ID_PREFIX` and then exits early with `""No tenant schemas found.""` instead of migrating the default schema. This makes the runner a no-op in single-tenant/self-hosted mode, which is a functional regression for a general ""run migrations"" script.
+
+Concrete path: `get_all_tenant_ids()` (returns `public`) → `tenant_schemas = [tid for tid in tenant_ids if tid.startswith(TENANT_ID_PREFIX)]` drops it → script returns 0.
+
+Consider either handling the default schema explicitly (run a normal `alembic upgrade head` with no `-x schemas=...`) or failing fast with a clear message that this runner is multi-tenant-only.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: backend/alembic/run_migrations.py
+Line: 172:175
+
+Comment:
+**Incorrect non-multi-tenant behavior**
+
+When `MULTI_TENANT` is false, `get_all_tenant_ids()` returns `[POSTGRES_DEFAULT_SCHEMA]` (usually `public`), but this script filters by `TENANT_ID_PREFIX` and then exits early with `""No tenant schemas found.""` instead of migrating the default schema. This makes the runner a no-op in single-tenant/self-hosted mode, which is a functional regression for a general ""run migrations"" script.
+
+Concrete path: `get_all_tenant_ids()` (returns `public`) → `tenant_schemas = [tid for tid in tenant_ids if tid.startswith(TENANT_ID_PREFIX)]` drops it → script returns 0.
+
+Consider either handling the default schema explicitly (run a normal `alembic upgrade head` with no `-x schemas=...`) or failing fast with a clear message that this runner is multi-tenant-only.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/8217#discussion_r2772151843,,2026-02-06T03:48:20.159000,Migration runner silently skips all migrations in single-tenant mode,logic,high,8,"This catches a significant functional regression where the migration script becomes a complete no-op in single-tenant/self-hosted deployments. The script filters out the default 'public' schema and exits with success, meaning migrations never run for self-hosted users - a serious bug that would affect production deployments.",2026-02-06T21:17:32.789016+00:00
+twentyhq/twenty,17759,Store record page layouts in a global state,https://github.com/twentyhq/twenty/pull/17759,"**Bootstrap can deadlock**
+
+`isCurrentUserLoadedState` is now gated on `localAreRecordPageLayoutsLoaded`, but record page layouts are fetched via `useFindAllRecordPageLayoutsQuery({ skip: shouldSkip })` where `shouldSkip` includes `isCurrentUserLoaded`. If `queryLoadingRecordPageLayouts` stays `true` (e.g., network error/retry) then `isCurrentUserLoadedState` never flips, leaving `shouldSkip` false and keeping the app in a perpetual “bootstrapping” state. This introduces a new hard dependency on a non-critical query.
+
+Consider not gating `isCurrentUserLoadedState` on this query, or explicitly handling the error path (treat error as “loaded” while still reporting it elsewhere).
+",https://github.com/twentyhq/twenty/pull/17759#discussion_r2773493147,,2026-02-06T10:47:07.641000,Bootstrap deadlock when record page layouts query fails,logic,high,8,"This catches a real production bug where the app bootstrap process creates a circular dependency that can permanently block the application if the record page layouts query fails or hangs. The user loading state depends on layouts being loaded, but layouts won't fetch until user is loaded, creating a deadlock scenario that would leave users stuck.",2026-02-06T21:17:32.789081+00:00
