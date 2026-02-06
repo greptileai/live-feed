@@ -2292,3 +2292,129 @@ This breaks any GT API functionality that depends on these values. The function 
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",,,2026-02-05T03:31:13.861000,standardizeConfig drops required config fields breaking GT API functionality,logic,high,8,"Comment 8 identifies a critical bug where standardizeConfig() only returns a subset of fields but getGTClass() later accesses projectId, runtimeUrl, apiKey, and devApiKey which will all be undefined. This breaks all GT API functionality in production. The comment is well-written with specific line references and clear explanation.",2026-02-06T08:24:00.908335+00:00
+posthog/posthog,46961,fix: allow filters_override instead of variables still,https://github.com/PostHog/posthog/pull/46961,"bypassing the required variable check when `filters_override` is not None creates a security vulnerability. An attacker could send an empty `filters_override: {}`, which would pass this check but wouldn't apply any filtering in `_execute_materialized_endpoint` (line 1037 checks `if data.filters_override.properties`). This would return ALL breakdown data instead of filtered data.
+
+The check should verify that `filters_override` actually contains valid filtering properties:
+
+```suggestion
+            if is_materialized and data.filters_override is None and not self._has_valid_filters_override(data.filters_override):
+```
+
+Or more simply, check if properties exist:
+
+```suggestion
+            if is_materialized and not (data.filters_override and data.filters_override.properties):
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: products/endpoints/backend/api.py
+Line: 1453:1453
+
+Comment:
+bypassing the required variable check when `filters_override` is not None creates a security vulnerability. An attacker could send an empty `filters_override: {}`, which would pass this check but wouldn't apply any filtering in `_execute_materialized_endpoint` (line 1037 checks `if data.filters_override.properties`). This would return ALL breakdown data instead of filtered data.
+
+The check should verify that `filters_override` actually contains valid filtering properties:
+
+```suggestion
+            if is_materialized and data.filters_override is None and not self._has_valid_filters_override(data.filters_override):
+```
+
+Or more simply, check if properties exist:
+
+```suggestion
+            if is_materialized and not (data.filters_override and data.filters_override.properties):
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",,,2026-02-05T12:25:47.353000,Empty filters_override bypasses required variable check exposing all data,security,high,8,"This is a meaningful security vulnerability where an attacker could send an empty `filters_override: {}` to bypass the required variable check and potentially access ALL breakdown data instead of filtered data. The catch demonstrates understanding of the control flow between the validation check and the actual filtering logic at line 1037, identifying a real authorization bypass pattern.",2026-02-06T10:24:22.438988+00:00
+raycast/extensions,24644,Add Wispr Flow Dictionary extension,https://github.com/raycast/extensions/pull/24644,"**logic:** SQL injection vulnerability: using string interpolation with user input creates a critical security risk. While single quotes are escaped, this is insufficient protection against SQL injection attacks. Consider using parameterized queries with the sqlite3 command line tool's bind parameters, or switch to a proper SQLite library like `better-sqlite3` that supports prepared statements.
+
+```typescript
+// Example with better-sqlite3:
+const stmt = db.prepare('INSERT INTO Dictionary VALUES (?, ?, ?, ...)');
+stmt.run(id, phrase, replacement, ...);
+```",,,2026-01-19T02:04:31.317000,SQL injection vulnerability via string interpolation in database queries,security,high,8,"Comment 3 provides the most comprehensive explanation of the SQL injection vulnerability, noting that simple quote escaping is insufficient protection and recommending proper parameterized queries or a secure SQLite library. This is a genuine security vulnerability where user input is interpolated into SQL queries executed via shell commands.",2026-02-06T10:24:22.439044+00:00
+alpaca-network/gatewayz-frontend,955,Speed up conversations with sync auth init and memory caching,https://github.com/Alpaca-Network/gatewayz-frontend/pull/955,"**SSR hydration deadlock**
+On SSR you initialize `isLoading: true`, but there’s no longer a `useAuthSync`/effect that flips loading to `false` after mount. If this store instance is reused on the client during hydration, `useChatSessions` is `enabled: !isLoading` and will never run, and parts of the UI that rely on `authLoading` may stay stuck.
+
+Make sure client hydration always recomputes initial state (or explicitly sets `isLoading` to `false` on mount) so SSR doesn’t leave the app in a permanent loading state.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: src/lib/store/auth-store.ts
+Line: 24:33
+
+Comment:
+**SSR hydration deadlock**
+On SSR you initialize `isLoading: true`, but there’s no longer a `useAuthSync`/effect that flips loading to `false` after mount. If this store instance is reused on the client during hydration, `useChatSessions` is `enabled: !isLoading` and will never run, and parts of the UI that rely on `authLoading` may stay stuck.
+
+Make sure client hydration always recomputes initial state (or explicitly sets `isLoading` to `false` on mount) so SSR doesn’t leave the app in a permanent loading state.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",,,2026-02-05T23:34:09.102000,SSR hydration deadlock leaves app in permanent loading state,logic,high,8,"This catches a real SSR hydration bug where removing the useAuthSync effect means isLoading stays true forever on client hydration, causing useChatSessions to never run and UI to remain stuck. This is a meaningful logic bug that would cause production problems - the app would appear broken to users. It requires understanding the SSR/hydration lifecycle and how state persists across boundaries.",2026-02-06T10:24:22.439069+00:00
+silimate/yosys,104,mux_push implementation,https://github.com/Silimate/yosys/pull/104,"**Modifying cell while iterating**
+This loop iterates `cell->connections()` while also mutating `branch_a` (which is `cell`) via `setPort()`. That pattern can invalidate the underlying connection iterator / order depending on the container implementation, and can lead to missed/duplicated ports or crashes.
+
+Safer approach: copy `cell->connections()` to a temporary vector/dict first, then iterate over the copy while applying `setPort()` changes.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: passes/silimate/mux_push.cc
+Line: 239:242
+
+Comment:
+**Modifying cell while iterating**
+This loop iterates `cell->connections()` while also mutating `branch_a` (which is `cell`) via `setPort()`. That pattern can invalidate the underlying connection iterator / order depending on the container implementation, and can lead to missed/duplicated ports or crashes.
+
+Safer approach: copy `cell->connections()` to a temporary vector/dict first, then iterate over the copy while applying `setPort()` changes.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",,,2026-02-06T00:35:43.368000,Iterator invalidation from modifying cell connections during iteration,runtime,high,8,"This catches a real bug where modifying a cell's connections via setPort() while iterating over cell->connections() can invalidate the iterator, causing missed/duplicated ports or crashes. This is a non-trivial concurrency/iteration bug that could cause undefined behavior in production.",2026-02-06T10:24:22.439108+00:00
+nvidia/nvflare,4127,[2.7] Fix xgboost adaptor,https://github.com/NVIDIA/NVFlare/pull/4127,"**Adaptor cache breaks run isolation**
+
+`get_adaptor()` now returns a cached adaptor (`FedXGBHistogramExecutor.get_adaptor`:57-60), but the adaptor is constructed with a runner initialized with the *current run's* `fl_ctx` (`runner.initialize(fl_ctx)` on line 71) and a `ClientSecurityHandler` registered into the *current engine* (`engine.add_component(...)` on line 64). Reusing the cached adaptor across subsequent calls can therefore bind the executor to stale runner/engine state if `get_adaptor()` is invoked in a new run before `END_RUN` (or if multiple START_RUN-like cycles occur within a run), and it also skips runner initialization for those later calls. This can lead to incorrect behavior (e.g., runner using previous run's workspace / components).
+
+If the intent is only to avoid overwriting within the same run, consider keying the cache by run/session identity (e.g., run_number) or clearing it on `EventType.START_RUN` before first use, rather than returning a long-lived adaptor regardless of `fl_ctx`.",,,2026-02-05T20:21:47.715000,Cached adaptor breaks run isolation with stale state,logic,high,8,"Comment 2 identifies a significant architectural bug where the adaptor cache persists across different runs, causing the executor to use stale runner/engine state from previous runs. This could lead to incorrect behavior in production federated learning scenarios. It's more impactful than the race condition comments as it describes a fundamental design flaw affecting correctness.",2026-02-06T10:24:22.439140+00:00
+generaltranslation/gt,989,feat: translation manager,https://github.com/generaltranslation/gt/pull/989,"**Critical Bug: Missing config fields causes `getGTClass()` to fail**
+
+The `standardizeConfig` function returns only `enableI18n`, `defaultLocale`, `locales`, and `customMapping`, but the `I18nManagerConfig` type (and `getGTClass()` usage) requires `projectId`, `runtimeUrl`, and credential fields.
+
+These fields are never copied from the input `config` parameter:
+- `this.config.projectId` will be `undefined` (used at line 129)
+- `this.config.runtimeUrl` will be `undefined` (used at line 130)
+- Credential fields will be `undefined` (used at lines 131-132)
+
+This breaks any GT API functionality that depends on these values. The function should spread additional fields from the input config to ensure they are preserved in the returned config object.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/i18n/src/i18n-manager/I18nManager.ts
+Line: 157:168
+
+Comment:
+**Critical Bug: Missing config fields causes `getGTClass()` to fail**
+
+The `standardizeConfig` function returns only `enableI18n`, `defaultLocale`, `locales`, and `customMapping`, but the `I18nManagerConfig` type (and `getGTClass()` usage) requires `projectId`, `runtimeUrl`, and credential fields.
+
+These fields are never copied from the input `config` parameter:
+- `this.config.projectId` will be `undefined` (used at line 129)
+- `this.config.runtimeUrl` will be `undefined` (used at line 130)
+- Credential fields will be `undefined` (used at lines 131-132)
+
+This breaks any GT API functionality that depends on these values. The function should spread additional fields from the input config to ensure they are preserved in the returned config object.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",,,2026-02-05T03:31:13.861000,Missing config fields causes GT API functionality to fail,logic,high,8,"Comment 8 identifies a critical bug where standardizeConfig() drops required fields (projectId, runtimeUrl, apiKey, devApiKey) that are later accessed by getGTClass(), causing all GT API functionality to fail with undefined values. This is a real production bug that would break remote translation services.",2026-02-06T10:24:22.439189+00:00
