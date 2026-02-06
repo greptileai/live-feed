@@ -2418,3 +2418,118 @@ This breaks any GT API functionality that depends on these values. The function 
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",,,2026-02-05T03:31:13.861000,Missing config fields causes GT API functionality to fail,logic,high,8,"Comment 8 identifies a critical bug where standardizeConfig() drops required fields (projectId, runtimeUrl, apiKey, devApiKey) that are later accessed by getGTClass(), causing all GT API functionality to fail with undefined values. This is a real production bug that would break remote translation services.",2026-02-06T10:24:22.439189+00:00
+posthog/posthog,46961,fix: allow filters_override instead of variables still,https://github.com/PostHog/posthog/pull/46961,"bypassing the required variable check when `filters_override` is not None creates a security vulnerability. An attacker could send an empty `filters_override: {}`, which would pass this check but wouldn't apply any filtering in `_execute_materialized_endpoint` (line 1037 checks `if data.filters_override.properties`). This would return ALL breakdown data instead of filtered data.
+
+The check should verify that `filters_override` actually contains valid filtering properties:
+
+```suggestion
+            if is_materialized and data.filters_override is None and not self._has_valid_filters_override(data.filters_override):
+```
+
+Or more simply, check if properties exist:
+
+```suggestion
+            if is_materialized and not (data.filters_override and data.filters_override.properties):
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: products/endpoints/backend/api.py
+Line: 1453:1453
+
+Comment:
+bypassing the required variable check when `filters_override` is not None creates a security vulnerability. An attacker could send an empty `filters_override: {}`, which would pass this check but wouldn't apply any filtering in `_execute_materialized_endpoint` (line 1037 checks `if data.filters_override.properties`). This would return ALL breakdown data instead of filtered data.
+
+The check should verify that `filters_override` actually contains valid filtering properties:
+
+```suggestion
+            if is_materialized and data.filters_override is None and not self._has_valid_filters_override(data.filters_override):
+```
+
+Or more simply, check if properties exist:
+
+```suggestion
+            if is_materialized and not (data.filters_override and data.filters_override.properties):
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",,,2026-02-05T12:25:47.353000,Empty filters_override bypasses security check exposing all data,security,high,8,"This is a meaningful security vulnerability where an attacker could send an empty filters_override object to bypass required variable checks, potentially exposing all breakdown data instead of properly filtered results. The analysis correctly identifies the gap between the None check and the actual property validation at line 1037, showing concrete code evidence of the vulnerability path.",2026-02-06T12:24:43.397758+00:00
+raycast/extensions,24644,Add Wispr Flow Dictionary extension,https://github.com/raycast/extensions/pull/24644,"**logic:** SQL injection vulnerability: using string interpolation with user input creates a critical security risk. While single quotes are escaped, this is insufficient protection against SQL injection attacks. Consider using parameterized queries with the sqlite3 command line tool's bind parameters, or switch to a proper SQLite library like `better-sqlite3` that supports prepared statements.
+
+```typescript
+// Example with better-sqlite3:
+const stmt = db.prepare('INSERT INTO Dictionary VALUES (?, ?, ?, ...)');
+stmt.run(id, phrase, replacement, ...);
+```",,,2026-01-19T02:04:31.317000,SQL injection vulnerability in SQLite query construction,security,high,8,"Comment 3 best articulates the SQL injection vulnerability where user input is interpolated into SQL queries. While the code has some escaping, the comment correctly identifies that string escaping alone is insufficient protection and recommends proper parameterized queries or a library with prepared statement support.",2026-02-06T12:24:43.397849+00:00
+alpaca-network/gatewayz-frontend,955,Speed up conversations with sync auth init and memory caching,https://github.com/Alpaca-Network/gatewayz-frontend/pull/955,"**SSR hydration deadlock**
+On SSR you initialize `isLoading: true`, but there’s no longer a `useAuthSync`/effect that flips loading to `false` after mount. If this store instance is reused on the client during hydration, `useChatSessions` is `enabled: !isLoading` and will never run, and parts of the UI that rely on `authLoading` may stay stuck.
+
+Make sure client hydration always recomputes initial state (or explicitly sets `isLoading` to `false` on mount) so SSR doesn’t leave the app in a permanent loading state.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: src/lib/store/auth-store.ts
+Line: 24:33
+
+Comment:
+**SSR hydration deadlock**
+On SSR you initialize `isLoading: true`, but there’s no longer a `useAuthSync`/effect that flips loading to `false` after mount. If this store instance is reused on the client during hydration, `useChatSessions` is `enabled: !isLoading` and will never run, and parts of the UI that rely on `authLoading` may stay stuck.
+
+Make sure client hydration always recomputes initial state (or explicitly sets `isLoading` to `false` on mount) so SSR doesn’t leave the app in a permanent loading state.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",,,2026-02-05T23:34:09.102000,SSR hydration deadlock causes permanent loading state,logic,high,8,"This catches a subtle but impactful SSR hydration bug where removing the useAuthSync effect leaves isLoading permanently true on the client, causing queries to never execute and the UI to be stuck. This is a non-obvious architectural issue that wouldn't be caught by linters and would cause real user-facing problems in production.",2026-02-06T12:24:43.397892+00:00
+silimate/yosys,104,mux_push implementation,https://github.com/Silimate/yosys/pull/104,"**Modifying cell while iterating**
+This loop iterates `cell->connections()` while also mutating `branch_a` (which is `cell`) via `setPort()`. That pattern can invalidate the underlying connection iterator / order depending on the container implementation, and can lead to missed/duplicated ports or crashes.
+
+Safer approach: copy `cell->connections()` to a temporary vector/dict first, then iterate over the copy while applying `setPort()` changes.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: passes/silimate/mux_push.cc
+Line: 239:242
+
+Comment:
+**Modifying cell while iterating**
+This loop iterates `cell->connections()` while also mutating `branch_a` (which is `cell`) via `setPort()`. That pattern can invalidate the underlying connection iterator / order depending on the container implementation, and can lead to missed/duplicated ports or crashes.
+
+Safer approach: copy `cell->connections()` to a temporary vector/dict first, then iterate over the copy while applying `setPort()` changes.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",,,2026-02-06T00:35:43.368000,Modifying cell connections while iterating causes undefined behavior,runtime,high,8,"This catches a real bug where iterating over cell->connections() while calling setPort() can invalidate the iterator, leading to crashes, missed ports, or duplicated processing. This is a subtle but genuine runtime bug that could cause unpredictable behavior in production.",2026-02-06T12:24:43.397962+00:00
+posthog/posthog,47063,fix(modeling): fix false positive empty dag errors,https://github.com/PostHog/posthog/pull/47063,"**Wrong default type**
+
+`edge_lookup` is a `defaultdict(set)` (see `_get_edge_lookup`), but here you use `edge_lookup.get(node_id, {}) & node_set` (`execute_dag.py:132`). When `node_id` has no entry, the default `{}` is a `dict`, so this will raise `TypeError: unsupported operand type(s) for &: 'dict' and 'set'` for any node with no dependencies. The old code avoided this by defaulting to `set()`.
+
+```suggestion
+        in_degree[node_id] = len(edge_lookup.get(node_id, set()) & node_set)
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: posthog/temporal/data_modeling/workflows/execute_dag.py
+Line: 128:131
+
+Comment:
+**Wrong default type**
+
+`edge_lookup` is a `defaultdict(set)` (see `_get_edge_lookup`), but here you use `edge_lookup.get(node_id, {}) & node_set` (`execute_dag.py:132`). When `node_id` has no entry, the default `{}` is a `dict`, so this will raise `TypeError: unsupported operand type(s) for &: 'dict' and 'set'` for any node with no dependencies. The old code avoided this by defaulting to `set()`.
+
+```suggestion
+        in_degree[node_id] = len(edge_lookup.get(node_id, set()) & node_set)
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",,,2026-02-06T00:07:31.311000,Wrong default type causes TypeError on set intersection,type_error,high,8,"This is a genuine runtime bug that would cause a TypeError when processing any node with no dependencies in the DAG. The catch is non-trivial because it requires understanding that edge_lookup is a defaultdict(set) but the fallback value {} is a dict, which cannot use the & operator with a set. This would crash in production for valid use cases.",2026-02-06T12:24:43.398018+00:00
