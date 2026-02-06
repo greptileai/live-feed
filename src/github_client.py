@@ -229,89 +229,6 @@ class GitHubClient:
             return response.json()
         return None
 
-    def enrich_comment_with_context(
-        self,
-        comment: Dict[str, Any]
-    ) -> Dict[str, Any]:
-        """Enrich an addressed comment with GitHub context.
-
-        Phase 2 of the two-phase approach:
-        - Fetch full PR diff for the relevant file
-        - Find any replies to the Greptile comment
-        - Add PR metadata
-
-        Args:
-            comment: Comment dict from fetch_new_addressed_comments()
-
-        Returns:
-            Enriched comment dict with diff context and replies
-        """
-        repo = comment.get("repo", "")
-        pr_number = comment.get("pr_number")
-        file_path = comment.get("file_path")
-
-        if "/" not in repo:
-            self.logger.warning(f"Invalid repo format: {repo}")
-            return comment
-
-        owner, repo_name = repo.split("/", 1)
-
-        # Get PR details
-        pr_details = self.get_pr_details(owner, repo_name, pr_number)
-        if pr_details:
-            comment["pr_title"] = pr_details.get("title", comment.get("pr_title"))
-            comment["pr_state"] = pr_details.get("state", comment.get("pr_state"))
-            comment["pr_url"] = pr_details.get("html_url", comment.get("pr_url"))
-
-        # Get file diff if we have a file path
-        if file_path:
-            file_patches = self.get_pr_files(owner, repo_name, pr_number)
-            comment["file_patch"] = file_patches.get(file_path, "")
-
-        # Get replies to this comment
-        comment["reply_body"] = self._find_replies_to_comment(
-            owner, repo_name, pr_number, comment.get("comment_body", "")
-        )
-
-        return comment
-
-    def _find_replies_to_comment(
-        self,
-        owner: str,
-        repo: str,
-        pr_number: int,
-        greptile_comment_body: str
-    ) -> Optional[str]:
-        """Find developer replies to a Greptile comment.
-
-        Since we match by body content, we look for comments that:
-        1. Are not from Greptile
-        2. Are in reply to a comment with matching body
-        """
-        if not greptile_comment_body:
-            return None
-
-        # Get all review comments
-        greptile_comment_id = None
-        replies = []
-
-        for comment in self.get_pr_review_comments(owner, repo, pr_number):
-            user = comment.get("user", {})
-            body = comment.get("body", "")
-
-            # Find the Greptile comment by matching body prefix
-            if self.is_greptile_user(user):
-                if greptile_comment_body[:100] in body or body[:100] in greptile_comment_body:
-                    greptile_comment_id = comment.get("id")
-            # Check if this is a reply to the Greptile comment
-            elif greptile_comment_id and comment.get("in_reply_to_id") == greptile_comment_id:
-                replies.append(body)
-
-        if replies:
-            return "\n---\n".join(replies)
-
-        return None
-
     def enrich_comments_batch(
         self,
         comments: list
@@ -319,6 +236,9 @@ class GitHubClient:
         """Enrich multiple comments with GitHub context.
 
         Groups comments by PR to minimize API calls.
+        Uses the same pattern as comment_fetcher.py: iterate through all
+        GitHub review comments once, build a complete index of Greptile
+        comments with their html_url and replies, then match DB comments.
         """
         # Group by repo/pr_number
         from collections import defaultdict
@@ -349,8 +269,10 @@ class GitHubClient:
             pr_details = self.get_pr_details(owner, repo_name, pr_number)
             file_patches = self.get_pr_files(owner, repo_name, pr_number)
 
-            # Get all review comments for reply detection
+            # Build index of all Greptile comments from GitHub API
+            # Same pattern as comment_fetcher.py: single pass, extract URLs and replies
             all_review_comments = list(self.get_pr_review_comments(owner, repo_name, pr_number))
+            greptile_index = self._build_greptile_comment_index(all_review_comments)
 
             for comment in pr_comment_list:
                 # Add PR details
@@ -364,46 +286,105 @@ class GitHubClient:
                 if file_path:
                     comment["file_patch"] = file_patches.get(file_path, "")
 
-                # Find replies and actual comment URL
-                reply_body, actual_url = self._find_reply_and_url(
-                    all_review_comments,
-                    comment.get("comment_body", "")
-                )
-                comment["reply_body"] = reply_body
-                if actual_url:
-                    comment["comment_url"] = actual_url
+                # Match this DB comment to a GitHub comment by body
+                db_body = comment.get("comment_body", "")
+                matched = self._match_db_comment_to_github(db_body, greptile_index)
+                if matched:
+                    comment["comment_url"] = matched["html_url"]
+                    comment["reply_body"] = matched.get("reply_body")
+                else:
+                    comment["reply_body"] = None
 
                 enriched.append(comment)
 
         return enriched
 
-    def _find_reply_and_url(
+    def _build_greptile_comment_index(
         self,
-        all_comments: list,
-        greptile_body: str
-    ) -> tuple:
-        """Find replies and URL for a Greptile comment from pre-fetched comments.
+        all_review_comments: list
+    ) -> list:
+        """Build an index of all Greptile comments with their URLs and replies.
+
+        Single pass through review comments (same pattern as comment_fetcher.py):
+        1. Identify all Greptile comments, store their id, body, html_url
+        2. Find replies to each Greptile comment via in_reply_to_id
 
         Returns:
-            (reply_body, comment_url) tuple
+            List of dicts with: body, html_url, reply_body, github_id
         """
-        if not greptile_body:
-            return None, None
+        # First pass: identify Greptile comments
+        greptile_comments = {}  # {github_id: {body, html_url, reply_body}}
+        greptile_ids = set()
 
-        greptile_comment_id = None
-        greptile_comment_url = None
-        replies = []
+        for comment in all_review_comments:
+            if self.is_greptile_user(comment.get("user")):
+                cid = comment.get("id")
+                greptile_ids.add(cid)
+                greptile_comments[cid] = {
+                    "github_id": cid,
+                    "body": comment.get("body", ""),
+                    "html_url": comment.get("html_url"),
+                    "replies": []
+                }
 
-        for comment in all_comments:
-            user = comment.get("user", {})
-            body = comment.get("body", "")
+        # Second pass: find replies to Greptile comments
+        for comment in all_review_comments:
+            if not self.is_greptile_user(comment.get("user")):
+                reply_to = comment.get("in_reply_to_id")
+                if reply_to and reply_to in greptile_ids:
+                    greptile_comments[reply_to]["replies"].append(
+                        comment.get("body", "")
+                    )
 
-            if self.is_greptile_user(user):
-                if greptile_body[:100] in body or body[:100] in greptile_body:
-                    greptile_comment_id = comment.get("id")
-                    greptile_comment_url = comment.get("html_url")
-            elif greptile_comment_id and comment.get("in_reply_to_id") == greptile_comment_id:
-                replies.append(body)
+        # Build final index with joined reply_body
+        index = []
+        for cid, data in greptile_comments.items():
+            reply_body = "\n---\n".join(data["replies"]) if data["replies"] else None
+            index.append({
+                "github_id": data["github_id"],
+                "body": data["body"],
+                "html_url": data["html_url"],
+                "reply_body": reply_body
+            })
 
-        reply_body = "\n---\n".join(replies) if replies else None
-        return reply_body, greptile_comment_url
+        return index
+
+    def _match_db_comment_to_github(
+        self,
+        db_body: str,
+        greptile_index: list
+    ) -> Optional[Dict[str, Any]]:
+        """Match a DB comment to a GitHub comment by body content.
+
+        Uses progressively looser matching:
+        1. Exact body match
+        2. DB body contained in GitHub body (DB may truncate)
+        3. GitHub body contained in DB body
+        4. First 100 char prefix match
+
+        Returns the matched GitHub comment dict or None.
+        """
+        if not db_body:
+            return None
+
+        # Try exact match first
+        for gc in greptile_index:
+            if gc["body"] == db_body:
+                return gc
+
+        # Try containment (DB body in GitHub, or vice versa)
+        for gc in greptile_index:
+            gh_body = gc["body"]
+            if not gh_body:
+                continue
+            if db_body in gh_body or gh_body in db_body:
+                return gc
+
+        # Fallback: prefix match (first 100 chars)
+        db_prefix = db_body[:100]
+        for gc in greptile_index:
+            gh_body = gc["body"]
+            if gh_body and db_prefix in gh_body:
+                return gc
+
+        return None

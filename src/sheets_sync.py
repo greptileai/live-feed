@@ -109,7 +109,7 @@ class SheetsSync:
 
         new_catches = [
             c for c in catches
-            if str(c.get("comment_url", "")) not in existing_urls
+            if c.get("comment_url") and str(c["comment_url"]) not in existing_urls
         ]
 
         if not new_catches:

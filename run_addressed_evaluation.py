@@ -93,10 +93,13 @@ def write_results_csv(
                     existing_urls.add(url)
                     existing_rows.append(row)
 
-    # Filter to new catches only (skip entries with missing comment_url)
+    # Filter to new catches only (skip entries with missing/invalid comment_url)
+    # A valid comment_url must contain a fragment pointing to a specific comment
+    # (e.g. #discussion_r123 or #issuecomment-123), not just a PR-level URL
     new_catches = [
         c for c in catches
         if c.get("comment_url") and c["comment_url"] != "None"
+        and "#" in c["comment_url"]
         and c["comment_url"] not in existing_urls
     ]
 
