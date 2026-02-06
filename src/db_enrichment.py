@@ -406,7 +406,7 @@ def fetch_addressed_comments(
                     "pr_url": base_url,
                     "comment_id": row["comment_id"],
                     "comment_body": row["comment_body"],
-                    "comment_url": base_url,  # Will be enriched later if needed
+                    "comment_url": base_url,  # Enriched with actual URL by GitHub client
                     "file_path": row["file_path"],
                     "line_number": row["line_number"],
                     "addressed": row["addressed"],

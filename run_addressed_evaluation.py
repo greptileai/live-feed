@@ -93,10 +93,11 @@ def write_results_csv(
                     existing_urls.add(url)
                     existing_rows.append(row)
 
-    # Filter to new catches only
+    # Filter to new catches only (skip entries with missing comment_url)
     new_catches = [
         c for c in catches
-        if c.get("comment_url", "") not in existing_urls
+        if c.get("comment_url") and c["comment_url"] != "None"
+        and c["comment_url"] not in existing_urls
     ]
 
     if not new_catches:
@@ -112,7 +113,7 @@ def write_results_csv(
             writer.writerow({k: row.get(k, "") for k in fieldnames})
 
         for catch in new_catches:
-            row = {k: catch.get(k, "") for k in fieldnames}
+            row = {k: (catch.get(k) or "") for k in fieldnames}
             row["evaluated_at"] = datetime.now(timezone.utc).isoformat()
             writer.writerow(row)
 

@@ -364,26 +364,34 @@ class GitHubClient:
                 if file_path:
                     comment["file_patch"] = file_patches.get(file_path, "")
 
-                # Find replies
-                comment["reply_body"] = self._find_reply_in_comments(
+                # Find replies and actual comment URL
+                reply_body, actual_url = self._find_reply_and_url(
                     all_review_comments,
                     comment.get("comment_body", "")
                 )
+                comment["reply_body"] = reply_body
+                if actual_url:
+                    comment["comment_url"] = actual_url
 
                 enriched.append(comment)
 
         return enriched
 
-    def _find_reply_in_comments(
+    def _find_reply_and_url(
         self,
         all_comments: list,
         greptile_body: str
-    ) -> Optional[str]:
-        """Find replies to a Greptile comment from pre-fetched comments."""
+    ) -> tuple:
+        """Find replies and URL for a Greptile comment from pre-fetched comments.
+
+        Returns:
+            (reply_body, comment_url) tuple
+        """
         if not greptile_body:
-            return None
+            return None, None
 
         greptile_comment_id = None
+        greptile_comment_url = None
         replies = []
 
         for comment in all_comments:
@@ -393,7 +401,9 @@ class GitHubClient:
             if self.is_greptile_user(user):
                 if greptile_body[:100] in body or body[:100] in greptile_body:
                     greptile_comment_id = comment.get("id")
+                    greptile_comment_url = comment.get("html_url")
             elif greptile_comment_id and comment.get("in_reply_to_id") == greptile_comment_id:
                 replies.append(body)
 
-        return "\n---\n".join(replies) if replies else None
+        reply_body = "\n---\n".join(replies) if replies else None
+        return reply_body, greptile_comment_url

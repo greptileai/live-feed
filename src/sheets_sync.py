@@ -122,7 +122,7 @@ class SheetsSync:
             "title", "bug_category", "severity", "quality_score", "llm_reasoning",
             "evaluated_at"
         ]
-        values = [[str(c.get(h, "")) for h in headers] for c in new_catches]
+        values = [[str(c.get(h) or "") for h in headers] for c in new_catches]
         worksheet.append_rows(values)
 
         self.logger.info(f"Synced {len(new_catches)} new catches to '{worksheet_name}'")
@@ -218,7 +218,7 @@ class SheetsSync:
         # Prepare data rows
         values = []
         for catch in catches:
-            row = [str(catch.get(h, "")) for h in headers]
+            row = [str(catch.get(h) or "") for h in headers]
             values.append(row)
 
         # Batch append all rows
