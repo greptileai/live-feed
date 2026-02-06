@@ -238,24 +238,19 @@ def main():
     state.update_last_check()
     state.save()
 
-    # Sync to sheets and export CSV (sheet is source of truth)
-    if args.sync_sheets:
+    # Write results to CSV (source of truth)
+    if quality_catches:
+        write_results_csv(quality_catches, args.output)
+
+    # Sync CSV to sheets if requested
+    if args.sync_sheets and quality_catches:
         try:
             from src.sheets_sync import SheetsSync
             sync = SheetsSync()
-
-            if quality_catches:
-                sync.sync_catches_to_sheet(quality_catches)
-                logger.info("Synced new catches to Google Sheets")
-
-            # Always export sheet to CSV (sheet is source of truth)
-            sync.export_sheet_to_csv(args.output)
-            logger.info(f"Exported sheet to {args.output}")
+            sync.sync_catches_to_sheet(quality_catches)
+            logger.info("Synced to Google Sheets")
         except Exception as e:
-            logger.warning(f"Failed to sync sheets: {e}")
-    elif quality_catches:
-        # Fallback: write directly to CSV if not syncing sheets
-        write_results_csv(quality_catches, args.output)
+            logger.warning(f"Failed to sync to sheets: {e}")
 
     # Print summary
     print(f"\n{'='*60}")
