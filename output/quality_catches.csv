@@ -1873,9 +1873,3 @@ Consider either handling the default schema explicitly (run a normal `alembic up
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",None,None,2026-02-06T03:48:20.159000,Migration runner silently skips all migrations in single-tenant mode,logic,high,8,"This catches a functional regression where the migration script becomes a complete no-op in single-tenant/self-hosted deployments. The script would exit with success code 0 while performing zero migrations, which could lead to production databases being out of sync with the codebase.",
-twentyhq/twenty,17759,Store record page layouts in a global state,https://github.com/twentyhq/twenty/pull/17759,"**Bootstrap can deadlock**
-
-`isCurrentUserLoadedState` is now gated on `localAreRecordPageLayoutsLoaded`, but record page layouts are fetched via `useFindAllRecordPageLayoutsQuery({ skip: shouldSkip })` where `shouldSkip` includes `isCurrentUserLoaded`. If `queryLoadingRecordPageLayouts` stays `true` (e.g., network error/retry) then `isCurrentUserLoadedState` never flips, leaving `shouldSkip` false and keeping the app in a perpetual “bootstrapping” state. This introduces a new hard dependency on a non-critical query.
-
-Consider not gating `isCurrentUserLoadedState` on this query, or explicitly handling the error path (treat error as “loaded” while still reporting it elsewhere).
-",None,None,2026-02-06T10:47:07.641000,Bootstrap deadlock when record page layouts query fails,logic,high,8,This catch identifies a real deadlock scenario where a circular dependency between isCurrentUserLoadedState and the record page layouts query could leave the app stuck in a perpetual bootstrapping state on network errors. This is a meaningful logic bug that would cause problems in production.,

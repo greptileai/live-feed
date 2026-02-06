@@ -110,6 +110,6 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           if [ -f output/quality_catches.csv ]; then
             echo "### Quality Catches" >> $GITHUB_STEP_SUMMARY
-            TOTAL_CATCHES=$(tail -n +2 output/quality_catches.csv | wc -l | tr -d ' ')
+            TOTAL_CATCHES=$(python3 -c "import csv; print(sum(1 for _ in csv.reader(open('output/quality_catches.csv'))) - 1)")
             echo "- **Total showcase-worthy catches**: $TOTAL_CATCHES" >> $GITHUB_STEP_SUMMARY
           fi
