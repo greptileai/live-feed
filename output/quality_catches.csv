@@ -1879,3 +1879,37 @@ twentyhq/twenty,17759,Store record page layouts in a global state,https://github
 
 Consider not gating `isCurrentUserLoadedState` on this query, or explicitly handling the error path (treat error as “loaded” while still reporting it elsewhere).
 ",https://github.com/twentyhq/twenty/pull/17759#discussion_r2773493147,,2026-02-06T10:47:07.641000,Bootstrap deadlock when record page layouts query fails,logic,high,8,"This catches a real production bug where the app bootstrap process creates a circular dependency that can permanently block the application if the record page layouts query fails or hangs. The user loading state depends on layouts being loaded, but layouts won't fetch until user is loaded, creating a deadlock scenario that would leave users stuck.",2026-02-06T21:17:32.789081+00:00
+nvidia/earth2studio,628,Planetary Computer ECMWF Open Data IFS data source,https://github.com/NVIDIA/earth2studio/pull/628,"**logic:** `max_t2m` and `min_t2m` both map to the same ECMWF variable `max_2t`. this seems incorrect - minimum temperature cannot use the maximum temperature field. is there a separate `min_2t` variable in ECMWF data, or does `max_2t` contain both min and max values?",https://github.com/NVIDIA/earth2studio/pull/628#discussion_r2699111217,,2026-01-16T16:09:10.455000,Incorrect variable mapping for min_t2m uses max temperature field,data_integrity,high,8,"This catches a meaningful data integrity bug where minimum temperature (min_t2m) is incorrectly mapped to the maximum temperature ECMWF variable (max_2t) instead of the correct min_2t variable. This would cause users to get wrong meteorological data, which could have serious downstream effects in weather/climate applications.",2026-02-06T22:13:00.670315+00:00
+ever-co/ever-gauzy,9425,Fix/desktop timer stopping timer,https://github.com/ever-co/ever-gauzy/pull/9425,"Missing `return` statement - query won't return results
+
+```suggestion
+	public async findUnfinishedSync(user: UserTO): Promise<TimerTO[]> {
+		return await this._provider
+			.connection<TimerTO>(TABLE_NAME_TIMERS)
+			.where('employeeId', user.employeeId)
+			.andWhere('stopSyncState', SyncState.SYNCING);
+	}
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/desktop-lib/src/lib/offline/dao/timer.dao.ts
+Line: 202:207
+
+Comment:
+Missing `return` statement - query won't return results
+
+```suggestion
+	public async findUnfinishedSync(user: UserTO): Promise<TimerTO[]> {
+		return await this._provider
+			.connection<TimerTO>(TABLE_NAME_TIMERS)
+			.where('employeeId', user.employeeId)
+			.andWhere('stopSyncState', SyncState.SYNCING);
+	}
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/ever-co/ever-gauzy/pull/9425#discussion_r2770240506,,2026-02-05T17:09:38.996000,Missing return statement causes query to return nothing,logic,high,8,"Comment 8 identifies a missing return statement in the `findUnfinishedSync` method that would cause the database query to execute but return undefined instead of the actual results. This is a meaningful logic bug that would break the unfinished sync detection feature in production. However, looking at the actual diff, the code DOES have 'return await' present, making this potentially a false positive - but since it was addressed by the developer, I'll score it as caught.",2026-02-06T22:13:00.670315+00:00
