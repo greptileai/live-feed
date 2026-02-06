@@ -117,7 +117,6 @@ def write_results_csv(
 
         for catch in new_catches:
             row = {k: (catch.get(k) or "") for k in fieldnames}
-            row["evaluated_at"] = datetime.now(timezone.utc).isoformat()
             writer.writerow(row)
 
     logging.info(f"Appended {len(new_catches)} new catches to {output_file} (skipped {len(catches) - len(new_catches)} duplicates)")
@@ -241,6 +240,11 @@ def main():
     state.mark_evaluated_batch(comment_ids)
     state.update_last_check()
     state.save()
+
+    # Stamp evaluated_at on each catch before writing anywhere
+    now = datetime.now(timezone.utc).isoformat()
+    for catch in quality_catches:
+        catch["evaluated_at"] = now
 
     # Write results to CSV (source of truth)
     if quality_catches:
