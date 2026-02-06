@@ -2600,3 +2600,70 @@ Make sure client hydration always recomputes initial state (or explicitly sets `
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",,,2026-02-05T23:34:09.102000,SSR hydration deadlock causes permanent loading state,logic,high,8,"This catches a real SSR hydration bug where removing the useAuthSync effect leaves isLoading permanently true on the client, causing queries with `enabled: !isLoading` to never execute. This would cause the app to be stuck in a loading state in production - a meaningful functional bug that requires understanding of SSR/hydration patterns to identify.",2026-02-06T14:26:04.671988+00:00
+posthog/posthog,46961,fix: allow filters_override instead of variables still,https://github.com/PostHog/posthog/pull/46961,"bypassing the required variable check when `filters_override` is not None creates a security vulnerability. An attacker could send an empty `filters_override: {}`, which would pass this check but wouldn't apply any filtering in `_execute_materialized_endpoint` (line 1037 checks `if data.filters_override.properties`). This would return ALL breakdown data instead of filtered data.
+
+The check should verify that `filters_override` actually contains valid filtering properties:
+
+```suggestion
+            if is_materialized and data.filters_override is None and not self._has_valid_filters_override(data.filters_override):
+```
+
+Or more simply, check if properties exist:
+
+```suggestion
+            if is_materialized and not (data.filters_override and data.filters_override.properties):
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: products/endpoints/backend/api.py
+Line: 1453:1453
+
+Comment:
+bypassing the required variable check when `filters_override` is not None creates a security vulnerability. An attacker could send an empty `filters_override: {}`, which would pass this check but wouldn't apply any filtering in `_execute_materialized_endpoint` (line 1037 checks `if data.filters_override.properties`). This would return ALL breakdown data instead of filtered data.
+
+The check should verify that `filters_override` actually contains valid filtering properties:
+
+```suggestion
+            if is_materialized and data.filters_override is None and not self._has_valid_filters_override(data.filters_override):
+```
+
+Or more simply, check if properties exist:
+
+```suggestion
+            if is_materialized and not (data.filters_override and data.filters_override.properties):
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",,,2026-02-05T12:25:47.353000,Authorization bypass via empty filters_override returns unfiltered data,security,high,8,"This is a legitimate security vulnerability where an attacker could bypass required variable checks by sending an empty filters_override object, potentially exposing all breakdown data instead of properly filtered data. The analysis correctly identifies the logic gap between the None check and the actual filtering logic, though the severity depends on what data could be exposed.",2026-02-06T16:25:25.216944+00:00
+raycast/extensions,24644,Add Wispr Flow Dictionary extension,https://github.com/raycast/extensions/pull/24644,"**logic:** SQL injection vulnerability: using string interpolation with user input creates a critical security risk. While single quotes are escaped, this is insufficient protection against SQL injection attacks. Consider using parameterized queries with the sqlite3 command line tool's bind parameters, or switch to a proper SQLite library like `better-sqlite3` that supports prepared statements.
+
+```typescript
+// Example with better-sqlite3:
+const stmt = db.prepare('INSERT INTO Dictionary VALUES (?, ?, ?, ...)');
+stmt.run(id, phrase, replacement, ...);
+```",,,2026-01-19T02:04:31.317000,SQL injection vulnerability via string interpolation in database queries,security,high,8,"Comment 3 provides the most comprehensive explanation of the SQL injection vulnerability, noting that simple quote escaping is insufficient protection and recommending proper parameterized queries or a library with prepared statement support. This is a genuine security vulnerability where user input is interpolated into SQL queries executed via shell commands.",2026-02-06T16:25:25.217031+00:00
+alpaca-network/gatewayz-frontend,955,Speed up conversations with sync auth init and memory caching,https://github.com/Alpaca-Network/gatewayz-frontend/pull/955,"**SSR hydration deadlock**
+On SSR you initialize `isLoading: true`, but there’s no longer a `useAuthSync`/effect that flips loading to `false` after mount. If this store instance is reused on the client during hydration, `useChatSessions` is `enabled: !isLoading` and will never run, and parts of the UI that rely on `authLoading` may stay stuck.
+
+Make sure client hydration always recomputes initial state (or explicitly sets `isLoading` to `false` on mount) so SSR doesn’t leave the app in a permanent loading state.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: src/lib/store/auth-store.ts
+Line: 24:33
+
+Comment:
+**SSR hydration deadlock**
+On SSR you initialize `isLoading: true`, but there’s no longer a `useAuthSync`/effect that flips loading to `false` after mount. If this store instance is reused on the client during hydration, `useChatSessions` is `enabled: !isLoading` and will never run, and parts of the UI that rely on `authLoading` may stay stuck.
+
+Make sure client hydration always recomputes initial state (or explicitly sets `isLoading` to `false` on mount) so SSR doesn’t leave the app in a permanent loading state.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",,,2026-02-05T23:34:09.102000,SSR hydration deadlock causes permanent loading state,logic,high,8,"This is a meaningful architectural bug where removing the useAuthSync effect leaves isLoading permanently true after SSR hydration, causing dependent queries and UI to never function. This would cause the app to be stuck in loading state for all users, a real production issue requiring understanding of SSR/hydration patterns to catch.",2026-02-06T16:25:25.217058+00:00
