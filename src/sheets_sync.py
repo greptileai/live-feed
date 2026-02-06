@@ -61,80 +61,113 @@ class SheetsSync:
             self._spreadsheet = client.open_by_key(self.spreadsheet_id)
         return self._spreadsheet
 
-    def sync_quality_catches(
+    def sync_catches_to_sheet(
         self,
-        csv_file: str = "output/quality_catches.csv",
+        catches: list,
         worksheet_name: str = "Quality Catches"
     ) -> int:
-        """Sync quality catches CSV to Google Sheets.
+        """Append new catches to the sheet, deduplicating by comment_url.
 
-        Appends new rows to the worksheet, avoiding duplicates by comment_url.
+        Args:
+            catches: List of catch dicts to append
+            worksheet_name: Name of worksheet
 
-        Returns number of new rows added.
+        Returns:
+            Number of new rows added
         """
-        csv_path = Path(csv_file)
-        if not csv_path.exists():
-            self.logger.warning(f"CSV file not found: {csv_file}")
-            return 0
-
-        # Read CSV data
-        with open(csv_path, "r", encoding="utf-8") as f:
-            reader = csv.DictReader(f)
-            rows = list(reader)
-
-        if not rows:
-            self.logger.info("No rows to sync")
+        if not catches:
+            self.logger.info("No catches to sync")
             return 0
 
         spreadsheet = self._get_spreadsheet()
 
-        # Get or create worksheet
         try:
             worksheet = spreadsheet.worksheet(worksheet_name)
         except gspread.WorksheetNotFound:
             worksheet = spreadsheet.add_worksheet(
                 title=worksheet_name, rows=1000, cols=20
             )
-            # Add header row
-            headers = list(rows[0].keys())
+            headers = [
+                "repo", "pr_number", "pr_title", "pr_url",
+                "comment_body", "comment_url", "reply_body", "created_at",
+                "title", "bug_category", "severity", "quality_score", "llm_reasoning",
+                "evaluated_at"
+            ]
             worksheet.append_row(headers)
             self.logger.info(f"Created new worksheet: {worksheet_name}")
 
-        # Get existing values to avoid duplicates (dedup by comment_url)
+        # Get existing comment_urls to deduplicate
         existing_data = worksheet.get_all_values()
+        existing_urls = set()
         if existing_data:
             headers = existing_data[0]
             dedup_idx = headers.index("comment_url") if "comment_url" in headers else None
-            existing_urls = set()
             if dedup_idx is not None:
                 for row in existing_data[1:]:
                     if len(row) > dedup_idx:
                         existing_urls.add(row[dedup_idx])
-        else:
-            existing_urls = set()
-            # Add headers if worksheet is empty
-            headers = list(rows[0].keys())
-            worksheet.append_row(headers)
 
-        # Filter to new rows only
-        new_rows = [
-            row for row in rows
-            if str(row.get("comment_url", "")) not in existing_urls
+        new_catches = [
+            c for c in catches
+            if str(c.get("comment_url", "")) not in existing_urls
         ]
 
-        if not new_rows:
-            self.logger.info("No new rows to sync (all already exist)")
+        if not new_catches:
+            self.logger.info("No new catches to sync (all already exist)")
             return 0
 
-        # Append new rows
-        headers = list(new_rows[0].keys())
-        values = [[row.get(h, "") for h in headers] for row in new_rows]
+        headers = [
+            "repo", "pr_number", "pr_title", "pr_url",
+            "comment_body", "comment_url", "reply_body", "created_at",
+            "title", "bug_category", "severity", "quality_score", "llm_reasoning",
+            "evaluated_at"
+        ]
+        values = [[str(c.get(h, "")) for h in headers] for c in new_catches]
         worksheet.append_rows(values)
 
-        self.logger.info(
-            f"Synced {len(new_rows)} new catches to '{worksheet_name}'"
-        )
-        return len(new_rows)
+        self.logger.info(f"Synced {len(new_catches)} new catches to '{worksheet_name}'")
+        return len(new_catches)
+
+    def export_sheet_to_csv(
+        self,
+        output_file: str = "output/quality_catches.csv",
+        worksheet_name: str = "Quality Catches"
+    ) -> int:
+        """Export the sheet to CSV. Sheet is the source of truth.
+
+        Args:
+            output_file: Path to write CSV
+            worksheet_name: Name of worksheet to export
+
+        Returns:
+            Number of rows written
+        """
+        spreadsheet = self._get_spreadsheet()
+
+        try:
+            worksheet = spreadsheet.worksheet(worksheet_name)
+        except gspread.WorksheetNotFound:
+            self.logger.warning(f"Worksheet '{worksheet_name}' not found")
+            return 0
+
+        data = worksheet.get_all_values()
+        if not data or len(data) < 2:
+            self.logger.info("No data in sheet to export")
+            return 0
+
+        headers = data[0]
+        rows = data[1:]
+
+        os.makedirs(os.path.dirname(output_file), exist_ok=True)
+
+        with open(output_file, 'w', newline='', encoding='utf-8') as f:
+            writer = csv.DictWriter(f, fieldnames=headers)
+            writer.writeheader()
+            for row in rows:
+                writer.writerow(dict(zip(headers, row)))
+
+        self.logger.info(f"Exported {len(rows)} rows from sheet to {output_file}")
+        return len(rows)
 
     def clear_and_sync(
         self,

@@ -57,7 +57,7 @@ def write_results_csv(
     catches: list,
     output_file: str = "output/quality_catches.csv"
 ) -> int:
-    """Append quality catches to CSV."""
+    """Append quality catches to CSV, deduplicating by comment_url."""
     if not catches:
         logging.info("No catches to write")
         return 0
@@ -81,22 +81,43 @@ def write_results_csv(
 
     os.makedirs(os.path.dirname(output_file), exist_ok=True)
 
-    # Check if file exists to determine if we need header
-    file_exists = os.path.exists(output_file)
+    # Load existing entries to deduplicate
+    existing_urls = set()
+    existing_rows = []
+    if os.path.exists(output_file):
+        with open(output_file, 'r', newline='', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                url = row.get("comment_url", "")
+                if url not in existing_urls:
+                    existing_urls.add(url)
+                    existing_rows.append(row)
 
-    with open(output_file, 'a', newline='', encoding='utf-8') as f:
+    # Filter to new catches only
+    new_catches = [
+        c for c in catches
+        if c.get("comment_url", "") not in existing_urls
+    ]
+
+    if not new_catches:
+        logging.info("No new catches to write (all already exist)")
+        return 0
+
+    # Rewrite entire file (existing deduped + new)
+    with open(output_file, 'w', newline='', encoding='utf-8') as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
 
-        if not file_exists:
-            writer.writeheader()
+        for row in existing_rows:
+            writer.writerow({k: row.get(k, "") for k in fieldnames})
 
-        for catch in catches:
+        for catch in new_catches:
             row = {k: catch.get(k, "") for k in fieldnames}
             row["evaluated_at"] = datetime.now(timezone.utc).isoformat()
             writer.writerow(row)
 
-    logging.info(f"Appended {len(catches)} catches to {output_file}")
-    return len(catches)
+    logging.info(f"Appended {len(new_catches)} new catches to {output_file} (skipped {len(catches) - len(new_catches)} duplicates)")
+    return len(new_catches)
 
 
 def main():
@@ -217,19 +238,24 @@ def main():
     state.update_last_check()
     state.save()
 
-    # Write results
-    if quality_catches:
-        write_results_csv(quality_catches, args.output)
-
-    # Sync to sheets if requested
-    if args.sync_sheets and quality_catches:
+    # Sync to sheets and export CSV (sheet is source of truth)
+    if args.sync_sheets:
         try:
             from src.sheets_sync import SheetsSync
             sync = SheetsSync()
-            sync.sync_quality_catches(quality_catches)
-            logger.info("Synced to Google Sheets")
+
+            if quality_catches:
+                sync.sync_catches_to_sheet(quality_catches)
+                logger.info("Synced new catches to Google Sheets")
+
+            # Always export sheet to CSV (sheet is source of truth)
+            sync.export_sheet_to_csv(args.output)
+            logger.info(f"Exported sheet to {args.output}")
         except Exception as e:
-            logger.warning(f"Failed to sync to sheets: {e}")
+            logger.warning(f"Failed to sync sheets: {e}")
+    elif quality_catches:
+        # Fallback: write directly to CSV if not syncing sheets
+        write_results_csv(quality_catches, args.output)
 
     # Print summary
     print(f"\n{'='*60}")
