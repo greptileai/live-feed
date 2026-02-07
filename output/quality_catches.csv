@@ -1937,3 +1937,22 @@ fixed",2026-02-06T04:41:41.297000,TOCTOU race condition in Kafka partition owner
 simstudioai/sim,3155,fix(function): isolated-vm worker pool to prevent single-worker bottleneck + execution user id resolution ,https://github.com/simstudioai/sim/pull/3155,"**Double-decrement spawn counter**
 
 `spawnInProgress` is decremented in multiple startup-failure paths for the same worker: the `startTimeout` callback does `spawnInProgress--` (and kills the proc), and then the proc's `'exit'` handler also does `spawnInProgress--` when `!workerInfo.ready`. When a worker times out (or otherwise exits before ready), this can drive `spawnInProgress` negative and break `currentPoolSize = workers.size + spawnInProgress`, leading to incorrect pool capacity decisions (over/under-spawning). Consider ensuring `spawnInProgress` is decremented exactly once per spawned worker (e.g., guard with a local `spawnCounted`/`settled` flag).",https://github.com/simstudioai/sim/pull/3155#discussion_r2775760699,,2026-02-06T19:51:54.387000,Double-decrement of spawn counter causes negative pool capacity,concurrency,high,8,"This catches a real concurrency bug where the spawnInProgress counter can go negative due to both timeout handler and exit handler decrementing it. This would cause incorrect pool capacity calculations (workers.size + spawnInProgress), leading to over/under-spawning of workers and potential resource exhaustion or starvation.",2026-02-07T03:06:17.118346+00:00
+onyx-dot-app/onyx,8222,chore(auth): anon fix,https://github.com/onyx-dot-app/onyx/pull/8222,"**Anonymous user bypass**
+
+This condition is inverted: it now returns the anonymous user when `user is None`, which will cause *every unauthenticated request* to `optional_user()` (when `anonymous_user_enabled` is true for the tenant) to be treated as authenticated-as-anon, bypassing later auth checks (JWT/SAML/PAT/API key). Previously, anonymous was only returned when the incoming `user` was already the anonymous user (`user.is_anonymous`). This should likely stay `user is not None and user.is_anonymous ...` (or an equivalent cookie-based/marker check) so anon isn’t granted by default to anyone without credentials.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: backend/onyx/auth/users.py
+Line: 1331:1333
+
+Comment:
+**Anonymous user bypass**
+
+This condition is inverted: it now returns the anonymous user when `user is None`, which will cause *every unauthenticated request* to `optional_user()` (when `anonymous_user_enabled` is true for the tenant) to be treated as authenticated-as-anon, bypassing later auth checks (JWT/SAML/PAT/API key). Previously, anonymous was only returned when the incoming `user` was already the anonymous user (`user.is_anonymous`). This should likely stay `user is not None and user.is_anonymous ...` (or an equivalent cookie-based/marker check) so anon isn’t granted by default to anyone without credentials.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/8222#discussion_r2772207649,,2026-02-06T04:19:53.870000,Inverted condition bypasses authentication for all unauthenticated requests,security,critical,10,"This is a critical authentication bypass vulnerability. The inverted condition would cause every unauthenticated request to be treated as an authenticated anonymous user when anonymous_user_enabled is true, completely bypassing JWT/SAML/PAT/API key authentication checks. This is a textbook auth bypass that could expose the entire application to unauthorized access.",2026-02-07T08:16:30.820584+00:00
