@@ -1913,3 +1913,24 @@ Missing `return` statement - query won't return results
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/ever-co/ever-gauzy/pull/9425#discussion_r2770240506,,2026-02-05T17:09:38.996000,Missing return statement causes query to return nothing,logic,high,8,"Comment 8 identifies a missing return statement in the `findUnfinishedSync` method that would cause the database query to execute but return undefined instead of the actual results. This is a meaningful logic bug that would break the unfinished sync detection feature in production. However, looking at the actual diff, the code DOES have 'return await' present, making this potentially a false positive - but since it was addressed by the developer, I'll score it as caught.",2026-02-06T22:13:00.670315+00:00
+posthog/posthog,47076,fix(deduplicator): avoid blocking on checkpoint imports in each revoke-assign cycle,https://github.com/PostHog/posthog/pull/47076,"potential TOCTOU race between steps 2-5: `owned_partitions` fetched at line 436, then `is_rebalancing()` checked at 446, then `get_owned_partitions()` called again at 453, 489, 502. if a new rebalance modifies ownership between step 2 check (446) and subsequent operations, steps 3-5 may operate on stale partition lists
+
+consider capturing `owned` once after the `is_rebalancing()` check and reusing it for steps 3-5, or rechecking `is_rebalancing()` before each step that uses ownership
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: rust/kafka-deduplicator/src/processor_rebalance_handler.rs
+Line: 436:502
+
+Comment:
+potential TOCTOU race between steps 2-5: `owned_partitions` fetched at line 436, then `is_rebalancing()` checked at 446, then `get_owned_partitions()` called again at 453, 489, 502. if a new rebalance modifies ownership between step 2 check (446) and subsequent operations, steps 3-5 may operate on stale partition lists
+
+consider capturing `owned` once after the `is_rebalancing()` check and reusing it for steps 3-5, or rechecking `is_rebalancing()` before each step that uses ownership
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/47076#discussion_r2772246583,"🤔 this seems legit, this changeset opens us to more potential race conditions. If it pans out and I can't make a spot fix, I'll zoom out and consider a larger refactor before I reach peak AI slop 😂 
+---
+fixed",2026-02-06T04:41:41.297000,TOCTOU race condition in Kafka partition ownership handling,concurrency,high,8,"This identifies a genuine TOCTOU (time-of-check-time-of-use) race condition in a Kafka deduplicator where partition ownership can change between the rebalancing check and subsequent operations. This could cause the processor to operate on stale partition lists during rebalances, potentially leading to data integrity issues or missed deduplication. This is a meaningful concurrency bug in production infrastructure code that's not immediately obvious.",2026-02-07T00:46:23.609189+00:00
