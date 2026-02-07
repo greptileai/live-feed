@@ -1966,3 +1966,14 @@ With the current code, if `sdls,` is at line 13, `realtime,` gets inserted at li
 mrmps/smry,64,feat: adding zeroclick as a fallback ads platform with gravity ai,https://github.com/mrmps/SMRY/pull/64,"**Incorrect impression forwarding**
 
 In `/api/px`, forwarding to Gravity is gated on `adProvider === ""gravity"" && impUrl`, but `adProvider` is derived from the *client-provided* `provider` field (defaults to `""gravity""` when missing/other). If a client sends `provider: ""zeroclick""` (or omits `provider`) for a Gravity ad while still providing a valid Gravity `impUrl`, the server will skip forwarding and you’ll lose Gravity-billable impressions (while still logging them). Consider deriving provider from `impUrl` (e.g., if `impUrl` is a trygravity.ai URL, treat as Gravity) rather than trusting `provider` for this gating.",https://github.com/mrmps/SMRY/pull/64#discussion_r2777318364,,2026-02-07T09:25:59.998000,Client-controlled provider field causes lost billable ad impressions,logic,high,8,"This catch identifies a significant business logic bug where trusting client-provided 'provider' field for gating impression forwarding could cause lost revenue. If a client sends incorrect provider value for a Gravity ad, the server skips forwarding to Gravity's tracking endpoint, losing billable impressions while still logging them internally. This has direct financial impact.",2026-02-07T12:19:40.145019+00:00
+raycast/extensions,24407,Add Vim Leader Key extension,https://github.com/raycast/extensions/pull/24407,"**logic:** Shell injection vulnerability: `appPath` can contain special characters that break out of quotes. While double quotes provide some protection, they don't escape all dangerous characters. For example, if `appPath` is `test""$(malicious)""`, the command would execute arbitrary code.
+
+Use Raycast's `open()` API instead of shell commands for opening applications:
+
+```suggestion
+async function openApp(appPath: string): Promise<void> {
+  await open(appPath);
+}
+```
+
+The `open()` API is designed to safely handle application paths without shell injection risks.",https://github.com/raycast/extensions/pull/24407#discussion_r2706995521,,2026-01-20T06:50:47.978000,Shell injection vulnerability in application path execution,security,high,8,Comment 1 identifies a shell injection vulnerability where user-controlled application paths passed to execAsync could execute arbitrary code if they contain malicious characters like backticks or $() syntax. The fix to use Raycast's safe open() API is correct and important for security.,2026-02-07T14:15:20.577217+00:00
