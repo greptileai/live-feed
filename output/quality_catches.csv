@@ -1956,3 +1956,10 @@ This condition is inverted: it now returns the anonymous user when `user is None
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/onyx-dot-app/onyx/pull/8222#discussion_r2772207649,,2026-02-06T04:19:53.870000,Inverted condition bypasses authentication for all unauthenticated requests,security,critical,10,"This is a critical authentication bypass vulnerability. The inverted condition would cause every unauthenticated request to be treated as an authenticated anonymous user when anonymous_user_enabled is true, completely bypassing JWT/SAML/PAT/API key authentication checks. This is a textbook auth bypass that could expose the entire application to unauthorized access.",2026-02-07T08:16:30.820584+00:00
+cedarjs/cedar,1157,feat(realtime): Add realtime to GraphQL Handler during setup,https://github.com/cedarjs/cedar/pull/1157,"Off-by-one error in insertion position. The code inserts `realtime,` at position `handlerIndex + sdlsIndex - 1`, which places it one line too early. Given `sdlsIndex` is the position of `sdls,` within `handlerLines`, the correct insertion point to place `realtime,` right before `sdls,` should be `handlerIndex + sdlsIndex` (without the `-1`).
+
+With the current code, if `sdls,` is at line 13, `realtime,` gets inserted at line 11 instead of line 13.
+
+```suggestion
+  contentLines.splice(handlerIndex + sdlsIndex, 0, '  realtime,')
+```",https://github.com/cedarjs/cedar/pull/1157#discussion_r2777006366,,2026-02-07T04:38:04.502000,Off-by-one error inserts realtime config at wrong line,logic,high,8,"This catches a genuine off-by-one bug where `realtime,` would be inserted one line too early in the GraphQL handler configuration. This would produce malformed code that breaks the setup process for users enabling realtime features.",2026-02-07T10:13:41.183956+00:00
