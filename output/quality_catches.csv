@@ -2043,3 +2043,10 @@ command -v git-lfs >/dev/null 2>&1 && git lfs post-checkout ""$@""
 
 exit 0
 ```",https://github.com/gptme/gptme-contrib/pull/259#discussion_r2779607644,,2026-02-08T18:04:28.535000,Unreachable Git LFS code due to early exit statement,logic,high,8,"Comment 1 identifies a clear logic bug where the Git LFS post-checkout call is placed after an exit 0 statement, making it completely unreachable. This would cause LFS files to never be properly checked out, leading to missing or corrupted large files in the working directory.",2026-02-08T20:14:21.389088+00:00
+nvidia/physicsnemo,1377,Moving HealPix Ops into module folder,https://github.com/NVIDIA/physicsnemo/pull/1377,"**Invalid-shape checks don’t raise**
+
+In `HEALPixPadding.forward`, the invalid-shape branch does `raise ValueError(""HEALPixPadding.forward"", data, ""a 4D tensor"")`, which constructs a `ValueError` with tuple args (and includes a tensor) rather than raising a clear message like the previous `_raise_shape_error` helper did. More importantly, similar checks in `HEALPixFoldFaces.forward` and `HEALPixUnfoldFaces.forward` *don’t raise at all* (they call `ValueError(...)` without `raise`), so invalid inputs will fall through and then crash later during `tensor.shape` unpacking / reshape with less actionable errors.
+
+Also appears in:
+- `physicsnemo/nn/module/hpx/padding.py:388-390` (`HEALPixFoldFaces.forward`)
+- `physicsnemo/nn/module/hpx/padding.py:450-456` (`HEALPixUnfoldFaces.forward`)",https://github.com/NVIDIA/physicsnemo/pull/1377#discussion_r2771034619,,2026-02-05T20:34:48.068000,Missing raise statements cause validation errors to silently pass,logic,high,8,"The comment catches a significant bug where ValueError is constructed but never raised (missing 'raise' keyword), causing invalid inputs to silently pass through validation and crash later with confusing errors. This is a real logic bug that would affect production code and is not immediately obvious from casual code review.",2026-02-08T22:14:29.362525+00:00
