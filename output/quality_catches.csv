@@ -2004,3 +2004,42 @@ In `Ord::cmp`, `(Value::Date, Value::String)` attempts to parse the string as a 
 nvidia/dali,6193,Make sure that Operator._init_spec exists before trying to call it,https://github.com/NVIDIA/DALI/pull/6193,"**Broken `_init_spec` lookup**
 
 `getattr(self._operator, ""._init_spec"", None)` will never find the method because attribute names don’t include a leading dot. As written, `init_spec` will always be `None`, so `_init_spec` is never called and the race condition you’re trying to prevent remains. This should likely be `getattr(self._operator, ""_init_spec"", None)` (or `hasattr` + call).",https://github.com/NVIDIA/DALI/pull/6193#discussion_r2774156062,,2026-02-06T13:27:22.133000,Typo in getattr causes _init_spec to never be called,logic,high,8,"This is a meaningful logic bug where a typo ('._init_spec' instead of '_init_spec') would cause the method lookup to always fail, meaning the intended race condition fix would never execute. The bug would silently pass (returning None) rather than crash, making it hard to detect in testing but causing real problems in production.",2026-02-08T18:18:01.811746+00:00
+getarcaneapp/arcane,1694,fix: scan all vulnerabilities casuing lag/freezing,https://github.com/getarcaneapp/arcane/pull/1694,"Slot not released if `execTrivyScanInContainer` panics
+
+If `execTrivyScanInContainer` panics, `releaseSlot()` won't run and the slot stays occupied forever.
+
+```suggestion
+		defer releaseSlot()
+		result, scanErr := s.execTrivyScanInContainer(ctx, containerID, imageName, imageID, scannerVersion)
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: backend/internal/services/vulnerability_service.go
+Line: 673:674
+
+Comment:
+Slot not released if `execTrivyScanInContainer` panics
+
+If `execTrivyScanInContainer` panics, `releaseSlot()` won't run and the slot stays occupied forever.
+
+```suggestion
+		defer releaseSlot()
+		result, scanErr := s.execTrivyScanInContainer(ctx, containerID, imageName, imageID, scannerVersion)
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/getarcaneapp/arcane/pull/1694#discussion_r2779679935,,2026-02-08T19:01:00.090000,Resource leak: semaphore slot not released on panic,resource_leak,high,8,"This catches a real resource leak bug where if execTrivyScanInContainer panics, the semaphore slot is never released, permanently reducing concurrency capacity. Using defer ensures the slot is always released regardless of how the function exits. This is a meaningful concurrency bug that could cause the system to eventually stop scanning images.",2026-02-08T20:14:21.389088+00:00
+gptme/gptme-contrib,259,feat(hooks): add Git LFS support to global git hooks,https://github.com/gptme/gptme-contrib/pull/259,"This code is unreachable because `exit 0` on line 85 terminates the script before reaching the Git LFS call.
+
+Move the Git LFS call before the `exit 0` statement:
+
+```suggestion
+# Git LFS support
+command -v git-lfs >/dev/null 2>&1 && git lfs post-checkout ""$@""
+
+exit 0
+```",https://github.com/gptme/gptme-contrib/pull/259#discussion_r2779607644,,2026-02-08T18:04:28.535000,Unreachable Git LFS code due to early exit statement,logic,high,8,"Comment 1 identifies a clear logic bug where the Git LFS post-checkout call is placed after an exit 0 statement, making it completely unreachable. This would cause LFS files to never be properly checked out, leading to missing or corrupted large files in the working directory.",2026-02-08T20:14:21.389088+00:00
