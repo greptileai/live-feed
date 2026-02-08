@@ -1980,3 +1980,22 @@ The `open()` API is designed to safely handle application paths without shell in
 simstudioai/sim,3163,fix(rooms): cleanup edge case for 1hr ttl,https://github.com/simstudioai/sim/pull/3163,"**Cross-user socket cleanup**
 
 The duplicate/stale socket cleanup loop no longer checks `existingUser.userId === userId` (it only skips when `existingUser.socketId === socket.id`), so a join can clean up sockets belonging to *other users* who share the same `tabSessionId`. That can disconnect the wrong client(s). This likely needs the userId guard reinstated (and applied consistently for both the “same tab” and “stale socket entry” cleanup paths).",https://github.com/simstudioai/sim/pull/3163#discussion_r2777997359,,2026-02-07T19:50:20.488000,Cross-user socket cleanup can disconnect wrong clients,logic,high,8,"This catches a real bug where removing the userId check in socket cleanup logic could cause users to be incorrectly disconnected when they share the same tabSessionId. This is a meaningful logic error that would affect production users by disconnecting the wrong clients, and it's not something that would be caught by static analysis or compilation.",2026-02-07T22:13:41.543045+00:00
+alpaca-network/gatewayz-frontend,963,Claude/terragon auth redirect jgz9 a,https://github.com/Alpaca-Network/gatewayz-frontend/pull/963,"**Stale timeout status check**
+
+This timeout effect can incorrectly set the page to an error state after `status` has already moved to `""redirecting""`. The `setTimeout` callback closes over the `status` value from the render that created the timer, so even if `status` changes before the timer fires, the callback still sees the old `""loading""/""authenticating""` value and will run `setStatus(""error"")` anyway (interrupting the redirect flow/UI). Consider checking a `ref` with the latest status inside the timeout, or clearing/re-scheduling based on elapsed time rather than captured state.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: src/app/auth/terragon/page.tsx
+Line: 95:106
+
+Comment:
+**Stale timeout status check**
+
+This timeout effect can incorrectly set the page to an error state after `status` has already moved to `""redirecting""`. The `setTimeout` callback closes over the `status` value from the render that created the timer, so even if `status` changes before the timer fires, the callback still sees the old `""loading""/""authenticating""` value and will run `setStatus(""error"")` anyway (interrupting the redirect flow/UI). Consider checking a `ref` with the latest status inside the timeout, or clearing/re-scheduling based on elapsed time rather than captured state.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/Alpaca-Network/gatewayz-frontend/pull/963#discussion_r2778107884,,2026-02-07T21:36:19.968000,Stale closure in timeout causes incorrect error state during redirect,concurrency,high,8,"This is a legitimate React closure bug where the setTimeout callback captures stale state, causing the page to incorrectly show an error even after successful authentication and redirect. This would disrupt the user experience in production by interrupting valid auth flows. The catch requires understanding React's closure behavior with hooks, making it non-obvious.",2026-02-08T01:00:36.671486+00:00
