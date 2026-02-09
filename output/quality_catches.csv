@@ -2149,3 +2149,26 @@ consider storing the pending request's promise and chaining it, or document that
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/PostHog/posthog-js/pull/3028#discussion_r2763698459,,2026-02-04T12:10:38.204000,Race condition causes callers to receive stale feature flag results,concurrency,high,8,"This is a meaningful concurrency bug where callers waiting for feature flags during an in-flight request receive results from the first request instead of their own queued reload. This would cause incorrect/stale feature flag values to be returned to users, affecting application behavior in production. The analysis correctly identifies the promise chaining issue and its impact.",2026-02-09T14:34:15.874156+00:00
+posthog/posthog,47282,fix: breadcrumbs on survey notifications & notification caching survey ID,https://github.com/PostHog/posthog/pull/47282,"**Stale config cache**
+
+`urlToAction` only updates `cache.configFromUrl`/calls `resetForm()` when `values.template` is already loaded. If you navigate between `hogFunctionNew` routes (or change the `#configuration` hash) before the template loader finishes, this handler is skipped and the subsequent `loadTemplateSuccess -> resetForm` will apply whatever `cache.configFromUrl` was last set to (from the previous route). That can reintroduce the “new notification uses previous survey ID” behavior in fast navigation/back-forward sequences.
+
+This logic should update `cache.configFromUrl` based on the URL unconditionally (or at least regardless of `values.template`), so the next `resetForm()` uses the correct hash params for the current route.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: frontend/src/scenes/hog-functions/configuration/hogFunctionConfigurationLogic.tsx
+Line: 1481:1488
+
+Comment:
+**Stale config cache**
+
+`urlToAction` only updates `cache.configFromUrl`/calls `resetForm()` when `values.template` is already loaded. If you navigate between `hogFunctionNew` routes (or change the `#configuration` hash) before the template loader finishes, this handler is skipped and the subsequent `loadTemplateSuccess -> resetForm` will apply whatever `cache.configFromUrl` was last set to (from the previous route). That can reintroduce the “new notification uses previous survey ID” behavior in fast navigation/back-forward sequences.
+
+This logic should update `cache.configFromUrl` based on the URL unconditionally (or at least regardless of `values.template`), so the next `resetForm()` uses the correct hash params for the current route.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/47282#discussion_r2781761667,,2026-02-09T10:12:43.968000,Race condition in URL-to-action causes stale survey ID caching,concurrency,high,8,"This catches a subtle race condition where fast navigation between routes causes stale cached data to be applied, leading to the wrong survey ID being used. This is a meaningful bug that would cause incorrect behavior in production during normal user navigation patterns, and it requires understanding the async loading flow to identify.",2026-02-09T16:32:27.608862+00:00
