@@ -2054,3 +2054,75 @@ onyx-dot-app/onyx,8246,feat: postgres file store,https://github.com/onyx-dot-app
 `FILE_STORE_BACKEND` is read from the environment as a `str` (see `app_configs.py`), but `get_default_file_store()` compares it to `FileStoreType.POSTGRES` (an Enum instance). This comparison will always be false, so the Postgres filestore is never selected and the code will always fall back to S3.
 
 Fix by comparing to the Enum value (e.g. `FILE_STORE_BACKEND == FileStoreType.POSTGRES.value`) or by parsing/coercing `FILE_STORE_BACKEND` into `FileStoreType` before comparing.",https://github.com/onyx-dot-app/onyx/pull/8246#discussion_r2776454111,,2026-02-06T23:44:57.471000,Type comparison bug prevents Postgres backend from being selected,type_error,high,8,"This catches a real bug where comparing a string environment variable to an Enum instance will always fail, meaning the Postgres file store feature being added in this PR would never actually work - users would always get S3 regardless of configuration. This is a meaningful logic bug that would break the core functionality of the PR.",2026-02-09T04:52:59.817493+00:00
+twentyhq/twenty,17783,Harden local file storage driver path resolution,https://github.com/twentyhq/twenty/pull/17783,"Edge case: `assertPathIsWithinStorage` allows accessing the storage root itself (`resolvedPath === storageRoot`), which would let callers delete or check existence of the entire storage directory. Verify this is intended behavior.
+
+```suggestion
+  private assertPathIsWithinStorage(resolvedPath: string): void {
+    const storageRoot = path.resolve(this.options.storagePath);
+
+    if (!resolvedPath.startsWith(storageRoot + path.sep)) {
+      throw new FileStorageException(
+        'Access denied',
+        FileStorageExceptionCode.ACCESS_DENIED,
+      );
+    }
+  }
+```",https://github.com/twentyhq/twenty/pull/17783#discussion_r2779511247,,2026-02-08T16:54:27.036000,Path traversal allows deletion of entire storage root directory,security,high,8,"This is a meaningful security catch in a file storage driver - the original check `resolvedPath.startsWith(storageRoot)` allows accessing the storage root itself, potentially enabling deletion of the entire storage directory. The fix requiring `storageRoot + path.sep` properly restricts access to only files within the storage, not the root itself. This is a subtle but important security hardening in path validation code.",2026-02-09T10:34:31.065819+00:00
+posthog/posthog,47224,feat(ai): implement MCP tool discovery and execution endpoints,https://github.com/PostHog/posthog/pull/47224,"**Tool scopes no longer enforced**
+
+The previous version dynamically enforced per-tool scopes via `dangerously_get_required_scopes()` using `mcp_tool_registry.get_scopes(tool_name)`. That override is now removed, so hitting `run()` no longer checks the tool’s declared scopes, which allows invoking tools without the permissions they require (authz regression for any caller who can access this viewset).
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: products/posthog_ai/backend/api/mcp_tools.py
+Line: 20:39
+
+Comment:
+**Tool scopes no longer enforced**
+
+The previous version dynamically enforced per-tool scopes via `dangerously_get_required_scopes()` using `mcp_tool_registry.get_scopes(tool_name)`. That override is now removed, so hitting `run()` no longer checks the tool’s declared scopes, which allows invoking tools without the permissions they require (authz regression for any caller who can access this viewset).
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/47224#discussion_r2778023577,,2026-02-07T20:15:45.962000,Authorization bypass allows invoking tools without required permissions,security,critical,9,"Comment 1 identifies a security regression where the refactored code removes the per-tool scope enforcement, allowing any caller with viewset access to invoke tools without the permissions those tools require. This is an authorization bypass vulnerability that could allow unauthorized access to sensitive operations.",2026-02-09T10:34:31.065819+00:00
+posthog/posthog,47242,feat: add first-class support for $screen events in action definitions,https://github.com/PostHog/posthog/pull/47242,"Screen name stored in `properties` array but backend expects it in `step.url` field. The backend code in `posthog/hogql/property.py:995` checks `if step.url:` and uses that value, but this frontend code stores the screen name as a property filter instead. This will cause screen name matching to fail completely.
+
+Backend expects:
+```json
+{""event"": ""$screen"", ""url"": ""HomeScreen"", ""url_matching"": ""contains""}
+```
+
+Frontend is saving:
+```json
+{""event"": ""$screen"", ""url"": null, ""properties"": [{""key"": ""$screen_name"", ""value"": ""HomeScreen"", ...}]}
+```
+
+The screen name should be saved to `step.url` field similar to how `$pageview` works.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: products/actions/frontend/components/ActionStep.tsx
+Line: 462:475
+
+Comment:
+Screen name stored in `properties` array but backend expects it in `step.url` field. The backend code in `posthog/hogql/property.py:995` checks `if step.url:` and uses that value, but this frontend code stores the screen name as a property filter instead. This will cause screen name matching to fail completely.
+
+Backend expects:
+```json
+{""event"": ""$screen"", ""url"": ""HomeScreen"", ""url_matching"": ""contains""}
+```
+
+Frontend is saving:
+```json
+{""event"": ""$screen"", ""url"": null, ""properties"": [{""key"": ""$screen_name"", ""value"": ""HomeScreen"", ...}]}
+```
+
+The screen name should be saved to `step.url` field similar to how `$pageview` works.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/47242#discussion_r2779203902,,2026-02-08T12:18:05.537000,Screen name stored in wrong field breaks backend matching,data_integrity,high,8,"Comment 2 identifies a critical data structure mismatch where the frontend stores screen names in the `properties` array while the backend expects them in `step.url`. This would cause screen name matching to fail completely in production, breaking the entire feature for $screen events.",2026-02-09T10:34:31.065819+00:00
