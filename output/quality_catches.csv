@@ -2126,3 +2126,26 @@ The screen name should be saved to `step.url` field similar to how `$pageview` w
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/PostHog/posthog/pull/47242#discussion_r2779203902,,2026-02-08T12:18:05.537000,Screen name stored in wrong field breaks backend matching,data_integrity,high,8,"Comment 2 identifies a critical data structure mismatch where the frontend stores screen names in the `properties` array while the backend expects them in `step.url`. This would cause screen name matching to fail completely in production, breaking the entire feature for $screen events.",2026-02-09T10:34:31.065819+00:00
+posthog/posthog-js,3028,fix(core): queue pending feature flags reload instead of dropping requests,https://github.com/PostHog/posthog-js/pull/3028,"pending reload is not awaited - callers of queued requests receive results from the first request instead of their own
+
+when a caller invokes `flagsAsync()` during an in-flight request, they receive `this._flagsResponsePromise` (line 516), which resolves with the first request's result. their actual reload happens here but isn't connected to any promise they're waiting on.
+
+consider storing the pending request's promise and chaining it, or document that queued callers get stale results
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/core/src/posthog-core.ts
+Line: 700:700
+
+Comment:
+pending reload is not awaited - callers of queued requests receive results from the first request instead of their own
+
+when a caller invokes `flagsAsync()` during an in-flight request, they receive `this._flagsResponsePromise` (line 516), which resolves with the first request's result. their actual reload happens here but isn't connected to any promise they're waiting on.
+
+consider storing the pending request's promise and chaining it, or document that queued callers get stale results
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog-js/pull/3028#discussion_r2763698459,,2026-02-04T12:10:38.204000,Race condition causes callers to receive stale feature flag results,concurrency,high,8,"This is a meaningful concurrency bug where callers waiting for feature flags during an in-flight request receive results from the first request instead of their own queued reload. This would cause incorrect/stale feature flag values to be returned to users, affecting application behavior in production. The analysis correctly identifies the promise chaining issue and its impact.",2026-02-09T14:34:15.874156+00:00
