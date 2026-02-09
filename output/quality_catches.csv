@@ -2174,3 +2174,43 @@ How can I resolve this? If you propose a fix, please make it concise.
 </details>",https://github.com/PostHog/posthog/pull/47282#discussion_r2781761667,,2026-02-09T10:12:43.968000,Race condition in URL-to-action causes stale survey ID caching,concurrency,high,8,"This catches a subtle race condition where fast navigation between routes causes stale cached data to be applied, leading to the wrong survey ID being used. This is a meaningful bug that would cause incorrect behavior in production during normal user navigation patterns, and it requires understanding the async loading flow to identify.",2026-02-09T16:32:27.608862+00:00
 onyx-dot-app/onyx,8194,fix(craft): snapshot restore,https://github.com/onyx-dot-app/onyx/pull/8194,"**Signature mismatch breaks interface**
 `SandboxManager.health_check` is declared as `health_check(self, sandbox_id, timeout: float = 60.0)` in `backend/onyx/server/features/build/sandbox/base.py:261`, and call sites pass `timeout=` (e.g., `backend/onyx/server/features/build/api/sessions_api.py:384`, `backend/onyx/server/features/build/session/manager.py:491`). This PR changes `LocalSandboxManager.health_check` to drop the `timeout` parameter (`backend/onyx/server/features/build/sandbox/local/local_sandbox_manager.py:659`), which will raise `TypeError: got an unexpected keyword argument 'timeout'` when the local backend is used. Keep the method signature compatible (accept `timeout` even if unused).",https://github.com/onyx-dot-app/onyx/pull/8194#discussion_r2777021486,,2026-02-07T04:50:18.677000,Method signature mismatch causes TypeError at runtime,type_error,high,8,"The comment identifies a concrete interface violation where LocalSandboxManager.health_check drops the timeout parameter that the base class and all call sites expect, which will cause a TypeError when the local backend is used. This is a real runtime bug that would break functionality.",2026-02-09T18:30:46.442785+00:00
+useautumn/autumn,702,feat: add discounts to attach v2,https://github.com/useautumn/autumn/pull/702,"**Wrong Stripe env used**
+`createStripeCli` is instantiated with `env: fullCustomer.env` here, but this code is inside billing flows that otherwise operate on the request context (`ctx.org`/`ctx.env`). If `fullCustomer.env` can differ from `ctx.env` (e.g. cross-env reads or overridden customer env), discount resolution will hit the wrong Stripe account and either fail to resolve valid IDs or apply unintended coupons.
+
+Use `env: ctx.env` (or otherwise ensure the Stripe env source is consistent across the billing context setup).
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: server/src/internal/billing/v2/providers/stripe/setup/fetchStripeDiscountsForBilling.ts
+Line: 75:77
+
+Comment:
+**Wrong Stripe env used**
+`createStripeCli` is instantiated with `env: fullCustomer.env` here, but this code is inside billing flows that otherwise operate on the request context (`ctx.org`/`ctx.env`). If `fullCustomer.env` can differ from `ctx.env` (e.g. cross-env reads or overridden customer env), discount resolution will hit the wrong Stripe account and either fail to resolve valid IDs or apply unintended coupons.
+
+Use `env: ctx.env` (or otherwise ensure the Stripe env source is consistent across the billing context setup).
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/useautumn/autumn/pull/702#discussion_r2780260424,,2026-02-09T01:57:13.004000,Wrong Stripe environment could apply discounts to wrong account,logic,high,8,"This is a meaningful logic bug where using the customer's environment instead of the request context's environment could cause billing operations to hit the wrong Stripe account. This could result in failed discount resolutions or applying unintended coupons to customers, which has real financial and user impact in production. The catch requires understanding the billing flow context and how different environment sources could diverge.",2026-02-09T20:23:03.262628+00:00
+posthog/posthog,47301,fix(cdp): request payload limitation for cdp-api,https://github.com/PostHog/posthog/pull/47301,"**Body limit bypass via missing length**
+
+`publicBodySizeLimit` relies solely on the `content-length` header (`parseInt(req.headers['content-length'] || '0', 10)`), so requests that omit or spoof `Content-Length` will bypass the 500KB check and still be parsed by the global `express.json({ limit: '20mb' })`. This breaks the intended protection for the public POST routes. Consider enforcing the limit using the body parser’s own limit mechanism on those routes (e.g. apply a smaller `express.json({ limit: '500kb' })` / `express.raw` limit per-route), or reject when `content-length` is missing/invalid instead of treating it as 0.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: nodejs/src/cdp/cdp-api.ts
+Line: 162:169
+
+Comment:
+**Body limit bypass via missing length**
+
+`publicBodySizeLimit` relies solely on the `content-length` header (`parseInt(req.headers['content-length'] || '0', 10)`), so requests that omit or spoof `Content-Length` will bypass the 500KB check and still be parsed by the global `express.json({ limit: '20mb' })`. This breaks the intended protection for the public POST routes. Consider enforcing the limit using the body parser’s own limit mechanism on those routes (e.g. apply a smaller `express.json({ limit: '500kb' })` / `express.raw` limit per-route), or reject when `content-length` is missing/invalid instead of treating it as 0.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/47301#discussion_r2782386926,,2026-02-09T12:32:19.319000,Body size limit bypass via missing Content-Length header,security,high,8,"Comments 1 and 2 identify the same security bypass issue - the body size limit check can be bypassed when Content-Length header is missing or spoofed. Comment 2 is more comprehensive, explaining both the bypass mechanism and providing concrete remediation suggestions. This is a meaningful security vulnerability affecting public-facing endpoints.",2026-02-09T20:23:03.262628+00:00
