@@ -2308,3 +2308,56 @@ Comment:
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/useautumn/autumn/pull/713#discussion_r2780255990,,2026-02-09T01:54:16.568000,Missing context data causes FeatureNotFoundError during balance creation,runtime,high,8,"This catches a real runtime bug where a refactored code path no longer properly populates ctx.features before calling a mapper that depends on it, causing production failures when creating balances. The bug would cause operations to fail even when the feature data is available, requiring understanding of the data flow across the refactoring change.",2026-02-10T03:16:23.018062+00:00
+posthog/posthog,47401,feat(deduplicator): expose detailed task status for rebalance reassign flow poller,https://github.com/PostHog/posthog/pull/47401,"**Revoked task re-attach broken**
+
+`revoked_setup_tasks.remove(partition)` drops the revoked task unconditionally, but the code only re-attaches when `peeked` is `Some(Ok(Completed(_)))`. For the intended “still running or completed” behavior described in the comment, `peeked == None` means *still pending*, so this currently discards in-flight revoked imports and forces a fresh spawn (and loses the ability to poll status). This contradicts the PR goal and can increase replacement churn.
+
+This looks like it should either re-attach when `peeked.is_none()` (still running) or avoid removing from `revoked_setup_tasks` unless you’re going to re-attach. Also note the comment says “still running or Completed(path)” but the match only handles `Completed`.
+
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: rust/kafka-deduplicator/src/processor_rebalance_handler.rs
+Line: 740:752
+
+Comment:
+**Revoked task re-attach broken**
+
+`revoked_setup_tasks.remove(partition)` drops the revoked task unconditionally, but the code only re-attaches when `peeked` is `Some(Ok(Completed(_)))`. For the intended “still running or completed” behavior described in the comment, `peeked == None` means *still pending*, so this currently discards in-flight revoked imports and forces a fresh spawn (and loses the ability to poll status). This contradicts the PR goal and can increase replacement churn.
+
+This looks like it should either re-attach when `peeked.is_none()` (still running) or avoid removing from `revoked_setup_tasks` unless you’re going to re-attach. Also note the comment says “still running or Completed(path)” but the match only handles `Completed`.
+
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/47401#discussion_r2785081501,I think the comment here is confusing the bots,2026-02-09T23:45:46.513000,Revoked task re-attach logic drops in-flight imports incorrectly,logic,high,8,"This is a meaningful logic bug where the code unconditionally removes revoked tasks but only re-attaches under one specific condition (Completed), causing in-flight imports to be discarded rather than re-attached. This directly contradicts the intended behavior described in comments and could cause increased churn and lost polling ability in production. The analysis demonstrates deep understanding of the control flow and identifies the mismatch between code and intent.",2026-02-10T04:56:42.462332+00:00
+beanie-brick-band/leopard,206,feat(backend): teacher API,https://github.com/Beanie-Brick-Band/leopard/pull/206,"**Flag deletion authorization**
+
+`deleteFlag` deletes whatever `flags` document `args.flagId` points to without verifying it belongs to `args.submissionId` (or even that it’s referenced by this submission). Any instructor with access to the classroom could delete arbitrary flags (including those on other submissions) by passing their IDs. You likely want to ensure `submission.flags.includes(args.flagId)` before deleting and patching.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/backend/convex/web/teacherAssignments.ts
+Line: 327:330
+
+Comment:
+**Flag deletion authorization**
+
+`deleteFlag` deletes whatever `flags` document `args.flagId` points to without verifying it belongs to `args.submissionId` (or even that it’s referenced by this submission). Any instructor with access to the classroom could delete arbitrary flags (including those on other submissions) by passing their IDs. You likely want to ensure `submission.flags.includes(args.flagId)` before deleting and patching.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/Beanie-Brick-Band/leopard/pull/206#discussion_r2771523198,,2026-02-05T23:03:52.675000,Missing authorization check allows deletion of arbitrary flags,security,high,9,"This is a significant authorization bypass vulnerability where any instructor with classroom access could delete flags on any submission by passing arbitrary flag IDs, not just flags on submissions they should have access to. This is an Insecure Direct Object Reference (IDOR) vulnerability that could allow unauthorized data manipulation across the system.",2026-02-10T04:56:42.462332+00:00
+simstudioai/sim,3168,fix(mcp): harden notification system against race conditions,https://github.com/simstudioai/sim/pull/3168,"**Constructor overload mis-detect**
+
+The overload discriminator looks inverted: `if ('config' in configOrOptions)` will be true for the *options* object, but the body treats that branch as if it were the legacy `(config, securityPolicy?)` case (it assigns `this.config = configOrOptions.config`). In the `else` branch it assigns `this.config = configOrOptions`, which will be an options object in the legacy call site and will break (e.g., `this.config.url` becomes undefined and the URL check throws). This needs to be flipped (treat `'config' in ...` as the options path, else as the legacy config path) so existing call sites keep working.",https://github.com/simstudioai/sim/pull/3168#discussion_r2780025636,"False positive — `McpServerConfig` doesn't have a config property, only `McpClientOptions` does, so the discriminator is correct.",2026-02-08T23:14:22.065000,Constructor overload discriminator logic is inverted causing runtime failures,logic,high,8,"This catches a real logic bug where the constructor's type discrimination is inverted, causing the wrong branch to execute for both call patterns. This would cause undefined property access and broken functionality in production for all existing callers. The analysis is thorough and explains exactly why both branches fail.",2026-02-10T04:56:42.462332+00:00
+gtbitsofgood/juno-dashboard,61,Add ability to delete + add a file config,https://github.com/GTBitsOfGood/juno-dashboard/pull/61,"**logic:** using `row.id` (the file config ID) instead of the component's `projectId` prop will cause the delete operation to fail
+
+```suggestion
+      const deletePromises = selectedRows.map(async (row) => {
+        return deleteFileConfig(projectId);
+```",https://github.com/GTBitsOfGood/juno-dashboard/pull/61#discussion_r2531807284,,2025-11-16T10:27:34.537000,Wrong ID passed to delete operation causes incorrect deletion,logic,high,8,This is a meaningful logic bug where using `row.id` (the file config ID) instead of the correct `projectId` prop would cause delete operations to fail or potentially delete wrong resources. This would directly impact user functionality and could cause data integrity issues in production.,2026-02-10T04:56:42.462332+00:00
