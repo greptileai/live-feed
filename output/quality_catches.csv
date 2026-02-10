@@ -2370,3 +2370,43 @@ Consider escaping for PowerShell single-quoted literals by doubling quotes befor
 bluedotimpact/bluedot,2043,Batch Slack alerts,https://github.com/bluedotimpact/bluedot/pull/2043,"**Global batcher state leaks**
 
 `batchers` is a module-level `Map` that accumulates keys forever; `scheduleFlush` clears `batcher.batches` but never removes the `batchKey` entry from `batchers`. Any one-off/unique `batchKey` usage will permanently grow this map in a long-lived process (e.g. website server), which is an unbounded memory leak. Consider deleting the batcher from the map once it flushes (or when `batches` is cleared).",https://github.com/bluedotimpact/bluedot/pull/2043#discussion_r2786879905,,2026-02-10T09:40:51.207000,Unbounded memory leak in global batcher state Map,resource_leak,high,8,This catches a genuine memory leak where the module-level `batchers` Map grows indefinitely in long-lived processes because batchKey entries are never removed after flushing. This would cause production memory issues in server environments over time.,2026-02-10T12:33:31.742549+00:00
+posthog/posthog,46105,fix(data-warehouse): implement adaptive chunking for API timeout errors,https://github.com/PostHog/posthog/pull/46105,"this logic causes duplicate data when timeout occurs mid-pagination. if the API successfully yields pages 1-3 then times out on page 4, the recursive call to `_fetch_with_chunk_size` will re-fetch and re-yield all data from `chunk_start` to `chunk_end` with a smaller chunk size, duplicating the already-yielded data from pages 1-3.
+
+to fix this, track which portion of the chunk was successfully fetched before the timeout, and only retry the remaining time range. alternatively, detect timeouts before yielding any data for a chunk (i.e., on the first request only)
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: posthog/temporal/data_imports/sources/meta_ads/meta_ads.py
+Line: 137:145
+
+Comment:
+this logic causes duplicate data when timeout occurs mid-pagination. if the API successfully yields pages 1-3 then times out on page 4, the recursive call to `_fetch_with_chunk_size` will re-fetch and re-yield all data from `chunk_start` to `chunk_end` with a smaller chunk size, duplicating the already-yielded data from pages 1-3.
+
+to fix this, track which portion of the chunk was successfully fetched before the timeout, and only retry the remaining time range. alternatively, detect timeouts before yielding any data for a chunk (i.e., on the first request only)
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/46105#discussion_r2734348184,this sound like a legit concern,2026-01-28T00:24:02.990000,Duplicate data yielded on timeout retry during pagination,data_integrity,high,8,"This is a meaningful data integrity bug where timeout-triggered recursive retries would re-fetch and re-yield already-processed pages, causing duplicate records in the data warehouse. This is a subtle logic error in error recovery that wouldn't be caught by static analysis and would cause real data quality issues in production.",2026-02-10T14:41:13.725611+00:00
+posthog/posthog,47311,feat: support multiple variables in materialized endpoints,https://github.com/PostHog/posthog/pull/47311,"**Duplicate placeholders break materialization**
+
+`analyze_variables_for_materialization` iterates over `finder.variable_placeholders` and appends one `MaterializableVariable` per placeholder. If the same `{variables.foo}` appears multiple times in the query (e.g. repeated in multiple AND clauses), `result_vars` will contain duplicates with the same `code_name`. That leads `transform_query_for_materialization` to add duplicate aliased SELECT fields for the same alias, which will produce invalid HogQL/SQL (`... , <expr> AS foo, <expr> AS foo ...`). Consider deduplicating placeholders by `code_name` (or by placeholder chain) before building `result_vars`.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: products/endpoints/backend/materialization.py
+Line: 91:93
+
+Comment:
+**Duplicate placeholders break materialization**
+
+`analyze_variables_for_materialization` iterates over `finder.variable_placeholders` and appends one `MaterializableVariable` per placeholder. If the same `{variables.foo}` appears multiple times in the query (e.g. repeated in multiple AND clauses), `result_vars` will contain duplicates with the same `code_name`. That leads `transform_query_for_materialization` to add duplicate aliased SELECT fields for the same alias, which will produce invalid HogQL/SQL (`... , <expr> AS foo, <expr> AS foo ...`). Consider deduplicating placeholders by `code_name` (or by placeholder chain) before building `result_vars`.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/47311#discussion_r2783535163,"worth checking
+---
+oh yeah - didn't `gt submit` in time",2026-02-10T12:47:03.631000,Duplicate variable placeholders produce invalid SQL queries,logic,high,8,"This is a meaningful logic bug where duplicate variable placeholders in a query would generate invalid SQL with duplicate aliased columns, causing query failures in production. The catch requires understanding the data flow through multiple functions and isn't immediately obvious from static analysis or IDE tooling.",2026-02-10T14:41:13.725611+00:00
