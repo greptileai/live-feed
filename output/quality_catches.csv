@@ -2410,3 +2410,10 @@ How can I resolve this? If you propose a fix, please make it concise.
 </details>",https://github.com/PostHog/posthog/pull/47311#discussion_r2783535163,"worth checking
 ---
 oh yeah - didn't `gt submit` in time",2026-02-10T12:47:03.631000,Duplicate variable placeholders produce invalid SQL queries,logic,high,8,"This is a meaningful logic bug where duplicate variable placeholders in a query would generate invalid SQL with duplicate aliased columns, causing query failures in production. The catch requires understanding the data flow through multiple functions and isn't immediately obvious from static analysis or IDE tooling.",2026-02-10T14:41:13.725611+00:00
+eventual-inc/daft,6145,refactor(arrow2): migrate the extra easy kernels to arrow-rs,https://github.com/Eventual-Inc/Daft/pull/6145,"**Binary field/type mismatch**
+`Utf8Array::encode` now constructs a `BinaryArray` but passes `self.field().clone()` (an Utf8 field) into `BinaryArray::from_arrow(...)`. This breaks the invariant that the field dtype matches the physical array type, and downstream code that relies on `BinaryArray` having `DataType::Binary` can misbehave.
+
+```suggestion
+        let binary_field = self.field().as_ref().clone().with_dtype(crate::datatypes::DataType::Binary);
+```
+(Then pass `binary_field` to `BinaryArray::from_arrow`.)",https://github.com/Eventual-Inc/Daft/pull/6145#discussion_r2784336511,,2026-02-09T20:20:09.971000,Field/type mismatch breaks BinaryArray invariant causing downstream errors,type_error,high,8,"This catches a real data integrity bug where a Utf8 field is incorrectly passed when constructing a BinaryArray, breaking a fundamental invariant that the field dtype must match the array type. This would cause downstream code relying on BinaryArray having DataType::Binary to misbehave in production, which is a meaningful logic bug that wouldn't be caught by typical compile-time checks.",2026-02-10T16:36:19.330268+00:00
