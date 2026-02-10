@@ -2214,3 +2214,77 @@ Comment:
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/PostHog/posthog/pull/47301#discussion_r2782386926,,2026-02-09T12:32:19.319000,Body size limit bypass via missing Content-Length header,security,high,8,"Comments 1 and 2 identify the same security bypass issue - the body size limit check can be bypassed when Content-Length header is missing or spoofed. Comment 2 is more comprehensive, explaining both the bypass mechanism and providing concrete remediation suggestions. This is a meaningful security vulnerability affecting public-facing endpoints.",2026-02-09T20:23:03.262628+00:00
+onyx-dot-app/onyx,8281,fix(posthog): Chat metrics for Cloud (#8278),https://github.com/onyx-dot-app/onyx/pull/8281,"**Anonymous user crash**
+
+`distinct_id=user.email if not user.is_anonymous else tenant_id` will raise when `user is None` (e.g., no-auth/anonymous flows) because it unconditionally accesses `user.is_anonymous`. This is a runtime error on message send; keep the `user is not None` guard or use a safe attribute check before referencing `is_anonymous`.",https://github.com/onyx-dot-app/onyx/pull/8281#discussion_r2785020386,,2026-02-09T23:22:55.012000,NoneType attribute access crash in anonymous user flow,null,high,8,"This is a genuine runtime bug - accessing `user.is_anonymous` when `user is None` would cause an AttributeError crash during message sending in anonymous/no-auth flows. This is a real production issue that would affect users, not something immediately caught by static analysis since it depends on runtime authentication state.",2026-02-10T00:56:10.651343+00:00
+onyx-dot-app/onyx,8280,fix(posthog): Chat metrics for Cloud (#8278),https://github.com/onyx-dot-app/onyx/pull/8280,"**Crash when user is None**
+`distinct_id=user.email if not user.is_anonymous else tenant_id` will raise when `user` is `None` (this function is called with `user: User | None`). This will break chat flows that don’t have an authenticated user (e.g. no-auth/anonymous endpoints). Consider guarding with `if user is not None` (and only referencing `user.is_anonymous` when `user` exists).",https://github.com/onyx-dot-app/onyx/pull/8280#discussion_r2785019878,,2026-02-09T23:22:45.271000,NoneType attribute access crashes chat when user is None,null,high,8,"This is a real runtime bug - accessing `.email` or `.is_anonymous` on a None user object will crash chat flows for unauthenticated users. The function signature explicitly allows `User | None`, so this is a valid code path that would cause production crashes for anonymous/no-auth endpoints.",2026-02-10T00:56:10.651343+00:00
+isaac-sim/isaaclab,3388,Replaces torch.norm with torch.linalg.norm for consistency,https://github.com/isaac-sim/IsaacLab/pull/3388,"**Invalid `p=` keyword**
+Several reward utilities were switched to `torch.linalg.norm(..., p=2, ...)`, but `torch.linalg.norm` expects `ord=` (and `p=` will raise `TypeError`). This will crash these rewards/terminations when executed.
+
+```suggestion
+    # example fix
+    goal_dist = torch.linalg.norm(object_pos - target_pos, ord=2, dim=-1)
+```
+
+Also appears in:
+- `source/isaaclab_tasks/isaaclab_tasks/direct/anymal_c/anymal_c_env.py:314`
+- `source/isaaclab_tasks/isaaclab_tasks/direct/anymal_c/anymal_c_env.py:723`
+- `source/isaaclab_tasks/isaaclab_tasks/direct/automate/assembly_env.py:163`
+- `source/isaaclab_tasks/isaaclab_tasks/direct/automate/assembly_env.py:173`
+- `source/isaaclab_tasks/isaaclab_tasks/direct/automate/disassembly_env.py:164`
+- `source/isaaclab_tasks/isaaclab_tasks/direct/automate/disassembly_env.py:174`
+- `source/isaaclab_tasks/isaaclab_tasks/direct/factory/factory_env.py:436`
+- `source/isaaclab_tasks/isaaclab_tasks/direct/forge/forge_env.py:263`
+- `source/isaaclab_tasks/isaaclab_tasks/direct/franka_cabinet/franka_cabinet_env.py:346`
+- `source/isaaclab_tasks/isaaclab_tasks/direct/inhand_manipulation/inhand_manipulation_env.py:358`
+- `source/isaaclab_tasks/isaaclab_tasks/direct/locomotion/locomotion_env.py:398`
+- `source/isaaclab_tasks/isaaclab_tasks/direct/shadow_hand_over/shadow_hand_over_env.py:557`
+- `source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/deploy/mdp/rewards.py:624`
+- `source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/deploy/mdp/rewards.py:711`
+- `source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/deploy/mdp/rewards.py:895`
+- `source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/deploy/mdp/rewards.py:907`
+- `source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/deploy/mdp/rewards.py:1122`
+- `source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/deploy/mdp/rewards.py:1135`
+- `source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/deploy/mdp/rewards.py:1144`
+- `source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/inhand/mdp/rewards.py:69`
+- `source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/inhand/mdp/terminations.py:57`
+- `source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/reach/mdp/rewards.py:110`
+- `source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/stack/mdp/terminations.py:105`
+- `source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/stack/mdp/terminations.py:212`",https://github.com/isaac-sim/IsaacLab/pull/3388#discussion_r2777174620,,2026-02-07T06:49:57.726000,Invalid p= keyword argument causes TypeError in torch.linalg.norm,runtime,high,8,Comment 0 identifies a runtime crash where torch.linalg.norm requires 'ord=' but the code uses 'p=' from torch.norm API. This would cause TypeError crashes across 24+ locations in production code. The comment comprehensively lists all affected files.,2026-02-10T00:56:10.651343+00:00
+eventual-inc/daft,5839,feat: add unity oauth m2m access token support,https://github.com/Eventual-Inc/Daft/pull/5839,"**logic:** inverted logic - returns True when token is NOT expired
+
+`is_expired()` returns True when the token IS expired, so `not is_expired()` returns True when token is valid. this means `_token_expired()` returns True when token is still valid, causing unnecessary token refreshes on every call
+
+```suggestion
+    def _token_expired(self) -> bool:
+        if self._token is None or self._expiration == 0:
+            return True
+        return is_expired(self._expiration)
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: daft/unity_catalog/auth.py
+Line: 82:85
+
+Comment:
+**logic:** inverted logic - returns True when token is NOT expired
+
+`is_expired()` returns True when the token IS expired, so `not is_expired()` returns True when token is valid. this means `_token_expired()` returns True when token is still valid, causing unnecessary token refreshes on every call
+
+```suggestion
+    def _token_expired(self) -> bool:
+        if self._token is None or self._expiration == 0:
+            return True
+        return is_expired(self._expiration)
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/Eventual-Inc/Daft/pull/5839#discussion_r2663215952,Will fix,2026-01-06T00:55:34.503000,Inverted token expiration logic causes wrong refresh behavior,logic,high,8,"Comment 2 identifies a significant logic bug where the `_token_expired()` method has inverted logic - it returns True when the token is NOT expired. This would cause either unnecessary token refreshes on every call or failure to refresh when actually expired, leading to authentication failures in production.",2026-02-10T00:56:10.651343+00:00
+infisical/infisical,5410,fix: gateway v2 support for hashicorp vault connection,https://github.com/Infisical/infisical/pull/5410,"**TLS verification disabled**
+
+In the gateway v2 branch, HTTPS requests set `httpsAgent` with `rejectUnauthorized: false`, which disables certificate verification for the proxied Vault request. This makes the connection susceptible to MITM (any actor on the path to the gateway/relay can present any cert and still be trusted). If Vault is expected to use a custom CA, prefer passing an explicit CA bundle (or reusing the existing gateway TLS material) rather than disabling verification.",https://github.com/Infisical/infisical/pull/5410#discussion_r2784853732,@greptile This was for testing purposes and was planned for removal before handing off the review to a human,2026-02-09T22:30:42.624000,TLS verification disabled enables MITM attacks on Vault connections,security,critical,9,This is a significant security vulnerability - disabling TLS certificate verification (rejectUnauthorized: false) on HTTPS connections to HashiCorp Vault exposes sensitive secrets management traffic to man-in-the-middle attacks. The reviewer correctly identifies the security risk and provides a concrete remediation (use explicit CA bundle instead). This is a non-obvious security issue that could have serious production impact.,2026-02-10T00:56:10.651343+00:00
