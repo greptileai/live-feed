@@ -2559,3 +2559,29 @@ assistant-ui/assistant-ui,3272,feat(mcp-app-studio): add overlay template system
     fs.rmSync(normalized, { recursive: true, force: true });
   }
 ```",https://github.com/assistant-ui/assistant-ui/pull/3272#discussion_r2794288681,,2026-02-11T16:34:55.997000,Path traversal vulnerability allows arbitrary file deletion,security,critical,9,"This is a genuine security vulnerability where malicious template files could use path traversal (../../) in deleteGlobs to delete arbitrary files outside the project directory. The suggested fix properly validates that resolved paths stay within the target directory, preventing potential data loss or system compromise.",2026-02-11T20:21:49.564627+00:00
+eventual-inc/daft,5826,refactor(arrow2): replace arrow2 offsets with arrow offsets,https://github.com/Eventual-Inc/Daft/pull/5826,"**logic:** Wrong variable used. The original code used `new_lengths` (which tracks the computed lengths including the appended element), but this uses `offsets` (the input offsets). This will produce incorrect results.
+
+```suggestion
+        let new_offsets = OffsetBuffer::from_lengths(new_lengths.into_iter());
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: src/daft-functions-list/src/series.rs
+Line: 361:361
+
+Comment:
+**logic:** Wrong variable used. The original code used `new_lengths` (which tracks the computed lengths including the appended element), but this uses `offsets` (the input offsets). This will produce incorrect results.
+
+```suggestion
+        let new_offsets = OffsetBuffer::from_lengths(new_lengths.into_iter());
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/Eventual-Inc/Daft/pull/5826#discussion_r2624469735,,2025-12-16T19:24:21.265000,Wrong variable used in offset calculation produces incorrect results,logic,high,8,"Comment 0 identifies a genuine logic bug where `offsets` (the input offsets) was used instead of `new_lengths` (computed lengths including appended elements), which would produce incorrect list array results. This is a meaningful bug that would cause wrong behavior in production, distinct from the other comments which discuss a similar but different offset indexing pattern.",2026-02-11T22:18:02.327458+00:00
+nvidia/transformerengine,2655,[C] NVFP4 quantization for `GroupedTensor`,https://github.com/NVIDIA/TransformerEngine/pull/2655,"**Uninitialized quant_config used**
+
+`QuantizationConfig quant_config_cpp;` is left uninitialized when `quant_config == nullptr`, but it’s still passed into `group_hadamard_transform_cast_fusion_graph_safe(...)` (line 1511). That’s undefined behavior and can lead to garbage config values being read inside the kernel launch path. Consider default-initializing (`QuantizationConfig quant_config_cpp{};`) or returning an error when `quant_config` is required.",https://github.com/NVIDIA/TransformerEngine/pull/2655#discussion_r2791629812,,2026-02-11T06:30:20.056000,Uninitialized struct causes undefined behavior in kernel config,runtime,high,8,"This is a genuine undefined behavior bug in C++ where an uninitialized struct with garbage values would be passed to GPU kernel launch code. This could cause incorrect quantization behavior, crashes, or data corruption in production CUDA kernels. The fix of value-initialization is correct and this is a non-obvious issue that wouldn't be caught by compilation.",2026-02-11T22:18:02.327458+00:00
