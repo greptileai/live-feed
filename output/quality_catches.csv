@@ -2448,3 +2448,31 @@ You need to extract the media UUID from the path, look up the `UploadedMedia` ob
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/PostHog/posthog/pull/45883#discussion_r2726620528,,2026-01-26T07:49:22.731000,Cross-team data access via uploaded media UUID guessing,security,critical,9,"This is a significant security vulnerability where users from one team could reference uploaded images belonging to another team by guessing UUIDs. The validation only checks the URL path format but fails to verify team ownership, allowing unauthorized cross-tenant data access.",2026-02-11T08:27:28.426562+00:00
+twentyhq/twenty,17773,Fix row level permission predicate group creation order,https://github.com/twentyhq/twenty/pull/17773,"The groups in `objectPredicateGroups` aren't sorted by parent-child dependencies. If a child appears before its parent in the array, the backend will fail because it tries to reference a non-existent parent.
+
+Sort groups by dependency order before upserting:
+
+```typescript
+// Sort groups so parents are created before children
+const sortedGroups = [];
+const groupsById = new Map(objectPredicateGroups.map(g => [g.id, g]));
+const added = new Set<string>();
+
+const addGroupWithParents = (group: typeof objectPredicateGroups[0]) => {
+  if (added.has(group.id)) return;
+  
+  if (group.parentRowLevelPermissionPredicateGroupId) {
+    const parent = groupsById.get(group.parentRowLevelPermissionPredicateGroupId);
+    if (parent) addGroupWithParents(parent);
+  }
+  
+  sortedGroups.push(group);
+  added.add(group.id);
+};
+
+objectPredicateGroups.forEach(addGroupWithParents);
+
+predicateGroups: sortedGroups.map((group) => ({
+```",https://github.com/twentyhq/twenty/pull/17773#discussion_r2778014789,,2026-02-07T20:08:15.437000,Missing dependency ordering causes foreign key constraint failures,data_integrity,high,8,"Comment 0 identifies a real bug where predicate groups with parent-child relationships could fail to save if a child appears before its parent in the array, causing foreign key constraint violations on the backend. This is a meaningful data integrity issue that would cause production failures. Comment 0 is better written with a correct topological sort implementation including cycle detection.",2026-02-11T10:29:41.291842+00:00
+twentyhq/twenty,17849,Respect Gmail retry-after in messaging throttle,https://github.com/twentyhq/twenty/pull/17849,"**Non-atomic failure increment**
+`throttleFailureCount` is updated via `messageChannel.throttleFailureCount + 1`, which is derived from the (potentially stale) `messageChannel` object passed into the handler. If two temporary failures for the same channel are handled concurrently, both can write the same incremented value and effectively drop an increment, changing when the channel reaches `MESSAGING_THROTTLE_MAX_ATTEMPTS` and is marked failed. This should be done atomically (e.g., DB-level increment) or by computing from the current stored value.",https://github.com/twentyhq/twenty/pull/17849#discussion_r2792127386,,2026-02-11T09:03:03.521000,Race condition in throttle failure count increment,concurrency,high,8,"This identifies a real race condition where concurrent temporary failures for the same channel read stale throttleFailureCount values and both write the same incremented value, causing lost updates. This could delay proper failure detection and affect production behavior when channels should be marked as failed.",2026-02-11T10:29:41.291842+00:00
