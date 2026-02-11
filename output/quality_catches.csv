@@ -2476,3 +2476,32 @@ predicateGroups: sortedGroups.map((group) => ({
 ```",https://github.com/twentyhq/twenty/pull/17773#discussion_r2778014789,,2026-02-07T20:08:15.437000,Missing dependency ordering causes foreign key constraint failures,data_integrity,high,8,"Comment 0 identifies a real bug where predicate groups with parent-child relationships could fail to save if a child appears before its parent in the array, causing foreign key constraint violations on the backend. This is a meaningful data integrity issue that would cause production failures. Comment 0 is better written with a correct topological sort implementation including cycle detection.",2026-02-11T10:29:41.291842+00:00
 twentyhq/twenty,17849,Respect Gmail retry-after in messaging throttle,https://github.com/twentyhq/twenty/pull/17849,"**Non-atomic failure increment**
 `throttleFailureCount` is updated via `messageChannel.throttleFailureCount + 1`, which is derived from the (potentially stale) `messageChannel` object passed into the handler. If two temporary failures for the same channel are handled concurrently, both can write the same incremented value and effectively drop an increment, changing when the channel reaches `MESSAGING_THROTTLE_MAX_ATTEMPTS` and is marked failed. This should be done atomically (e.g., DB-level increment) or by computing from the current stored value.",https://github.com/twentyhq/twenty/pull/17849#discussion_r2792127386,,2026-02-11T09:03:03.521000,Race condition in throttle failure count increment,concurrency,high,8,"This identifies a real race condition where concurrent temporary failures for the same channel read stale throttleFailureCount values and both write the same incremented value, causing lost updates. This could delay proper failure detection and affect production behavior when channels should be marked as failed.",2026-02-11T10:29:41.291842+00:00
+mrmps/smry,67,feat: zeroclick integration with rest api been used for offers and mcp for tracking and we are also using signals mcp as mentioned by the support,https://github.com/mrmps/SMRY/pull/67,"**Provider spoof disables forwarding**
+
+`provider` is derived from `adProvider` (unconstrained string) before falling back to the `impUrl` prefix. A client can set `adProvider: ""zeroclick""` even for a real Gravity `impUrl`, which skips forwarding (`provider !== ""zeroclick""` gate) and logs `gravity_forwarded=0`. That breaks billing attribution and corrupts analytics; `adProvider` should not be trusted from the client (derive from `impUrl`/server state, or validate against expected values).",https://github.com/mrmps/SMRY/pull/67#discussion_r2792757960,,2026-02-11T11:27:27.109000,Client-controlled provider field bypasses billing tracking,security,high,8,"This is a security/billing integrity issue where a malicious client can set adProvider to 'zeroclick' for Gravity ads, bypassing server-side impression forwarding and breaking billing attribution. This could result in lost revenue and corrupted analytics data.",2026-02-11T12:31:53.839823+00:00
+nvidia/dali,6194,Improved device handling. Remove mixed device. Make DALI work without GPU,https://github.com/NVIDIA/DALI/pull/6194,"**Indexing `frozenset` backends**
+
+`build_operator_class` sets `op_class._supported_backends = frozenset(...)`, but `build_fn_wrapper` later does `backend = supported_backends[0]` when `len(supported_backends) == 1` (`_op_builder.py:564`). `frozenset` is not subscriptable, so this path raises `TypeError` for single-backend operators when `device` is inferred.
+
+This is exercised whenever an op supports only one backend (common for CPU-only ops) and the wrapper infers a mismatching `device` first.",https://github.com/NVIDIA/DALI/pull/6194#discussion_r2783430222,Fixed.,2026-02-09T15:59:08.608000,TypeError from indexing frozenset breaks single-backend operators,type_error,high,8,"This catches a real runtime TypeError that would crash the code path for any single-backend operator when device inference occurs. The code changed `_supported_backends` to `frozenset` but still uses `[0]` indexing which doesn't work on frozensets, causing a TypeError at runtime for common operations.",2026-02-11T12:31:53.839823+00:00
+posthog/posthog,47578,fix(feature-flags): allow array values for icontains/not_icontains operators,https://github.com/PostHog/posthog/pull/47578,"**Empty array accepted**
+
+The new `icontains`/`not_icontains` validation allows `value: []` because `all(...)` on an empty list is `True` (`posthog/api/feature_flag.py:771-784`). In Rust, the matcher uses `.any(...)` and negates for `not_icontains` (`rust/feature-flags/src/properties/property_matching.rs:145-163`), so `icontains []` will never match, while `not_icontains []` will always match whenever the property exists. It seems safer to reject empty arrays at API validation to avoid creating “match none / match all” flags by accident.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: posthog/api/feature_flag.py
+Line: 771:783
+
+Comment:
+**Empty array accepted**
+
+The new `icontains`/`not_icontains` validation allows `value: []` because `all(...)` on an empty list is `True` (`posthog/api/feature_flag.py:771-784`). In Rust, the matcher uses `.any(...)` and negates for `not_icontains` (`rust/feature-flags/src/properties/property_matching.rs:145-163`), so `icontains []` will never match, while `not_icontains []` will always match whenever the property exists. It seems safer to reject empty arrays at API validation to avoid creating “match none / match all” flags by accident.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/47578#discussion_r2792348052,"oooh good catch.
+---
+fixed with e5a398974e",2026-02-11T09:53:25.651000,Empty array validation creates unintended match-all/match-none flag behavior,logic,high,8,"This is a meaningful logic bug where the validation allows empty arrays due to Python's `all([])` returning True, but the Rust matcher would cause `icontains []` to never match and `not_icontains []` to always match. This cross-language behavior mismatch could lead to users accidentally creating feature flags with unintended behavior affecting production. The catch requires understanding both Python and Rust codebases and their interaction.",2026-02-11T12:31:53.839823+00:00
