@@ -2547,3 +2547,15 @@ Can you re-review the PR then (and maybe update the ""Confidence Score"" accordi
 ever-co/ever-gauzy,9436,fix: close unused window and init window when in use,https://github.com/ever-co/ever-gauzy/pull/9436,"**Wrong window shown**
 
 In the tray menu `check_for_update` handler you initialize (and intend to show) the *settings* window, but the code calls `appWindowManager.setupWindow?.show?.()` instead of showing `settingWindow`. This makes “Check for update” open the setup window (or do nothing if it’s null) rather than navigating to the update UI.",https://github.com/ever-co/ever-gauzy/pull/9436#discussion_r2792569786,,2026-02-11T10:42:09.844000,Wrong window shown in Check for Update handler,logic,high,8,"This is a meaningful logic bug where clicking 'Check for update' in the tray menu would show the setup window instead of the settings window, causing incorrect user-facing behavior. The code explicitly initializes settingWindow but then calls setupWindow.show() instead.",2026-02-11T18:34:26.865684+00:00
+assistant-ui/assistant-ui,3272,feat(mcp-app-studio): add overlay template system,https://github.com/assistant-ui/assistant-ui/pull/3272,"path traversal vulnerability - `deleteGlobs` entries are joined with `targetDir` without validation, allowing deletion of files outside the project directory if malicious template contains entries like `../../sensitive-file`
+
+```suggestion
+  for (const glob of manifest.deleteGlobs) {
+    const target = path.join(targetDir, glob);
+    const normalized = path.resolve(target);
+    if (!normalized.startsWith(path.resolve(targetDir))) {
+      throw new Error(`Invalid deleteGlob path: ${glob} escapes target directory`);
+    }
+    fs.rmSync(normalized, { recursive: true, force: true });
+  }
+```",https://github.com/assistant-ui/assistant-ui/pull/3272#discussion_r2794288681,,2026-02-11T16:34:55.997000,Path traversal vulnerability allows arbitrary file deletion,security,critical,9,"This is a genuine security vulnerability where malicious template files could use path traversal (../../) in deleteGlobs to delete arbitrary files outside the project directory. The suggested fix properly validates that resolved paths stay within the target directory, preventing potential data loss or system compromise.",2026-02-11T20:21:49.564627+00:00
