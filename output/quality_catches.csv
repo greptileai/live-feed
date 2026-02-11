@@ -2429,3 +2429,22 @@ nvidia-holoscan/holohub,1342,feat: Add GstSrcOp and GstSrcResource for pushing H
 `monitor_loop()` calls `completion_promise_.set_value()` on internal termination paths (ERROR/EOS/NULL transition) and also unconditionally after the loop exits. If an internal path sets the promise and then later `stop()` sets `stop_flag_` and the loop reaches the bottom (e.g., if future exceptions occur or code is refactored), this will throw `std::future_error` (promise already satisfied).
 
 Guard `set_value()` with a flag (or use `std::promise<void> p; std::atomic<bool> completed;`) so it is only satisfied once.",https://github.com/nvidia-holoscan/holohub/pull/1342#discussion_r2785029939,Fixed,2026-02-09T23:26:29.677000,Promise set twice causes std::future_error exception crash,concurrency,high,8,"This catches a real concurrency bug where completion_promise_.set_value() can be called multiple times (on ERROR/EOS/NULL transition paths and unconditionally after loop exit), which throws std::future_error and crashes the application. This is a meaningful runtime bug that would cause production failures.",2026-02-10T22:25:19.447601+00:00
+posthog/posthog,45883,feat: heatmaps upload + toolbar,https://github.com/PostHog/posthog/pull/45883,"Missing ownership validation for `image_url`. The validation only checks that the path starts with `/uploaded_media/`, but doesn't verify that the uploaded media belongs to the same team. This allows users from Team A to reference uploaded images from Team B by guessing or discovering their UUIDs.
+
+You need to extract the media UUID from the path, look up the `UploadedMedia` object, and verify that `uploaded_media.team_id == self.context['request'].team.id`.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: posthog/heatmaps/heatmaps_api.py
+Line: 427:435
+
+Comment:
+Missing ownership validation for `image_url`. The validation only checks that the path starts with `/uploaded_media/`, but doesn't verify that the uploaded media belongs to the same team. This allows users from Team A to reference uploaded images from Team B by guessing or discovering their UUIDs.
+
+You need to extract the media UUID from the path, look up the `UploadedMedia` object, and verify that `uploaded_media.team_id == self.context['request'].team.id`.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/45883#discussion_r2726620528,,2026-01-26T07:49:22.731000,Cross-team data access via uploaded media UUID guessing,security,critical,9,"This is a significant security vulnerability where users from one team could reference uploaded images belonging to another team by guessing UUIDs. The validation only checks the URL path format but fails to verify team ownership, allowing unauthorized cross-tenant data access.",2026-02-11T08:27:28.426562+00:00
