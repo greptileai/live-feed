@@ -2505,3 +2505,42 @@ How can I resolve this? If you propose a fix, please make it concise.
 </details>",https://github.com/PostHog/posthog/pull/47578#discussion_r2792348052,"oooh good catch.
 ---
 fixed with e5a398974e",2026-02-11T09:53:25.651000,Empty array validation creates unintended match-all/match-none flag behavior,logic,high,8,"This is a meaningful logic bug where the validation allows empty arrays due to Python's `all([])` returning True, but the Rust matcher would cause `icontains []` to never match and `not_icontains []` to always match. This cross-language behavior mismatch could lead to users accidentally creating feature flags with unintended behavior affecting production. The catch requires understanding both Python and Rust codebases and their interaction.",2026-02-11T12:31:53.839823+00:00
+ssvlabs/ssv,2677,message-validation: rework duplicate message rejections,https://github.com/ssvlabs/ssv/pull/2677,"`Peer()` always returns nil-checked state but never returns the created state
+
+```suggestion
+func (s *SignerStateForSlotRound) Peer(peerID peer.ID) *SignerState {
+	state := s.Peers[peerID]
+	if state == nil {
+		state = &SignerState{}
+		s.Peers[peerID] = state
+	}
+	return state
+}
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: message/validation/signer_state.go
+Line: 27:32
+
+Comment:
+`Peer()` always returns nil-checked state but never returns the created state
+
+```suggestion
+func (s *SignerStateForSlotRound) Peer(peerID peer.ID) *SignerState {
+	state := s.Peers[peerID]
+	if state == nil {
+		state = &SignerState{}
+		s.Peers[peerID] = state
+	}
+	return state
+}
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/ssvlabs/ssv/pull/2677#discussion_r2759400679,"Not sure I understand your concern/comment, isn't the `return s.Peers[peerID]` I'm doing exactly the same as `return state` in the code you wrote ? Seems like it does the same thing to me.
+---
+Can you re-review the PR then (and maybe update the ""Confidence Score"" accordingly) ?",2026-02-03T14:34:25.023000,Newly created state object never returned to caller,logic,high,8,"This is a meaningful logic bug where the function creates a new SignerState when none exists but fails to return it, causing callers to receive nil and likely crash or behave incorrectly. This would cause production issues in peer state management and is not immediately obvious without careful code review.",2026-02-11T14:36:21.490382+00:00
