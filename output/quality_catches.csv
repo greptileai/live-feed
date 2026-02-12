@@ -2720,3 +2720,10 @@ export async function getSSOUrl({
     return await getSSOUrl({ forLogin, retryCount: retryCount + 1 });
   }
 ```",https://github.com/raycast/extensions/pull/25356#discussion_r2795443600,,2026-02-11T20:45:36.530000,Unbounded recursive retry causes infinite loop on server failure,runtime,high,8,"Comment 1 identifies a genuine runtime bug where recursive retry logic has no termination condition, causing an infinite loop and eventual stack overflow if the server keeps returning failure responses. This is a meaningful production bug that would crash the extension.",2026-02-12T08:25:10.149007+00:00
+green-coding-solutions/green-metrics-tool,1529,(fix): Hardware Info Root Sudoers entry was possible to hijack,https://github.com/green-coding-solutions/green-metrics-tool/pull/1529,"**Sudoers command mismatch**
+
+`ScenarioRunner` now runs `sudo /usr/bin/python3 <repo>/lib/hardware_info_root.py`, but the installer copies the root-owned script to `${gmt_root_bin_dir}/hardware_info_root.py` and writes sudoers for that absolute path (`lib/install_shared.sh:283-291`). With a default install, sudo will not match this invocation and will prompt/fail.
+
+Use the same absolute script path that is written into sudoers (i.e., `${gmt_root_bin_dir}/hardware_info_root.py`) in both call sites.
+
+Also appears in `lib/utils.py:199-204`.",https://github.com/green-coding-solutions/green-metrics-tool/pull/1529#discussion_r2792676353,,2026-02-11T11:07:08.541000,Sudoers command mismatch causes sudo failure in production,security,high,8,"This comment identifies a critical mismatch where the code invokes sudo with a different path than what's configured in sudoers, which would cause the security-sensitive sudo operation to fail in production. This is directly related to the security fix being implemented and would break the intended functionality.",2026-02-12T10:26:20.765236+00:00
