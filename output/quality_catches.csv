@@ -2620,3 +2620,25 @@ def calculate(expression: str) -> dict:
     except Exception as e:
         return {""error"": str(e)}
 ```",https://github.com/traceroot-ai/traceroot/pull/452#discussion_r2795858193,,2026-02-11T22:35:14.372000,Arbitrary code execution via eval() allows injection attacks,security,critical,9,"Comment 1 identifies a critical security vulnerability where user input processed through eval() enables arbitrary code execution, including system commands like 'rm -rf /'. This is a textbook injection vulnerability that could lead to complete system compromise.",2026-02-12T00:50:56.028417+00:00
+infisical/infisical,5458,improvement(api): add config for sending audit logs to clickhouse,https://github.com/Infisical/infisical/pull/5458,"**Promise.allSettled misuse**: Line 83 wraps the async function in an array but doesn't invoke it - it passes the function itself, not the result. This means the Postgres insert never executes.
+
+Should be:
+```suggestion
+      const results = await Promise.allSettled([
+        (async () => {
+          const auditLog = await auditLogDAL.create({
+            actor: actor.type,
+            actorMetadata: actor.metadata,
+            userAgent,
+            projectId,
+            projectName: project?.name,
+            ipAddress,
+            orgId,
+            eventType: event.type,
+            expiresAt: new Date(Date.now() + ttl),
+            eventMetadata: event.metadata,
+            userAgentType
+          });
+          await auditLogStreamService.streamLog(orgId!, auditLog);
+        })(),
+```",https://github.com/Infisical/infisical/pull/5458#discussion_r2795965538,,2026-02-11T23:00:57.658000,"Promise.allSettled receives function instead of promise, breaking Postgres insert",logic,critical,9,This is a critical bug where the Postgres audit log insert would never execute because the async function is passed to Promise.allSettled without being invoked. This would cause complete data loss for audit logs in the Postgres database while appearing to work silently.,2026-02-12T03:15:43.241327+00:00
