@@ -2819,3 +2819,79 @@ nvidia/transformerengine,2661,Get rid of nvshmem dependency for cuBLASMp integra
 `nvte_comm_gemm_ctx_destroy` can deregister/free `ctx->workspace` while `cublasMpMatmul` work on the user-provided `main_stream` is still in flight. `cublasmp_gemm` sets the cuBLASMp handle stream to `main_stream` (comm_gemm.cpp:389) and uses `ctx->workspace` in the enqueue (comm_gemm.cpp:436-439), but destroy() does not synchronize `main_stream` (or otherwise ensure completion) before calling `cublasMpBufferDeregister`/`cublasMpFree`.
 
 This can become a use-after-free if a caller destroys the ctx shortly after launching a comm GEMM. Either synchronize the relevant stream(s) before freeing, or explicitly document (in `comm_gemm.h`) that callers must synchronize `main_stream` before calling destroy().",https://github.com/NVIDIA/TransformerEngine/pull/2661#discussion_r2784859301,,2026-02-09T22:32:27.286000,Use-after-free race condition in GPU workspace destruction,concurrency,critical,9,"This is a sophisticated catch of a GPU-level race condition where async CUDA operations on main_stream could still be using workspace memory when nvte_comm_gemm_ctx_destroy frees it, causing use-after-free. This requires deep understanding of CUDA async execution semantics and cuBLASMp internals - not something a compiler or static analyzer would catch, and could cause memory corruption or crashes in production GPU workloads.",2026-02-12T20:20:23.409361+00:00
+posthog/posthog,47791,fix(experiments): replace sanitization with validation errors.,https://github.com/PostHog/posthog/pull/47791,"This validation function has critical gaps that allow common XSS attacks to bypass detection. Most notably, it doesn't block inline event handlers (`onerror`, `onload`, `onclick`, etc.), which are the most common XSS vectors.
+
+Examples that would bypass current validation:
+```html
+<img src=x onerror=alert(1)>
+<svg onload=alert(1)>
+<body onload=alert(1)>
+<a href=""#"" onclick=alert(1)>Click</a>
+```
+
+Also missing checks for:
+- Dangerous tags: `<base>`, `<link>`, `<meta>`, `<style>`, `<svg>`
+- Protocol encoding: `javascript&#58;` or `java\nscript:`
+- Other protocols: `vbscript:`, base64-encoded data URIs
+
+Add pattern to block event handlers:
+```python
+if re.search(r""\son\w+\s*="", content, re.IGNORECASE):
+    raise ValidationError(f""{field_name} contains disallowed event handlers"")
+```
+
+Consider using a whitelist approach or established sanitization library instead of maintaining custom regex patterns.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: posthog/api/web_experiment.py
+Line: 23:51
+
+Comment:
+This validation function has critical gaps that allow common XSS attacks to bypass detection. Most notably, it doesn't block inline event handlers (`onerror`, `onload`, `onclick`, etc.), which are the most common XSS vectors.
+
+Examples that would bypass current validation:
+```html
+<img src=x onerror=alert(1)>
+<svg onload=alert(1)>
+<body onload=alert(1)>
+<a href=""#"" onclick=alert(1)>Click</a>
+```
+
+Also missing checks for:
+- Dangerous tags: `<base>`, `<link>`, `<meta>`, `<style>`, `<svg>`
+- Protocol encoding: `javascript&#58;` or `java\nscript:`
+- Other protocols: `vbscript:`, base64-encoded data URIs
+
+Add pattern to block event handlers:
+```python
+if re.search(r""\son\w+\s*="", content, re.IGNORECASE):
+    raise ValidationError(f""{field_name} contains disallowed event handlers"")
+```
+
+Consider using a whitelist approach or established sanitization library instead of maintaining custom regex patterns.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/47791#discussion_r2800929221,outdated,2026-02-12T20:31:19.162000,XSS validation bypassed by inline event handlers,security,critical,9,"Comment 1 identifies a critical XSS vulnerability where the custom validation function fails to block common attack vectors like inline event handlers (onerror, onload, onclick). The diff shows the fix was implemented with the exact regex pattern suggested, confirming this was a real security gap that would allow attackers to inject malicious scripts.",2026-02-12T22:18:19.321964+00:00
+getformo/sdk,157,P-992 Add Solana Wallet Adapter integration,https://github.com/getformo/sdk/pull/157,"**Double-wrapping breaks restore**
+
+`wrapAdapterMethods()` always overwrites `this.originalAdapterSendTransaction/signMessage/signTransaction` with whatever function is currently on the adapter. If `setWallet()` is called multiple times with the *same* adapter instance, the “original” can become the already-wrapped method, so `restoreOriginalMethods()` will restore to the wrapper (not the true original), and wrapping can stack. This can lead to duplicate event emission and makes cleanup unreliable for React re-renders that repeatedly pass the same adapter/context.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: src/solana/SolanaWalletAdapterHandler.ts
+Line: 361:381
+
+Comment:
+**Double-wrapping breaks restore**
+
+`wrapAdapterMethods()` always overwrites `this.originalAdapterSendTransaction/signMessage/signTransaction` with whatever function is currently on the adapter. If `setWallet()` is called multiple times with the *same* adapter instance, the “original” can become the already-wrapped method, so `restoreOriginalMethods()` will restore to the wrapper (not the true original), and wrapping can stack. This can lead to duplicate event emission and makes cleanup unreliable for React re-renders that repeatedly pass the same adapter/context.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/getformo/sdk/pull/157#discussion_r2786351454,,2026-02-10T07:53:05.940000,Double-wrapping causes duplicate events and breaks cleanup,logic,high,8,"This catches a real bug where repeated setWallet() calls on the same adapter instance would stack wrappers, causing duplicate event emissions and making cleanup unreliable. This is a meaningful logic bug that would affect production behavior in common React re-render scenarios.",2026-02-12T22:18:19.321964+00:00
