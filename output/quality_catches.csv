@@ -2745,3 +2745,19 @@ nvidia-digital-bio/nvmolkit,89,Pass streams through Python APIs,https://github.c
 `acquireExternalStream` calls `cudaStreamQuery(reinterpret_cast<cudaStream_t>(streamPtr))`. If `streamPtr` is an arbitrary integer (not a CUDA stream handle), this can segfault/abort inside the CUDA runtime rather than returning an error code. Since the Python bindings accept a raw integer, this is a real footgun.
 
 Consider tightening the API to accept only `0` or values sourced from `torch.cuda.Stream.cuda_stream`, and/or provide a safer wrapper that never passes untrusted pointers to CUDA.",https://github.com/NVIDIA-Digital-Bio/nvMolKit/pull/89#discussion_r2795418755,,2026-02-11T20:39:55.900000,Invalid CUDA stream pointer can cause segfault from Python,runtime,high,8,"This is a meaningful runtime bug where passing an arbitrary integer from Python bindings to CUDA's cudaStreamQuery could cause a segfault/abort rather than returning an error. Since the Python API accepts raw integers, untrusted input could crash the process. This is a real production issue affecting reliability and potentially security, though it's a crash rather than data corruption or auth bypass.",2026-02-12T14:31:54.436823+00:00
+assistant-ui/assistant-ui,3267,fix(react-ai-sdk): handle AI SDK v6 approval tool states,https://github.com/assistant-ui/assistant-ui/pull/3267,"**Approval interrupt payload shape**
+
+`ToolCallMessagePart.interrupt` is typed as `{ type: ""human""; payload: unknown }` (`packages/react/src/types/MessagePartTypes.ts:64`), and `toolStatus.payload` already matches that shape. Here, `payload: part.approval` appears to assign the *entire* approval object (which is itself `{ type: ""human""; payload: ... }`) into the `payload` field, producing `{ type: ""human"", payload: { type: ""human"", payload: ... } }`. That will break consumers expecting the approval request data at `interrupt.payload`. This should likely be `interrupt: part.approval` (if `part.approval` already has `{type:""human"", payload}`) or `payload: part.approval.payload`.
+",https://github.com/assistant-ui/assistant-ui/pull/3267#discussion_r2788084260,"The code is correct — no double-wrapping occurs.
+
+AI SDK's `part.approval` for `approval-requested` state is typed as:
+```typescript
+approval: { id: string; approved?: never; reason?: never }
+```
+
+So the produced shape is:
+```typescript
+interrupt: { type: ""human"", payload: { id: ""abc123"" } }
+```
+
+This matches `ToolCallMessagePart.interrupt`'s type `{ type: ""human""; payload: unknown }` exactly. The approval metadata (`{ id }`) goes into `payload`, same pattern as the `toolStatus.payload` path which produces `{ type: ""human"", payload: <tool-specific-data> }`.",2026-02-10T13:51:04.469000,Nested payload structure breaks interrupt data consumers,data_integrity,high,8,"This catch identifies a real data structure bug where the approval object is being double-wrapped in a payload field, creating nested `{ type: 'human', payload: { type: 'human', payload: ... } }` instead of the expected shape. This would break downstream consumers expecting the approval request data at the correct location, causing runtime failures or incorrect behavior in production.",2026-02-12T16:30:38.933481+00:00
