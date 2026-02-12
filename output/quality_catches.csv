@@ -2761,3 +2761,56 @@ interrupt: { type: ""human"", payload: { id: ""abc123"" } }
 ```
 
 This matches `ToolCallMessagePart.interrupt`'s type `{ type: ""human""; payload: unknown }` exactly. The approval metadata (`{ id }`) goes into `payload`, same pattern as the `toolStatus.payload` path which produces `{ type: ""human"", payload: <tool-specific-data> }`.",2026-02-10T13:51:04.469000,Nested payload structure breaks interrupt data consumers,data_integrity,high,8,"This catch identifies a real data structure bug where the approval object is being double-wrapped in a payload field, creating nested `{ type: 'human', payload: { type: 'human', payload: ... } }` instead of the expected shape. This would break downstream consumers expecting the approval request data at the correct location, causing runtime failures or incorrect behavior in production.",2026-02-12T16:30:38.933481+00:00
+greptileai/react-mirror,507,[DevTools] Dedicated empty state for roots that aren't suspended by anything,https://github.com/greptileai/react-mirror/pull/507,"when `suspendedBy` is null/empty, not suspended, and not a root element, the function continues without returning, then tries to access `suspendedBy.length` at line 510
+
+```suggestion
+    // For roots, show an empty state since there's nothing else to show for
+    // these elements.
+    // This can happen for older versions of React without Suspense, older versions
+    // of React with less sources for Suspense, or simple UIs that don't have any suspenders.
+    if (inspectedElement.type === ElementTypeRoot) {
+      return (
+        <div>
+          <div className={styles.HeaderRow}>
+            <div className={`${styles.Header} ${styles.Empty}`}>
+              Nothing suspended the initial paint.
+            </div>
+          </div>
+        </div>
+      );
+    }
+    return null;
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/react-devtools-shared/src/devtools/views/Components/InspectedElementSuspendedBy.js
+Line: 481:496
+
+Comment:
+when `suspendedBy` is null/empty, not suspended, and not a root element, the function continues without returning, then tries to access `suspendedBy.length` at line 510
+
+```suggestion
+    // For roots, show an empty state since there's nothing else to show for
+    // these elements.
+    // This can happen for older versions of React without Suspense, older versions
+    // of React with less sources for Suspense, or simple UIs that don't have any suspenders.
+    if (inspectedElement.type === ElementTypeRoot) {
+      return (
+        <div>
+          <div className={styles.HeaderRow}>
+            <div className={`${styles.Header} ${styles.Empty}`}>
+              Nothing suspended the initial paint.
+            </div>
+          </div>
+        </div>
+      );
+    }
+    return null;
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/greptileai/react-mirror/pull/507#discussion_r2797439092,,2026-02-12T08:29:57.186000,Null pointer access when suspendedBy is empty for non-root elements,null,high,8,"This catches a genuine runtime bug where the code path for non-root elements with null/empty suspendedBy would fall through without returning, then crash when trying to access `suspendedBy.length` at line 510. This would cause a TypeError in production when users inspect certain component states in React DevTools.",2026-02-12T18:31:35.987287+00:00
