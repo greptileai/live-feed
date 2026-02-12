@@ -2646,3 +2646,77 @@ simstudioai/sim,3200,fix(terminal): reconnect to running executions after page r
 `pipeline.zadd(key, ...(zaddArgs as [number, string]))` is typed/cast as a single `[score, member]` pair, but `zaddArgs` is built as a *variable-length* list of `(score, member)` pairs. At runtime this call will only reliably add the first pair (or may mis-handle arguments depending on ioredis signature), so most buffered events won’t be persisted and reconnection will silently miss events.
 
 Also appears in this same block when `batch.length > 1` (the common case).",https://github.com/simstudioai/sim/pull/3200#discussion_r2795801751,,2026-02-11T22:19:25.118000,Redis zadd argument bug silently drops most buffered events,data_integrity,high,8,"This catches a critical data integrity bug where incorrect type casting of the zadd arguments causes only the first event to be persisted while silently dropping all other buffered events. This would cause reconnecting clients to miss most execution events, breaking the core feature this PR implements.",2026-02-12T04:52:24.032189+00:00
+getformo/sdk,157,P-992 Add Solana Wallet Adapter integration,https://github.com/getformo/sdk/pull/157,"infinite recursion will crash when `TextDecoder` is available - line 66 calls `safeDecodeMessage(message)` instead of `new TextDecoder().decode(message)`
+
+```suggestion
+function safeDecodeMessage(message: Uint8Array): string {
+  try {
+    if (typeof TextDecoder !== ""undefined"") {
+      return new TextDecoder().decode(message);
+    }
+    // Fallback for Node environments without TextDecoder global
+    if (typeof Buffer !== ""undefined"") {
+      return Buffer.from(message).toString(""utf-8"");
+    }
+    // Last resort: hex representation
+    return `0x${uint8ArrayToHex(message)}`;
+  } catch {
+    return `0x${uint8ArrayToHex(message)}`;
+  }
+}
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: src/solana/SolanaWalletAdapterHandler.ts
+Line: 63:77
+
+Comment:
+infinite recursion will crash when `TextDecoder` is available - line 66 calls `safeDecodeMessage(message)` instead of `new TextDecoder().decode(message)`
+
+```suggestion
+function safeDecodeMessage(message: Uint8Array): string {
+  try {
+    if (typeof TextDecoder !== ""undefined"") {
+      return new TextDecoder().decode(message);
+    }
+    // Fallback for Node environments without TextDecoder global
+    if (typeof Buffer !== ""undefined"") {
+      return Buffer.from(message).toString(""utf-8"");
+    }
+    // Last resort: hex representation
+    return `0x${uint8ArrayToHex(message)}`;
+  } catch {
+    return `0x${uint8ArrayToHex(message)}`;
+  }
+}
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/getformo/sdk/pull/157#discussion_r2782076057,,2026-02-09T11:19:43.333000,Infinite recursion crash in safeDecodeMessage function,runtime,critical,9,"This catches a guaranteed production crash - the function calls itself recursively instead of using TextDecoder().decode(), causing a stack overflow whenever signMessage is used in browser environments where TextDecoder is available (the most common case).",2026-02-12T08:25:10.149007+00:00
+raycast/extensions,25356,Add AzTU LMS extension,https://github.com/raycast/extensions/pull/25356,"Recursive retry without any limit will cause infinite loop if server keeps returning ""uğursuz cəhd"". Add max retry count.
+
+```suggestion
+export async function getSSOUrl({
+  forLogin,
+  retryCount = 0,
+}: {
+  forLogin: boolean;
+  retryCount?: number;
+}): Promise<{ status: ""old"" | ""new""; loginLink: string } | undefined> {
+  // ... existing code ...
+  
+  const checkLoginLinkResponse = await fetchWithCookies(loginLink, { headers: commonHeaders });
+  const text = await checkLoginLinkResponse.text();
+  if (text === ""\nuğursuz cəhd"") {
+    if (retryCount >= 3) {
+      console.error(""helpers.tsx: getSSOUrl() Max retries exceeded"");
+      return undefined;
+    }
+    console.error(""helpers.tsx: getSSOUrl() Uğursuz cəhd. Trying Again...!"");
+    return await getSSOUrl({ forLogin, retryCount: retryCount + 1 });
+  }
+```",https://github.com/raycast/extensions/pull/25356#discussion_r2795443600,,2026-02-11T20:45:36.530000,Unbounded recursive retry causes infinite loop on server failure,runtime,high,8,"Comment 1 identifies a genuine runtime bug where recursive retry logic has no termination condition, causing an infinite loop and eventual stack overflow if the server keeps returning failure responses. This is a meaningful production bug that would crash the extension.",2026-02-12T08:25:10.149007+00:00
