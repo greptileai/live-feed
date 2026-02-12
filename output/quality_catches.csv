@@ -2727,3 +2727,21 @@ green-coding-solutions/green-metrics-tool,1529,(fix): Hardware Info Root Sudoers
 Use the same absolute script path that is written into sudoers (i.e., `${gmt_root_bin_dir}/hardware_info_root.py`) in both call sites.
 
 Also appears in `lib/utils.py:199-204`.",https://github.com/green-coding-solutions/green-metrics-tool/pull/1529#discussion_r2792676353,,2026-02-11T11:07:08.541000,Sudoers command mismatch causes sudo failure in production,security,high,8,"This comment identifies a critical mismatch where the code invokes sudo with a different path than what's configured in sudoers, which would cause the security-sensitive sudo operation to fail in production. This is directly related to the security fix being implemented and would break the intended functionality.",2026-02-12T10:26:20.765236+00:00
+emerge-lab/pufferdrive,288,Fixed Agent Counts to align with gigaflow feature set,https://github.com/Emerge-Lab/PufferDrive/pull/288,"memory leak - these temporary arrays are never freed
+
+```suggestion
+    int *active_agent_indices = (int *)malloc(env->max_agents_in_sim * sizeof(int));
+    int *static_agent_indices = (int *)malloc(env->max_agents_in_sim * sizeof(int));
+    int *expert_static_agent_indices = (int *)malloc(env->max_agents_in_sim * sizeof(int));
+```
+
+Add after line 1301:
+```
+    free(active_agent_indices);
+    free(static_agent_indices);
+    free(expert_static_agent_indices);
+```",https://github.com/Emerge-Lab/PufferDrive/pull/288#discussion_r2794794760,,2026-02-11T18:22:58.441000,Memory leak from unfreed malloc allocations in C code,resource_leak,high,8,"This is a genuine memory leak in C code where three malloc'd arrays are never freed. In a simulation environment that likely runs repeatedly, this would cause continuous memory growth leading to eventual system degradation or crashes. Memory leaks in C are real bugs that require manual attention and won't be caught by compilers.",2026-02-12T14:31:54.436823+00:00
+nvidia-digital-bio/nvmolkit,89,Pass streams through Python APIs,https://github.com/NVIDIA-Digital-Bio/nvMolKit/pull/89,"**Invalid streamPtr can crash**
+`acquireExternalStream` calls `cudaStreamQuery(reinterpret_cast<cudaStream_t>(streamPtr))`. If `streamPtr` is an arbitrary integer (not a CUDA stream handle), this can segfault/abort inside the CUDA runtime rather than returning an error code. Since the Python bindings accept a raw integer, this is a real footgun.
+
+Consider tightening the API to accept only `0` or values sourced from `torch.cuda.Stream.cuda_stream`, and/or provide a safer wrapper that never passes untrusted pointers to CUDA.",https://github.com/NVIDIA-Digital-Bio/nvMolKit/pull/89#discussion_r2795418755,,2026-02-11T20:39:55.900000,Invalid CUDA stream pointer can cause segfault from Python,runtime,high,8,"This is a meaningful runtime bug where passing an arbitrary integer from Python bindings to CUDA's cudaStreamQuery could cause a segfault/abort rather than returning an error. Since the Python API accepts raw integers, untrusted input could crash the process. This is a real production issue affecting reliability and potentially security, though it's a crash rather than data corruption or auth bypass.",2026-02-12T14:31:54.436823+00:00
