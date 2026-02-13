@@ -2895,3 +2895,25 @@ Comment:
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/getformo/sdk/pull/157#discussion_r2786351454,,2026-02-10T07:53:05.940000,Double-wrapping causes duplicate events and breaks cleanup,logic,high,8,"This catches a real bug where repeated setWallet() calls on the same adapter instance would stack wrappers, causing duplicate event emissions and making cleanup unreliable. This is a meaningful logic bug that would affect production behavior in common React re-render scenarios.",2026-02-12T22:18:19.321964+00:00
+alpaca-network/gatewayz-frontend,971,Handle URL-based Terragon session transfer to fix redirect loop,https://github.com/Alpaca-Network/gatewayz-frontend/pull/971,"`sessionUserId` is extracted from URL but never used - the validation doesn't verify the userId matches the token, creating a potential authorization bypass
+
+Verify the userId from `/api/user/me` response matches `sessionUserId` param
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: src/app/auth/terragon/page.tsx
+Line: 256:260
+
+Comment:
+`sessionUserId` is extracted from URL but never used - the validation doesn't verify the userId matches the token, creating a potential authorization bypass
+
+Verify the userId from `/api/user/me` response matches `sessionUserId` param
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/Alpaca-Network/gatewayz-frontend/pull/971#discussion_r2794581302,,2026-02-11T17:32:51.072000,Unused userId parameter enables authorization bypass,security,high,8,"The sessionUserId is extracted from URL parameters but never validated against the actual user data returned from /api/user/me. This means an attacker could potentially use a valid token with a different userId parameter, bypassing authorization checks that may rely on the userId parameter elsewhere in the flow.",2026-02-13T00:53:22.102317+00:00
+infisical/infisical,5425,feat(pam): in-browser web access terminal for PAM postgres accounts,https://github.com/Infisical/infisical/pull/5425,"**Relay socket leak**
+
+In `cleanup()`, the “Best-effort ALPN session cancellation” opens a new `relayConn` via `createRelayConnection(...)` and then wraps it in `createGatewayConnection(...)`, but only calls `cancelConn.end()`; `relayConn` itself is never `.end()`/`.destroy()`ed. If the gateway side doesn’t fully close the underlying relay socket, this can leak file descriptors over repeated sessions/cleanups. Close both sockets explicitly (and await/handle close) in the cleanup path.",https://github.com/Infisical/infisical/pull/5425#discussion_r2790538918,Added `relayConn.destroy();`,2026-02-10T22:11:43.475000,Relay socket leak in cleanup causes file descriptor exhaustion,resource_leak,high,8,"This is a genuine resource leak bug where the relay socket is opened but never properly closed during cleanup operations. Over repeated sessions, this would leak file descriptors and could eventually cause production issues like FD exhaustion. The catch requires understanding the socket lifecycle across multiple abstraction layers, making it non-trivial to spot.",2026-02-13T00:53:22.102317+00:00
