@@ -2925,3 +2925,22 @@ nvidia/dali,6191,`ndd` vs `fn` tests part 1: utils and automatized tests,https:/
 ```suggestion
         ret = (rng.random(size=(bs,) + size_fn()) for bs in batch_sizes)
 ```",https://github.com/NVIDIA/DALI/pull/6191#discussion_r2785043099,,2026-02-09T23:31:48.857000,Wrong numpy RNG method causes AttributeError at runtime,runtime,high,8,"Comment 9 identifies that `numpy.random.Generator` does not have a `random_sample` method (the correct method is `random`), which would cause an AttributeError when `generate_data()` is called with floating dtypes. This is a genuine runtime bug that would break all new tests using this utility function.",2026-02-13T14:26:18.746908+00:00
+posthog/posthog,47564,feat: auto scope joins to current team/org,https://github.com/PostHog/posthog/pull/47564,"**Missing create-time ownership check**
+
+`validate_logo_media_id` only enforces org scoping when `self.instance` is set (update). On organization **create** (`self.instance is None`), a client can pass `logo_media_id` for an `UploadedMedia` belonging to a different organization/team, and `Organization.objects.bootstrap(..., **validated_data)` will persist that FK (cross-org attachment). This should validate against the request context (or disallow setting `logo_media_id` on create) so uploaded media can’t be referenced across org boundaries.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: posthog/api/organization.py
+Line: 147:152
+
+Comment:
+**Missing create-time ownership check**
+
+`validate_logo_media_id` only enforces org scoping when `self.instance` is set (update). On organization **create** (`self.instance is None`), a client can pass `logo_media_id` for an `UploadedMedia` belonging to a different organization/team, and `Organization.objects.bootstrap(..., **validated_data)` will persist that FK (cross-org attachment). This should validate against the request context (or disallow setting `logo_media_id` on create) so uploaded media can’t be referenced across org boundaries.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/47564#discussion_r2791243831,,2026-02-11T03:22:33.381000,Cross-organization data access vulnerability in logo upload validation,security,high,9,"This is a significant security vulnerability where the validation only checks organization ownership during updates but not during creation, allowing an attacker to reference uploaded media belonging to a different organization. This is a cross-tenant data access issue that could expose sensitive data across organizational boundaries, which is a serious security concern in multi-tenant applications.",2026-02-13T18:25:43.205530+00:00
