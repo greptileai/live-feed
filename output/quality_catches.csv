@@ -2998,3 +2998,30 @@ std::string generateId(const std::string& prefix) {
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/RunanywhereAI/runanywhere-sdks/pull/299#discussion_r2807164392,,2026-02-14T07:45:58.499000,Thread-unsafe static RNG causes data race in concurrent HTTP handlers,concurrency,high,8,"This identifies a real data race where static (non-thread-local) std::mt19937 and std::uniform_int_distribution are accessed concurrently from multiple HTTP handler threads, causing undefined behavior. The comment provides clear explanation, identifies the duplicate location, and offers a correct fix using thread_local.",2026-02-14T18:16:51.514482+00:00
+runanywhereai/runanywhere-sdks,355,[Linux] Voice assistant,https://github.com/RunanywhereAI/runanywhere-sdks/pull/355,"**Thread safety concern with shared state**
+
+`process_audio()` is called from the ALSA capture thread (via the callback set in `main.cpp`), while `stop()` and `cancel()` can be called from the main thread (e.g., on Ctrl+C). Both paths read/write `impl_->speech_active`, `impl_->speech_buffer`, and `impl_->speech_callback_fired` without synchronization.
+
+For example, `stop()` (lines 422-428) clears `speech_buffer` and resets `speech_active` while `process_audio()` could be mid-execution appending to `speech_buffer` or reading `speech_active`. This is a data race.
+
+Consider adding a `std::mutex` to protect shared state, as the existing `openclaw-hybrid-assistant` project does in its pipeline implementation.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: Playground/linux-voice-assistant/src/pipeline/voice_pipeline.cpp
+Line: 229:235
+
+Comment:
+**Thread safety concern with shared state**
+
+`process_audio()` is called from the ALSA capture thread (via the callback set in `main.cpp`), while `stop()` and `cancel()` can be called from the main thread (e.g., on Ctrl+C). Both paths read/write `impl_->speech_active`, `impl_->speech_buffer`, and `impl_->speech_callback_fired` without synchronization.
+
+For example, `stop()` (lines 422-428) clears `speech_buffer` and resets `speech_active` while `process_audio()` could be mid-execution appending to `speech_buffer` or reading `speech_active`. This is a data race.
+
+Consider adding a `std::mutex` to protect shared state, as the existing `openclaw-hybrid-assistant` project does in its pipeline implementation.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/RunanywhereAI/runanywhere-sdks/pull/355#discussion_r2807754195,,2026-02-14T18:01:03.166000,Data race between audio processing and stop/cancel threads,concurrency,high,8,"This identifies a real data race where process_audio() runs on the ALSA capture thread while stop()/cancel() can be called from the main thread, both accessing shared state (speech_active, speech_buffer, speech_callback_fired) without synchronization. This is a meaningful concurrency bug that could cause crashes or undefined behavior in production.",2026-02-14T20:13:15.685667+00:00
