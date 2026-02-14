@@ -2947,3 +2947,54 @@ How can I resolve this? If you propose a fix, please make it concise.
 browserbase/stagehand,1672,[feat]: add `keepAlive` param,https://github.com/browserbase/stagehand/pull/1672,"`shutdownBrowserSession` called before re-entry guard check—if `close()` is called concurrently (e.g., user calls `close()` while signal handler also calls `close()` via `_immediateShutdown`), the first invocation can end the API client, then the second invocation skips the re-entry guard (because `_isClosing` is still false at line 1357 due to async timing), proceeds to line 1358 setting `_isClosing = true`, and attempts to call `this.apiClient.end()` again on a client that's already ended.
 
 Move the `shutdownBrowserSession` call inside the re-entry guard or after setting `_isClosing = true` to prevent duplicate API client shutdown attempts.",https://github.com/browserbase/stagehand/pull/1672#discussion_r2790648974,,2026-02-10T22:45:26.779000,Race condition in concurrent close() calls causes duplicate API client shutdown,concurrency,high,8,This identifies a real race condition where concurrent close() calls (user-initiated and signal handler) can both attempt to end the API client due to the re-entry guard check happening after shutdownBrowserSession is called. This could cause runtime errors or undefined behavior in production when processes receive signals during manual shutdown.,2026-02-14T03:09:00.277009+00:00
+runanywhereai/runanywhere-sdks,299,[Playground] Open claw hybrid assistant pipeline example,https://github.com/RunanywhereAI/runanywhere-sdks/pull/299,"**Thread-unsafe static RNG in concurrent handler**
+
+`generateId()` uses `static std::mt19937` and `static std::uniform_int_distribution` which are not thread-safe. Since `handleChatCompletions` can be called concurrently from multiple HTTP request threads, this creates a data race on these static objects that results in undefined behavior.
+
+The same issue exists in `openai_translation.cpp:161` (`generateToolCallId()`).
+
+Consider either protecting the static RNG with a mutex, or using `thread_local` instead of `static`:
+
+```suggestion
+std::string generateId(const std::string& prefix) {
+    thread_local std::random_device rd;
+    thread_local std::mt19937 gen(rd());
+    thread_local std::uniform_int_distribution<uint64_t> dis;
+
+    std::ostringstream ss;
+    ss << prefix << std::hex << dis(gen);
+    return ss.str();
+}
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: sdk/runanywhere-commons/src/server/openai_handler.cpp
+Line: 25:32
+
+Comment:
+**Thread-unsafe static RNG in concurrent handler**
+
+`generateId()` uses `static std::mt19937` and `static std::uniform_int_distribution` which are not thread-safe. Since `handleChatCompletions` can be called concurrently from multiple HTTP request threads, this creates a data race on these static objects that results in undefined behavior.
+
+The same issue exists in `openai_translation.cpp:161` (`generateToolCallId()`).
+
+Consider either protecting the static RNG with a mutex, or using `thread_local` instead of `static`:
+
+```suggestion
+std::string generateId(const std::string& prefix) {
+    thread_local std::random_device rd;
+    thread_local std::mt19937 gen(rd());
+    thread_local std::uniform_int_distribution<uint64_t> dis;
+
+    std::ostringstream ss;
+    ss << prefix << std::hex << dis(gen);
+    return ss.str();
+}
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/RunanywhereAI/runanywhere-sdks/pull/299#discussion_r2807164392,,2026-02-14T07:45:58.499000,Thread-unsafe static RNG causes data race in concurrent HTTP handlers,concurrency,high,8,"This identifies a real data race where static (non-thread-local) std::mt19937 and std::uniform_int_distribution are accessed concurrently from multiple HTTP handler threads, causing undefined behavior. The comment provides clear explanation, identifies the duplicate location, and offers a correct fix using thread_local.",2026-02-14T18:16:51.514482+00:00
