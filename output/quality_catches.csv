@@ -3265,3 +3265,44 @@ nvidia/dali,6208,Add DALI_MAX_IMAGE_SIZE env var to limit decoded image size in 
 ```suggestion
         if (max_image_sz_ > 0 && static_cast<size_t>(volume(data.shape)) > max_image_sz_) {
 ```",https://github.com/NVIDIA/DALI/pull/6208#discussion_r2803754275,@greptileai - fixed,2026-02-13T11:32:33.338000,Out-of-scope variable causes incorrect image volume check,logic,high,8,"Comment 5 identifies a real bug where `shape` (a 2D tensor from a different scope) would be used instead of `data.shape` (the correct 3D tensor), causing the image size limit check to use wrong dimensions and fail to properly enforce the configured maximum. This would cause the feature to not work correctly in production.",2026-02-16T20:16:13.334295+00:00
+raycast/extensions,25494,Update scheduler extension,https://github.com/raycast/extensions/pull/25494,"**""Once"" command disable overwritten on success**
+
+For commands with `schedule.type === ""once""`, `applyDisable` correctly sets `enabled: false` in `rawToUpdate` at line 122. However, `executeCommand` at line 126 receives the original `command` object (which has `enabled: true`). On successful execution, `executeCommand` calls `applyCommandUpdate(raw, indexById, { ...command, lastExecutedAt, ... })` — this spreads the original `command` with `enabled: true`, overwriting the `enabled: false` that was just set by `applyDisable`.
+
+As a result, ""once"" commands that execute successfully will not actually be disabled after execution.
+
+One fix would be to pass the disabled version of the command to `executeCommand`, or to apply the disable _after_ `executeCommand` returns:
+
+```suggestion
+      if (isDue) {
+        console.log(LOG_MESSAGES.EXECUTING(command.name));
+
+        const commandForExecution =
+          command.schedule.type === ""once"" ? { ...command, enabled: false, updatedAt: now.toISOString() } : command;
+
+        if (command.schedule.type === ""once"") {
+          console.log(LOG_MESSAGES.DISABLING_ONCE(command.name));
+          applyDisable(rawToUpdate, indexById, command);
+          didMutateStorage = true;
+        }
+
+        didMutateStorage = (await executeCommand(rawToUpdate, indexById, commandForExecution, now)) || didMutateStorage;
+```",https://github.com/raycast/extensions/pull/25494#discussion_r2811231033,,2026-02-16T08:35:52.908000,Once-type scheduled commands never disabled due to state overwrite,logic,high,8,"This is a meaningful logic bug where the 'once' command's disabled state gets overwritten by the original command object during execution, causing the command to keep running instead of being disabled after first execution. This would directly affect users expecting one-time scheduled commands to stop after running once. The analysis traces the data flow clearly and identifies a non-obvious interaction between two functions.",2026-02-16T22:15:03.994313+00:00
+gptme/gptme-contrib,296,"fix(gptodo): fix claude backend spawn + add stream-json, model, prompt files",https://github.com/gptme/gptme-contrib/pull/296,"**`$?` captures `tee` exit code, not agent exit code**
+
+Using `| tee` changes which exit code `$?` captures. In a pipeline `cmd1 | cmd2`, `$?` returns the exit code of `cmd2` (`tee`), not `cmd1` (the agent). Since `tee` almost always succeeds, `EXIT_CODE=$?` will be `0` even if the agent fails.
+
+This breaks `check_session()` (line 327), which relies on `EXIT_CODE=` to determine whether a session completed or failed. Every background session will appear to ""succeed"" regardless of actual agent outcome.
+
+Fix with `${PIPESTATUS[0]}` (bash-specific) to capture the first command's exit code:
+
+```suggestion
+            shell_cmd = f'gptme -n {model_arg} ""$(cat {safe_prompt_file})"" 2>&1 | tee {safe_output}; echo ""EXIT_CODE=${{PIPESTATUS[0]}}"" >> {safe_output}'
+        else:
+            model_arg = f""--model {shlex.quote(model)}"" if model else """"
+            # Use stream-json for structured, capturable output
+            # Use tee to show output in tmux pane AND save to file
+            shell_cmd = f'claude -p {model_arg} --output-format stream-json --dangerously-skip-permissions --tools default -- ""$(cat {safe_prompt_file})"" 2>&1 | tee {safe_output}; echo ""EXIT_CODE=${{PIPESTATUS[0]}}"" >> {safe_output}'
+```
+
+This works because the commands are already run under `bash -l -c` (line 214).",https://github.com/gptme/gptme-contrib/pull/296#discussion_r2814023971,Good catch. Fixed in 99349de — added `set -o pipefail` to both shell commands so `$?` captures the agent's exit code through the tee pipe.,2026-02-16T20:59:27.074000,Exit code capture broken by tee pipeline masking agent failures,logic,high,8,"This catch identifies a real bug where `$?` captures tee's exit code (always 0) instead of the agent's exit code, causing all background sessions to appear successful regardless of actual outcome. This breaks the session monitoring/failure detection logic and would mask production failures.",2026-02-16T22:15:03.994313+00:00
