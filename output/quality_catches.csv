@@ -3260,3 +3260,8 @@ The return array includes `updatedAtField` twice (lines 138-139) and never inclu
     searchVectorField,
   ];
 ```",https://github.com/twentyhq/twenty/pull/17977#discussion_r2812947171,,2026-02-16T15:23:03.701000,Copy-paste error causes missing createdAt field in default fields,logic,high,8,"This catches a real copy-paste bug where createdAtField is defined but never used in the return array, with updatedAtField appearing twice instead. This would cause production data integrity issues where objects lack the createdAt field entirely. Comment 1 identifies the root cause in the implementation while Comment 0 identifies the same bug being codified in tests.",2026-02-16T18:23:52.590576+00:00
+nvidia/dali,6208,Add DALI_MAX_IMAGE_SIZE env var to limit decoded image size in CPU and GPU decoders,https://github.com/NVIDIA/DALI/pull/6208,"Variable `shape` refers to the 2D tensor `[H, W]` defined at line 630 inside the `if (crop_generator)` block, but that variable is out of scope here. This should use `data.shape` (which is 3D: `[H, W, C]`) to properly check the full image volume.
+
+```suggestion
+        if (max_image_sz_ > 0 && static_cast<size_t>(volume(data.shape)) > max_image_sz_) {
+```",https://github.com/NVIDIA/DALI/pull/6208#discussion_r2803754275,@greptileai - fixed,2026-02-13T11:32:33.338000,Out-of-scope variable causes incorrect image volume check,logic,high,8,"Comment 5 identifies a real bug where `shape` (a 2D tensor from a different scope) would be used instead of `data.shape` (the correct 3D tensor), causing the image size limit check to use wrong dimensions and fail to properly enforce the configured maximum. This would cause the feature to not work correctly in production.",2026-02-16T20:16:13.334295+00:00
