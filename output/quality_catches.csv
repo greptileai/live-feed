@@ -3153,3 +3153,55 @@ Fix by checking if trimmed string is empty before accessing front/back:
         throw_parsing_error(""Key or value cannot be empty in pair: "" + kv, """");
     }
 ```",https://github.com/Mellanox/libxlio/pull/549#discussion_r2679455921,fixed,2026-01-11T11:23:52.390000,Undefined behavior accessing front/back on empty string,runtime,high,8,"Both comments identify the same class of bug - calling front()/back() on an empty string causes undefined behavior in C++, which could lead to crashes or unpredictable behavior in production. Comment 0 is slightly better written with clearer context about the specific input case.",2026-02-16T10:29:46.919898+00:00
+posthog/posthog,47431,fix: applying currency to conversion values,https://github.com/PostHog/posthog/pull/47431,"**Double currency conversion**
+
+`_get_reported_conversion_value_field` falls back to `convertCurrency('USD', base_currency, sum)` when `customer_currency_code` column is missing (google_ads.py:130-134). This assumes the underlying `metrics_conversions_value` is USD, but Google Ads conversion values are typically in the account currency (same as cost). In that case, this will convert *non-USD values* as if they were USD, producing incorrect numbers whenever `base_currency != 'USD'` and the stats table lacks `customer_currency_code`.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: products/marketing_analytics/backend/hogql_queries/adapters/google_ads.py
+Line: 130:134
+
+Comment:
+**Double currency conversion**
+
+`_get_reported_conversion_value_field` falls back to `convertCurrency('USD', base_currency, sum)` when `customer_currency_code` column is missing (google_ads.py:130-134). This assumes the underlying `metrics_conversions_value` is USD, but Google Ads conversion values are typically in the account currency (same as cost). In that case, this will convert *non-USD values* as if they were USD, producing incorrect numbers whenever `base_currency != 'USD'` and the stats table lacks `customer_currency_code`.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/47431#discussion_r2787958428,,2026-02-10T13:26:48.072000,Double currency conversion produces incorrect financial values,data_integrity,high,8,"This is a meaningful logic bug that would cause incorrect currency conversion calculations in production. When the customer_currency_code column is missing, the code incorrectly assumes values are in USD and converts them, but Google Ads values are actually in account currency - this would produce wrong financial numbers for any non-USD accounts, directly impacting user-facing analytics data.",2026-02-16T14:28:36.659032+00:00
+posthog/posthog,48023,chore: Disable liveness server by default,https://github.com/PostHog/posthog/pull/48023,"**Missing `optional=True` will crash on startup**
+
+These calls pass `default=None` but omit `optional=True`. Looking at `get_from_env` in `posthog/settings/utils.py`, when the env var is not set and `optional=False` (the default), it checks `if default is not None` — which is `False` here — and then raises `ImproperlyConfigured`. This means the worker will crash on startup when these env vars are not set, which is the opposite of the intended behavior.
+
+Other optional settings in this same file (e.g., `TARGET_MEMORY_USAGE`, `MAX_CONCURRENT_ACTIVITIES` on lines 20-22) correctly pass `optional=True`. These lines need the same treatment.
+
+```suggestion
+TEMPORAL_HEALTH_PORT: int | None = get_from_env(""TEMPORAL_HEALTH_PORT"", None, optional=True, type_cast=int)
+TEMPORAL_HEALTH_MAX_IDLE_SECONDS: float | None = get_from_env(""TEMPORAL_HEALTH_MAX_IDLE_SECONDS"", None, optional=True, type_cast=float)
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: posthog/settings/temporal.py
+Line: 24:25
+
+Comment:
+**Missing `optional=True` will crash on startup**
+
+These calls pass `default=None` but omit `optional=True`. Looking at `get_from_env` in `posthog/settings/utils.py`, when the env var is not set and `optional=False` (the default), it checks `if default is not None` — which is `False` here — and then raises `ImproperlyConfigured`. This means the worker will crash on startup when these env vars are not set, which is the opposite of the intended behavior.
+
+Other optional settings in this same file (e.g., `TARGET_MEMORY_USAGE`, `MAX_CONCURRENT_ACTIVITIES` on lines 20-22) correctly pass `optional=True`. These lines need the same treatment.
+
+```suggestion
+TEMPORAL_HEALTH_PORT: int | None = get_from_env(""TEMPORAL_HEALTH_PORT"", None, optional=True, type_cast=int)
+TEMPORAL_HEALTH_MAX_IDLE_SECONDS: float | None = get_from_env(""TEMPORAL_HEALTH_MAX_IDLE_SECONDS"", None, optional=True, type_cast=float)
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/48023#discussion_r2811341895,,2026-02-16T09:05:54.921000,Missing optional flag causes startup crash when env vars unset,runtime,high,8,"This is a meaningful runtime bug that would crash the worker on startup in production environments where these optional environment variables aren't set. The reviewer correctly traced through the get_from_env logic to identify that default=None without optional=True triggers ImproperlyConfigured exception, which is the opposite of the intended behavior. This requires understanding the utility function's logic and isn't immediately obvious from the code alone.",2026-02-16T14:28:36.659032+00:00
