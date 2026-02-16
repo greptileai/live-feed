@@ -3208,3 +3208,55 @@ How can I resolve this? If you propose a fix, please make it concise.
 ever-co/ever-gauzy,9442,[FEAT] Extend OAuth2 app flow for reusability with other platforms (Activepieces --> Gauzy),https://github.com/ever-co/ever-gauzy/pull/9442,"**Auth code replay across instances**
 
 `oauthAppCodeState` is an in-memory `Map`, so the “single-use” check only works within one Node process. In a multi-instance deployment (or after a restart), the same authorization code can be exchanged repeatedly until `exp` because other instances won’t have `jti` marked as used. This breaks the expected OAuth2 single-use authorization code guarantee; used JTIs need to be stored in a shared durable store (or encoded as one-time secrets) rather than process memory.",https://github.com/ever-co/ever-gauzy/pull/9442#discussion_r2785038783,,2026-02-09T23:30:03.472000,OAuth authorization code replay vulnerability in multi-instance deployments,security,critical,9,This identifies a critical OAuth2 security flaw where authorization codes can be replayed across different server instances because the single-use tracking is stored in process memory rather than a shared store. This breaks a fundamental OAuth2 security guarantee and could allow token theft in production deployments.,2026-02-16T16:24:54.881292+00:00
+raycast/extensions,25294,Add Get App Icon extension,https://github.com/raycast/extensions/pull/25294,"**AppleScript string not escaped**
+
+`app.path` is interpolated directly into the AppleScript snippet: `POSIX file ""${app.path}""`. If the path contains characters that need escaping for AppleScript strings (notably `""`), `osascript` will fail. This is separate from the Swift escaping helper; this action needs an AppleScript-safe escape before interpolation.",https://github.com/raycast/extensions/pull/25294#discussion_r2785773374,"Summary of changes:
+
+1. Renamed `escapeSwiftString` → `escapeStringLiteral` since the `\` and `""` escaping logic applies to both Swift and AppleScript string literals.
+2. Applied `escapeStringLiteral(app.path)` to the AppleScript interpolation at line 384, so paths containing `""` or `\` won't break the `osascript` command.
+3. Updated all existing call sites (lines 93–94) to use the new name.
+",2026-02-10T04:46:26.944000,AppleScript injection via unescaped path with special characters,security,high,8,This is a command injection vulnerability where app.path is interpolated directly into AppleScript without escaping. Paths containing quotes could break the script or potentially be exploited. The developer confirmed and fixed it by applying string escaping.,2026-02-16T18:23:52.590576+00:00
+raycast/extensions,25467,Update audio-device extension,https://github.com/raycast/extensions/pull/25467,"downloading executable without integrity verification creates security risk - add checksum validation
+
+```javascript
+const url = ""https://github.com/Inovvia/go-win-audio-cli/releases/download/1.0.0/win-audio-cli.exe"";
+const expectedSha256 = ""...""; // Add checksum from release
+const dest = path.join(assetsDir, ""win-audio-cli.exe"");
+downloadBinary(url, dest)
+  .then(async () => {
+    await verifyChecksum(dest, expectedSha256);
+    console.log(""Downloaded win-audio-cli.exe to assets/."");
+  })
+```",https://github.com/raycast/extensions/pull/25467#discussion_r2808603416,,2026-02-15T05:54:43.956000,Missing checksum validation when downloading executable binary,security,high,8,Downloading an executable binary from the internet without integrity verification creates a significant security risk - a compromised or man-in-the-middle attack could inject malicious code. The comment correctly identifies that the existing verifyChecksum function should be used after downloading.,2026-02-16T18:23:52.590576+00:00
+gptme/gptme,1225,feat(llm): add OpenAI subscription provider support,https://github.com/gptme/gptme/pull/1225,"The `state` parameter is generated but never validated in the callback handler (see `do_GET` at line 215-227). This creates a CSRF vulnerability in the OAuth flow. Validate that the returned state matches the generated value.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: gptme/llm/llm_openai_subscription.py
+Line: 273:273
+
+Comment:
+The `state` parameter is generated but never validated in the callback handler (see `do_GET` at line 215-227). This creates a CSRF vulnerability in the OAuth flow. Validate that the returned state matches the generated value.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/gptme/gptme/pull/1225#discussion_r2764443363,✅ Fixed in commit fa69e82. Added state validation in the callback handler - now checks that received state matches expected_state before accepting the authorization code.,2026-02-04T14:56:37.781000,Missing OAuth state parameter validation enables CSRF attacks,security,high,9,"This catches a real CSRF vulnerability in the OAuth flow - the state parameter is generated but never validated in the callback handler, allowing attackers to potentially hijack the OAuth flow. This is a significant security issue in authentication code that could lead to account compromise.",2026-02-16T18:23:52.590576+00:00
+twentyhq/twenty,17977,Add default fields on object manifest,https://github.com/twentyhq/twenty/pull/17977,"**Duplicate `updatedAtField`, missing `createdAtField`**
+
+The return array includes `updatedAtField` twice (lines 138-139) and never includes `createdAtField`, which is defined at line 37 but unused. This appears to be a copy-paste error — one of the `updatedAtField` entries should be `createdAtField`.
+
+```suggestion
+  return [
+    idField,
+    nameField,
+    createdAtField,
+    updatedAtField,
+    deletedAtField,
+    createdByField,
+    updatedByField,
+    positionField,
+    searchVectorField,
+  ];
+```",https://github.com/twentyhq/twenty/pull/17977#discussion_r2812947171,,2026-02-16T15:23:03.701000,Copy-paste error causes missing createdAt field in default fields,logic,high,8,"This catches a real copy-paste bug where createdAtField is defined but never used in the return array, with updatedAtField appearing twice instead. This would cause production data integrity issues where objects lack the createdAt field entirely. Comment 1 identifies the root cause in the implementation while Comment 0 identifies the same bug being codified in tests.",2026-02-16T18:23:52.590576+00:00
