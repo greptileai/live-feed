@@ -3103,3 +3103,36 @@ launchd's `StartCalendarInterval` uses `0` for Sunday (0=Sunday, 1=Monday, ..., 
 ```suggestion
     day_map = {""mon"": 1, ""tue"": 2, ""wed"": 3, ""thu"": 4, ""fri"": 5, ""sat"": 6, ""sun"": 0}
 ```",https://github.com/gptme/gptme/pull/1261#discussion_r2809284901,Fixed in 3f2a29a — changed `sun: 7` to `sun: 0` and added a test for Sunday parsing.,2026-02-15T13:28:20.756000,Incorrect weekday mapping causes Sunday schedules to silently fail,logic,high,8,"This is a meaningful logic bug where Sunday is mapped to 7 instead of 0 in launchd's StartCalendarInterval. This would cause all Sunday scheduled jobs to silently never execute, which is a real production issue affecting users who schedule weekend tasks.",2026-02-16T00:49:56.957831+00:00
+raycast/extensions,25313,Update stealth-ai-tool extension,https://github.com/raycast/extensions/pull/25313,"**Shell injection via AppleScript**
+
+`frontAppBundleId` is interpolated directly into a shell command: ``osascript -e 'tell application id ""${frontAppBundleId}"" to activate'``. Because this goes through `execSync`, a bundle id containing `""` or shell metacharacters can break the quoting and execute arbitrary shell. Bundle IDs are obtained from AppleScript output and aren’t guaranteed to be safe to embed.
+
+Avoid shell interpolation here (e.g., use `execFileSync('osascript', ['-e', ...])`), or at minimum robustly escape `frontAppBundleId`.
+",https://github.com/raycast/extensions/pull/25313#discussion_r2789336691,,2026-02-10T17:35:59.903000,Shell injection vulnerability via unsanitized bundle ID in execSync,security,high,8,"This is a genuine shell injection vulnerability where untrusted data (bundle ID from AppleScript output) is interpolated directly into a shell command via execSync. While exploitation requires a malicious bundle ID, the fix is straightforward (use execFileSync) and this represents a real security issue that could lead to arbitrary command execution.",2026-02-16T08:25:31.741614+00:00
+runanywhereai/runanywhere-sdks,344,Add VLM (Vision Language Model) support to SDK and Android example app,https://github.com/RunanywhereAI/runanywhere-sdks/pull/344,"**VLM streaming callback type mismatch — will crash at runtime**
+
+The method ID lookup here uses a String-typed onToken, but the Kotlin `TokenCallback` interface defines onToken with ByteArray. Compare with line 907 which correctly uses the byte-array type for LLM streaming.
+
+Result: method lookup returns null, line 3720 logs the error, function returns nullptr, and VLM streaming is completely broken.
+
+Suggested fix: use jbyteArray to match the existing TokenCallback, or define a new VLM-specific callback interface in Kotlin that accepts a String argument.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: sdk/runanywhere-commons/src/jni/runanywhere_commons_jni.cpp
+Line: 3717:3717
+
+Comment:
+**VLM streaming callback type mismatch — will crash at runtime**
+
+The method ID lookup here uses a String-typed onToken, but the Kotlin `TokenCallback` interface defines onToken with ByteArray. Compare with line 907 which correctly uses the byte-array type for LLM streaming.
+
+Result: method lookup returns null, line 3720 logs the error, function returns nullptr, and VLM streaming is completely broken.
+
+Suggested fix: use jbyteArray to match the existing TokenCallback, or define a new VLM-specific callback interface in Kotlin that accepts a String argument.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/RunanywhereAI/runanywhere-sdks/pull/344#discussion_r2810073401,,2026-02-16T07:11:33.453000,JNI callback type mismatch causes runtime crash in VLM streaming,type_error,critical,9,"The JNI method lookup uses String-typed onToken signature but Kotlin's TokenCallback interface defines onToken with ByteArray. This type mismatch causes the method lookup to return null, making VLM streaming completely non-functional at runtime - a guaranteed crash/failure that wouldn't be caught at compile time.",2026-02-16T08:25:31.741614+00:00
