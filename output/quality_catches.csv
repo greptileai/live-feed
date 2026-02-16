@@ -3136,3 +3136,20 @@ Suggested fix: use jbyteArray to match the existing TokenCallback, or define a n
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/RunanywhereAI/runanywhere-sdks/pull/344#discussion_r2810073401,,2026-02-16T07:11:33.453000,JNI callback type mismatch causes runtime crash in VLM streaming,type_error,critical,9,"The JNI method lookup uses String-typed onToken signature but Kotlin's TokenCallback interface defines onToken with ByteArray. This type mismatch causes the method lookup to return null, making VLM streaming completely non-functional at runtime - a guaranteed crash/failure that wouldn't be caught at compile time.",2026-02-16T08:25:31.741614+00:00
+gptme/gptme-contrib,286,feat: add gptme-activity-summary package,https://github.com/gptme/gptme-contrib/pull/286,"**Prompt requests ""deferred"" but enum lacks it**
+
+The blocker status options here include `""deferred""`, but the `BlockerStatus` enum in `schemas.py` only supports `""active""`, `""resolved""`, and `""escalated""`. This same mismatch exists on line 219. When the LLM follows these instructions and returns `""deferred""`, the CLI will crash with a `ValueError`. Either add `DEFERRED` to the enum, or change the prompt to match:
+
+```suggestion
+        {{""issue"": ""description of blocker"", ""status"": ""active|resolved|escalated""}}
+```",https://github.com/gptme/gptme-contrib/pull/286#discussion_r2809895615,"Fixed in 1ad6cbc — added `DEFERRED = ""deferred""` to the enum. The prompt correctly uses `deferred` as a valid status now.",2026-02-15T20:08:26.865000,Enum mismatch causes ValueError crash on LLM response,runtime,high,8,"The prompt instructs the LLM to return 'deferred' as a blocker status, but the BlockerStatus enum doesn't include this value. This would cause a ValueError crash in production whenever the LLM follows the prompt instructions. This is a real bug that would break functionality.",2026-02-16T10:29:46.919898+00:00
+mellanox/libxlio,549,issue: 4825221 Inline config short name resolution and delimiter change,https://github.com/Mellanox/libxlio/pull/549,"Undefined behavior when kv pair contains only whitespace. If the input kv is ""   "" (only spaces/tabs), `trim(kv)` returns an empty string. Calling `trimmed.front()` or `trimmed.back()` on an empty string at line 212 causes undefined behavior.
+
+Fix by checking if trimmed string is empty before accessing front/back:
+
+```suggestion
+    // Must not start or end with equals
+    if (!trimmed.empty() && (trimmed.front() == EQUALS || trimmed.back() == EQUALS)) {
+        throw_parsing_error(""Key or value cannot be empty in pair: "" + kv, """");
+    }
+```",https://github.com/Mellanox/libxlio/pull/549#discussion_r2679455921,fixed,2026-01-11T11:23:52.390000,Undefined behavior accessing front/back on empty string,runtime,high,8,"Both comments identify the same class of bug - calling front()/back() on an empty string causes undefined behavior in C++, which could lead to crashes or unpredictable behavior in production. Comment 0 is slightly better written with clearer context about the specific input case.",2026-02-16T10:29:46.919898+00:00
