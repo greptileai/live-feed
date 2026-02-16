@@ -3091,3 +3091,15 @@ This preserves shell continuity during active multi-step workflows while still c
 Would you like me to create a new PR with this approach?
 ---
 Well yeah, I already asked you to! The particular ""finally"" in the `execute_tool_thread` is probably the wrong approach though. The cleanup should happen in a hook, but where to trigger the hook is still an open question.",2026-02-04T17:19:20.832000,Shell cleanup breaks stateful multi-step workflow continuity,logic,high,8,"This comment identifies a significant logic bug where shell cleanup in the finally block runs before auto-step thread creation, causing subsequent shell commands to lose working directory and environment state. This would break multi-step agent workflows in production, affecting core functionality.",2026-02-15T12:20:28.131423+00:00
+emerge-lab/pufferdrive,297,Modified goal speed interval to be based on min/max rather than center + interval around it,https://github.com/Emerge-Lab/PufferDrive/pull/297,"bitwise AND `&` instead of logical AND `&&` - will produce incorrect results
+
+```suggestion
+            within_speed = current_speed > env->min_goal_speed && current_speed < env->max_goal_speed;
+```",https://github.com/Emerge-Lab/PufferDrive/pull/297#discussion_r2808218927,,2026-02-15T00:58:02.187000,Bitwise AND instead of logical AND causes incorrect boolean evaluation,logic,high,8,"Using bitwise AND (&) instead of logical AND (&&) for boolean comparison is a genuine logic bug that would cause incorrect speed range calculations. While integers happen to work in some cases, this produces wrong results for non-0/1 integer values and bypasses short-circuit evaluation, making it a meaningful bug that could affect game logic in production.",2026-02-16T00:49:56.957831+00:00
+gptme/gptme,1261,fix(agent): fix service management and add proper tests,https://github.com/gptme/gptme/pull/1261,"**Incorrect weekday value for Sunday**
+
+launchd's `StartCalendarInterval` uses `0` for Sunday (0=Sunday, 1=Monday, ..., 6=Saturday), but this maps `""sun""` to `7`. A value of `7` is undefined in the launchd spec and will likely be silently ignored, causing Sunday schedules to never fire.
+
+```suggestion
+    day_map = {""mon"": 1, ""tue"": 2, ""wed"": 3, ""thu"": 4, ""fri"": 5, ""sat"": 6, ""sun"": 0}
+```",https://github.com/gptme/gptme/pull/1261#discussion_r2809284901,Fixed in 3f2a29a — changed `sun: 7` to `sun: 0` and added a test for Sunday parsing.,2026-02-15T13:28:20.756000,Incorrect weekday mapping causes Sunday schedules to silently fail,logic,high,8,"This is a meaningful logic bug where Sunday is mapped to 7 instead of 0 in launchd's StartCalendarInterval. This would cause all Sunday scheduled jobs to silently never execute, which is a real production issue affecting users who schedule weekend tasks.",2026-02-16T00:49:56.957831+00:00
