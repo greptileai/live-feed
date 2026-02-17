@@ -3382,3 +3382,24 @@ The symlink check should also run after the commit hash checkout for the main re
                 if problematic_symlink := self._find_outside_symlinks(self._repo_folder):
                     raise RuntimeError(f""Repository contained outside symlink: {problematic_symlink}\nGMT cannot handle this in URL or Cluster mode due to security concerns. Please change or remove the symlink or run GMT locally."")
 ```",https://github.com/green-coding-solutions/green-metrics-tool/pull/1566#discussion_r2815351475,,2026-02-17T07:16:48.360000,Security symlink check bypassed after commit checkout,security,critical,9,"This catches a security vulnerability where a malicious commit could introduce an outside symlink that bypasses the security check. The symlink validation runs before the commit checkout, allowing an attacker to craft a repository where the initial HEAD passes validation but the checked-out commit contains malicious symlinks that could escape the sandbox.",2026-02-17T10:27:49.623731+00:00
+nvidia/cloudai,809,Add support for setting NIXL num threads for vLLM CLI,https://github.com/NVIDIA/cloudai/pull/809,"the `kv_transfer_config` dict is mutated in the loop and persists across iterations. if prefill has `nixl_threads=2` and decode has `nixl_threads=None`, the decode command will incorrectly include `num_threads:2` from the prefill iteration
+
+the config should be rebuilt for each instance or conditionally constructed. suggested fix:
+
+```
+for port, role, args in [
+    (prefill_port, ""kv_producer"", tdef.cmd_args.prefill),
+    (decode_port, ""kv_consumer"", tdef.cmd_args.decode),
+]:
+    config = {""kv_connector"": ""NixlConnector"", ""kv_role"": role}
+    if args.nixl_threads is not None:
+        config[""kv_connector_extra_config""] = {""num_threads"": cast(int, args.nixl_threads)}
+    commands.append([
+        *base_cmd,
+        ""--port"",
+        str(port),
+        ""--kv-transfer-config"",
+        self._to_json_str_arg(config),
+        *args.serve_args,
+    ])
+```",https://github.com/NVIDIA/cloudai/pull/809#discussion_r2804716074,fixed,2026-02-13T15:14:40.357000,Dict mutation in loop causes config bleed between iterations,logic,high,8,"This catches a real logic bug where the kv_transfer_config dictionary is mutated inside the loop, causing prefill's nixl_threads setting to incorrectly persist into the decode command when decode has nixl_threads=None. This would cause wrong CLI arguments in production affecting vLLM behavior.",2026-02-17T12:27:03.353439+00:00
