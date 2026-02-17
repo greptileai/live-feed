@@ -3365,3 +3365,20 @@ Consider adding a simple lock (e.g., a `Map<string, Promise>` of in-flight write
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/RunanywhereAI/runanywhere-sdks/pull/370#discussion_r2814409872,,2026-02-16T23:53:34.137000,Race condition in concurrent file writes causes corruption,concurrency,high,8,"This catches a real concurrency bug where two simultaneous saveModel calls for the same key can interleave their write() calls, corrupting the model file. For a storage system handling large AI model files, data corruption is a significant issue that would be hard to debug in production.",2026-02-17T08:26:09.001973+00:00
+green-coding-solutions/green-metrics-tool,1566,GMT can checkout repository and relations at defined commit hash,https://github.com/green-coding-solutions/green-metrics-tool/pull/1566,"**Symlink check bypassed after commit checkout**
+
+The `_find_outside_symlinks` check (line 345) runs only after the initial clone but *before* `_checkout_commit_hash` (line 348). If the checked-out commit introduces a malicious outside symlink that wasn't present in the shallow clone's HEAD, the security check is bypassed.
+
+For comparison, in `_checkout_relations` the order is correct: `_checkout_commit_hash` runs first (line 421), then `_find_outside_symlinks` (line 423).
+
+The symlink check should also run after the commit hash checkout for the main repository:
+
+```suggestion
+                if problematic_symlink := self._find_outside_symlinks(self._repo_folder):
+                    raise RuntimeError(f""Repository contained outside symlink: {problematic_symlink}\nGMT cannot handle this in URL or Cluster mode due to security concerns. Please change or remove the symlink or run GMT locally."")
+
+            if self._requested_commit_hash:
+                self._checkout_commit_hash(self._repo_folder, self._requested_commit_hash, context='repository')
+                if problematic_symlink := self._find_outside_symlinks(self._repo_folder):
+                    raise RuntimeError(f""Repository contained outside symlink: {problematic_symlink}\nGMT cannot handle this in URL or Cluster mode due to security concerns. Please change or remove the symlink or run GMT locally."")
+```",https://github.com/green-coding-solutions/green-metrics-tool/pull/1566#discussion_r2815351475,,2026-02-17T07:16:48.360000,Security symlink check bypassed after commit checkout,security,critical,9,"This catches a security vulnerability where a malicious commit could introduce an outside symlink that bypasses the security check. The symlink validation runs before the commit checkout, allowing an attacker to craft a repository where the initial HEAD passes validation but the checked-out commit contains malicious symlinks that could escape the sandbox.",2026-02-17T10:27:49.623731+00:00
