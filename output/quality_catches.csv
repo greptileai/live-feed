@@ -3317,3 +3317,30 @@ Consider checking for `undefined` explicitly instead:
       spanToRecord.setAttribute(key, value)
     }
 ```",https://github.com/cedarjs/cedar/pull/1206#discussion_r2809719511,,2026-02-15T17:12:46.075000,Falsy values incorrectly filtered out from telemetry attributes,logic,medium,8,"This is a meaningful logic bug where valid telemetry values (false, 0, empty string) would be silently dropped due to JavaScript's truthy/falsy coercion. The comment correctly identifies specific callers that pass boolean and numeric values that would be affected. This is a non-obvious bug that wouldn't cause immediate failures but would result in incorrect/incomplete telemetry data in production.",2026-02-17T03:13:45.101574+00:00
+gptme/gptme,1266,"feat(tools): make read tool useful standalone, disable by default",https://github.com/gptme/gptme/pull/1266,"**Missing path traversal protection**
+
+Both `save.py` (lines 110-120) and `patch.py` (lines 315-325) implement path traversal protection that validates relative paths stay within `cwd`. This tool does not, which is inconsistent with the rest of the codebase and contradicts the ""sandboxed"" framing in the module docstring.
+
+While reading is lower-risk than writing, when the tool is explicitly marketed for sandboxed workflows (`--tools read,patch,save`), users may expect the read tool to enforce the same boundaries as its sibling tools. Consider adding the same guard:
+
+```suggestion
+    path = _get_read_path(code, args, kwargs)
+    if not path:
+        yield Message(""system"", ""No path provided"")
+        return
+
+    # Resolve and validate path
+    path_display = path
+    path = path.resolve()
+
+    # Path traversal protection: validate relative paths stay within cwd
+    if not path_display.is_absolute():
+        cwd = Path.cwd().resolve()
+        try:
+            path.relative_to(cwd)
+        except ValueError:
+            yield Message(""system"", f""Path traversal detected: {path_display} resolves outside current directory"")
+            return
+```
+
+<sub>Note: If this suggestion doesn't match your team's coding style, reply to this and let me know. I'll remember it for next time!</sub>",https://github.com/gptme/gptme/pull/1266#discussion_r2813361395,✅ Fixed in commit 0caa71f — Added path traversal protection consistent with save.py and patch.py. Relative paths are validated to stay within cwd.,2026-02-16T17:04:15.415000,Missing path traversal protection in sandboxed read tool,security,high,8,"The comment identifies a security inconsistency where the 'read' tool, explicitly marketed as 'sandboxed', lacks path traversal protection that sibling tools (save.py, patch.py) implement. This could allow reading files outside the intended sandbox directory, which is a meaningful security gap when users expect sandboxed behavior.",2026-02-17T06:33:08.104480+00:00
