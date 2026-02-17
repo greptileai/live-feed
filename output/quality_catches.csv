@@ -3559,3 +3559,44 @@ Consider adding `--` before the commit hash to signal the end of options, which 
 ```
 
 Note: the same concern applies to `git fetch` on line 447 — a `--` separator or an explicit hex validation (e.g. `re.fullmatch(r'[0-9a-fA-F]{4,40}', commit_hash)`) at the entry point would address both.",https://github.com/green-coding-solutions/green-metrics-tool/pull/1566#discussion_r2815351551,,2026-02-17T07:16:48.387000,Git argument injection via unsanitized commit hash input,security,high,8,"This is a legitimate security vulnerability where user-controlled input could be interpreted as git flags, potentially leading to unexpected behavior or exploitation. While subprocess.run with list arguments prevents shell injection, the git argument injection via values starting with '-' is a real attack vector that requires security awareness to catch. The fix using '--' separator is the correct mitigation.",2026-02-17T18:30:24.398772+00:00
+simstudioai/sim,3233,feat(pagination): update pagination for remaining integrations that support it,https://github.com/simstudioai/sim/pull/3233,"**Wrong cursor query param name for `/search/export`**
+
+The Zendesk Export Search Results API accepts `page[after]` as the request query parameter for cursor-based pagination — not `after_cursor`. The field `after_cursor` is what the API returns in the response `meta` object; passing it back as a request parameter is silently ignored, so cursor-based pagination will never advance past the first page.
+
+The shared helper `appendCursorPaginationParams` (in `types.ts`) already uses the correct `page[after]` name. This line should call that helper instead of manually appending the wrong param name.
+
+```suggestion
+      if (params.perPage) queryParams.append('page[size]', params.perPage)
+      if (params.pageAfter) queryParams.append('page[after]', params.pageAfter)
+```",https://github.com/simstudioai/sim/pull/3233#discussion_r2818987619,,2026-02-17T20:41:50.234000,Wrong pagination parameter name breaks cursor-based pagination,logic,high,8,"Comment 2 identifies a critical API integration bug where the code uses `after_cursor` as the query parameter name instead of the correct `page[after]` required by Zendesk's Export Search API. This causes pagination to silently fail - all requests will always return the first page regardless of cursor value, breaking the core pagination feature being implemented.",2026-02-17T22:16:41.642151+00:00
+posthog/posthog,48132,fix(feature-flags): use bulk operations in bulk_delete endpoint,https://github.com/PostHog/posthog/pull/48132,"**Wrap bulk operations in `transaction.atomic()`**
+
+The DB updates (bulk update of normal flags, individual updates for renamed flags, and activity log writes) are not wrapped in a transaction. Since `ATOMIC_REQUESTS` is not enabled, each `queryset.update()` auto-commits immediately.
+
+If an error occurs partway through — e.g., one rename update in the loop at line 2102 hits a constraint violation — some flags will be deleted while others won't, and activity logs may or may not have been written, leaving the system inconsistent.
+
+Additionally, `transaction.on_commit()` without an active transaction runs the callback immediately rather than deferring it until commit.
+
+Wrapping the block from line 2091 through 2120 in `with transaction.atomic():` would fix both issues: all-or-nothing semantics for the writes, and proper deferral of cache invalidation until all writes succeed.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: posthog/api/feature_flag.py
+Line: 2086:2120
+
+Comment:
+**Wrap bulk operations in `transaction.atomic()`**
+
+The DB updates (bulk update of normal flags, individual updates for renamed flags, and activity log writes) are not wrapped in a transaction. Since `ATOMIC_REQUESTS` is not enabled, each `queryset.update()` auto-commits immediately.
+
+If an error occurs partway through — e.g., one rename update in the loop at line 2102 hits a constraint violation — some flags will be deleted while others won't, and activity logs may or may not have been written, leaving the system inconsistent.
+
+Additionally, `transaction.on_commit()` without an active transaction runs the callback immediately rather than deferring it until commit.
+
+Wrapping the block from line 2091 through 2120 in `with transaction.atomic():` would fix both issues: all-or-nothing semantics for the writes, and proper deferral of cache invalidation until all writes succeed.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/48132#discussion_r2814971269,,2026-02-17T04:51:42.221000,Missing transaction.atomic() causes partial deletes and data inconsistency,data_integrity,high,8,"This catch identifies a real data integrity bug where bulk delete operations without transaction.atomic() can leave the system in an inconsistent state - some flags deleted, others not, and activity logs potentially mismatched. Additionally, transaction.on_commit() without an active transaction runs immediately rather than being deferred, causing cache invalidation at wrong times.",2026-02-17T22:16:41.642151+00:00
