@@ -3495,3 +3495,67 @@ Consider adding a synchronous guard at the start of `_initializeWidget`, e.g. st
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/PostHog/posthog-js/pull/3108#discussion_r2816376794,,2026-02-17T10:56:50.433000,Race condition allows duplicate widget initialization and polling,concurrency,high,8,"This catch identifies a real race condition where async initialization without proper guarding allows concurrent calls to `show()` and `_initialize()` to both pass the `_isWidgetRendered` check before either sets it to true, resulting in duplicate widget rendering and polling. The suggestion to use a promise guard is the exact pattern needed to fix this concurrency bug.",2026-02-17T16:29:59.836892+00:00
+onyx-dot-app/onyx,8493,fix(desktop): Link clicking within App,https://github.com/onyx-dot-app/onyx/pull/8493,"**Missing scheme validation before `location.assign`**
+
+The click handler calls `window.location.assign(href)` with whatever value is in the anchor's `href` attribute, without validating the URL scheme. If any code path (e.g., a future component, or dynamically injected HTML) produces an `<a target=""_blank"" href=""javascript:..."">` element, this would execute arbitrary JavaScript via `location.assign()`.
+
+The Rust-side `on_navigation` handler only sees actual navigations — `javascript:` URIs execute inline without triggering a navigation event, so the Rust handler would not catch this.
+
+Currently, the frontend's `transformLinkUri` restricts hrefs to `http:`, `https:`, and `mailto:`, which mitigates this. However, as a defense-in-depth measure, consider adding a scheme allowlist in this handler:
+
+```suggestion
+      const href = anchor.getAttribute(""href"");
+      if (!href || href.startsWith(""#"")) {
+        return;
+      }
+
+      try {
+        const parsed = new URL(href, window.location.href);
+        const scheme = parsed.protocol.toLowerCase();
+        if (![""http:"", ""https:"", ""mailto:"", ""tel:""].includes(scheme)) {
+          return;
+        }
+      } catch {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+      window.location.assign(href);
+```",https://github.com/onyx-dot-app/onyx/pull/8493#discussion_r2817770903,,2026-02-17T15:53:03.804000,Missing scheme validation allows javascript: URI execution,security,high,8,"This identifies a real XSS vulnerability where clicking an anchor with javascript: href would execute arbitrary code via location.assign(), bypassing the Rust navigation handler since javascript: URIs execute inline without triggering navigation events. While mitigated by frontend transformLinkUri, the defense-in-depth concern is valid for a desktop app.",2026-02-17T18:30:24.398772+00:00
+mellanox/libxlio,574,issue: 4845077 [Configuration System] XLIO startup logs print incorrect effective config values,https://github.com/Mellanox/libxlio/pull/574,"Missing pointer registration after duplicate check - `m_all_pointers[runtime_pointer] = key;` never called, making duplicate detection ineffective.
+
+```suggestion
+void runtime_registry::register_pointer_and_check_duplicates(const std::string &key,
+                                                             void *runtime_pointer)
+{
+    if (m_runtime_values.find(key) != m_runtime_values.end()) {
+        throw_xlio_exception(""Key already exists in runtime registry: "" + key);
+    }
+    auto all_pointers_it = m_all_pointers.find(runtime_pointer);
+    if (all_pointers_it != m_all_pointers.end()) {
+        throw_xlio_exception(""Pointer for "" + key +
+                             "" already exists in runtime registry, registered under key: "" +
+                             all_pointers_it->second);
+    }
+    m_all_pointers[runtime_pointer] = key;
+}
+```",https://github.com/Mellanox/libxlio/pull/574#discussion_r2792836951,,2026-02-11T11:46:36.810000,Missing pointer registration makes duplicate detection ineffective,logic,high,8,"The comment identifies a significant logic bug where the duplicate pointer detection mechanism is completely broken because pointers are never actually added to m_all_pointers after the check. This would allow the same pointer to be registered multiple times under different keys, potentially causing data corruption or unexpected behavior in the configuration system.",2026-02-17T18:30:24.398772+00:00
+rapidsai/cugraph-gnn,407,refactor: build wheels and conda packages using Python limited API,https://github.com/rapidsai/cugraph-gnn/pull/407,"Memory leak in loop: `PyUnicode_AsUTF8String` returns a new reference that must be freed. This leaks memory for every file in the list. 
+
+```suggestion
+            cdef PyObject* temp_bytes = PyUnicode_AsUTF8String(file_list[i])
+            filenames[i] = strdup(PyBytes_AsString(<object>temp_bytes))
+            Py_DECREF(temp_bytes)
+```",https://github.com/rapidsai/cugraph-gnn/pull/407#discussion_r2800898678,,2026-02-12T20:23:05.851000,Memory leak in loop from unreleased PyUnicode_AsUTF8String references,resource_leak,high,8,"Comment 2 identifies a memory leak inside a loop where PyUnicode_AsUTF8String returns new references that are never freed. This is worse than single-call leaks because it leaks memory proportional to the number of files processed, causing cumulative memory exhaustion in production workloads.",2026-02-17T18:30:24.398772+00:00
+green-coding-solutions/green-metrics-tool,1566,GMT can checkout repository and relations at defined commit hash,https://github.com/green-coding-solutions/green-metrics-tool/pull/1566,"**Unsanitized input passed to `git checkout`**
+
+The `commit_hash` value reaches this point without format validation — from the API it's any non-empty string, and from the CLI it's any string. While using a list argument to `subprocess.run` prevents shell injection, git itself interprets arguments starting with `-` as flags. A value like `--orphan=foo` would be interpreted as a git checkout flag rather than a commit ref.
+
+Consider adding `--` before the commit hash to signal the end of options, which is the standard mitigation:
+
+```suggestion
+            subprocess.run(['git', 'checkout', '--', commit_hash], **command_opts) # pylint: disable=subprocess-run-check
+```
+
+Note: the same concern applies to `git fetch` on line 447 — a `--` separator or an explicit hex validation (e.g. `re.fullmatch(r'[0-9a-fA-F]{4,40}', commit_hash)`) at the entry point would address both.",https://github.com/green-coding-solutions/green-metrics-tool/pull/1566#discussion_r2815351551,,2026-02-17T07:16:48.387000,Git argument injection via unsanitized commit hash input,security,high,8,"This is a legitimate security vulnerability where user-controlled input could be interpreted as git flags, potentially leading to unexpected behavior or exploitation. While subprocess.run with list arguments prevents shell injection, the git argument injection via values starting with '-' is a real attack vector that requires security awareness to catch. The fix using '--' separator is the correct mitigation.",2026-02-17T18:30:24.398772+00:00
