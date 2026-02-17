@@ -3403,3 +3403,95 @@ for port, role, args in [
         *args.serve_args,
     ])
 ```",https://github.com/NVIDIA/cloudai/pull/809#discussion_r2804716074,fixed,2026-02-13T15:14:40.357000,Dict mutation in loop causes config bleed between iterations,logic,high,8,"This catches a real logic bug where the kv_transfer_config dictionary is mutated inside the loop, causing prefill's nixl_threads setting to incorrectly persist into the decode command when decode has nixl_threads=None. This would cause wrong CLI arguments in production affecting vLLM behavior.",2026-02-17T12:27:03.353439+00:00
+gptme/gptme,1269,fix(acp): redirect Rich console to stderr to prevent JSON-RPC pollution,https://github.com/gptme/gptme/pull/1269,"**Incomplete stdout protection in ACP mode**
+
+This fix redirects `gptme.util.console` to stderr, which covers config loading messages. However, there are other `Console()` instances and `rich.print` calls that also write to stdout and can be triggered in the ACP code path:
+
+1. `gptme/plugins/__init__.py:25` has its own `console = Console()` used at line 281 to log plugin loading — this is triggered via `init_tools()` during `GptmeAgent.initialize()`.
+2. `gptme/llm/__init__.py:10` uses `from rich import print as rprint`, and lines 111/115/116 write ""Thinking..."" and response output to stdout when `stream=False` (which is the ACP mode setting at `agent.py:528`).
+
+These will still pollute the JSON-RPC stdout stream. Consider either:
+- Creating a centralized function to redirect all Rich output in ACP mode, or
+- Also patching these additional stdout writers here",https://github.com/gptme/gptme/pull/1269#discussion_r2814650233,"Good catch — these are real additional stdout writers. Analysis:
+
+1. **Plugin console.log** (plugins/__init__.py:281): Only fires if `config.project.plugins.paths` is configured, so it's conditional. Worth fixing but not what the reporter hit.
+
+2. **LLM rprint calls** (llm/__init__.py:111-116): These DO fire in ACP mode (`stream=False`). The ""Thinking..."" spinner and response echo will write to stdout. This is the more concerning one.
+
+For this PR I'd prefer to keep the scope minimal (fixes the exact reported issue). I'll open a follow-up to do a comprehensive ACP stdout audit — either redirect `sys.stdout` to stderr early in ACP `__main__` or patch the additional writers.
+---
+Fixed in 6e64842. Took the nuclear option: save original stdout, redirect sys.stdout to stderr globally, then pass the saved stdout to run_agent() via explicit asyncio streams. This catches ALL stdout writers (rprint, print, Console, sys.stdout.write) without needing to patch each one individually. Also fixed plugins/__init__.py to use the global console from gptme.util instead of its own instance. Added 9 tests.",2026-02-17T02:08:02.121000,Incomplete stdout protection causes JSON-RPC protocol pollution,runtime,high,8,"This catch identifies a real production bug where multiple Console() instances and rich.print calls would still write to stdout despite the partial fix, corrupting the JSON-RPC protocol communication. The developer confirmed this was a real issue and implemented the suggested comprehensive fix.",2026-02-17T16:29:59.836892+00:00
+gptme/gptme-contrib,298,fix(gptodo): enhance session cleanup with state reconciliation,https://github.com/gptme/gptme-contrib/pull/298,"**Race condition with concurrent session spawns**
+
+There's a narrow window where a newly spawned session could be killed by Phase 3. The `sessions` list is loaded at line 406, but `tmux list-sessions` runs later (line 432). If `spawn_agent()` is called between those two points by another process, the new tmux session (which has the `gptodo_` prefix) won't be in `known_tmux` and will be killed as an orphan.
+
+One way to mitigate this would be to reload `list_sessions()` right before building `known_tmux`, or to check for a corresponding state file on disk before killing:
+
+```suggestion
+            known_ids = {s.tmux_session for s in list_sessions(workspace) if s.tmux_session}
+            for tmux_name in result.stdout.strip().split(""\n"") if result.stdout.strip() else []:
+                tmux_name = tmux_name.strip()
+                if tmux_name.startswith(""gptodo_"") and tmux_name not in known_ids:
+                    subprocess.run(
+                        [""tmux"", ""kill-session"", ""-t"", tmux_name],
+                        capture_output=True,
+                    )
+                    count += 1
+```",https://github.com/gptme/gptme-contrib/pull/298#discussion_r2817083260,"Good catch! Fixed in 6325573 — Phase 3 now re-reads sessions from disk before checking for orphans, so any sessions spawned between Phase 1 and Phase 3 are included in `known_tmux`.",2026-02-17T13:37:13.983000,Race condition in session cleanup could kill newly spawned sessions,concurrency,high,8,This identifies a real race condition where a concurrent session spawn between loading the sessions list and running tmux list-sessions could result in the new session being incorrectly killed as an orphan. This is a meaningful concurrency bug that would cause data loss in production multi-process scenarios.,2026-02-17T16:29:59.836892+00:00
+posthog/posthog-js,3108,feat: support multiple tickets,https://github.com/PostHog/posthog-js/pull/3108,"**Race condition: double initialization possible**
+
+`_initializeWidget` is now `async` but both callers (`_initialize` at line 402 and `show()` at line 826) call it without awaiting. The `_isWidgetRendered` guard at the top of `_initializeWidget` is only set to `true` *after* the `await this._determineInitialView()` resolves. If `show()` is called before that promise resolves (e.g. user calls `show()` shortly after construction, or both `_initialize` and `show()` fire in quick succession), the guard check will pass both times, resulting in duplicate widget rendering and polling.
+
+Consider adding a synchronous guard at the start of `_initializeWidget`, e.g. storing and checking the in-flight promise:
+
+```suggestion
+    private _initializeWidgetPromise: Promise<void> | null = null
+
+    private async _initializeWidget(): Promise<void> {
+        if (this._isWidgetRendered) {
+            return // Already rendered
+        }
+        if (this._initializeWidgetPromise) {
+            return this._initializeWidgetPromise
+        }
+        this._initializeWidgetPromise = this._doInitializeWidget()
+        return this._initializeWidgetPromise
+    }
+
+    private async _doInitializeWidget(): Promise<void> {
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/browser/src/extensions/conversations/external/index.tsx
+Line: 417:420
+
+Comment:
+**Race condition: double initialization possible**
+
+`_initializeWidget` is now `async` but both callers (`_initialize` at line 402 and `show()` at line 826) call it without awaiting. The `_isWidgetRendered` guard at the top of `_initializeWidget` is only set to `true` *after* the `await this._determineInitialView()` resolves. If `show()` is called before that promise resolves (e.g. user calls `show()` shortly after construction, or both `_initialize` and `show()` fire in quick succession), the guard check will pass both times, resulting in duplicate widget rendering and polling.
+
+Consider adding a synchronous guard at the start of `_initializeWidget`, e.g. storing and checking the in-flight promise:
+
+```suggestion
+    private _initializeWidgetPromise: Promise<void> | null = null
+
+    private async _initializeWidget(): Promise<void> {
+        if (this._isWidgetRendered) {
+            return // Already rendered
+        }
+        if (this._initializeWidgetPromise) {
+            return this._initializeWidgetPromise
+        }
+        this._initializeWidgetPromise = this._doInitializeWidget()
+        return this._initializeWidgetPromise
+    }
+
+    private async _doInitializeWidget(): Promise<void> {
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog-js/pull/3108#discussion_r2816376794,,2026-02-17T10:56:50.433000,Race condition allows duplicate widget initialization and polling,concurrency,high,8,"This catch identifies a real race condition where async initialization without proper guarding allows concurrent calls to `show()` and `_initialize()` to both pass the `_isWidgetRendered` check before either sets it to true, resulting in duplicate widget rendering and polling. The suggestion to use a promise guard is the exact pattern needed to fix this concurrency bug.",2026-02-17T16:29:59.836892+00:00
