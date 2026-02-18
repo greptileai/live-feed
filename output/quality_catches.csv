@@ -3754,3 +3754,50 @@ gptme/gptme,1279,fix(python): detect and use user's venv for IPython tool,https:
 The second call in `_get_ipython()` correctly picks up the workspace's `.venv` once cwd has changed, so the workspace venv will eventually be available. But if a stale venv was found during `init()`, it remains in `sys.path` for the whole session.
 
 This might be intentional (to detect libraries early for the ""Available libraries"" system prompt), but consider guarding the `init()` call with `VIRTUAL_ENV` only (skipping the cwd check) since cwd isn't reliable at that point, or documenting this caveat.",https://github.com/gptme/gptme/pull/1279#discussion_r2820902520,Fixed in 4931789cc — `init()` now passes `env_only=True` to skip cwd-based detection. The cwd check is deferred to `_get_ipython()` which runs lazily after `os.chdir(workspace)`.,2026-02-18T08:09:30.915000,Init runs before workspace chdir causing wrong venv detection,logic,high,8,"This catches a timing bug where `init()` runs before `os.chdir(workspace)`, causing `.venv` detection to find the wrong venv from the launch directory instead of the workspace. This could permanently pollute `sys.path` with incorrect packages for the entire session, leading to wrong library versions being used.",2026-02-18T10:25:54.747851+00:00
+posthog/posthog,48236,feat(llma): track single trace load age and query timing,https://github.com/PostHog/posthog/pull/48236,"**Bug: `reduce` with `null` initial value always produces `null`**
+
+The `reduce` callback uses `timestamp.isBefore(earliest)` where `earliest` starts as `null`. In dayjs 1.11.x, `dayjs(null)` creates an **invalid** date object (backed by `new Date(NaN)`), so any comparison against it — including `isBefore(null)` — returns `false`. This means every iteration of the reduce returns `null` (the initial `earliest`), and `earliestEventTimestampUTC` is **always `null`** regardless of how many valid events exist.
+
+As a result, the function always falls back to `trace.createdAt` when events are present, defeating the purpose of finding the earliest event timestamp. Tests 1 and 4 in the test file would fail once actually executed.
+
+The fix is to add an explicit null check in the callback:
+
+```suggestion
+    const earliestEventTimestampUTC = trace.events
+        .map((event) => dayjs.utc(event.createdAt))
+        .filter((timestamp) => timestamp.isValid())
+        .reduce(
+            (earliest, timestamp) => earliest === null || timestamp.isBefore(earliest) ? timestamp : earliest,
+            null as dayjs.Dayjs | null
+        )
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: products/llm_analytics/frontend/llmAnalyticsTraceDataLogic.ts
+Line: 68:74
+
+Comment:
+**Bug: `reduce` with `null` initial value always produces `null`**
+
+The `reduce` callback uses `timestamp.isBefore(earliest)` where `earliest` starts as `null`. In dayjs 1.11.x, `dayjs(null)` creates an **invalid** date object (backed by `new Date(NaN)`), so any comparison against it — including `isBefore(null)` — returns `false`. This means every iteration of the reduce returns `null` (the initial `earliest`), and `earliestEventTimestampUTC` is **always `null`** regardless of how many valid events exist.
+
+As a result, the function always falls back to `trace.createdAt` when events are present, defeating the purpose of finding the earliest event timestamp. Tests 1 and 4 in the test file would fail once actually executed.
+
+The fix is to add an explicit null check in the callback:
+
+```suggestion
+    const earliestEventTimestampUTC = trace.events
+        .map((event) => dayjs.utc(event.createdAt))
+        .filter((timestamp) => timestamp.isValid())
+        .reduce(
+            (earliest, timestamp) => earliest === null || timestamp.isBefore(earliest) ? timestamp : earliest,
+            null as dayjs.Dayjs | null
+        )
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/48236#discussion_r2818953885,,2026-02-17T20:32:54.288000,Reduce with null initial always returns null defeating timestamp logic,logic,high,8,"This is a meaningful logic bug where the reduce operation would always return null due to dayjs's behavior with null comparisons, causing the feature to silently fall back to incorrect data. The catch demonstrates deep understanding of dayjs library behavior and identifies a subtle bug that would produce wrong results in production without throwing any errors.",2026-02-18T14:26:58.069260+00:00
