@@ -3801,3 +3801,51 @@ The fix is to add an explicit null check in the callback:
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/PostHog/posthog/pull/48236#discussion_r2818953885,,2026-02-17T20:32:54.288000,Reduce with null initial always returns null defeating timestamp logic,logic,high,8,"This is a meaningful logic bug where the reduce operation would always return null due to dayjs's behavior with null comparisons, causing the feature to silently fall back to incorrect data. The catch demonstrates deep understanding of dayjs library behavior and identifies a subtle bug that would produce wrong results in production without throwing any errors.",2026-02-18T14:26:58.069260+00:00
+openreplay/openreplay,4377,New canvases pipeline,https://github.com/openreplay/openreplay/pull/4377,"**Concurrent appends to the same `.frames` file may corrupt data**
+
+`writeToDisk` runs inside a pool of 8 workers. If two batches for the same canvas (same `task.name`, same `task.sessionID`) arrive in quick succession, two goroutines will concurrently open the same `.frames` file with `O_APPEND` and call `f.Write()`. While `O_APPEND` guarantees atomic seek-to-end, a single `Write()` call for a large buffer is not guaranteed to be atomic on all filesystems. Since the binary format packs `[ts][len][data]` per frame, a partial interleave would corrupt the frame boundaries, making the file unreadable downstream.
+
+Consider either: (a) using a per-file mutex/lock, (b) writing each batch to a separate file and merging later, or (c) ensuring that all writes for a given canvas are serialized to the same worker (e.g., hash-partitioning tasks by session+canvas name).",https://github.com/openreplay/openreplay/pull/4377#discussion_r2821514861,,2026-02-18T10:21:49.884000,Concurrent file writes can corrupt binary frame data,concurrency,high,8,"This identifies a real concurrency bug where 8 worker goroutines can simultaneously append to the same .frames file, potentially interleaving writes and corrupting the binary format with frame boundaries. This would cause downstream processing failures and data loss in production.",2026-02-18T16:31:33.624088+00:00
+useautumn/autumn,759,Charlie/discount deleted fix,https://github.com/useautumn/autumn/pull/759,"**Catch block swallows all Stripe errors**
+
+The bare `catch` treats any error (network timeouts, rate limits, auth failures) the same as a ""resource not found"" error. If Stripe returns a transient error, a valid coupon will be silently filtered out, potentially removing a customer's active discount. Other parts of the codebase (e.g., `getStripePrice`, `productUtils`) check for `resource_missing` specifically. Consider narrowing the catch to only treat `resource_missing` as ""coupon deleted"":
+
+```suggestion
+			} catch (error) {
+				if (
+					error instanceof Stripe.errors.StripeError &&
+					error.code?.includes(""resource_missing"")
+				) return false;
+				throw error;
+			}
+```
+
+This would need `Stripe` imported (it already is as a type — change to a value import or use the `stripe` module errors directly).
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: server/src/internal/billing/v2/providers/stripe/setup/fetchStripeDiscountsForBilling.ts
+Line: 63-65
+
+Comment:
+**Catch block swallows all Stripe errors**
+
+The bare `catch` treats any error (network timeouts, rate limits, auth failures) the same as a ""resource not found"" error. If Stripe returns a transient error, a valid coupon will be silently filtered out, potentially removing a customer's active discount. Other parts of the codebase (e.g., `getStripePrice`, `productUtils`) check for `resource_missing` specifically. Consider narrowing the catch to only treat `resource_missing` as ""coupon deleted"":
+
+```suggestion
+			} catch (error) {
+				if (
+					error instanceof Stripe.errors.StripeError &&
+					error.code?.includes(""resource_missing"")
+				) return false;
+				throw error;
+			}
+```
+
+This would need `Stripe` imported (it already is as a type — change to a value import or use the `stripe` module errors directly).
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/useautumn/autumn/pull/759#discussion_r2821706208,,2026-02-18T11:03:16.972000,Overly broad catch silently removes valid customer discounts,logic,high,8,"This is a meaningful logic bug that could silently remove active customer discounts on transient Stripe errors (network issues, rate limits). The catch block swallows all exceptions and treats them as 'coupon deleted', which could cause real financial impact for customers. The reviewer correctly identified the pattern used elsewhere in the codebase for proper error handling.",2026-02-18T16:31:33.624088+00:00
