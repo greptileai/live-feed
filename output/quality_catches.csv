@@ -3902,3 +3902,20 @@ if msg.role == ""user"" and is_message_command(msg.content):
         return flask.jsonify({""error"": f""Command /{cmd_name} is not available in server mode""}), 400
 ```",https://github.com/gptme/gptme/pull/1282#discussion_r2821022436,✅ Fixed in e44f9d8c6 — added a blocklist for `/exit` and `/restart` which return HTTP 400 in server context. Also added `SystemExit` to the exception handler so any unexpected `sys.exit()` calls are caught gracefully.,2026-02-18T08:35:36.919000,Server crash via /exit command bypassing exception handler,security,critical,9,"This is a significant security/availability bug where an attacker could crash the entire Flask server by sending a simple /exit command. The analysis is thorough, identifying that SystemExit bypasses the Exception handler, and also catches related issues like server thread blocking from /rename and /fork commands requiring terminal input. This would cause real production outages.",2026-02-18T20:22:52.793038+00:00
 bitcoinppl/cove,594,Implement CSPP phase 1 items,https://github.com/bitcoinppl/cove/pull/594,"Unlike the xpub import path (which checks `existing_metadata.wallet_type != WalletType::WatchOnly` at `wallet.rs:309`), this unconditionally upgrades ANY existing wallet type to Hot, including already-Hot wallets. If a Hot wallet already exists with the same fingerprint but different mnemonic, this silently overwrites its private keys with the newly imported mnemonic. Add a wallet type check before line 134 to prevent overwriting Hot wallets.",https://github.com/bitcoinppl/cove/pull/594#discussion_r2805878931,,2026-02-13T20:00:35.473000,Silent overwrite of existing Hot wallet private keys,data_integrity,high,8,"This catches a significant data integrity bug where importing a mnemonic could silently overwrite existing Hot wallet private keys if a wallet with the same fingerprint already exists. Unlike the xpub import path which has proper type checking, this path lacks the safeguard, potentially causing loss of access to funds.",2026-02-18T20:22:52.793038+00:00
+twentyhq/twenty,18018,Harden server-side input validation and auth defaults,https://github.com/twentyhq/twenty/pull/18018,"**Non-`FileStorageException` errors from `lstat` are silently swallowed**
+
+The `catch` block only re-throws `FileStorageException`; any other error thrown by `fs.lstat` (e.g. `EACCES` – permission denied, `EIO` – I/O error) is silently discarded. After the catch block the code then proceeds to call `fs.writeFile`, which will either fail with a raw, un-wrapped error or — worse — succeed on a path it should never have been able to stat.
+
+The intent is clearly to allow writes to non-existent files (where `lstat` throws `ENOENT`), but `ENOENT` should be the *only* swallowed code:
+
+```suggestion
+    } catch (error) {
+      if (error instanceof FileStorageException) {
+        throw error;
+      }
+      // Only ignore ENOENT (file does not exist yet) – all other lstat errors are unexpected
+      if (error?.code !== 'ENOENT') {
+        throw error;
+      }
+    }
+```",https://github.com/twentyhq/twenty/pull/18018#discussion_r2819178781,We probably don't want to swallow here indeed?,2026-02-17T21:31:01.873000,Silent swallowing of filesystem errors masks permission/IO failures,logic,high,8,"This is a meaningful bug catch - the code silently swallows all non-FileStorageException errors from lstat, including permission denied (EACCES) and I/O errors (EIO). Only ENOENT should be swallowed since the intent is to allow writes to non-existent files. Silently ignoring permission or I/O errors could mask security issues or lead to data integrity problems when the subsequent writeFile succeeds in unexpected ways. This is a non-obvious error handling bug with real production impact.",2026-02-18T22:19:14.549856+00:00
