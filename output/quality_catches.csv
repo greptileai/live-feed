@@ -3648,3 +3648,14 @@ Adding a `version__lt=new_version` guard prevents the downgrade:
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/PostHog/posthog/pull/48235#discussion_r2818942265,,2026-02-17T20:30:00.789000,Race condition causes version downgrade breaking ClickHouse sync,concurrency,high,8,"This catches a real concurrency bug where unconditional version overwrites could downgrade the Person version if a concurrent operation (like plugin-server property update) has already advanced it. This would cause subsequent updates to be ignored by ClickHouse's ReplacingMergeTree, leading to data inconsistency between Postgres and ClickHouse.",2026-02-18T00:49:36.014083+00:00
+onyx-dot-app/onyx,8519,fix(ollama): Cleaning up DeepSeek,https://github.com/onyx-dot-app/onyx/pull/8519,"**Streaming filter strips XML before fallback extractor can parse it**
+
+The `xml_tool_call_content_filter` removes `<function_calls>...</function_calls>` blocks from `delta.content` before the text reaches `accumulated_answer`. However, `_try_fallback_tool_extraction` in `llm_loop.py` then tries to extract tool calls from `llm_step_result.answer` — which is the filtered (empty) `accumulated_answer`. Since the XML was already stripped, the fallback extractor will never find XML tool calls to parse.
+
+This means:
+- For `tool_choice == REQUIRED`: fallback is attempted (first condition), but `extract_tool_calls_from_response_text` receives an empty/None answer and empty/None reasoning, so no tool calls are extracted.
+- For `tool_choice == AUTO`: the `_looks_like_xml_tool_call_payload` check on the filtered answer returns `False`, so the fallback isn't even attempted.
+
+The unit test `test_extracts_xml_style_invoke_from_answer_when_auto` passes because it directly calls `_try_fallback_tool_extraction` with the raw unfiltered XML string, bypassing the streaming filter.
+
+Consider preserving the unfiltered content separately (e.g., in a `raw_accumulated_answer` variable) for fallback extraction, while still using the filtered version for frontend streaming.",https://github.com/onyx-dot-app/onyx/pull/8519#discussion_r2819814641,,2026-02-18T01:05:31.722000,Streaming filter strips XML before fallback extractor can parse it,logic,high,8,"Comment 4 identifies a significant logic bug where the XML content filter removes tool call data before the fallback extraction can parse it, breaking the entire fallback extraction feature for XML-style tool calls. This would cause tool calls to fail in production for DeepSeek models.",2026-02-18T03:14:06.210882+00:00
