@@ -3885,3 +3885,20 @@ The fix requires looking up the original `ElicitationRequest` from the pending r
         else:
             result = ElicitationResponse.text("""", sensitive=is_sensitive)
 ```",https://github.com/gptme/gptme/pull/1295#discussion_r2823592623,"Fixed in c2d62544f — `_resolve_elicitation` now calls `get_pending(elicit_id)` to look up the request and passes `sensitive=is_sensitive` to `ElicitationResponse.text()`, matching the CLI handler behavior.",2026-02-18T17:35:38.260000,Secret values not marked sensitive could leak to LLM context,security,high,8,"This catch identifies a security issue where secret-type elicitations (API keys, passwords) would not be marked as sensitive when received through the server endpoint, potentially causing them to leak into the LLM conversation context. The fix requires checking the request's sensitive flag, matching the CLI handler behavior.",2026-02-18T18:28:23.740571+00:00
+gptme/gptme,1282,feat(server): support slash commands in V2 API,https://github.com/gptme/gptme/pull/1282,"**`/exit` will crash the server process**
+
+The `/exit` command (`commands/session.py:186`) calls `sys.exit(0)`, which raises `SystemExit`. Since `SystemExit` inherits from `BaseException` (not `Exception`), the `except Exception as e` handler on line 318 will **not** catch it. This means sending `{""role"": ""user"", ""content"": ""/exit""}` to this endpoint will terminate the entire Flask server.
+
+Similarly, `/restart` calls `_do_restart()` which exec's a new process, and `/rename` / `/fork` without arguments call `input()`, which will block the server thread indefinitely waiting for terminal input that never comes.
+
+Consider adding a blocklist of commands that are unsafe in server context (e.g., `exit`, `restart`, `clear`) or catching `BaseException` / `SystemExit` specifically:
+
+```
+BLOCKED_SERVER_COMMANDS = {""exit"", ""restart""}
+
+if msg.role == ""user"" and is_message_command(msg.content):
+    cmd_name = msg.content.lstrip(""/"").split()[0]
+    if cmd_name in BLOCKED_SERVER_COMMANDS:
+        return flask.jsonify({""error"": f""Command /{cmd_name} is not available in server mode""}), 400
+```",https://github.com/gptme/gptme/pull/1282#discussion_r2821022436,✅ Fixed in e44f9d8c6 — added a blocklist for `/exit` and `/restart` which return HTTP 400 in server context. Also added `SystemExit` to the exception handler so any unexpected `sys.exit()` calls are caught gracefully.,2026-02-18T08:35:36.919000,Server crash via /exit command bypassing exception handler,security,critical,9,"This is a significant security/availability bug where an attacker could crash the entire Flask server by sending a simple /exit command. The analysis is thorough, identifying that SystemExit bypasses the Exception handler, and also catches related issues like server thread blocking from /rename and /fork commands requiring terminal input. This would cause real production outages.",2026-02-18T20:22:52.793038+00:00
+bitcoinppl/cove,594,Implement CSPP phase 1 items,https://github.com/bitcoinppl/cove/pull/594,"Unlike the xpub import path (which checks `existing_metadata.wallet_type != WalletType::WatchOnly` at `wallet.rs:309`), this unconditionally upgrades ANY existing wallet type to Hot, including already-Hot wallets. If a Hot wallet already exists with the same fingerprint but different mnemonic, this silently overwrites its private keys with the newly imported mnemonic. Add a wallet type check before line 134 to prevent overwriting Hot wallets.",https://github.com/bitcoinppl/cove/pull/594#discussion_r2805878931,,2026-02-13T20:00:35.473000,Silent overwrite of existing Hot wallet private keys,data_integrity,high,8,"This catches a significant data integrity bug where importing a mnemonic could silently overwrite existing Hot wallet private keys if a wallet with the same fingerprint already exists. Unlike the xpub import path which has proper type checking, this path lacks the safeguard, potentially causing loss of access to funds.",2026-02-18T20:22:52.793038+00:00
