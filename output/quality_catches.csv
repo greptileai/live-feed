@@ -3600,3 +3600,51 @@ Wrapping the block from line 2091 through 2120 in `with transaction.atomic():` w
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/PostHog/posthog/pull/48132#discussion_r2814971269,,2026-02-17T04:51:42.221000,Missing transaction.atomic() causes partial deletes and data inconsistency,data_integrity,high,8,"This catch identifies a real data integrity bug where bulk delete operations without transaction.atomic() can leave the system in an inconsistent state - some flags deleted, others not, and activity logs potentially mismatched. Additionally, transaction.on_commit() without an active transaction runs immediately rather than being deferred, causing cache invalidation at wrong times.",2026-02-17T22:16:41.642151+00:00
+infisical/infisical,5508,fix: unblock e2e tests,https://github.com/Infisical/infisical/pull/5508,"🚨 **CRITICAL SECURITY VULNERABILITY - Secret Exfiltration**
+
+This code is sending sensitive database credentials (`E2E_TEST_ORACLE_DB_19_HOST`, `E2E_TEST_ORACLE_DB_19_USERNAME`, `E2E_TEST_ORACLE_DB_19_PASSWORD`) to an external ngrok URL (`https://nonmomentary-milkily-jamari.ngrok-free.dev/test`).
+
+**Attack vector:** A bad actor has inserted this step to exfiltrate secrets to an external server they control. The ngrok URL is a public tunnel endpoint that forwards data to an attacker-controlled server.
+
+**Impact:** 
+- Complete compromise of Oracle database credentials
+- Unauthorized access to test database
+- Potential lateral movement to production systems
+- Data breach and compliance violations
+
+**This must be removed immediately.** This appears to be a malicious code injection attempt.
+
+```suggestion
+      - name: Free up disk space
+```",https://github.com/Infisical/infisical/pull/5508#discussion_r2819283192,@greptile (and anyone else reading this) - we needed to extract the old details (specifically the host) which wasn't stored unfortunately.,2026-02-17T22:00:22.066000,Malicious secret exfiltration to external ngrok endpoint,security,critical,10,"This is a critical security vulnerability catch - the AI detected malicious code that was sending database credentials (host, username, password) to an external attacker-controlled ngrok URL. This is a credential exfiltration attack that could lead to complete database compromise. Catching this kind of supply chain/insider attack is extremely valuable.",2026-02-18T00:49:36.014083+00:00
+posthog/posthog,48235,fix(persons): person deletion bug during distinct id reset,https://github.com/PostHog/posthog/pull/48235,"**Potential version downgrade in concurrent scenario**
+
+`Person.objects.using(db_alias).filter(pk=person.pk).update(version=new_version)` unconditionally overwrites the PG version. If a concurrent operation (e.g., a person property update from the plugin-server) has already advanced the PG version above `new_version`, this call would silently downgrade it. Subsequent plugin-server updates would then compute `version + 1` from the downgraded value and could be ignored by ClickHouse.
+
+Adding a `version__lt=new_version` guard prevents the downgrade:
+
+```suggestion
+    Person.objects.using(db_alias).filter(pk=person.pk, version__lt=new_version).update(version=new_version)
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: posthog/models/person/deletion.py
+Line: 139:139
+
+Comment:
+**Potential version downgrade in concurrent scenario**
+
+`Person.objects.using(db_alias).filter(pk=person.pk).update(version=new_version)` unconditionally overwrites the PG version. If a concurrent operation (e.g., a person property update from the plugin-server) has already advanced the PG version above `new_version`, this call would silently downgrade it. Subsequent plugin-server updates would then compute `version + 1` from the downgraded value and could be ignored by ClickHouse.
+
+Adding a `version__lt=new_version` guard prevents the downgrade:
+
+```suggestion
+    Person.objects.using(db_alias).filter(pk=person.pk, version__lt=new_version).update(version=new_version)
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/48235#discussion_r2818942265,,2026-02-17T20:30:00.789000,Race condition causes version downgrade breaking ClickHouse sync,concurrency,high,8,"This catches a real concurrency bug where unconditional version overwrites could downgrade the Person version if a concurrent operation (like plugin-server property update) has already advanced it. This would cause subsequent updates to be ignored by ClickHouse's ReplacingMergeTree, leading to data inconsistency between Postgres and ClickHouse.",2026-02-18T00:49:36.014083+00:00
