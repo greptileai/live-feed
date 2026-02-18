@@ -3849,3 +3849,39 @@ This would need `Stripe` imported (it already is as a type — change to a value
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/useautumn/autumn/pull/759#discussion_r2821706208,,2026-02-18T11:03:16.972000,Overly broad catch silently removes valid customer discounts,logic,high,8,"This is a meaningful logic bug that could silently remove active customer discounts on transient Stripe errors (network issues, rate limits). The catch block swallows all exceptions and treats them as 'coupon deleted', which could cause real financial impact for customers. The reviewer correctly identified the pattern used elsewhere in the codebase for proper error handling.",2026-02-18T16:31:33.624088+00:00
+gptme/gptme,1289,feat(webui): display image attachments and file links in built-in UI,https://github.com/gptme/gptme/pull/1289,"**SVG in `isImage()` enables XSS via click-through**
+
+The React webui's equivalent regex (`ChatMessage.tsx:104`) deliberately excludes `svg`:
+
+```js
+const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(filename);
+```
+
+While SVG files are sandboxed when loaded via `<img>` tags (scripts won't execute), the wrapping `<a target=""_blank"">` link allows users to open the SVG directly in a new tab, where any embedded `<script>` tags or event handlers in a malicious SVG would execute in the origin's context. Since the stated goal is to bring parity with the React webui, and the React webui intentionally omits `svg`, consider removing it here as well:
+
+```suggestion
+    isImage(filename) {
+      return /\.(jpg|jpeg|png|gif|webp)$/i.test(filename);
+```",https://github.com/gptme/gptme/pull/1289#discussion_r2822485936,✅ Fixed in fe48f53 — removed `svg` from `isImage()` to match the React webui's deliberate exclusion and prevent XSS via click-through when opening SVG files directly in a new tab.,2026-02-18T13:55:58.722000,SVG files enable XSS via click-through link bypass,security,high,8,"This catches a real XSS vulnerability where SVG files containing malicious scripts could execute in the origin's context when users click through to open them directly. The comment correctly identifies that while SVGs are sandboxed in <img> tags, the wrapping <a target='_blank'> allows bypassing this protection.",2026-02-18T18:28:23.740571+00:00
+gptme/gptme,1295,feat(server): add server-side elicitation hook for WebUI,https://github.com/gptme/gptme/pull/1295,"**`sensitive` flag not set for secret-type elicitations**
+
+When handling an ""accept"" for a `secret`-type elicitation, `ElicitationResponse.text(value)` is called without `sensitive=True`. Compare with the CLI handler in `elicitation.py:213` which correctly calls `ElicitationResponse.text(value, sensitive=True)`.
+
+This means secret values (API keys, passwords) received through the server endpoint won't be marked as sensitive and could leak into the LLM conversation context.
+
+The fix requires looking up the original `ElicitationRequest` from the pending registry to check if `request.sensitive` is `True`, then passing it through:
+
+```python
+    elif action == ""accept"":
+        # Look up the pending request to check sensitivity
+        from ..hooks.server_elicit import get_pending
+        pending = get_pending(elicit_id)
+        is_sensitive = pending.request.sensitive if pending else False
+
+        if values is not None:
+            result = ElicitationResponse.multi(values)
+        elif value is not None:
+            result = ElicitationResponse.text(value, sensitive=is_sensitive)
+        else:
+            result = ElicitationResponse.text("""", sensitive=is_sensitive)
+```",https://github.com/gptme/gptme/pull/1295#discussion_r2823592623,"Fixed in c2d62544f — `_resolve_elicitation` now calls `get_pending(elicit_id)` to look up the request and passes `sensitive=is_sensitive` to `ElicitationResponse.text()`, matching the CLI handler behavior.",2026-02-18T17:35:38.260000,Secret values not marked sensitive could leak to LLM context,security,high,8,"This catch identifies a security issue where secret-type elicitations (API keys, passwords) would not be marked as sensitive when received through the server endpoint, potentially causing them to leak into the LLM conversation context. The fix requires checking the request's sensitive flag, matching the CLI handler behavior.",2026-02-18T18:28:23.740571+00:00
