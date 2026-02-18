@@ -3674,3 +3674,83 @@ _slow_requests: Counter = Counter(
 ```
 
 The comment says ""lazily create … to avoid duplicate registration"" — but duplicate registration only occurs if `setup_fastapi_instrumentation` is called more than once per process (e.g., in tests). A module-level initialization is safer and happens only once per import. If test re-registration is a concern, wrap with a `try/except ValueError` or use `prometheus_client.REGISTRY.unregister()` in test teardown.",https://github.com/onyx-dot-app/onyx/pull/8503#discussion_r2819049735,,2026-02-17T20:55:55.989000,Race condition in lazy counter initialization causes duplicate registration error,concurrency,high,8,"This identifies a real thread-safety bug where concurrent coroutines could both see `_slow_requests is None` and attempt to create the Counter, causing a ValueError from prometheus_client's duplicate timeseries protection. This would crash requests in production under concurrent load.",2026-02-18T06:35:11.787096+00:00
+gptme/gptme,1276,fix(acp): use proper write pipe protocol to prevent _drain_helper AttributeError,https://github.com/gptme/gptme/pull/1276,"**Missing `connection_lost` handler risks hanging `drain()`**
+
+The stdlib's `FlowControlMixin` (which `StreamWriter.drain()` is designed to work with) implements `connection_lost()` to wake up any blocked `_drain_helper()` waiters when the transport disconnects. Without this, if the pipe is closed while backpressure has paused writing, `_drain_helper()` will await the `_drain_waiter` future forever — it will never be resolved because `resume_writing()` will never be called on a dead transport.
+
+For reference, CPython's `FlowControlMixin.connection_lost()` does:
+```python
+def connection_lost(self, exc):
+    self._connection_lost = True
+    if not self._paused:
+        return
+    for waiter in self._drain_waiters:
+        if not waiter.done():
+            if exc is None:
+                waiter.set_result(None)
+            else:
+                waiter.set_exception(exc)
+```
+
+Consider adding a `connection_lost` handler and a check in `_drain_helper`:
+```suggestion
+class _WritePipeProtocol(asyncio.BaseProtocol):
+    """"""Protocol for write pipes that supports ``StreamWriter.drain()``.
+
+    ``asyncio.BaseProtocol`` lacks ``_drain_helper()``, so using it directly
+    with ``StreamWriter`` causes ``AttributeError`` when backpressure triggers
+    ``drain()``.  This implementation handles pause/resume writing and exposes
+    the ``_drain_helper()`` coroutine that ``StreamWriter`` expects.
+
+    Adapted from the agent-client-protocol library's own ``_WritePipeProtocol``.
+    """"""
+
+    def __init__(self) -> None:
+        self._loop = asyncio.get_running_loop()
+        self._paused = False
+        self._drain_waiter: asyncio.Future[None] | None = None
+        self._connection_lost = False
+
+    def pause_writing(self) -> None:  # type: ignore[override]
+        self._paused = True
+        if self._drain_waiter is None:
+            self._drain_waiter = self._loop.create_future()
+
+    def resume_writing(self) -> None:  # type: ignore[override]
+        self._paused = False
+        if self._drain_waiter is not None and not self._drain_waiter.done():
+            self._drain_waiter.set_result(None)
+        self._drain_waiter = None
+
+    def connection_lost(self, exc: Exception | None) -> None:  # type: ignore[override]
+        self._connection_lost = True
+        if self._drain_waiter is not None and not self._drain_waiter.done():
+            if exc is None:
+                self._drain_waiter.set_result(None)
+            else:
+                self._drain_waiter.set_exception(exc)
+
+    async def _drain_helper(self) -> None:
+        if self._connection_lost:
+            raise ConnectionResetError(""Connection lost"")
+        if self._paused and self._drain_waiter is not None:
+            await self._drain_waiter
+```",https://github.com/gptme/gptme/pull/1276#discussion_r2819933641,"Fixed in b280260 — added `connection_lost` handler that resolves the `_drain_waiter` future (or sets exception), and a `_connection_lost` flag checked in `_drain_helper()` to raise `ConnectionResetError` instead of hanging. Follows CPython's `FlowControlMixin` pattern exactly.",2026-02-18T01:49:55.482000,Missing connection_lost handler causes infinite hang on pipe disconnect,concurrency,high,8,"This is a meaningful concurrency bug - if a pipe closes while backpressure has paused writing, the drain() call will hang forever because the waiter future never gets resolved. The comment demonstrates deep understanding of asyncio internals and CPython's FlowControlMixin implementation. This is a non-obvious edge case that would cause production hangs under specific conditions.",2026-02-18T10:25:54.747851+00:00
+simstudioai/sim,3242,feat(audit-log): add persistent audit log system with comprehensive route instrumentation,https://github.com/simstudioai/sim/pull/3242,"**`organizationId` passed as `workspaceId` — FK violation**
+
+`result.set.organizationId` is an `organization.id`, but `audit_log.workspace_id` has a foreign key constraint referencing `workspace.id`. These are different tables with different IDs, so this insert will always fail the FK check and be silently dropped.
+
+The same issue occurs in all credential-set audit calls across `credential-sets/[id]/route.ts`, `credential-sets/[id]/members/route.ts`, `credential-sets/[id]/invite/route.ts`, and `credential-sets/route.ts` (6 call sites total).
+
+Consider passing `null` for `workspaceId` and recording the `organizationId` in the `metadata` field instead:
+
+```suggestion
+      workspaceId: null,
+```",https://github.com/simstudioai/sim/pull/3242#discussion_r2820802877,,2026-02-18T07:39:28.159000,Foreign key violation silently drops all credential-set audit logs,data_integrity,high,8,"Comment 5 identifies that passing `organizationId` as `workspaceId` will always fail the FK constraint since they reference different tables, causing all credential-set audit events (6 call sites) to be silently dropped. This is a real data integrity bug affecting audit compliance.",2026-02-18T10:25:54.747851+00:00
+gptme/gptme,1279,fix(python): detect and use user's venv for IPython tool,https://github.com/gptme/gptme/pull/1279,"**`init()` runs before `os.chdir(workspace)`**
+
+`init()` is called from `init_tools()` during startup (e.g. `cli/main.py:531`), which runs *before* `os.chdir(workspace)` in `chat.py:123`. This means the `.venv` detection via `Path.cwd() / "".venv""` in `_detect_venv()` will search in the launch directory, not the workspace directory. If the launch directory happens to contain its own `.venv`, that venv's packages will be added to `sys.path` permanently even after the workspace is set.
+
+The second call in `_get_ipython()` correctly picks up the workspace's `.venv` once cwd has changed, so the workspace venv will eventually be available. But if a stale venv was found during `init()`, it remains in `sys.path` for the whole session.
+
+This might be intentional (to detect libraries early for the ""Available libraries"" system prompt), but consider guarding the `init()` call with `VIRTUAL_ENV` only (skipping the cwd check) since cwd isn't reliable at that point, or documenting this caveat.",https://github.com/gptme/gptme/pull/1279#discussion_r2820902520,Fixed in 4931789cc — `init()` now passes `env_only=True` to skip cwd-based detection. The cwd check is deferred to `_get_ipython()` which runs lazily after `os.chdir(workspace)`.,2026-02-18T08:09:30.915000,Init runs before workspace chdir causing wrong venv detection,logic,high,8,"This catches a timing bug where `init()` runs before `os.chdir(workspace)`, causing `.venv` detection to find the wrong venv from the launch directory instead of the workspace. This could permanently pollute `sys.path` with incorrect packages for the entire session, leading to wrong library versions being used.",2026-02-18T10:25:54.747851+00:00
