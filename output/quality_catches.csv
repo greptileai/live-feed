@@ -3659,3 +3659,18 @@ This means:
 The unit test `test_extracts_xml_style_invoke_from_answer_when_auto` passes because it directly calls `_try_fallback_tool_extraction` with the raw unfiltered XML string, bypassing the streaming filter.
 
 Consider preserving the unfiltered content separately (e.g., in a `raw_accumulated_answer` variable) for fallback extraction, while still using the filtered version for frontend streaming.",https://github.com/onyx-dot-app/onyx/pull/8519#discussion_r2819814641,,2026-02-18T01:05:31.722000,Streaming filter strips XML before fallback extractor can parse it,logic,high,8,"Comment 4 identifies a significant logic bug where the XML content filter removes tool call data before the fallback extraction can parse it, breaking the entire fallback extraction feature for XML-style tool calls. This would cause tool calls to fail in production for DeepSeek models.",2026-02-18T03:14:06.210882+00:00
+onyx-dot-app/onyx,8503,feat(observability): add production Prometheus instrumentation module,https://github.com/onyx-dot-app/onyx/pull/8503,"**Thread-safety gap in lazy counter initialization**
+
+The `_get_slow_request_counter()` function uses a module-level `_slow_requests` global with a check-then-set pattern that is not thread-safe. Under a multi-threaded Uvicorn server (default is 1 thread per worker process, but within an async server multiple coroutines can execute concurrently), two coroutines could both evaluate `_slow_requests is None` as `True` simultaneously and both attempt to call `Counter(...)`. The second call would raise a `ValueError: Duplicated timeseries` from `prometheus_client` because the counter name is already registered.
+
+The simplest fix is to initialize the counter at module level instead of lazily:
+
+```python
+_slow_requests: Counter = Counter(
+    ""onyx_api_slow_requests_total"",
+    ""Total requests exceeding the slow request threshold"",
+    [""method"", ""handler"", ""status""],
+)
+```
+
+The comment says ""lazily create … to avoid duplicate registration"" — but duplicate registration only occurs if `setup_fastapi_instrumentation` is called more than once per process (e.g., in tests). A module-level initialization is safer and happens only once per import. If test re-registration is a concern, wrap with a `try/except ValueError` or use `prometheus_client.REGISTRY.unregister()` in test teardown.",https://github.com/onyx-dot-app/onyx/pull/8503#discussion_r2819049735,,2026-02-17T20:55:55.989000,Race condition in lazy counter initialization causes duplicate registration error,concurrency,high,8,"This identifies a real thread-safety bug where concurrent coroutines could both see `_slow_requests is None` and attempt to create the Counter, causing a ValueError from prometheus_client's duplicate timeseries protection. This would crash requests in production under concurrent load.",2026-02-18T06:35:11.787096+00:00
