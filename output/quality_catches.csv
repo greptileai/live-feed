@@ -4047,3 +4047,38 @@ need to construct a ProviderConfig when using BYOK with custom base_url. when `b
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/PostHog/posthog/pull/47259#discussion_r2779946701,,2026-02-08T22:20:06.877000,TypeError when using BYOK with custom base URL,runtime,high,8,Comment 0 identifies a genuine runtime bug where providing both a provider_key (BYOK) and base_url would cause a TypeError because the code attempts dictionary assignment on a None config object. This would crash the evaluation feature in production for users trying to use their own API keys with custom endpoints.,2026-02-19T12:27:27.363212+00:00
+runanywhereai/runanywhere-sdks,382,Feature/flutter structured output,https://github.com/RunanywhereAI/runanywhere-sdks/pull/382,"**Shared ScrollController causes runtime crash**
+
+`_scrollController` is already attached to the `SingleChildScrollView` on line 301, and here it is also attached to this `ListView`. A `ScrollController` can only be attached to one scrollable widget at a time — Flutter will throw an assertion error (`ScrollController attached to multiple scroll views`) at runtime when results are displayed.
+
+Either remove the controller from the `ListView`, or convert this `ListView` into a non-scrollable `Column` (since it's already inside a `SingleChildScrollView`), which is likely the intended behavior:
+
+```suggestion
+    return ListView(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: examples/flutter/RunAnywhereAI/lib/features/structured_output/structured_output_view.dart
+Line: 587-588
+
+Comment:
+**Shared ScrollController causes runtime crash**
+
+`_scrollController` is already attached to the `SingleChildScrollView` on line 301, and here it is also attached to this `ListView`. A `ScrollController` can only be attached to one scrollable widget at a time — Flutter will throw an assertion error (`ScrollController attached to multiple scroll views`) at runtime when results are displayed.
+
+Either remove the controller from the `ListView`, or convert this `ListView` into a non-scrollable `Column` (since it's already inside a `SingleChildScrollView`), which is likely the intended behavior:
+
+```suggestion
+    return ListView(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/RunanywhereAI/runanywhere-sdks/pull/382#discussion_r2822963331,,2026-02-18T15:37:39.740000,Shared ScrollController attached to multiple widgets causes runtime crash,runtime,high,8,"This catches a genuine Flutter runtime bug where the same ScrollController is attached to two scrollable widgets (SingleChildScrollView and ListView), which will throw an assertion error at runtime when results are displayed. This is a real bug that would crash the app in production.",2026-02-19T14:31:31.903227+00:00
