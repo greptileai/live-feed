@@ -4089,3 +4089,39 @@ The single-integer write path at line 207 extracts bytes in little-endian order 
 For callers like `hw-management-wd.sh:120` (`iorw -w -b $reg -v $wd_to -l $wd_tmr_reg_len` where `$wd_to=600`, `$wd_tmr_reg_len=2`), the original binary writes `600` as two bytes to consecutive addresses. If the CPLD expects big-endian (0x02 0x58) but this script outputs little-endian (0x58 0x02), the watchdog timer will get a wrong timeout value.
 
 Please verify the CPLD register byte order for the AMD V3000/FRNG platforms and add a comment documenting the expected endianness.",https://github.com/Mellanox/hw-mgmt/pull/2312#discussion_r2821062869,That's a good catch. Fixed,2026-02-18T08:45:08.508000,Wrong byte order in multi-byte writes corrupts watchdog timer values,data_integrity,high,8,"Comment 1 identifies a significant endianness bug where the script extracts bytes in little-endian order, but the CPLD may expect big-endian. This would cause watchdog timer values to be written incorrectly (e.g., 600 written as 0x58 0x02 instead of 0x02 0x58), leading to wrong timeout values in production hardware management. The developer confirmed this was a good catch and fixed it.",2026-02-19T16:27:36.464108+00:00
+posthog/posthog,48330,feat: restore conversations backend,https://github.com/PostHog/posthog/pull/48330,"**`request_url` is user-controlled — phishing risk**
+
+The `request_url` field comes directly from the request body and is used as the base of the restore link sent via email. An attacker who knows (or brute-forces) a valid widget token can call this endpoint with `request_url` set to `https://evil.com/steal`, causing the email to contain a link like `https://evil.com/steal?ph_conv_restore=<secret_token>`. The victim clicks the link, and the attacker captures the token.
+
+`validate_origin` only checks the `Origin`/`Referer` headers of the incoming HTTP request — it does not validate the `request_url` body parameter. Furthermore, `widget_domains` defaults to an empty list (allow all).
+
+The `request_url` should be validated against the team's `widget_domains` allowlist (when configured), or better yet, constructed server-side from the team's known site URL rather than accepted from user input.
+
+**Context Used:** Context from `dashboard` - When implementing new features, ensure that ownership validation is included to prevent unauthorized... ([source](https://app.greptile.com/review/custom-context?memory=9655b466-451a-401a-9ba0-5bf3e7b7f9f8))
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: products/conversations/backend/api/restore.py
+Line: 97-105
+
+Comment:
+**`request_url` is user-controlled — phishing risk**
+
+The `request_url` field comes directly from the request body and is used as the base of the restore link sent via email. An attacker who knows (or brute-forces) a valid widget token can call this endpoint with `request_url` set to `https://evil.com/steal`, causing the email to contain a link like `https://evil.com/steal?ph_conv_restore=<secret_token>`. The victim clicks the link, and the attacker captures the token.
+
+`validate_origin` only checks the `Origin`/`Referer` headers of the incoming HTTP request — it does not validate the `request_url` body parameter. Furthermore, `widget_domains` defaults to an empty list (allow all).
+
+The `request_url` should be validated against the team's `widget_domains` allowlist (when configured), or better yet, constructed server-side from the team's known site URL rather than accepted from user input.
+
+**Context Used:** Context from `dashboard` - When implementing new features, ensure that ownership validation is included to prevent unauthorized... ([source](https://app.greptile.com/review/custom-context?memory=9655b466-451a-401a-9ba0-5bf3e7b7f9f8))
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/48330#discussion_r2823093111,fixed,2026-02-18T15:57:55.510000,User-controlled URL enables phishing attack to steal restore tokens,security,critical,9,"This is a significant security vulnerability where an attacker can inject a malicious URL into the email restore link, causing sensitive restore tokens to be sent to an attacker-controlled domain. This enables credential theft and account takeover through phishing.",2026-02-19T18:29:04.859188+00:00
+bitcoinppl/cove,596,Add cove-cspp crate with MasterKey and HKDF key derivation,https://github.com/bitcoinppl/cove/pull/596,"**TOCTOU race in `get_or_create_master_key`**
+
+If two threads each hold a `Cspp` instance backed by the same store (e.g. two `Cspp<Keychain>` clones) and call `get_or_create_master_key` concurrently, both can observe `None`, generate different master keys, and the second writer silently overwrites the first. Any data already encrypted with the first key would become unrecoverable.
+
+This may not be an issue today since the method is only used at startup, but `CsppStore` requires `Send + Sync`, so concurrent use is at least possible. Worth considering a note or a guard (e.g., an internal `Mutex` or an atomic check-and-set) if this will be called from async contexts in the future.",https://github.com/bitcoinppl/cove/pull/596#discussion_r2824438678,,2026-02-18T21:01:06.770000,Race condition allows master key overwrite causing data loss,concurrency,high,8,"Comment 2 identifies a genuine TOCTOU race condition where concurrent threads with different Cspp instances could generate different master keys, with the second silently overwriting the first. This would make any data encrypted with the first key permanently unrecoverable - a significant data integrity issue for cryptographic key management.",2026-02-19T18:29:04.859188+00:00
