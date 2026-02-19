@@ -3919,3 +3919,36 @@ The intent is clearly to allow writes to non-existent files (where `lstat` throw
       }
     }
 ```",https://github.com/twentyhq/twenty/pull/18018#discussion_r2819178781,We probably don't want to swallow here indeed?,2026-02-17T21:31:01.873000,Silent swallowing of filesystem errors masks permission/IO failures,logic,high,8,"This is a meaningful bug catch - the code silently swallows all non-FileStorageException errors from lstat, including permission denied (EACCES) and I/O errors (EIO). Only ENOENT should be swallowed since the intent is to allow writes to non-existent files. Silently ignoring permission or I/O errors could mask security issues or lead to data integrity problems when the subsequent writeFile succeeds in unexpected ways. This is a non-obvious error handling bug with real production impact.",2026-02-18T22:19:14.549856+00:00
+onyx-dot-app/onyx,8545,fix: /llm/provider route returns all providers,https://github.com/onyx-dot-app/onyx/pull/8545,"**New auto-mode models have no flow rows**
+
+The previous code called `insert_new_model_configuration__no_commit`, which created BOTH the `ModelConfiguration` AND its associated `LLMModelFlow` entries (with `LLMModelFlowType.CHAT`). The replacement code only creates the `ModelConfiguration` via `db_session.add(new_model)` without creating any `LLMModelFlow` rows.
+
+This means newly synced auto-mode models will have zero flow mappings. Consequences:
+1. Any query filtering by flow type (e.g., `fetch_existing_llm_providers(db_session, [LLMModelFlowType.CHAT])`) will not find these models' providers — this affects call sites like `list_llm_provider_for_persona_models` (line 615), `list_llm_provider_for_persona` (line 664), and `get_llm_model_costs` (line 703).
+2. The existing test `TestAutoModeMissingFlows` at line 680 of `test_llm_provider_auto_mode.py` explicitly asserts `len(mc.llm_model_flows) > 0` and will fail for these new models.
+3. `supports_image_input` is also no longer set (the old code set it based on whether `VISION` was in `supported_flows`).
+
+You should either continue using `insert_new_model_configuration__no_commit` or manually create the `LLMModelFlow` entries after adding the `ModelConfiguration`.",https://github.com/onyx-dot-app/onyx/pull/8545#discussion_r2824456044,,2026-02-18T21:04:42.334000,Missing LLMModelFlow rows causes models to be invisible,data_integrity,high,8,"This catch identifies a significant data integrity bug where refactored code no longer creates required LLMModelFlow entries for new auto-mode models, causing them to be invisible in queries filtered by flow type. This would affect multiple API endpoints and cause real user-facing issues in production.",2026-02-19T00:50:06.442575+00:00
+traceroot-ai/traceroot,456,[AgentOps] complete worker-billing for clickhouse & pricing based number of seat restriction & pricing based number of trace storage restriction,https://github.com/traceroot-ai/traceroot/pull/456,"**Free plan check uses per-project usage instead of per-workspace**
+
+`get_current_usage(auth.project_id)` counts events for a single project, but the free plan limit (10k events) is a workspace-level restriction. A workspace can contain multiple projects.
+
+If a workspace has Project A (5k events) and Project B (6k events), the total workspace usage is 11k (over the 10k limit). However, when Project A ingests, this check only sees 5k < 10k and allows more events — effectively bypassing the limit.
+
+The check should aggregate usage across all projects in the workspace (similar to the internal `/usage/total` endpoint), or query by `workspace_id` if the ClickHouse schema supports it.",https://github.com/traceroot-ai/traceroot/pull/456#discussion_r2814400756,Done,2026-02-16T23:50:28.188000,Free plan limit bypassed due to per-project instead of per-workspace usage check,logic,high,8,"This catches a billing enforcement bug where the free plan limit (10k events) is checked at the project level instead of workspace level. Users could bypass the limit by spreading usage across multiple projects, causing revenue loss and unfair usage.",2026-02-19T00:50:06.442575+00:00
+simstudioai/sim,3250,fix(sidebar): unify workflow and folder insertion ordering,https://github.com/simstudioai/sim/pull/3250,"**Swapped arguments: folders and workflows are reversed**
+
+The `getTopInsertionSortOrder` function signature is `(workflows, folders, workspaceId, parentId)`, but here `previousFolders` (a `Record<string, WorkflowFolder>`) is passed as the first argument and `currentWorkflows` (a `Record<string, WorkflowMetadata>`) as the second. This is the opposite of what the function expects.
+
+Because `WorkflowFolder` has `parentId` but no `folderId`, and `WorkflowMetadata` has `folderId` but no `parentId`, the function will filter using `undefined` values for both collections. When `parentId` is non-null (i.e., creating a folder inside another folder), all siblings will be silently excluded from the min-sort-order calculation, producing an incorrect sort order.
+
+The same swap exists at line 254 in `useDuplicateFolderMutation`.
+
+```suggestion
+          getTopInsertionSortOrder(
+            currentWorkflows,
+            previousFolders,
+            variables.workspaceId,
+            variables.parentId
+          ),
+```",https://github.com/simstudioai/sim/pull/3250#discussion_r2824657710,,2026-02-18T21:57:19.937000,Swapped function arguments cause incorrect sort order calculation,logic,high,8,"Comment 1 identifies a meaningful logic bug where function arguments are passed in the wrong order. Since WorkflowFolder has parentId but no folderId, and WorkflowMetadata has folderId but no parentId, the filtering logic will use undefined values, causing siblings to be excluded from sort order calculation and producing incorrect results when creating folders inside other folders.",2026-02-19T00:50:06.442575+00:00
