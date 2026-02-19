@@ -4151,3 +4151,18 @@ This will cause token rotation and revocation to silently fail or throw at runti
 			.getOne();
 	}
 ```",https://github.com/ever-co/ever-gauzy/pull/9474#discussion_r2823589176,,2026-02-18T17:34:53.880000,Swapped ORM branches cause queries to use wrong database adapter,logic,high,8,"This is a significant logic bug where the TypeORM and MikroORM branches are swapped, causing token operations to query through the wrong ORM adapter. This would cause token rotation and revocation to fail silently or throw runtime errors in production, affecting authentication functionality.",2026-02-19T20:18:30.502667+00:00
+nvidia/fuser,5974,use relative indices in post methods,https://github.com/NVIDIA/Fuser/pull/5974,"**Self-send path lost in refactor**
+
+The old `postSendRecv` had an explicit check for `sender == receiver` that performed a `doLocalCopy` and returned early. This handled the case where `lowerToSendRecv` creates a `Team({sender, receiver})` with `sender == receiver`, resulting in a team of size 2 with duplicate entries.
+
+The new code only handles the self-send case via `team.size() == 1`, which does not catch `Team({X, X})` (size 2 with duplicates). When this scenario is triggered, the code falls through to `receiver = 1 - sender` and attempts a real NCCL send/recv between two relative ranks that map to the same physical device, which may deadlock or fail.
+
+The old code flow was:
+```cpp
+if (sender == receiver) {   // <-- this handled the duplicate team case
+    doLocalCopy(output_tensor, input_tensor);
+    return nullptr;
+}
+```
+
+Consider adding back the self-send guard, e.g. by checking `team.at(0) == team.at(1)` when `team.size() == 2`.",https://github.com/NVIDIA/Fuser/pull/5974#discussion_r2824236639,,2026-02-18T20:09:26.939000,Self-send path lost in refactor causes potential deadlock,logic,high,8,"This comment identifies a subtle but significant logic bug where the refactoring removed handling for the edge case where sender == receiver with duplicate team entries (Team({X, X})). This would cause the code to attempt real NCCL send/recv between ranks mapping to the same device, potentially causing deadlock or failure in production distributed workloads.",2026-02-19T22:16:58.470083+00:00
