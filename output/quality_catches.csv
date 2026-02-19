@@ -3952,3 +3952,79 @@ The same swap exists at line 254 in `useDuplicateFolderMutation`.
             variables.parentId
           ),
 ```",https://github.com/simstudioai/sim/pull/3250#discussion_r2824657710,,2026-02-18T21:57:19.937000,Swapped function arguments cause incorrect sort order calculation,logic,high,8,"Comment 1 identifies a meaningful logic bug where function arguments are passed in the wrong order. Since WorkflowFolder has parentId but no folderId, and WorkflowMetadata has folderId but no parentId, the filtering logic will use undefined values, causing siblings to be excluded from sort order calculation and producing incorrect results when creating folders inside other folders.",2026-02-19T00:50:06.442575+00:00
+assistant-ui/assistant-ui,3352,fix(react): argsText key reordering during streaming,https://github.com/assistant-ui/assistant-ui/pull/3352,"**Incomplete argsText causes downstream parse failure**
+
+When this branch runs with an incomplete `lastState.argsText` (e.g., `{""name"": ""`), calling `lastState.controller.argsText.close()` on line 213 triggers a `tool-call-args-text-finish` event in `ToolExecutionStream`. That handler (`ToolExecutionStream.ts:122-129`) unconditionally calls `sjson.parse(streamController.argsText)` where `streamController.argsText` is the **accumulated text deltas** from previous streaming — still the incomplete text, since the new `content.argsText` was never appended to the stream.
+
+This will cause `sjson.parse` to throw a JSON parse error, which gets caught and produces a false tool execution error response.
+
+The previous code required `isArgsTextComplete(lastState.argsText)` as a guard — removing it allows this path to run when the stream's accumulated text is not valid JSON. Before closing, you likely need to append the missing delta or the full replacement text to the stream so the downstream parser receives valid JSON.
+
+One possible fix — append the complete `content.argsText` as a replacement before closing:
+
+```
+} else if (isArgsTextComplete(content.argsText)) {
+  // Append the remaining text needed to complete the stream
+  // The stream has only accumulated lastState.argsText worth of deltas
+  lastState.controller.argsText.append(
+    content.argsText.slice(lastState.argsText.length)
+  );
+  lastState.controller.argsText.close();
+```
+
+But note this only works if `content.argsText` still starts with `lastState.argsText` — which is exactly the scenario the `startsWith` check above already handles. For a true key reordering where the text is completely different, you may need a different approach (e.g., creating a new controller or appending the full text after resetting).",https://github.com/assistant-ui/assistant-ui/pull/3352#discussion_r2823045277,"The downstream parse issue only applies to frontend executed tools. this code path triggers when the ai sdk  reserializes args on the backend, so the result arrives via content.result and any false error from ToolExecutionStream is dropped at the hasResult check ",2026-02-18T15:50:15.419000,Missing argsText append causes JSON parse failure on stream close,logic,high,8,"This is a meaningful logic bug where removing the `isArgsTextComplete` guard allows `close()` to be called before the stream has received complete JSON text, causing downstream parse failures and false tool execution errors. The comment demonstrates deep understanding of the streaming architecture and correctly identifies that the accumulated text deltas would be incomplete, leading to real production failures during tool call streaming.",2026-02-19T03:12:56.980953+00:00
+emerge-lab/pufferdrive,304,"Sampling goals within a specified doughnut(r1,r2) ",https://github.com/Emerge-Lab/PufferDrive/pull/304,"assigns agent's current position instead of the found valid point - should use `point_x`, `point_y`, `point_z`
+
+```suggestion
+                agent->goal_position_x = point_x;
+                agent->goal_position_y = point_y;
+                agent->goal_position_z = point_z;
+```",https://github.com/Emerge-Lab/PufferDrive/pull/304#discussion_r2825193625,,2026-02-19T01:19:30.554000,Goal position assigned to current position instead of sampled point,logic,high,8,"This is a meaningful logic bug where the code assigns the agent's current position to the goal instead of the newly sampled valid point coordinates. This would completely break the goal sampling feature, causing goals to always be at the agent's current location rather than within the intended doughnut region. The bug is not obvious as it requires understanding the context of what point_x/y/z represent versus agent->position values.",2026-02-19T03:12:56.980953+00:00
+getarcaneapp/arcane,1782,fix: use cpuset instead of cpusnano on synology devices,https://github.com/getarcaneapp/arcane/pull/1782,"**`break` only exits the `select`, not the `for` loop**
+
+In Go, `break` inside a `select` statement breaks out of the `select`, not the enclosing `for` loop. After context cancellation, the loop continues to the next iteration where `s.saveScanResult(ctx, result)` is called again with a cancelled context, wasting retries. Use a labeled break or return to exit the loop:
+
+```suggestion
+				timer := time.NewTimer(delay)
+				select {
+				case <-ctx.Done():
+					timer.Stop()
+					s.saveScanResultStatusFallbackInternal(ctx, result, ctx.Err())
+					return ctx.Err()
+				case <-timer.C:
+				}
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: backend/internal/services/vulnerability_service.go
+Line: 2659:2665
+
+Comment:
+**`break` only exits the `select`, not the `for` loop**
+
+In Go, `break` inside a `select` statement breaks out of the `select`, not the enclosing `for` loop. After context cancellation, the loop continues to the next iteration where `s.saveScanResult(ctx, result)` is called again with a cancelled context, wasting retries. Use a labeled break or return to exit the loop:
+
+```suggestion
+				timer := time.NewTimer(delay)
+				select {
+				case <-ctx.Done():
+					timer.Stop()
+					s.saveScanResultStatusFallbackInternal(ctx, result, ctx.Err())
+					return ctx.Err()
+				case <-timer.C:
+				}
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/getarcaneapp/arcane/pull/1782#discussion_r2823611449,,2026-02-18T17:39:24.726000,Go break in select doesn't exit enclosing for loop,logic,medium,8,"This is a genuine Go language gotcha where `break` inside a `select` doesn't exit the enclosing `for` loop. The bug would cause the retry loop to continue executing with a cancelled context, wasting resources and potentially causing unexpected behavior in production. This is a non-obvious language-specific issue that IDEs/linters typically don't catch.",2026-02-19T03:12:56.980953+00:00
+onyx-dot-app/onyx,8543,feat(metrics): add SQLAlchemy connection pool Prometheus metrics,https://github.com/onyx-dot-app/onyx/pull/8543,"**Checkout wait metric measures idle time, not wait time**
+
+`_pool_checkout_request_time` is stamped on the connection record at checkin (line 181) or connect (line 191), then consumed at the next checkout of *that same connection* (line 154). This measures how long a specific connection sat idle in the pool — not how long the requesting thread waited for a connection.
+
+When the pool is exhausted and threads are blocking, the connection that eventually satisfies a waiting thread was just returned — so this ""wait"" value will be near-zero, which is exactly when you'd want a high value. Conversely, under low load with idle connections, this metric will report high values (long idle times), suggesting long waits when there were none.
+
+Consider either renaming the metric to `onyx_db_pool_connection_idle_seconds` to reflect what it actually measures, or using SQLAlchemy's `PoolEvents.checkout()` timing at the requesting side (e.g., wrapping `pool.connect()` with before/after timing) to measure actual thread wait time.",https://github.com/onyx-dot-app/onyx/pull/8543#discussion_r2824504938,,2026-02-18T21:15:09.151000,Metric measures idle time instead of actual wait time,logic,high,8,This comment identifies a fundamental logic error where a metric named for measuring 'checkout wait time' actually measures how long connections sat idle in the pool. This would provide misleading data in production dashboards - showing near-zero waits when the pool is exhausted (when you'd expect high waits) and high values under low load. This is a meaningful bug that would cause incorrect monitoring and potentially wrong operational decisions.,2026-02-19T03:12:56.980953+00:00
