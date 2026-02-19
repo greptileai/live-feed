@@ -4125,3 +4125,29 @@ bitcoinppl/cove,596,Add cove-cspp crate with MasterKey and HKDF key derivation,h
 If two threads each hold a `Cspp` instance backed by the same store (e.g. two `Cspp<Keychain>` clones) and call `get_or_create_master_key` concurrently, both can observe `None`, generate different master keys, and the second writer silently overwrites the first. Any data already encrypted with the first key would become unrecoverable.
 
 This may not be an issue today since the method is only used at startup, but `CsppStore` requires `Send + Sync`, so concurrent use is at least possible. Worth considering a note or a guard (e.g., an internal `Mutex` or an atomic check-and-set) if this will be called from async contexts in the future.",https://github.com/bitcoinppl/cove/pull/596#discussion_r2824438678,,2026-02-18T21:01:06.770000,Race condition allows master key overwrite causing data loss,concurrency,high,8,"Comment 2 identifies a genuine TOCTOU race condition where concurrent threads with different Cspp instances could generate different master keys, with the second silently overwriting the first. This would make any data encrypted with the first key permanently unrecoverable - a significant data integrity issue for cryptographic key management.",2026-02-19T18:29:04.859188+00:00
+ever-co/ever-gauzy,9474,[Feat] Enhance refresh token mechanism,https://github.com/ever-co/ever-gauzy/pull/9474,"**Swapped ORM branches in `findByHashWithLock`**
+
+The condition on line 22 checks `this.ormType === MultiORMEnum.TypeORM`, but then the body on lines 23-29 uses `this.mikroOrmTokenRepository` (MikroORM). Conversely, the `else` branch (lines 31-35) uses `this.typeOrmTokenRepository.createQueryBuilder` (TypeORM). This means:
+- When running TypeORM, the method queries via MikroORM (wrong connection/entity manager).
+- When running MikroORM, the method queries via TypeORM (wrong connection/entity manager).
+
+This will cause token rotation and revocation to silently fail or throw at runtime because it's querying with the wrong ORM adapter.
+
+```suggestion
+	async findByHashWithLock(tokenHash: string): Promise<IToken | null> {
+		if (this.ormType === MultiORMEnum.MikroORM) {
+			// MikroORM: use em.lock() for pessimistic locking
+			const token = await this.mikroOrmTokenRepository.findOne({ tokenHash });
+			if (token) {
+				const em = this.mikroOrmTokenRepository.getEntityManager();
+				await em.lock(token, LockMode.PESSIMISTIC_WRITE);
+			}
+			return token;
+		}
+		return this.typeOrmTokenRepository
+			.createQueryBuilder('token')
+			.where('token.tokenHash = :tokenHash', { tokenHash })
+			.setLock('pessimistic_write')
+			.getOne();
+	}
+```",https://github.com/ever-co/ever-gauzy/pull/9474#discussion_r2823589176,,2026-02-18T17:34:53.880000,Swapped ORM branches cause queries to use wrong database adapter,logic,high,8,"This is a significant logic bug where the TypeORM and MikroORM branches are swapped, causing token operations to query through the wrong ORM adapter. This would cause token rotation and revocation to fail silently or throw runtime errors in production, affecting authentication functionality.",2026-02-19T20:18:30.502667+00:00
