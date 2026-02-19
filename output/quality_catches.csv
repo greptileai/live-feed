@@ -4028,3 +4028,22 @@ onyx-dot-app/onyx,8543,feat(metrics): add SQLAlchemy connection pool Prometheus 
 When the pool is exhausted and threads are blocking, the connection that eventually satisfies a waiting thread was just returned — so this ""wait"" value will be near-zero, which is exactly when you'd want a high value. Conversely, under low load with idle connections, this metric will report high values (long idle times), suggesting long waits when there were none.
 
 Consider either renaming the metric to `onyx_db_pool_connection_idle_seconds` to reflect what it actually measures, or using SQLAlchemy's `PoolEvents.checkout()` timing at the requesting side (e.g., wrapping `pool.connect()` with before/after timing) to measure actual thread wait time.",https://github.com/onyx-dot-app/onyx/pull/8543#discussion_r2824504938,,2026-02-18T21:15:09.151000,Metric measures idle time instead of actual wait time,logic,high,8,This comment identifies a fundamental logic error where a metric named for measuring 'checkout wait time' actually measures how long connections sat idle in the pool. This would provide misleading data in production dashboards - showing near-zero waits when the pool is exhausted (when you'd expect high waits) and high values under low load. This is a meaningful bug that would cause incorrect monitoring and potentially wrong operational decisions.,2026-02-19T03:12:56.980953+00:00
+posthog/posthog,47259,feat(llm-analytics): add custom API base URL support for evaluations,https://github.com/PostHog/posthog/pull/47259,"this logic will fail when `provider_key` is not None and `base_url` is provided. `config` will be None (line 359), then line 362 attempts dictionary assignment on None which raises TypeError
+
+need to construct a ProviderConfig when using BYOK with custom base_url. when `base_url` is set and `provider_key` is not None, create a new ProviderConfig instance instead of trying to modify None
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: posthog/temporal/llm_analytics/run_evaluation.py
+Line: 359:362
+
+Comment:
+this logic will fail when `provider_key` is not None and `base_url` is provided. `config` will be None (line 359), then line 362 attempts dictionary assignment on None which raises TypeError
+
+need to construct a ProviderConfig when using BYOK with custom base_url. when `base_url` is set and `provider_key` is not None, create a new ProviderConfig instance instead of trying to modify None
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/47259#discussion_r2779946701,,2026-02-08T22:20:06.877000,TypeError when using BYOK with custom base URL,runtime,high,8,Comment 0 identifies a genuine runtime bug where providing both a provider_key (BYOK) and base_url would cause a TypeError because the code attempts dictionary assignment on a None config object. This would crash the evaluation feature in production for users trying to use their own API keys with custom endpoints.,2026-02-19T12:27:27.363212+00:00
