@@ -4200,3 +4200,19 @@ except KeyboardInterrupt:
     proc.communicate()
     raise
 ```",https://github.com/gptme/gptme/pull/1288#discussion_r2822091967,"✅ Fixed in 9d03f2092 — added `KeyboardInterrupt` handler that kills the subprocess before re-raising, preventing orphaned processes.",2026-02-18T12:32:18.144000,KeyboardInterrupt leaves orphaned subprocess running,resource_leak,high,8,"This catches a real resource leak bug where Ctrl+C during interactive sudo execution would leave the subprocess running as an orphan. Unlike the other comments which are about consistency/correctness improvements, this is a concrete bug that could leave zombie processes consuming resources.",2026-02-20T12:23:57.073032+00:00
+raycast/extensions,25049,Add agent-usage extension,https://github.com/raycast/extensions/pull/25049,"**`execFileSync` blocks the UI thread**
+
+`launchGeminiReauth` is declared `async` but uses `execFileSync`, which blocks the Node.js event loop synchronously. Since the `gemini` CLI login flow is interactive (it opens a browser for Google OAuth and waits for the user to complete it), this will freeze the entire Raycast UI for up to 120 seconds.
+
+This function is invoked from a toast action button in `agent-usage.tsx`, so users will experience a completely unresponsive UI until the command finishes or times out.
+
+Use `execFile` (the async version, already imported in `probe.ts` via `promisify`) instead:
+
+```suggestion
+export async function launchGeminiReauth(): Promise<void> {
+  const { execFile } = await import(""node:child_process"");
+  const { promisify } = await import(""node:util"");
+  const execFileAsync = promisify(execFile);
+  await execFileAsync(getGeminiReauthCommand(), [], { timeout: 120000 });
+}
+```",https://github.com/raycast/extensions/pull/25049#discussion_r2812129785,,2026-02-16T12:12:12.371000,Blocking execFileSync freezes UI during interactive OAuth flow,runtime,high,8,"Using execFileSync in an async function blocks the entire Node.js event loop during an interactive OAuth flow that can take up to 120 seconds, completely freezing the Raycast UI. This is a real production bug that would severely impact user experience.",2026-02-20T14:24:49.928143+00:00
