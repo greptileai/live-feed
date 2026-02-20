@@ -4216,3 +4216,36 @@ export async function launchGeminiReauth(): Promise<void> {
   await execFileAsync(getGeminiReauthCommand(), [], { timeout: 120000 });
 }
 ```",https://github.com/raycast/extensions/pull/25049#discussion_r2812129785,,2026-02-16T12:12:12.371000,Blocking execFileSync freezes UI during interactive OAuth flow,runtime,high,8,"Using execFileSync in an async function blocks the entire Node.js event loop during an interactive OAuth flow that can take up to 120 seconds, completely freezing the Raycast UI. This is a real production bug that would severely impact user experience.",2026-02-20T14:24:49.928143+00:00
+constellation-labs/tessellation,1444,feat: add dag transaction generator tool,https://github.com/Constellation-Labs/tessellation/pull/1444,"**Reference advanced before submission**
+
+`refRef.set(newRef)` is called at line 143 *before* `submitTransaction` at line 144. If the HTTP call fails with a transient network error (connection reset, timeout, etc.), the local chain reference has already been advanced to the new ordinal and hash — but that transaction may never have reached the L1 node. The stream stops with ""avoid broken chain"", but on restart the caller has no reliable way to know whether the transaction was received and needs to fetch the last reference from the chain again.
+
+Moving `refRef.set(newRef)` to after a confirmed successful submission (inside the `Right(Right(hash))` branch) would preserve chain integrity for transient failures and allow safe retry:
+
+```scala
+result <- submitTransaction(client, config.l1BaseUrl, signedTx).attempt
+continue <- result match {
+  case Right(Right(hash)) =>
+    refRef.set(newRef) *>
+      counterRef.update(_ + 1) *>
+        IO.println(
+          s""  [tx] ord=${newRef.ordinal.value} -> ${destination.value.value.take(12)}... hash=${hash.take(16)}...""
+        ).as(true)
+  case Right(Left(error)) =>
+    errorRef.update(_ + 1) *>
+      IO.println(s""  [REJECTED] ord=${newRef.ordinal.value}: $error"").as(false)
+  case Left(e) =>
+    errorRef.update(_ + 1) *>
+      IO.println(s""  [ERROR] ord=${newRef.ordinal.value}: ${e.getMessage}"").as(false)
+}
+```
+",https://github.com/Constellation-Labs/tessellation/pull/1444#discussion_r2818564876,,2026-02-17T18:52:13.031000,Transaction reference updated before confirming submission success,data_integrity,high,8,"This catches a real data integrity bug where the local transaction reference is advanced before the HTTP submission is confirmed successful. If the network call fails transiently, the local state becomes out of sync with the blockchain, causing all subsequent transactions to fail with invalid parent references. This is a meaningful logic bug that would cause problems in production.",2026-02-20T16:20:45.242485+00:00
+raycast/extensions,24581,Add voiceink extension,https://github.com/raycast/extensions/pull/24581,"SQL injection via string interpolation - use parameterized queries with `sqlite3` CLI's `--bind` flag instead of template literals
+
+```suggestion
+  const searchClause = searchTerm
+    ? ` AND (ZTEXT LIKE ? OR ZENHANCEDTEXT LIKE ?)`
+    : """";
+```
+
+Then update `useExec` calls to pass bind parameters: `[""-json"", ""-readonly"", dbInfo.path, query, `%${searchTerm}%`, `%${searchTerm}%`]`",https://github.com/raycast/extensions/pull/24581#discussion_r2811412679,,2026-02-16T09:23:16.808000,SQL injection vulnerability via string interpolation in database queries,security,high,8,"Comment 2 identifies a SQL injection vulnerability where user-provided search terms are interpolated directly into SQL queries via template literals. This is a legitimate security issue that could allow malicious input to manipulate database queries, even with the partial escaping mentioned in Comment 0.",2026-02-20T16:20:45.242485+00:00
