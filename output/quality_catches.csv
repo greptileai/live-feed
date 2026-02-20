@@ -4181,3 +4181,10 @@ isaac-sim/isaaclab,4653,[Newton] Adds a config field to the assets to enable mod
                     device=self.device,
                 )
 ```",https://github.com/isaac-sim/IsaacLab/pull/4653#discussion_r2828314170,,2026-02-19T14:47:36.798000,Incorrect kernel launch dimension causes out-of-bounds memory access,runtime,high,8,"This catches a genuine bug where the kernel launch dimension is set to param.shape[0] instead of len(indices), which would cause out-of-bounds array access when the number of indices is less than the parameter array size. This is a real runtime bug that could cause crashes or data corruption in production GPU code.",2026-02-20T03:10:15.433187+00:00
+nvidia/spark-rapids-jni,4285,Add hostCrc32 function,https://github.com/NVIDIA/spark-rapids-jni/pull/4285,"**Native method should be `private`**
+
+All other native methods in this class (`getMaxStackDepth`, `murmurHash32`, `xxhash64`, `hiveHash`, `sha*NullsPreserved`) are declared `private`, but `hostCrc32(long, long, int)` is `public`. This exposes a raw native memory address parameter (`bufferHandle`) to external callers, allowing them to bypass the safety checks in the `hostCrc32(long, HostMemoryBuffer)` wrapper (e.g., length validation). A malformed call with an arbitrary address could cause a segfault or read arbitrary memory.
+
+```suggestion
+  private static native long hostCrc32(long crc, long bufferHandle, int len) throws CudfException;
+```",https://github.com/NVIDIA/spark-rapids-jni/pull/4285#discussion_r2824002255,Good catch 👍 ,2026-02-18T19:12:52.032000,Public native method exposes unsafe raw memory address parameter,security,high,8,"This catch identifies a security vulnerability where the native method accepting raw memory addresses is incorrectly exposed as public, allowing external callers to bypass safety checks and potentially cause segfaults or read arbitrary memory. This is a meaningful security issue that could lead to memory safety violations in production.",2026-02-20T06:30:11.910740+00:00
