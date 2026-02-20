@@ -4188,3 +4188,15 @@ All other native methods in this class (`getMaxStackDepth`, `murmurHash32`, `xxh
 ```suggestion
   private static native long hostCrc32(long crc, long bufferHandle, int len) throws CudfException;
 ```",https://github.com/NVIDIA/spark-rapids-jni/pull/4285#discussion_r2824002255,Good catch 👍 ,2026-02-18T19:12:52.032000,Public native method exposes unsafe raw memory address parameter,security,high,8,"This catch identifies a security vulnerability where the native method accepting raw memory addresses is incorrectly exposed as public, allowing external callers to bypass safety checks and potentially cause segfaults or read arbitrary memory. This is a meaningful security issue that could lead to memory safety violations in production.",2026-02-20T06:30:11.910740+00:00
+gptme/gptme,1288,fix(shell): restore interactive sudo support in interactive mode,https://github.com/gptme/gptme/pull/1288,"**Missing `KeyboardInterrupt` handling can orphan process**
+
+If the user interrupts during `proc.communicate()` (e.g., Ctrl+C), `KeyboardInterrupt` propagates without killing `proc`. The `_run_pipe` path handles `KeyboardInterrupt` at the caller level (`execute_shell_impl`), but that handler references `shell.process` (the persistent bash session), not this ephemeral `proc`. The subprocess could be left running as an orphan.
+
+Consider catching `KeyboardInterrupt` alongside `TimeoutExpired`:
+
+```python
+except KeyboardInterrupt:
+    proc.kill()
+    proc.communicate()
+    raise
+```",https://github.com/gptme/gptme/pull/1288#discussion_r2822091967,"✅ Fixed in 9d03f2092 — added `KeyboardInterrupt` handler that kills the subprocess before re-raising, preventing orphaned processes.",2026-02-18T12:32:18.144000,KeyboardInterrupt leaves orphaned subprocess running,resource_leak,high,8,"This catches a real resource leak bug where Ctrl+C during interactive sudo execution would leave the subprocess running as an orphan. Unlike the other comments which are about consistency/correctness improvements, this is a concrete bug that could leave zombie processes consuming resources.",2026-02-20T12:23:57.073032+00:00
