@@ -4304,3 +4304,55 @@ The same pattern applies to `fbtOperands` (line 375) and `uniqueIdentifiers` (li
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/greptileai/react-mirror/pull/554#discussion_r2835327679,,2026-02-20T22:19:45.925000,Definite assignment assertion masks undefined access crash,runtime,high,8,"This is a meaningful runtime bug catch - using TypeScript's `!:` definite assignment assertion when the value may actually remain uninitialized due to caught exceptions. This would cause confusing runtime crashes when subsequent code tries to access properties on undefined. The analysis is thorough, identifying the specific pattern and explaining why it's problematic, making this a valuable catch that prevents production debugging headaches.",2026-02-21T04:40:19.365944+00:00
+mrmps/smry,72,feat: adding annotation feature and replacing our existing sidebar wi…,https://github.com/mrmps/SMRY/pull/72,"combining `allow-same-origin` with `allow-scripts` in the cached HTML iframe removes sandbox isolation — scripts can now access parent frame cookies and escape the sandbox
+
+the original version only had `allow-same-origin`, but this PR adds `allow-scripts allow-popups allow-forms`, creating a security risk since the iframe renders untrusted third-party HTML
+
+```suggestion
+                      sandbox=""allow-same-origin""
+```",https://github.com/mrmps/SMRY/pull/72#discussion_r2835907890,,2026-02-21T06:39:44.570000,Sandbox escalation allows XSS via iframe script execution,security,critical,9,"Comment 7 identifies a critical security vulnerability where combining 'allow-same-origin' with 'allow-scripts' in the iframe sandbox effectively negates sandbox isolation. This allows untrusted third-party HTML content to access parent frame cookies and escape the sandbox, creating a serious XSS vector.",2026-02-21T08:15:25.881095+00:00
+posthog/posthog,48655,fix: clean up gemini uploaded files,https://github.com/PostHog/posthog/pull/48655,"If activities 3-6 fail after exhausting retries, the workflow terminates before cleanup runs, leaving the file in Gemini storage. Wrap activities 3-7 in try/finally to ensure cleanup always executes.
+
+```suggestion
+    # Activity 7: Delete uploaded video from Gemini to free storage quota
+    # This must run even if activities 3-6 fail
+    try:
+        # Activity 3: Analyze all segments in parallel (max 100 concurrent to limit blast radius)
+        # ... (move activities 3-6 here)
+    finally:
+        await temporalio.workflow.execute_activity(
+            cleanup_gemini_file_activity,
+            args=(uploaded_video.gemini_file_name, inputs.session_id),
+            start_to_close_timeout=timedelta(seconds=30),
+            retry_policy=RetryPolicy(maximum_attempts=2),
+        )
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: posthog/temporal/ai/session_summary/summarize_session.py
+Line: 723-729
+
+Comment:
+If activities 3-6 fail after exhausting retries, the workflow terminates before cleanup runs, leaving the file in Gemini storage. Wrap activities 3-7 in try/finally to ensure cleanup always executes.
+
+```suggestion
+    # Activity 7: Delete uploaded video from Gemini to free storage quota
+    # This must run even if activities 3-6 fail
+    try:
+        # Activity 3: Analyze all segments in parallel (max 100 concurrent to limit blast radius)
+        # ... (move activities 3-6 here)
+    finally:
+        await temporalio.workflow.execute_activity(
+            cleanup_gemini_file_activity,
+            args=(uploaded_video.gemini_file_name, inputs.session_id),
+            start_to_close_timeout=timedelta(seconds=30),
+            retry_policy=RetryPolicy(maximum_attempts=2),
+        )
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/48655#discussion_r2835908527,,2026-02-21T06:40:38.274000,Resource leak: Gemini files not cleaned up on workflow failure,resource_leak,high,8,"This is a meaningful resource leak bug where uploaded files to Gemini storage would accumulate if any of the activities 3-6 fail, potentially consuming storage quota and costing money. The fix to wrap in try/finally ensures cleanup runs regardless of success/failure, which is a legitimate production issue that would cause resource accumulation over time.",2026-02-21T08:15:25.881095+00:00
