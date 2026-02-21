@@ -4250,3 +4250,57 @@ raycast/extensions,24581,Add voiceink extension,https://github.com/raycast/exten
 
 Then update `useExec` calls to pass bind parameters: `[""-json"", ""-readonly"", dbInfo.path, query, `%${searchTerm}%`, `%${searchTerm}%`]`",https://github.com/raycast/extensions/pull/24581#discussion_r2811412679,,2026-02-16T09:23:16.808000,SQL injection vulnerability via string interpolation in database queries,security,high,8,"Comment 2 identifies a SQL injection vulnerability where user-provided search terms are interpolated directly into SQL queries via template literals. This is a legitimate security issue that could allow malicious input to manipulate database queries, even with the partial escaping mentioned in Comment 0.",2026-02-20T16:20:45.242485+00:00
 simstudioai/sim,3274,feat(auth): add OAuth 2.1 provider for MCP connector support,https://github.com/simstudioai/sim/pull/3274,"OAuth scope validation can be bypassed when both `Authorization` and `x-api-key` headers are present. Line 440 overwrites the OAuth `authResult`, ignoring the scope check. Make auth methods mutually exclusive: if Bearer token exists, skip the API key check entirely.",https://github.com/simstudioai/sim/pull/3274#discussion_r2835306044,,2026-02-20T22:11:10.090000,OAuth scope validation bypass via dual authentication headers,security,high,8,"This is a real security vulnerability where OAuth scope restrictions can be bypassed when both Authorization and x-api-key headers are present. The API key validation overwrites the OAuth auth result at line 440, allowing an attacker to circumvent scope-based access controls by including both headers.",2026-02-21T00:46:37.711530+00:00
+greptileai/react-mirror,552,[compiler] Phase 4 (batch 1): Update validation passes to record errors on env,https://github.com/greptileai/react-mirror/pull/552,"**Unsafe definite assignment assertion on `reactiveFunction`**
+
+If `buildReactiveFunction(hir)` throws a non-invariant `CompilerError` (e.g. via `CompilerError.throwTodo()` for unsupported terminal kinds or labeled statements with value blocks), `tryRecord` will catch it and record the error, but `reactiveFunction` will never be assigned. The definite assignment assertion (`!`) tells TypeScript it's assigned, but at runtime it will be `undefined`.
+
+All subsequent code — `log()` on line 537, `assertWellFormedBreakTargets()` on line 540, and every reactive pass after — would then crash with an unclear error about accessing properties of `undefined`, masking the original meaningful error.
+
+Consider either:
+1. Adding an early return after this `tryRecord` block if `reactiveFunction` is still unassigned (similar to the codegen early-return pattern on lines 691-694), or
+2. Initializing `reactiveFunction` with a safe default before the `tryRecord` block (as done for `fbtOperands` and `uniqueIdentifiers`).
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: compiler/packages/babel-plugin-react-compiler/src/Entrypoint/Pipeline.ts
+Line: 530-533
+
+Comment:
+**Unsafe definite assignment assertion on `reactiveFunction`**
+
+If `buildReactiveFunction(hir)` throws a non-invariant `CompilerError` (e.g. via `CompilerError.throwTodo()` for unsupported terminal kinds or labeled statements with value blocks), `tryRecord` will catch it and record the error, but `reactiveFunction` will never be assigned. The definite assignment assertion (`!`) tells TypeScript it's assigned, but at runtime it will be `undefined`.
+
+All subsequent code — `log()` on line 537, `assertWellFormedBreakTargets()` on line 540, and every reactive pass after — would then crash with an unclear error about accessing properties of `undefined`, masking the original meaningful error.
+
+Consider either:
+1. Adding an early return after this `tryRecord` block if `reactiveFunction` is still unassigned (similar to the codegen early-return pattern on lines 691-694), or
+2. Initializing `reactiveFunction` with a safe default before the `tryRecord` block (as done for `fbtOperands` and `uniqueIdentifiers`).
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/greptileai/react-mirror/pull/552#discussion_r2835328201,,2026-02-20T22:19:59.746000,Unsafe definite assignment causes undefined access after caught error,runtime,high,8,"This catches a real runtime bug where the TypeScript definite assignment assertion (`!`) masks an unassigned variable. When `buildReactiveFunction` throws a caught error, `reactiveFunction` remains undefined, causing subsequent code to crash with confusing errors about accessing properties of undefined rather than showing the original meaningful error.",2026-02-21T04:40:19.365944+00:00
+greptileai/react-mirror,554,[compiler] Phase 8: Add multi-error test fixture and update plan,https://github.com/greptileai/react-mirror/pull/554,"**Definite assignment assertion may mask runtime errors**
+
+If `buildReactiveFunction` throws a `CompilerError` inside `tryRecord`, it gets caught and recorded, but `reactiveFunction` remains uninitialized (despite the `!:` assertion telling TypeScript it's assigned). Subsequent code on line 526 (`assertWellFormedBreakTargets(reactiveFunction)`) and all later passes will then operate on `undefined`, likely causing a confusing runtime crash (e.g., ""Cannot read properties of undefined"") rather than a clear error.
+
+The same pattern applies to `fbtOperands` (line 375) and `uniqueIdentifiers` (line 639), though those have safe empty `Set` defaults. For `reactiveFunction` specifically, there's no safe default, so if this pass fails the pipeline should probably bail out early rather than continue with an undefined value.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: compiler/packages/babel-plugin-react-compiler/src/Entrypoint/Pipeline.ts
+Line: 516-519
+
+Comment:
+**Definite assignment assertion may mask runtime errors**
+
+If `buildReactiveFunction` throws a `CompilerError` inside `tryRecord`, it gets caught and recorded, but `reactiveFunction` remains uninitialized (despite the `!:` assertion telling TypeScript it's assigned). Subsequent code on line 526 (`assertWellFormedBreakTargets(reactiveFunction)`) and all later passes will then operate on `undefined`, likely causing a confusing runtime crash (e.g., ""Cannot read properties of undefined"") rather than a clear error.
+
+The same pattern applies to `fbtOperands` (line 375) and `uniqueIdentifiers` (line 639), though those have safe empty `Set` defaults. For `reactiveFunction` specifically, there's no safe default, so if this pass fails the pipeline should probably bail out early rather than continue with an undefined value.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/greptileai/react-mirror/pull/554#discussion_r2835327679,,2026-02-20T22:19:45.925000,Definite assignment assertion masks undefined access crash,runtime,high,8,"This is a meaningful runtime bug catch - using TypeScript's `!:` definite assignment assertion when the value may actually remain uninitialized due to caught exceptions. This would cause confusing runtime crashes when subsequent code tries to access properties on undefined. The analysis is thorough, identifying the specific pattern and explaining why it's problematic, making this a valuable catch that prevents production debugging headaches.",2026-02-21T04:40:19.365944+00:00
