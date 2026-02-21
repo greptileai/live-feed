@@ -4356,3 +4356,14 @@ If activities 3-6 fail after exhausting retries, the workflow terminates before 
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/PostHog/posthog/pull/48655#discussion_r2835908527,,2026-02-21T06:40:38.274000,Resource leak: Gemini files not cleaned up on workflow failure,resource_leak,high,8,"This is a meaningful resource leak bug where uploaded files to Gemini storage would accumulate if any of the activities 3-6 fail, potentially consuming storage quota and costing money. The fix to wrap in try/finally ensures cleanup runs regardless of success/failure, which is a legitimate production issue that would cause resource accumulation over time.",2026-02-21T08:15:25.881095+00:00
+ever-co/ever-gauzy,9493,[Fix] Help center Article and Article version table structures and APIs,https://github.com/ever-co/ever-gauzy/pull/9493,"**Pivot table joinColumn name mismatch**
+The entity specifies `joinColumn: 'helpCenterArticleId'`, but the migration creates the pivot table with column name `""knowledgeBaseArticleId""`. This mismatch will cause a runtime error when TypeORM tries to query or insert into the `knowledge_base_article_project` pivot table, because it will look for a column `helpCenterArticleId` that does not exist.
+
+Other many-to-many relations in this codebase (e.g., `tag_task` in `task.entity.ts`) consistently match the `joinColumn` value to the actual database column name. The fix should be:
+
+```suggestion
+		/** Column in pivot table referencing 'help_center_article' primary key. */
+		joinColumn: 'knowledgeBaseArticleId',
+		/** Column in pivot table referencing 'project' primary key. */
+		inverseJoinColumn: 'organizationProjectId'
+```",https://github.com/ever-co/ever-gauzy/pull/9493#discussion_r2836001342,,2026-02-21T09:02:42.704000,Pivot table column name mismatch causes runtime query failures,runtime,high,8,"This catches a real mismatch between the entity definition (joinColumn: 'helpCenterArticleId') and the migration-created column ('knowledgeBaseArticleId'), which would cause TypeORM to fail at runtime when querying the many-to-many relationship. This is a meaningful bug that would break the feature in production.",2026-02-21T18:16:37.393568+00:00
