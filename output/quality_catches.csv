@@ -4435,3 +4435,26 @@ Add `std::lock_guard<std::mutex> lock(mutex_);` at the start of the method.
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/RunanywhereAI/runanywhere-sdks/pull/349#discussion_r2814354774,Fixed,2026-02-16T23:22:19.940000,Race condition in query() accessing shared providers without mutex lock,concurrency,high,8,"This comment identifies a genuine race condition where the query() method accesses embedding_provider_ and text_generator_ without holding the mutex, while other methods modify these with locks held. This could cause undefined behavior including crashes or data corruption in production when providers are swapped during queries.",2026-02-22T20:12:59.970707+00:00
+runanywhereai/runanywhere-sdks,335,"Add callback registration for TTS, VAD, and Voice Agent components",https://github.com/RunanywhereAI/runanywhere-sdks/pull/335,"**Unhandled JNI pending exceptions**
+
+In `rac*Tts/Vad/VoiceAgent*SetCallbacks`, `GetMethodID` failures can leave a pending Java exception (e.g., signature mismatch). Right now the code only checks for a null `jmethodID` and keeps going, which can cause subsequent JNI calls to fail/abort with the original exception still pending. After each `GetMethodID` (and `GetObjectClass`), check/clear `env->ExceptionCheck()` (or return early after logging) so registration can’t proceed with a pending exception.
+
+Also appears in: `sdk/runanywhere-commons/src/jni/runanywhere_commons_jni.cpp:1712-1716`, `:1823-1827`, and the other `GetMethodID` sites in those functions.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: sdk/runanywhere-commons/src/jni/runanywhere_commons_jni.cpp
+Line: 1506:1513
+
+Comment:
+**Unhandled JNI pending exceptions**
+
+In `rac*Tts/Vad/VoiceAgent*SetCallbacks`, `GetMethodID` failures can leave a pending Java exception (e.g., signature mismatch). Right now the code only checks for a null `jmethodID` and keeps going, which can cause subsequent JNI calls to fail/abort with the original exception still pending. After each `GetMethodID` (and `GetObjectClass`), check/clear `env->ExceptionCheck()` (or return early after logging) so registration can’t proceed with a pending exception.
+
+Also appears in: `sdk/runanywhere-commons/src/jni/runanywhere_commons_jni.cpp:1712-1716`, `:1823-1827`, and the other `GetMethodID` sites in those functions.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/RunanywhereAI/runanywhere-sdks/pull/335#discussion_r2771597529,,2026-02-05T23:36:49.018000,Unhandled JNI pending exceptions can cause crashes or undefined behavior,runtime,high,8,"This is a meaningful runtime bug in JNI code where pending Java exceptions from GetMethodID failures are not being cleared, which can cause subsequent JNI calls to fail or abort unpredictably. JNI exception handling is notoriously tricky and this pattern could cause production crashes. The catch demonstrates good understanding of JNI semantics and identifies multiple affected locations.",2026-02-22T22:12:54.391603+00:00
