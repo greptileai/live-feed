@@ -4367,3 +4367,25 @@ Other many-to-many relations in this codebase (e.g., `tag_task` in `task.entity.
 		/** Column in pivot table referencing 'project' primary key. */
 		inverseJoinColumn: 'organizationProjectId'
 ```",https://github.com/ever-co/ever-gauzy/pull/9493#discussion_r2836001342,,2026-02-21T09:02:42.704000,Pivot table column name mismatch causes runtime query failures,runtime,high,8,"This catches a real mismatch between the entity definition (joinColumn: 'helpCenterArticleId') and the migration-created column ('knowledgeBaseArticleId'), which would cause TypeORM to fail at runtime when querying the many-to-many relationship. This is a meaningful bug that would break the feature in production.",2026-02-21T18:16:37.393568+00:00
+simstudioai/sim,3285,feat(oauth): add CIMD support for client metadata discovery,https://github.com/simstudioai/sim/pull/3285,"DNS rebinding vulnerability: DNS resolution happens before the fetch, but the resolved IP is never actually used. The `fetch()` call on line 73 still uses the original hostname, which can resolve to a different (private) IP at request time, bypassing the SSRF check.
+
+```suggestion
+  // SSRF: resolve hostname and reject private/loopback IPs
+  const addresses = await dns.resolve4(parsed.hostname).catch(() => [] as string[])
+  const addresses6 = await dns.resolve6(parsed.hostname).catch(() => [] as string[])
+  const allAddresses = [...addresses, ...addresses6]
+
+  if (allAddresses.length === 0) {
+    throw new Error(`Cannot resolve hostname: ${parsed.hostname}`)
+  }
+
+  for (const addr of allAddresses) {
+    if (isPrivateIp(addr)) {
+      throw new Error(`CIMD URL resolves to private IP: ${addr}`)
+    }
+  }
+
+  // Use resolved IP directly to prevent DNS rebinding
+  const targetUrl = new URL(url)
+  targetUrl.hostname = allAddresses[0]
+```",https://github.com/simstudioai/sim/pull/3285#discussion_r2836090075,,2026-02-21T11:07:35.384000,DNS rebinding vulnerability bypasses SSRF protection in CIMD fetch,security,high,8,"Comment 9 identifies a real DNS rebinding vulnerability where the hostname is resolved for validation but the original URL is still used for the actual fetch, allowing an attacker to bypass SSRF protections by having DNS return a public IP during validation then a private IP during the actual request. This is a meaningful security vulnerability in an OAuth client metadata discovery feature.",2026-02-22T00:48:56.815178+00:00
