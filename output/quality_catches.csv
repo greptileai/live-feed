@@ -4412,3 +4412,26 @@ Comment:
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/assistant-ui/assistant-ui/pull/2815#discussion_r2566926186,,2025-11-27T01:41:09.676000,Double data URL prefix breaks audio playback,logic,high,8,"This is a meaningful logic bug that would cause audio playback to completely fail in production. The code incorrectly prepends a data URL prefix to data that already contains the complete data URL, creating an invalid URL. This requires understanding the data flow from SimpleAudioAttachmentAdapter and isn't immediately obvious from looking at this file alone.",2026-02-22T03:12:47.843291+00:00
+runanywhereai/runanywhere-sdks,349,[React-native-sdk] [react-native-sample] RAG + embedding + storage,https://github.com/RunanywhereAI/runanywhere-sdks/pull/349,"Missing mutex lock in `query()` method.
+
+The `query()` method accesses `embedding_provider_` and `text_generator_` without holding `mutex_`. These could be modified by `set_embedding_provider()` or `set_text_generator()` on another thread, causing undefined behavior.
+
+Add `std::lock_guard<std::mutex> lock(mutex_);` at the start of the method.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: sdk/runanywhere-commons/src/backends/rag/rag_backend.cpp
+Line: 192:265
+
+Comment:
+Missing mutex lock in `query()` method.
+
+The `query()` method accesses `embedding_provider_` and `text_generator_` without holding `mutex_`. These could be modified by `set_embedding_provider()` or `set_text_generator()` on another thread, causing undefined behavior.
+
+Add `std::lock_guard<std::mutex> lock(mutex_);` at the start of the method.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/RunanywhereAI/runanywhere-sdks/pull/349#discussion_r2814354774,Fixed,2026-02-16T23:22:19.940000,Race condition in query() accessing shared providers without mutex lock,concurrency,high,8,"This comment identifies a genuine race condition where the query() method accesses embedding_provider_ and text_generator_ without holding the mutex, while other methods modify these with locks held. This could cause undefined behavior including crashes or data corruption in production when providers are swapped during queries.",2026-02-22T20:12:59.970707+00:00
