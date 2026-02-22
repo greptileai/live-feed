@@ -4389,3 +4389,26 @@ simstudioai/sim,3285,feat(oauth): add CIMD support for client metadata discovery
   const targetUrl = new URL(url)
   targetUrl.hostname = allAddresses[0]
 ```",https://github.com/simstudioai/sim/pull/3285#discussion_r2836090075,,2026-02-21T11:07:35.384000,DNS rebinding vulnerability bypasses SSRF protection in CIMD fetch,security,high,8,"Comment 9 identifies a real DNS rebinding vulnerability where the hostname is resolved for validation but the original URL is still used for the actual fetch, allowing an attacker to bypass SSRF protections by having DNS return a public IP during validation then a private IP during the actual request. This is a meaningful security vulnerability in an OAuth client metadata discovery feature.",2026-02-22T00:48:56.815178+00:00
+assistant-ui/assistant-ui,2815,feat: add native audio/video attachment support,https://github.com/assistant-ui/assistant-ui/pull/2815,"**logic:** Double data URL prefix will cause audio playback to fail. `SimpleAudioAttachmentAdapter` stores the complete data URL (e.g., `data:audio/mpeg;base64,abc123`) in `audio.data`, but this line prepends another prefix, creating an invalid URL like `data:audio/mp3;base64,data:audio/mpeg;base64,abc123`.
+
+```suggestion
+  const src = part.audio.data;
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/react/src/primitives/messagePart/MessagePartAudio.tsx
+Line: 34:34
+
+Comment:
+**logic:** Double data URL prefix will cause audio playback to fail. `SimpleAudioAttachmentAdapter` stores the complete data URL (e.g., `data:audio/mpeg;base64,abc123`) in `audio.data`, but this line prepends another prefix, creating an invalid URL like `data:audio/mp3;base64,data:audio/mpeg;base64,abc123`.
+
+```suggestion
+  const src = part.audio.data;
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/assistant-ui/assistant-ui/pull/2815#discussion_r2566926186,,2025-11-27T01:41:09.676000,Double data URL prefix breaks audio playback,logic,high,8,"This is a meaningful logic bug that would cause audio playback to completely fail in production. The code incorrectly prepends a data URL prefix to data that already contains the complete data URL, creating an invalid URL. This requires understanding the data flow from SimpleAudioAttachmentAdapter and isn't immediately obvious from looking at this file alone.",2026-02-22T03:12:47.843291+00:00
