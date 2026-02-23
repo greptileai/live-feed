@@ -4486,3 +4486,8 @@ Directory renamed on filesystem, but database save happens later on line 1221. I
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/getarcaneapp/arcane/pull/1858#discussion_r2838706510,,2026-02-23T00:29:08.770000,Filesystem-database inconsistency on failed DB save needs rollback,data_integrity,high,8,"This comment identifies a real data integrity bug where renaming the directory before the DB save could leave the system in an inconsistent state if the save fails. The fix (defer-based rollback) was implemented as suggested in the PR diff, confirming this was a valid and important catch.",2026-02-23T04:50:45.893983+00:00
+simstudioai/sim,3285,feat(oauth): add CIMD support for client metadata discovery,https://github.com/simstudioai/sim/pull/3285,"This fetch uses the original URL hostname, not the validated IP addresses from lines 56-57. An attacker can exploit DNS rebinding: DNS resolves to a public IP during validation, then changes to resolve to `127.0.0.1` when fetch executes, bypassing SSRF protection.
+
+```suggestion
+    const res = await fetch(targetUrl.toString(), {
+```",https://github.com/simstudioai/sim/pull/3285#discussion_r2836090091,,2026-02-21T11:07:35.417000,DNS rebinding attack bypasses SSRF protection in CIMD fetch,security,critical,9,"This identifies a critical SSRF vulnerability where DNS rebinding can bypass IP validation. The code validates the hostname resolves to a safe IP, but the actual fetch uses the original hostname which could resolve to a different (internal) IP by the time the request is made, allowing attackers to access internal services.",2026-02-23T06:38:11.651926+00:00
