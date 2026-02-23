@@ -4471,3 +4471,18 @@ This needs to be flipped to `!targetDistribution.pending` to match the route han
           );
         }
 ```",https://github.com/GTBitsOfGood/hope-for-haiti/pull/286#discussion_r2836781762,,2026-02-21T22:55:27.887000,Inverted condition makes all transfers fail,logic,high,8,"Comment 1 identifies a critical logic bug where the service layer condition was not updated to match the route handler fix, causing an impossible situation where no transfers could ever succeed - the route blocks approved targets while the service blocks pending targets.",2026-02-23T03:14:41.976688+00:00
+getarcaneapp/arcane,1858,fix: project folder not renamed when project name is updated,https://github.com/getarcaneapp/arcane/pull/1858,"Directory renamed on filesystem, but database save happens later on line 1221. If `db.Save` fails, the filesystem and database will be inconsistent (directory renamed but old name/path in DB). Consider either: (1) renaming after successful DB save, or (2) implementing rollback via `defer` to restore the old directory name if DB save fails.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: backend/internal/services/project_service.go
+Line: 1268-1272
+
+Comment:
+Directory renamed on filesystem, but database save happens later on line 1221. If `db.Save` fails, the filesystem and database will be inconsistent (directory renamed but old name/path in DB). Consider either: (1) renaming after successful DB save, or (2) implementing rollback via `defer` to restore the old directory name if DB save fails.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/getarcaneapp/arcane/pull/1858#discussion_r2838706510,,2026-02-23T00:29:08.770000,Filesystem-database inconsistency on failed DB save needs rollback,data_integrity,high,8,"This comment identifies a real data integrity bug where renaming the directory before the DB save could leave the system in an inconsistent state if the save fails. The fix (defer-based rollback) was implemented as suggested in the PR diff, confirming this was a valid and important catch.",2026-02-23T04:50:45.893983+00:00
