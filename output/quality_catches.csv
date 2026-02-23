@@ -4497,3 +4497,50 @@ nvidia/dali,6219,Remove start_immediately parameter from AddWork.,https://github
     std::lock_guard lock(queue_lock_);
     work_queue_.push({priority, std::move(work)});
 ```",https://github.com/NVIDIA/DALI/pull/6219#discussion_r2832542987,"@greptileai This is intentional. When the thread pool is not started, there are no other users and the lock is useless. It is illegal to start the thread pool from another thread (the same thread must add work and start processing).",2026-02-20T10:38:28.106000,Race condition in thread pool work queue access without lock,concurrency,high,9,"This is a genuine race condition bug where the work_queue_ priority queue can be accessed by multiple threads without lock protection, leading to potential data corruption. Race conditions in thread pools are notoriously difficult to catch and debug, and this could cause serious production issues including crashes or undefined behavior.",2026-02-23T14:31:08.249761+00:00
+greptileai/react-mirror,568,[compiler] Add fault tolerance test fixtures,https://github.com/greptileai/react-mirror/pull/568,"**Uninitialized variable after caught error**
+
+If `buildReactiveFunction(hir)` throws a non-invariant `CompilerError` (e.g. a `Todo` error — `BuildReactiveFunction.ts` has several `CompilerError.throwTodo()` calls), `tryRecord` will catch it and record the error. However, `reactiveFunction` will remain uninitialized at runtime because the assignment inside the callback never executed. The `!:` definite assignment assertion silences TypeScript but doesn't protect at runtime.
+
+Subsequent code on line 471 (`assertWellFormedBreakTargets(reactiveFunction)`) and all later passes will operate on an `undefined` value, likely crashing with a confusing error that masks the original problem.
+
+Consider initializing with a safe default before the `tryRecord` block (similar to how `fbtOperands` and `uniqueIdentifiers` are handled), or checking whether `reactiveFunction` was assigned before continuing with subsequent passes.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: compiler/packages/babel-plugin-react-compiler/src/Entrypoint/Pipeline.ts
+Line: 461-464
+
+Comment:
+**Uninitialized variable after caught error**
+
+If `buildReactiveFunction(hir)` throws a non-invariant `CompilerError` (e.g. a `Todo` error — `BuildReactiveFunction.ts` has several `CompilerError.throwTodo()` calls), `tryRecord` will catch it and record the error. However, `reactiveFunction` will remain uninitialized at runtime because the assignment inside the callback never executed. The `!:` definite assignment assertion silences TypeScript but doesn't protect at runtime.
+
+Subsequent code on line 471 (`assertWellFormedBreakTargets(reactiveFunction)`) and all later passes will operate on an `undefined` value, likely crashing with a confusing error that masks the original problem.
+
+Consider initializing with a safe default before the `tryRecord` block (similar to how `fbtOperands` and `uniqueIdentifiers` are handled), or checking whether `reactiveFunction` was assigned before continuing with subsequent passes.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/greptileai/react-mirror/pull/568#discussion_r2835795412,,2026-02-21T04:05:03.385000,Uninitialized variable accessed after caught exception causes runtime crash,runtime,high,8,"This is a meaningful runtime bug where TypeScript's definite assignment assertion (`!:`) silences the compiler but doesn't protect against actual undefined access at runtime. When `buildReactiveFunction` throws a non-invariant error that gets caught by `tryRecord`, the code continues execution with an uninitialized `reactiveFunction`, causing confusing downstream crashes. This is a subtle issue that requires understanding the error handling flow and wouldn't be immediately obvious from static analysis.",2026-02-23T18:34:47.608319+00:00
+nvidia-nemo/emerging-optimizers,102,Sinkhorn Muon ,https://github.com/NVIDIA-NeMo/Emerging-Optimizers/pull/102,"**Doubly-stochastic validation fails for non-square matrices**
+
+The validation checks that row and column sums deviate from `1.0` by less than `doubly_stochastic_tolerance`. However, for non-square matrices (m × n), the Sinkhorn-Knopp algorithm converges to a matrix where row sums ≈ 1 and column sums ≈ m/n (since the last normalization step is row-wise). For example, a (5, 7) matrix will have column sums ≈ 5/7 ≈ 0.714, giving a deviation of ~0.286 from 1.0, which exceeds the default tolerance of 0.1.
+
+This means parameters with shapes like `(5, 7)` or `(31, 63)` initialized via `SinkhornMapper` will always fail this validation. The `test_smoke` test uses these exact shapes and will raise `ValueError` at this check.
+
+The fix is to compute the expected row/column sums based on the matrix dimensions:
+
+```python
+                num_rows, num_cols = p.shape[-2], p.shape[-1]
+                expected_row_sum = num_cols / num_rows if num_cols > num_rows else 1.0
+                expected_col_sum = num_rows / num_cols if num_rows > num_cols else 1.0
+                # Or more generally, use the actual mean as the target:
+                row_sums = p.sum(dim=-1)
+                col_sums = p.sum(dim=-2)
+                max_row_deviation = (row_sums - row_sums.mean()).abs().max().item()
+                max_col_deviation = (col_sums - col_sums.mean()).abs().max().item()
+```
+
+This would check that rows/columns have _uniform_ sums (the actual Sinkhorn property) rather than sums equal to 1.",https://github.com/NVIDIA-NeMo/Emerging-Optimizers/pull/102#discussion_r2820174323,thank u greptile 🥹 ,2026-02-18T03:33:45.243000,Doubly-stochastic validation uses wrong expected values for non-square matrices,logic,high,8,"This is a meaningful logic bug where the validation code incorrectly assumes row/column sums should equal 1.0 for all matrices, when non-square matrices have different expected sums (m/n or n/m). This would cause all non-square parameters to fail validation even when correctly initialized, breaking core optimizer functionality.",2026-02-23T18:34:47.608319+00:00
