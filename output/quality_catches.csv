@@ -4491,3 +4491,9 @@ simstudioai/sim,3285,feat(oauth): add CIMD support for client metadata discovery
 ```suggestion
     const res = await fetch(targetUrl.toString(), {
 ```",https://github.com/simstudioai/sim/pull/3285#discussion_r2836090091,,2026-02-21T11:07:35.417000,DNS rebinding attack bypasses SSRF protection in CIMD fetch,security,critical,9,"This identifies a critical SSRF vulnerability where DNS rebinding can bypass IP validation. The code validates the hostname resolves to a safe IP, but the actual fetch uses the original hostname which could resolve to a different (internal) IP by the time the request is made, allowing attackers to access internal services.",2026-02-23T06:38:11.651926+00:00
+nvidia/dali,6219,Remove start_immediately parameter from AddWork.,https://github.com/NVIDIA/DALI/pull/6219,"Race condition: `work_queue_` is accessed without lock protection when `started_` is false. If multiple threads call `AddWork` concurrently before the pool starts, or if `RunAll` is called concurrently with `AddWork`, this can corrupt the priority queue.
+
+```suggestion
+    std::lock_guard lock(queue_lock_);
+    work_queue_.push({priority, std::move(work)});
+```",https://github.com/NVIDIA/DALI/pull/6219#discussion_r2832542987,"@greptileai This is intentional. When the thread pool is not started, there are no other users and the lock is useless. It is illegal to start the thread pool from another thread (the same thread must add work and start processing).",2026-02-20T10:38:28.106000,Race condition in thread pool work queue access without lock,concurrency,high,9,"This is a genuine race condition bug where the work_queue_ priority queue can be accessed by multiple threads without lock protection, leading to potential data corruption. Race conditions in thread pools are notoriously difficult to catch and debug, and this could cause serious production issues including crashes or undefined behavior.",2026-02-23T14:31:08.249761+00:00
