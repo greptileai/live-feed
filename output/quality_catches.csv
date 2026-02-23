@@ -4458,3 +4458,16 @@ Also appears in: `sdk/runanywhere-commons/src/jni/runanywhere_commons_jni.cpp:17
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/RunanywhereAI/runanywhere-sdks/pull/335#discussion_r2771597529,,2026-02-05T23:36:49.018000,Unhandled JNI pending exceptions can cause crashes or undefined behavior,runtime,high,8,"This is a meaningful runtime bug in JNI code where pending Java exceptions from GetMethodID failures are not being cleared, which can cause subsequent JNI calls to fail or abort unpredictably. JNI exception handling is notoriously tricky and this pattern could cause production crashes. The catch demonstrates good understanding of JNI semantics and identifies multiple affected locations.",2026-02-22T22:12:54.391603+00:00
+gtbitsofgood/hope-for-haiti,286,Fix distribution transfer logic to pending → pending only,https://github.com/GTBitsOfGood/hope-for-haiti/pull/286,"**Inverted condition blocks all transfers**
+
+The condition on line 332 was not updated to match the fix applied in `route.ts`. Here, `targetDistribution.pending` being `true` triggers the error — meaning transfers to **pending** distributions are rejected. Combined with the route handler (which now correctly rejects transfers to **approved** distributions), no transfer can ever succeed: the route blocks approved targets, and this service method blocks pending targets.
+
+This needs to be flipped to `!targetDistribution.pending` to match the route handler fix:
+
+```suggestion
+        if (!targetDistribution.pending) {
+          throw new ArgumentError(
+            ""Cannot transfer items to an approved distribution. Transfers are only allowed between pending distributions.""
+          );
+        }
+```",https://github.com/GTBitsOfGood/hope-for-haiti/pull/286#discussion_r2836781762,,2026-02-21T22:55:27.887000,Inverted condition makes all transfers fail,logic,high,8,"Comment 1 identifies a critical logic bug where the service layer condition was not updated to match the route handler fix, causing an impossible situation where no transfers could ever succeed - the route blocks approved targets while the service blocks pending targets.",2026-02-23T03:14:41.976688+00:00
