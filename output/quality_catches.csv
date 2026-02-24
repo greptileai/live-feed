@@ -4760,3 +4760,116 @@ Consider using a reasonable default or skipping range-based matching when size i
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/PostHog/posthog/pull/48291#discussion_r2842497306,,2026-02-23T18:48:44.866000,Default u64::MAX causes false positive address range matches,logic,high,8,"This is a meaningful logic bug where using u64::MAX as a default for missing image_size causes the address range check to always pass, potentially matching frames to incorrect debug images. This could lead to incorrect symbolication results in production, which is a real functional bug that affects the core feature being developed.",2026-02-24T18:32:39.892383+00:00
+raycast/extensions,24401,Add raycast-rsync-extension extension,https://github.com/raycast/extensions/pull/24401,"critical shell command injection vulnerability - constructing `~/'escaped-path'` doesn't prevent command execution because the shell interprets the content after `~/` before applying quotes. For example, `~/'; malicious_command; echo '` would execute `malicious_command`.
+
+the remote shell processes tilde expansion first, then interprets the rest. The single quote after `~/` doesn't protect the path content from shell interpretation.
+
+apply `shellEscape()` to the entire path including the tilde, then use SSH's ability to execute a command that performs tilde expansion on the remote side:
+
+```suggestion
+function escapeRemotePath(remotePath: string): string {
+  // Escape the entire path including tilde to prevent injection
+  // Let the remote shell handle tilde expansion by using eval or cd
+  return shellEscape(remotePath);
+}
+```
+
+then update line 58 to let the remote shell expand tilde:
+
+```typescript
+const remoteCommand = `eval ls -lAh ${escapedRemotePath}`;
+```",https://github.com/raycast/extensions/pull/24401#discussion_r2837080522,,2026-02-22T03:50:10.469000,Shell command injection via tilde expansion in SSH paths,security,critical,9,"This catches a critical shell command injection vulnerability where constructing paths with tilde expansion allows attackers to break out of quotes and execute arbitrary commands on remote servers. The comment clearly explains the attack vector (e.g., `~/'; malicious_command; echo '`) and provides a concrete fix.",2026-02-24T22:18:53.098800+00:00
+alpaca-network/gatewayz-backend,1152,fix(billing): add database-level trial uniqueness constraint,https://github.com/Alpaca-Network/gatewayz-backend/pull/1152,"Logic flow issue: if `record_trial_grant` succeeds but `start_trial` RPC fails (lines 61-62), trial is recorded in `trial_grants` table but not actually started in `api_keys_new`. This leaves data inconsistent - user appears to have claimed trial (can't claim again) but trial isn't active.
+
+Consider wrapping both RPCs in a database transaction or using a single atomic function that handles both operations.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: src/db/trials.py
+Line: 39-58
+
+Comment:
+Logic flow issue: if `record_trial_grant` succeeds but `start_trial` RPC fails (lines 61-62), trial is recorded in `trial_grants` table but not actually started in `api_keys_new`. This leaves data inconsistent - user appears to have claimed trial (can't claim again) but trial isn't active.
+
+Consider wrapping both RPCs in a database transaction or using a single atomic function that handles both operations.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/Alpaca-Network/gatewayz-backend/pull/1152#discussion_r2845520077,,2026-02-24T09:13:01.128000,Non-atomic trial operations leave user in inconsistent state,data_integrity,high,8,"This catches a real data integrity bug where if record_trial_grant succeeds but the subsequent start_trial RPC fails, the user is permanently locked out of claiming a trial (due to the uniqueness constraint) but never actually receives trial benefits. This is a meaningful production bug that would cause user-facing issues.",2026-02-24T22:18:53.098800+00:00
+nvidia/nvflare,4225,"[2.7] Fix subprocess converter wiring, swarm learning bugs, and recipe enhancements",https://github.com/NVIDIA/NVFlare/pull/4225,"**`from_nvflare_converter` will never fire**
+
+`shareable_to_task_data` is called from `FlareAgent.get_task()` at [`flare_agent.py:264`](https://github.com/nvidia/nvflare/blob/4b2b1533fd9c89079645e9fae5538c56e79266b6/nvflare/client/flare_agent.py#L264), which is *before* `self.current_task` is assigned at [line 273](https://github.com/nvidia/nvflare/blob/4b2b1533fd9c89079645e9fae5538c56e79266b6/nvflare/client/flare_agent.py#L273). So `self.current_task` is always `None` here, `task_name` resolves to `""""`, and `ParamsConverter.process()` skips conversion because `"""" not in [""train"", ""validate""]`.
+
+The `to_nvflare_converter` in `task_result_to_shareable` works correctly because `self.current_task` is populated by then.
+
+To fix `shareable_to_task_data`, the task name should be read from the shareable header (which carries `FLContextKey.TASK_NAME` set by the CJ communicator) rather than from `self.current_task`:
+
+```suggestion
+    def shareable_to_task_data(self, shareable: Shareable) -> FLModel:
+        if self.from_nvflare_converter is not None:
+            from nvflare.apis.fl_constant import FLContextKey
+
+            task_name = shareable.get_header(FLContextKey.TASK_NAME, """")
+            shareable = self.from_nvflare_converter.process(task_name, shareable, self._converter_ctx)
+        model = FLModelUtils.from_shareable(shareable)
+        return model
+```
+
+The unit test at `flare_agent_with_fl_model_test.py:54` masks this issue by setting `agent.current_task = SimpleNamespace(task_name=""train"")` before calling `shareable_to_task_data`, which doesn't reflect the actual calling order in `FlareAgent.get_task()`.",https://github.com/NVIDIA/NVFlare/pull/4225#discussion_r2849270541,fixed,2026-02-24T20:00:00.125000,Converter silently skipped due to task state timing bug,logic,high,9,"This is an excellent catch of a subtle timing bug where the from_nvflare_converter would never execute because self.current_task is always None when shareable_to_task_data is called. The analysis traces through multiple files to identify the exact calling order, explains why the unit test masks the issue, and provides a concrete fix. This would cause silent data conversion failures in production.",2026-02-24T22:18:53.098800+00:00
+nvidia-nemo/guardrails,1638,feat(iorails): Create IORails hierarchy with content-safety support,https://github.com/NVIDIA-NeMo/Guardrails/pull/1638,"**Wrong parser used for output safety**
+
+`_parse_content_safety_output_response` calls `nemoguard_parse_prompt_safety` (line 229) instead of `nemoguard_parse_response_safety`. The docstring on line 227 correctly states it should use `nemoguard_parse_response_safety`, but the implementation doesn't match.
+
+`nemoguard_parse_prompt_safety` checks the `""User Safety""` JSON field, while `nemoguard_parse_response_safety` checks the `""Response Safety""` field. This means output rail checks will evaluate whether the **user's input** was safe rather than whether the **bot's response** was safe. An unsafe bot response will pass through the output rail as long as the user's original message was safe.
+
+Note that the tests at lines 286-301 (`test_output_safe_json` and `test_output_unsafe_json`) also only check the `""User Safety""` field, which masks this bug — they pass because they're testing against the wrong parser.
+
+```suggestion
+    def _parse_content_safety_output_response(self, response: str) -> RailResult:
+        """"""Use the existing `nemoguard_parse_response_safety` method and convert to RailResult.""""""
+
+        result = nemoguard_parse_response_safety(response)
+        rail_result = self._parse_content_safety_result(result)
+        return rail_result
+```
+
+This also requires adding `nemoguard_parse_response_safety` to the import on line 28:
+```python
+from nemoguardrails.llm.output_parsers import nemoguard_parse_prompt_safety, nemoguard_parse_response_safety
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: nemoguardrails/guardrails/rails_manager.py
+Line: 226:229
+
+Comment:
+**Wrong parser used for output safety**
+
+`_parse_content_safety_output_response` calls `nemoguard_parse_prompt_safety` (line 229) instead of `nemoguard_parse_response_safety`. The docstring on line 227 correctly states it should use `nemoguard_parse_response_safety`, but the implementation doesn't match.
+
+`nemoguard_parse_prompt_safety` checks the `""User Safety""` JSON field, while `nemoguard_parse_response_safety` checks the `""Response Safety""` field. This means output rail checks will evaluate whether the **user's input** was safe rather than whether the **bot's response** was safe. An unsafe bot response will pass through the output rail as long as the user's original message was safe.
+
+Note that the tests at lines 286-301 (`test_output_safe_json` and `test_output_unsafe_json`) also only check the `""User Safety""` field, which masks this bug — they pass because they're testing against the wrong parser.
+
+```suggestion
+    def _parse_content_safety_output_response(self, response: str) -> RailResult:
+        """"""Use the existing `nemoguard_parse_response_safety` method and convert to RailResult.""""""
+
+        result = nemoguard_parse_response_safety(response)
+        rail_result = self._parse_content_safety_result(result)
+        return rail_result
+```
+
+This also requires adding `nemoguard_parse_response_safety` to the import on line 28:
+```python
+from nemoguardrails.llm.output_parsers import nemoguard_parse_prompt_safety, nemoguard_parse_response_safety
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/NVIDIA-NeMo/Guardrails/pull/1638#discussion_r2810527284,"@greptile check on latest commit, can this be resolved?",2026-02-16T03:44:04.483000,Wrong parser causes output safety checks to validate user input instead of bot response,logic,critical,9,"This is a significant security-related logic bug where output safety rails would check if the user's input was safe instead of checking if the bot's response was safe. This means unsafe bot responses could pass through the safety check as long as the user's original message was safe, completely defeating the purpose of output content safety filtering.",2026-02-24T22:18:53.098800+00:00
