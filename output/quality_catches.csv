@@ -4714,3 +4714,15 @@ gtbitsofgood/juno,242,Aakash Request New Account Backend,https://github.com/GTBi
         createdAt: req.createdAt.toISOString(),
       })),
 ```",https://github.com/GTBitsOfGood/juno/pull/242#discussion_r2835480634,,2026-02-20T23:25:12.443000,Password hashes exposed in API responses,security,high,8,Comment 1 identifies a security vulnerability where password hashes are included in API responses when fetching account requests. Even hashed passwords should never be exposed as they enable offline brute-force attacks. This is a meaningful security issue that would affect production.,2026-02-24T08:27:08.014577+00:00
+nvidia/dali,6221,Raise exceptions when an EvalContext is active in multiple threads,https://github.com/NVIDIA/DALI/pull/6221,"**Lock released without being acquired in background thread**
+
+When `_is_in_background_thread()` returns `True`, the lock is never acquired (line 213 short-circuits). However, if an exception is thrown inside the `try` block (e.g. from `self._device.__enter__()`), this `except` handler unconditionally calls `self._lock.release()`, which will raise `RuntimeError: cannot release un-acquired lock` since the background thread never acquired it.
+
+The fix should mirror the guard used in `__exit__`:
+
+```suggestion
+        except Exception:
+            if not self._is_in_background_thread():
+                self._lock.release()
+            raise
+```",https://github.com/NVIDIA/DALI/pull/6221#discussion_r2840819876,,2026-02-23T13:17:17.100000,Lock released without being acquired causes RuntimeError in background threads,concurrency,high,8,"Comment 0 identifies a clear concurrency bug where the exception handler unconditionally releases a lock that was never acquired when `_is_in_background_thread()` returns True, causing a RuntimeError. This is a meaningful logic bug in exception handling that would cause crashes in production when exceptions occur in background threads.",2026-02-24T12:27:38.997127+00:00
