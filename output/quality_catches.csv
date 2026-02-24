@@ -4544,3 +4544,84 @@ The fix is to compute the expected row/column sums based on the matrix dimension
 ```
 
 This would check that rows/columns have _uniform_ sums (the actual Sinkhorn property) rather than sums equal to 1.",https://github.com/NVIDIA-NeMo/Emerging-Optimizers/pull/102#discussion_r2820174323,thank u greptile 🥹 ,2026-02-18T03:33:45.243000,Doubly-stochastic validation uses wrong expected values for non-square matrices,logic,high,8,"This is a meaningful logic bug where the validation code incorrectly assumes row/column sums should equal 1.0 for all matrices, when non-square matrices have different expected sums (m/n or n/m). This would cause all non-square parameters to fail validation even when correctly initialized, breaking core optimizer functionality.",2026-02-23T18:34:47.608319+00:00
+greptileai/react-mirror,594,[compiler] Phase 8: Add multi-error test fixture and update plan,https://github.com/greptileai/react-mirror/pull/594,"**Missing safe default for `reactiveFunction`**
+
+Unlike `fbtOperands` (line 342) and `uniqueIdentifiers` (line 573), which are initialized with `new Set()` before their `tryRecord()` blocks, `reactiveFunction` uses a definite assignment assertion (`!`) with no fallback value. If `buildReactiveFunction` throws a non-invariant `CompilerError` (e.g., the `CompilerError.throwTodo()` calls at lines 1010, 1168, and 1176 of `BuildReactiveFunction.ts`), `tryRecord()` will catch the error and continue execution with `reactiveFunction` still `undefined`. Subsequent code like `assertWellFormedBreakTargets(reactiveFunction)` (line 471) and all later passes operating on `reactiveFunction` would then fail with a confusing runtime error.
+
+Consider either:
+1. Returning early from the pipeline (with errors) if `buildReactiveFunction` fails, since all subsequent passes depend on a valid `ReactiveFunction`, or
+2. Providing a minimal default `ReactiveFunction` value before the `tryRecord` block (similar to the `fbtOperands`/`uniqueIdentifiers` pattern).
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: compiler/packages/babel-plugin-react-compiler/src/Entrypoint/Pipeline.ts
+Line: 461-464
+
+Comment:
+**Missing safe default for `reactiveFunction`**
+
+Unlike `fbtOperands` (line 342) and `uniqueIdentifiers` (line 573), which are initialized with `new Set()` before their `tryRecord()` blocks, `reactiveFunction` uses a definite assignment assertion (`!`) with no fallback value. If `buildReactiveFunction` throws a non-invariant `CompilerError` (e.g., the `CompilerError.throwTodo()` calls at lines 1010, 1168, and 1176 of `BuildReactiveFunction.ts`), `tryRecord()` will catch the error and continue execution with `reactiveFunction` still `undefined`. Subsequent code like `assertWellFormedBreakTargets(reactiveFunction)` (line 471) and all later passes operating on `reactiveFunction` would then fail with a confusing runtime error.
+
+Consider either:
+1. Returning early from the pipeline (with errors) if `buildReactiveFunction` fails, since all subsequent passes depend on a valid `ReactiveFunction`, or
+2. Providing a minimal default `ReactiveFunction` value before the `tryRecord` block (similar to the `fbtOperands`/`uniqueIdentifiers` pattern).
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/greptileai/react-mirror/pull/594#discussion_r2842450362,,2026-02-23T18:37:42.808000,Undefined variable access after error recovery causes runtime crash,runtime,high,8,"This catches a real runtime bug where `reactiveFunction` uses definite assignment assertion but has no fallback value. If `buildReactiveFunction` throws a non-invariant CompilerError, the variable remains undefined and subsequent passes will crash with confusing errors. This is a meaningful logic bug in the fault tolerance implementation.",2026-02-24T00:46:18.742286+00:00
+simstudioai/sim,3313,fix(execution): scope X-Sim-Via header to internal routes and enforce depth limit,https://github.com/simstudioai/sim/pull/3313,"**Internal workflow IDs leak to external services**
+
+The `X-Sim-Via` header is added to every outgoing HTTP request, including requests to external third-party APIs. This means internal workflow IDs (which may be UUIDs or other identifiers) are disclosed to any external endpoint a workflow calls. This header should only be attached when the target URL is an internal Sim endpoint.
+
+Consider scoping this to internal URLs only, similar to how `addInternalAuthIfNeeded` in `tools/index.ts` gates on `isInternalRoute`. For example, the call chain could be attached inside `executeToolRequest` when `isInternalRoute` is true, rather than unconditionally in `getDefaultHeaders`.",https://github.com/simstudioai/sim/pull/3313#discussion_r2843458027,,2026-02-23T22:45:54.298000,Internal workflow IDs leaked to external third-party APIs,security,high,8,This is a genuine security issue where internal workflow identifiers are being exposed to external third-party services via HTTP headers. This information disclosure could aid attackers in understanding internal system architecture and potentially be used in targeted attacks. The comment correctly identifies the scope issue and provides a concrete fix approach.,2026-02-24T00:46:18.742286+00:00
+browseros-ai/browseros-agent,357,fix: cdp retry on disconnect and crash,https://github.com/browseros-ai/BrowserOS-agent/pull/357,"Pending requests never rejected when connection drops - they hang indefinitely. Reject all pending requests before reconnecting:
+
+```typescript
+private handleUnexpectedClose(): void {
+  if (this.disconnecting) return
+
+  // Reject all pending requests
+  for (const [id, request] of this.pending.entries()) {
+    request.reject(new Error('CDP connection lost'))
+  }
+  this.pending.clear()
+
+  logger.error(
+    'CDP WebSocket closed unexpectedly, attempting reconnection...',
+  )
+  await this.reconnectOrCrash()
+}
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: apps/server/src/browser/backends/cdp.ts
+Line: 99-106
+
+Comment:
+Pending requests never rejected when connection drops - they hang indefinitely. Reject all pending requests before reconnecting:
+
+```typescript
+private handleUnexpectedClose(): void {
+  if (this.disconnecting) return
+
+  // Reject all pending requests
+  for (const [id, request] of this.pending.entries()) {
+    request.reject(new Error('CDP connection lost'))
+  }
+  this.pending.clear()
+
+  logger.error(
+    'CDP WebSocket closed unexpectedly, attempting reconnection...',
+  )
+  await this.reconnectOrCrash()
+}
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/browseros-ai/BrowserOS-agent/pull/357#discussion_r2843548888,,2026-02-23T23:12:59.968000,Pending requests hang indefinitely when CDP connection drops,resource_leak,high,8,"Comment 0 identifies a significant bug where pending CDP requests are never rejected when the connection drops unexpectedly, causing them to hang indefinitely. This would cause production issues with stuck operations and potential memory leaks from accumulated unresolved promises.",2026-02-24T00:46:18.742286+00:00
