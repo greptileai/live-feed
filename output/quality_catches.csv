@@ -4625,3 +4625,21 @@ private handleUnexpectedClose(): void {
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/browseros-ai/BrowserOS-agent/pull/357#discussion_r2843548888,,2026-02-23T23:12:59.968000,Pending requests hang indefinitely when CDP connection drops,resource_leak,high,8,"Comment 0 identifies a significant bug where pending CDP requests are never rejected when the connection drops unexpectedly, causing them to hang indefinitely. This would cause production issues with stuck operations and potential memory leaks from accumulated unresolved promises.",2026-02-24T00:46:18.742286+00:00
+greptileai/react-mirror,283,Fix lazy thenable suspension race,https://github.com/greptileai/react-mirror/pull/283,"The retry call `initLazy(lazyType)` on line 316 could throw the thenable again if the lazy payload status is still `Pending` (the payload's `.then` handlers haven't run yet). Since this throw isn't wrapped in try/catch, it would propagate out of `resolveLazy` as a fulfilled thenable rather than `SuspenseException`, potentially confusing the calling code.",https://github.com/greptileai/react-mirror/pull/283#discussion_r2671493756,,2026-01-08T08:59:53.387000,Race condition causes incorrect exception type during lazy suspension,concurrency,high,8,"This catches a subtle race condition in React's internal fiber reconciler where a retry call could throw an unhandled thenable instead of the expected SuspenseException, which would confuse the Suspense handling logic. This is a meaningful concurrency bug in core React infrastructure that could cause incorrect behavior in production apps using Suspense.",2026-02-24T03:12:25.005865+00:00
+nvidia/earth2studio,703,Add most of the inference server implementation.,https://github.com/NVIDIA/earth2studio/pull/703,"**Outer `except Exception` swallows all HTTPExceptions from the block**
+
+This handler catches every exception from lines 439-494, including all the `HTTPException` instances raised intentionally with specific status codes (503 on lines 453 and 469, and any 429/500 from `check_admission_control`). All of them get replaced with a generic 500 response.
+
+Add `except HTTPException: raise` before the generic handler:
+
+```suggestion
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(
+            f""Failed to enqueue workflow {workflow_name} execution {execution_id}""
+        )
+        raise HTTPException(
+            status_code=500, detail=f""Failed to enqueue workflow execution: {str(e)}""
+        )
+```",https://github.com/NVIDIA/earth2studio/pull/703#discussion_r2835021882,Fixed.,2026-02-20T20:41:24.234000,Exception handler swallows HTTPExceptions converting 503 to 500,logic,high,8,"This is a real bug where intentional HTTPExceptions with specific status codes (503, 429) are caught by a broad except Exception handler and converted to generic 500 errors. This affects API behavior and client error handling in production. Comment 1 is the best-written explanation of the issue.",2026-02-24T03:12:25.005865+00:00
