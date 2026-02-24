@@ -4643,3 +4643,27 @@ Add `except HTTPException: raise` before the generic handler:
             status_code=500, detail=f""Failed to enqueue workflow execution: {str(e)}""
         )
 ```",https://github.com/NVIDIA/earth2studio/pull/703#discussion_r2835021882,Fixed.,2026-02-20T20:41:24.234000,Exception handler swallows HTTPExceptions converting 503 to 500,logic,high,8,"This is a real bug where intentional HTTPExceptions with specific status codes (503, 429) are caught by a broad except Exception handler and converted to generic 500 errors. This affects API behavior and client error handling in production. Comment 1 is the best-written explanation of the issue.",2026-02-24T03:12:25.005865+00:00
+runanywhereai/runanywhere-sdks,400,[Swift-example][Playground] [Swift-SDK] Introducing YapRun,https://github.com/RunanywhereAI/runanywhere-sdks/pull/400,"`MainActor.assumeIsolated` is unsafe if the callback isn't actually on the main thread. AVAudioEngine's tap callback runs on a real-time audio thread. Check if `audioCapture.startRecording`'s callback is guaranteed to dispatch to main queue, otherwise this will crash.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: Playground/YapRun/YapRun/Features/VoiceKeyboard/FlowSessionManager.swift
+Line: 162-167
+
+Comment:
+`MainActor.assumeIsolated` is unsafe if the callback isn't actually on the main thread. AVAudioEngine's tap callback runs on a real-time audio thread. Check if `audioCapture.startRecording`'s callback is guaranteed to dispatch to main queue, otherwise this will crash.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/RunanywhereAI/runanywhere-sdks/pull/400#discussion_r2842920763,,2026-02-23T20:27:08.606000,MainActor.assumeIsolated crash on audio thread callback,concurrency,high,8,"Comment 3 identifies a real concurrency bug where MainActor.assumeIsolated is used in an AVAudioEngine callback that runs on a real-time audio thread, not the main thread. This would cause a runtime crash in production when the assertion fails. The comment provides the clearest explanation of why this is dangerous.",2026-02-24T06:34:27.173849+00:00
+nvidia/topograph,216,feat: Request Aggregation based on payload,https://github.com/NVIDIA/topograph/pull/216,"**Race condition in Load/Store sequence**
+
+The `Load` → `Store`/`Swap` pattern on `q.items` is not atomic. Between `Load` returning (line 133) and `Store`/`Swap` executing (lines 135/138), the `run` goroutine can `Delete` the same key (line 88) and begin processing. This creates two problems:
+
+1. **Lost completion**: `run` deletes the key and processes the item, storing the result in `q.store` with `uid=X`. Then `Submit` executes `Swap`, re-inserting the key with the same `uid=X`. It then overwrites `q.store[uid=X]` with a 202 ""not completed yet"" status (lines 141-147), erasing the completed result. The item will also be processed a second time on the next tick.
+
+2. **Concurrent Submit race**: Two `Submit` calls with the same hash can both see `!exists` from `Load`, generate different UIDs, and both call `Store`. The second `Store` silently overwrites the first. The first caller's UID will never transition to completed.
+
+Consider using `sync.Map.LoadOrStore` for the new-entry case and the `q.mutex` to protect the full Load-then-Swap sequence, or switch to a regular `map` guarded by `q.mutex` for the entire `items` map since the critical sections already require coordination.",https://github.com/NVIDIA/topograph/pull/216#discussion_r2844054732,,2026-02-24T02:04:07.149000,Race condition in Load/Store causes lost completions and duplicate processing,concurrency,high,8,"Comment 3 identifies a genuine race condition between Submit and the run goroutine where non-atomic Load/Store operations can cause completed results to be overwritten with 'not completed' status, and items to be processed multiple times. This is a meaningful concurrency bug that would cause incorrect behavior in production.",2026-02-24T06:34:27.173849+00:00
