@@ -4667,3 +4667,50 @@ The `Load` → `Store`/`Swap` pattern on `q.items` is not atomic. Between `Load`
 2. **Concurrent Submit race**: Two `Submit` calls with the same hash can both see `!exists` from `Load`, generate different UIDs, and both call `Store`. The second `Store` silently overwrites the first. The first caller's UID will never transition to completed.
 
 Consider using `sync.Map.LoadOrStore` for the new-entry case and the `q.mutex` to protect the full Load-then-Swap sequence, or switch to a regular `map` guarded by `q.mutex` for the entire `items` map since the critical sections already require coordination.",https://github.com/NVIDIA/topograph/pull/216#discussion_r2844054732,,2026-02-24T02:04:07.149000,Race condition in Load/Store causes lost completions and duplicate processing,concurrency,high,8,"Comment 3 identifies a genuine race condition between Submit and the run goroutine where non-atomic Load/Store operations can cause completed results to be overwritten with 'not completed' status, and items to be processed multiple times. This is a meaningful concurrency bug that would cause incorrect behavior in production.",2026-02-24T06:34:27.173849+00:00
+simstudioai/sim,3317,feat(public-api): add env var and permission group controls to disable public API access,https://github.com/simstudioai/sim/pull/3317,"Missing permission group validation. This only checks the env var, but users in permission groups with `disablePublicApi: true` can still access public APIs.
+
+Need to also check the workflow owner's permission config similar to how `validatePublicApiAllowed` does in the PATCH route:
+
+```suggestion
+      const { isPublicApiDisabled } = await import('@/lib/core/config/feature-flags')
+      if (isPublicApiDisabled) {
+        return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
+      }
+
+      const { getUserPermissionConfig } = await import('@/ee/access-control/utils/permission-check')
+      const ownerConfig = await getUserPermissionConfig(wf.userId)
+      if (ownerConfig?.disablePublicApi) {
+        return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
+      }
+```",https://github.com/simstudioai/sim/pull/3317#discussion_r2844146219,,2026-02-24T02:34:13.364000,Missing permission group check allows unauthorized public API access,security,critical,9,"Comment 0 identifies a security bypass where users in permission groups with `disablePublicApi: true` could still access public APIs because the server-side enforcement was incomplete - only the env var was checked, not the user's permission group config. This is an authorization bypass that could expose workflows that should be protected.",2026-02-24T08:27:08.014577+00:00
+posthog/posthog,48866,feat(export): Additional creator checks,https://github.com/PostHog/posthog/pull/48866,"Exports with only `export_context` (no dashboard or insight) skip access validation. Session recording video exports fall into this category. Check if session recording access should be validated here.
+
+For exports where `instance.dashboard` and `instance.insight` are both `None`, the `resource` variable will be `None`, and the access check is bypassed entirely. This could allow users to access exports they shouldn't have permission to view.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: posthog/api/exports.py
+Line: 320-322
+
+Comment:
+Exports with only `export_context` (no dashboard or insight) skip access validation. Session recording video exports fall into this category. Check if session recording access should be validated here.
+
+For exports where `instance.dashboard` and `instance.insight` are both `None`, the `resource` variable will be `None`, and the access check is bypassed entirely. This could allow users to access exports they shouldn't have permission to view.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/48866#discussion_r2844805270,,2026-02-24T06:27:55.351000,Authorization bypass for session recording exports without dashboard/insight,security,critical,9,"This is a significant security vulnerability where exports with only `export_context` (like session recording video exports) completely bypass access validation when both `dashboard` and `insight` are None. This could allow unauthorized users to access exports they shouldn't have permission to view, which is a serious authorization bypass issue that was addressed by the developer.",2026-02-24T08:27:08.014577+00:00
+gtbitsofgood/juno,242,Aakash Request New Account Backend,https://github.com/GTBitsOfGood/juno/pull/242,"password hashes are included in the response - use `select` to exclude the password field when querying
+
+```suggestion
+      requests: requests.map((req) => ({
+        id: req.id,
+        email: req.email,
+        name: req.name,
+        userType: mapPrismaRoleToRPC(req.userType),
+        projectName: req.projectName ?? undefined,
+        createdAt: req.createdAt.toISOString(),
+      })),
+```",https://github.com/GTBitsOfGood/juno/pull/242#discussion_r2835480634,,2026-02-20T23:25:12.443000,Password hashes exposed in API responses,security,high,8,Comment 1 identifies a security vulnerability where password hashes are included in API responses when fetching account requests. Even hashed passwords should never be exposed as they enable offline brute-force attacks. This is a meaningful security issue that would affect production.,2026-02-24T08:27:08.014577+00:00
