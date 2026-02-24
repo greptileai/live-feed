@@ -4737,3 +4737,26 @@ This is especially relevant in `getMajoritySnapshotData` where `getMajorityOrdin
 Consider whether this should only remove peers after repeated/consecutive failures rather than on a single error, or alternatively scope the removal to a separate tracking structure rather than the shared `globalL0ClusterStorage`.
 
 <sub>Note: If this suggestion doesn't match your team's coding style, reply to this and let me know. I'll remember it for next time!</sub>",https://github.com/Constellation-Labs/tessellation/pull/1452#discussion_r2835534483,,2026-02-20T23:55:21.648000,Transient failures aggressively remove peers breaking consensus quorum,logic,high,8,"This is a meaningful distributed systems bug where a single transient network failure permanently removes a peer from cluster storage, potentially breaking consensus quorum requirements. The comment demonstrates deep understanding of the cascade effect - with 3 peers and quorum of 2, losing one peer means zero fault tolerance. This could cause real production issues in distributed consensus scenarios.",2026-02-24T16:34:10.712315+00:00
+posthog/posthog,48291,feat(cymbal): dSYM symbolication,https://github.com/PostHog/posthog/pull/48291,"`u64::MAX` default for missing `image_size` causes incorrect range checking
+
+Using `u64::MAX` as the default makes the address range check on line 220 (`instruction_addr < base.saturating_add(image_size)`) always pass when `image_size` is missing, which could incorrectly match frames to the wrong debug image.
+
+Consider using a reasonable default or skipping range-based matching when size is unavailable.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: rust/cymbal/src/langs/apple.rs
+Line: 211
+
+Comment:
+`u64::MAX` default for missing `image_size` causes incorrect range checking
+
+Using `u64::MAX` as the default makes the address range check on line 220 (`instruction_addr < base.saturating_add(image_size)`) always pass when `image_size` is missing, which could incorrectly match frames to the wrong debug image.
+
+Consider using a reasonable default or skipping range-based matching when size is unavailable.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/48291#discussion_r2842497306,,2026-02-23T18:48:44.866000,Default u64::MAX causes false positive address range matches,logic,high,8,"This is a meaningful logic bug where using u64::MAX as a default for missing image_size causes the address range check to always pass, potentially matching frames to incorrect debug images. This could lead to incorrect symbolication results in production, which is a real functional bug that affects the core feature being developed.",2026-02-24T18:32:39.892383+00:00
