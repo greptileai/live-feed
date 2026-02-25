@@ -5085,3 +5085,26 @@ openreplay/openreplay,4402,Improve our mobile pipeline,https://github.com/openre
 ```suggestion
 	// f.buffer.Write(data) - remove this duplicate write
 ```",https://github.com/openreplay/openreplay/pull/4402#discussion_r2852093986,,2026-02-25T10:13:57.444000,Duplicate buffer write causes data corruption in session writer,data_integrity,high,8,"This is a meaningful bug catch - duplicate writes to a buffer would cause data corruption in the session writer, leading to corrupted data being written to files. This would affect production data integrity and is not something that would be caught by compilation or basic testing.",2026-02-25T10:29:46.505356+00:00
+posthog/posthog,49034,feat(experiments): add client-side RUM for experiment metric query performance,https://github.com/PostHog/posthog/pull/49034,"infinite recursion: when `crypto.randomUUID` is available, this calls itself infinitely instead of calling `crypto.randomUUID()`
+
+```suggestion
+        return crypto.randomUUID()
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: frontend/src/scenes/experiments/experimentLogic.tsx
+Line: 175-177
+
+Comment:
+infinite recursion: when `crypto.randomUUID` is available, this calls itself infinitely instead of calling `crypto.randomUUID()`
+
+```suggestion
+        return crypto.randomUUID()
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/49034#discussion_r2852269107,,2026-02-25T10:47:14.754000,Infinite recursion bug in UUID generation function,runtime,high,8,"This catches a genuine infinite recursion bug where the function calls itself instead of calling crypto.randomUUID(), which would cause a stack overflow crash in production whenever UUID generation is needed. This is a meaningful runtime bug that would definitely cause problems.",2026-02-25T12:29:27.021851+00:00
