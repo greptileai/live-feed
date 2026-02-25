@@ -4873,3 +4873,107 @@ from nemoguardrails.llm.output_parsers import nemoguard_parse_prompt_safety, nem
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/NVIDIA-NeMo/Guardrails/pull/1638#discussion_r2810527284,"@greptile check on latest commit, can this be resolved?",2026-02-16T03:44:04.483000,Wrong parser causes output safety checks to validate user input instead of bot response,logic,critical,9,"This is a significant security-related logic bug where output safety rails would check if the user's input was safe instead of checking if the bot's response was safe. This means unsafe bot responses could pass through the safety check as long as the user's original message was safe, completely defeating the purpose of output content safety filtering.",2026-02-24T22:18:53.098800+00:00
+alpaca-network/gatewayz-backend,1145,fix(billing): add caps and audit controls to admin grants,https://github.com/Alpaca-Network/gatewayz-backend/pull/1145,"**Daily grant limit is silently bypassed via this endpoint**
+
+`add_credits_to_user()` (in `src/db/users.py:586`) calls `log_credit_transaction()` **without** passing `created_by`. However, `get_admin_daily_grant_total()` filters transactions by `created_by = ""admin:{admin_id}""`. Because the `created_by` field is never set on transactions created through this endpoint, those grants are invisible to the daily limit check — an admin could grant unlimited credits through `/admin/add_credits` while the daily rolling window always reads as $0.
+
+To fix this, either:
+1. Pass `created_by` through `add_credits_to_user()` (requires adding the parameter), or
+2. Call `log_credit_transaction()` directly (like `credits.py` does) instead of relying on `add_credits_to_user()`.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: src/routes/admin.py
+Line: 146-157
+
+Comment:
+**Daily grant limit is silently bypassed via this endpoint**
+
+`add_credits_to_user()` (in `src/db/users.py:586`) calls `log_credit_transaction()` **without** passing `created_by`. However, `get_admin_daily_grant_total()` filters transactions by `created_by = ""admin:{admin_id}""`. Because the `created_by` field is never set on transactions created through this endpoint, those grants are invisible to the daily limit check — an admin could grant unlimited credits through `/admin/add_credits` while the daily rolling window always reads as $0.
+
+To fix this, either:
+1. Pass `created_by` through `add_credits_to_user()` (requires adding the parameter), or
+2. Call `log_credit_transaction()` directly (like `credits.py` does) instead of relying on `add_credits_to_user()`.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/Alpaca-Network/gatewayz-backend/pull/1145#discussion_r2845515070,,2026-02-24T09:11:57.576000,Daily grant limit bypass due to missing created_by field,security,critical,9,"This catch identifies a critical security bypass where the daily admin grant limit is completely ineffective because transactions don't include the created_by field needed for tracking. An admin could grant unlimited credits through this endpoint while the safety control always reads $0, completely defeating the purpose of the PR's audit controls.",2026-02-25T00:52:33.049866+00:00
+nvidia/nvflare,4209,"[2.7] Fix hierarchical FL startup failures: deployment timeouts, selective client exclusion, and dead-detection debounce",https://github.com/NVIDIA/NVFlare/pull/4209,"when `strict_start_reply_check=False` (the default), timed-out clients are never excluded from `participating_clients`
+
+the issue: line 264 creates `participating_clients` with all clients before timeout checking. when strict mode is disabled, `check_client_replies` returns `[]` even if timeouts occurred, so `if timed_out:` at line 285 is false and lines 286-311 never execute. line 314 then sets `JOB_CLIENTS` to the original `participating_clients` that still includes timed-out clients.
+
+fix: rebuild `participating_clients` unconditionally after line 284 based on actual replies, or only create it once after the `if timed_out:` block completes
+
+```suggestion
+        job_clients = engine.get_job_clients(client_sites)
+
+        # job_clients is a dict of: token => Client
+        assert isinstance(job_clients, dict)
+        # start_client_job serializes job.meta into request headers; make sure
+        # JOB_CLIENTS is available before client startup.
+        participating_clients = [c.to_dict() for c in job_clients.values()]
+        job.meta[JobMetaKey.JOB_CLIENTS] = participating_clients
+        err = engine.start_app_on_server(fl_ctx, job=job, job_clients=job_clients)
+        if err:
+            raise RuntimeError(f""Could not start the server App for job: {job_id}."")
+
+        replies = engine.start_client_job(job, client_sites, fl_ctx)
+        client_sites_names = list(client_sites.keys())
+        strict_start_reply_check = ConfigService.get_bool_var(
+            name=ConfigVarName.STRICT_START_JOB_REPLY_CHECK,
+            conf=SystemConfigs.APPLICATION_CONF,
+            default=False,
+        )
+        timed_out = check_client_replies(
+            replies=replies,
+            client_sites=client_sites_names,
+            command=f""start job ({job_id})"",
+            strict=strict_start_reply_check,
+        )
+        if timed_out:
+            active_count = len(client_sites_names) - len(timed_out)
+
+            # A required site timing out is fatal regardless of min_sites, same as deploy phase.
+            if job.required_sites:
+                for c in timed_out:
+                    if c in job.required_sites:
+                        raise RuntimeError(f""start job ({job_id}): required client {c} timed out"")
+
+            if job.min_sites and active_count < job.min_sites:
+                raise RuntimeError(
+                    f""start job ({job_id}): {len(timed_out)} client(s) timed out and remaining ""
+                    f""{active_count} < min_sites {job.min_sites}: {timed_out}""
+                )
+            self.log_warning(
+                fl_ctx,
+                f""start job ({job_id}): {len(timed_out)} client(s) timed out at start-job: {timed_out}; ""
+                f""{active_count} of {len(client_sites_names)} clients started successfully."",
+            )
+            client_sites_names = [c for c in client_sites_names if c not in timed_out]
+
+            # Rebuild to reflect only active participants after exclusion.
+            # Note: timed-out clients remain in run_processes[PARTICIPANTS] but
+            # require_previous_report=True (default) ensures _sync_client_jobs will not
+            # fire dead-job for them unless they first positively report the job running.
+            active_sites = set(client_sites_names)
+            participating_clients = [c.to_dict() for c in job_clients.values() if c.name in active_sites]
+
+        # Set metadata once, after any timeout exclusion, so it always reflects active participants.
+        job.meta[JobMetaKey.JOB_CLIENTS] = participating_clients
+```",https://github.com/NVIDIA/NVFlare/pull/4209#discussion_r2849930524,,2026-02-24T22:51:49.793000,Timed-out clients incorrectly included in job participants,logic,high,8,"This catches a meaningful logic bug where timed-out clients are never excluded from participating_clients when strict mode is disabled (the default). This would cause the job to incorrectly include non-responsive clients, leading to wrong behavior in federated learning workflows affecting production jobs.",2026-02-25T00:52:33.049866+00:00
+nvidia/nvflare,4230,[2.7]: Fix a security issue on FileRetriever,https://github.com/NVIDIA/NVFlare/pull/4230,"`source_dir` should be resolved before comparison. If `self.source_dir` is relative, the check may fail.
+
+```suggestion
+        source_dir = Path(self.source_dir).resolve()
+        normalized_path = Path(file_path).resolve()
+        if source_dir not in normalized_path.parents and source_dir != normalized_path:
+```",https://github.com/NVIDIA/NVFlare/pull/4230#discussion_r2849666084,,2026-02-24T21:34:50.716000,Path traversal vulnerability due to unresolved relative path,security,high,8,"This is a legitimate security fix for a path traversal vulnerability. The PR title explicitly mentions 'Fix a security issue on FileRetriever', and the catch correctly identifies that if source_dir is relative but not resolved, the directory traversal check could be bypassed, allowing access to files outside the intended directory. This is a meaningful security improvement for file access controls.",2026-02-25T00:52:33.049866+00:00
+nvidia/nvflare,4229,Fix a security issue on FileRetriever,https://github.com/NVIDIA/NVFlare/pull/4229,"`source_dir` must be resolved to absolute path before comparison. When `self.source_dir` is relative (e.g. `""./source""` as used in examples), comparing relative `Path(""./source"")` against absolute resolved `normalized_path` will always fail, incorrectly rejecting all valid files.
+
+```suggestion
+        source_dir = Path(self.source_dir).resolve()
+        normalized_path = Path(file_path).resolve()
+        if source_dir not in normalized_path.parents and source_dir != normalized_path:
+```",https://github.com/NVIDIA/NVFlare/pull/4229#discussion_r2849657509,,2026-02-24T21:32:44.537000,Path traversal security fix broken for relative source directories,security,high,8,"The comment identifies that the path traversal security fix would fail when source_dir is a relative path (common in real usage), causing all valid file requests to be rejected. This is a meaningful bug in security-critical code that would break functionality in production.",2026-02-25T00:52:33.049866+00:00
