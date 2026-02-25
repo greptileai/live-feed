@@ -5065,3 +5065,18 @@ async def test_llm_call_does_not_mutate_llm_params():
 ```
 ---
 Thanks @Pouyanpi! Also added the test, it's good to have it anyway.",2026-02-18T15:20:47.993000,In-place dict mutation causes state leakage across LLM calls,data_integrity,high,8,"This is a meaningful bug where modifying a shared dictionary in-place causes stop tokens to leak into subsequent unrelated LLM calls, potentially causing incorrect behavior in production. The catch requires understanding of Python mutability, object sharing patterns, and the broader codebase flow - not something a linter would catch.",2026-02-25T03:14:15.623919+00:00
+alpaca-network/gatewayz-backend,1150,fix(billing): reverse-transform model IDs for pricing lookup,https://github.com/Alpaca-Network/gatewayz-backend/pull/1150,"global mutable cache without thread safety - `_reverse_transform_cache` is accessed and modified without locks in `_get_reverse_transform_lookup()` (line 84-86), creating a race condition if multiple threads call `normalize_model_id_for_pricing()` concurrently during first access
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: src/services/pricing.py
+Line: 32
+
+Comment:
+global mutable cache without thread safety - `_reverse_transform_cache` is accessed and modified without locks in `_get_reverse_transform_lookup()` (line 84-86), creating a race condition if multiple threads call `normalize_model_id_for_pricing()` concurrently during first access
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/Alpaca-Network/gatewayz-backend/pull/1150#discussion_r2845514311,,2026-02-24T09:11:44.962000,Race condition in global cache initialization without proper locking,concurrency,high,8,"This catches a real race condition where the global _reverse_transform_cache is accessed and modified without holding the lock during first access. Multiple concurrent threads calling normalize_model_id_for_pricing() could cause duplicate cache builds or inconsistent reads, leading to incorrect pricing lookups in production.",2026-02-25T04:47:52.225423+00:00
