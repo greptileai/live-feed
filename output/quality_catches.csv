@@ -4977,3 +4977,91 @@ nvidia/nvflare,4229,Fix a security issue on FileRetriever,https://github.com/NVI
         normalized_path = Path(file_path).resolve()
         if source_dir not in normalized_path.parents and source_dir != normalized_path:
 ```",https://github.com/NVIDIA/NVFlare/pull/4229#discussion_r2849657509,,2026-02-24T21:32:44.537000,Path traversal security fix broken for relative source directories,security,high,8,"The comment identifies that the path traversal security fix would fail when source_dir is a relative path (common in real usage), causing all valid file requests to be rejected. This is a meaningful bug in security-critical code that would break functionality in production.",2026-02-25T00:52:33.049866+00:00
+nvidia/spark-rapids,14062,Add partial support for from_protobuf,https://github.com/NVIDIA/spark-rapids/pull/14062,"If an exception occurs during the loop (lines 85-95), the columns that were already created in `fullChildren` will be leaked because the `finally` block only closes non-null entries, but an exception could leave `fullChildren` partially populated. The `finally` block should be inside the loop body or use a more robust pattern.
+
+Additionally, if `cudf.ColumnVector.makeStruct` on line 96 throws an exception, the columns in `fullChildren` will be leaked because they've already been closed in the finally block, but makeStruct hasn't taken ownership yet.
+
+The safer pattern would be:
+```scala
+try {
+  for (i <- fullSchema.fields.indices) {
+    val child = try {
+      if (decodedIdx < decodedFieldIndices.length && decodedFieldIndices(decodedIdx) == i) {
+        val col = decodedStruct.getChildColumnView(decodedIdx).copyToColumnVector()
+        decodedIdx += 1
+        col
+      } else {
+        GpuFromProtobuf.createNullColumn(fullSchema.fields(i).dataType, numRows)
+      }
+    } catch {
+      case e: Throwable =>
+        fullChildren.take(i).foreach(c => if (c != null) c.close())
+        throw e
+    }
+    fullChildren(i) = child
+  }
+  cudf.ColumnVector.makeStruct(numRows, fullChildren: _*)
+} finally {
+  fullChildren.foreach(c => if (c != null) c.close())
+}
+```
+Or use `withResource` pattern more carefully to ensure proper cleanup ordering.",https://github.com/NVIDIA/spark-rapids/pull/14062#discussion_r2681126985,,2026-01-12T07:29:27.951000,Resource leak in GPU column vector handling during exceptions,resource_leak,high,8,"This is a meaningful resource leak bug in GPU memory management. If an exception occurs during the loop or in makeStruct, CUDA column vectors won't be properly cleaned up, potentially causing GPU memory leaks in production. The analysis correctly identifies two distinct leak scenarios with a concrete fix pattern. GPU resource leaks are harder to detect and more impactful than regular memory leaks.",2026-02-25T03:14:15.623919+00:00
+simstudioai/sim,3327,fix(attio): automatic webhook lifecycle management and tool fixes,https://github.com/simstudioai/sim/pull/3327,"**Silent signature bypass on empty secret**
+
+When Attio doesn't return a secret, this stores `''` (empty string). Downstream in `processor.ts:604`, `if (secret)` evaluates to `false` for empty string, which silently skips all signature verification for that webhook. While this is consistent with how other providers handle it and there's a warning log during creation, it's worth noting this means an Attio webhook could operate without any request authentication if the API doesn't return a secret.
+
+Consider logging a warning in the verification path as well (in `processor.ts`) when `webhookSecret` is present but empty, to make debugging easier if unauthenticated requests come through.
+
+<sub>Note: If this suggestion doesn't match your team's coding style, reply to this and let me know. I'll remember it for next time!</sub>",https://github.com/simstudioai/sim/pull/3327#discussion_r2850276934,,2026-02-25T01:02:33.371000,Empty webhook secret silently bypasses signature verification,security,high,8,"This is a meaningful security catch - identifying that an empty string secret would bypass signature verification, allowing unauthenticated webhook requests to be processed. The analysis traces the data flow from storage through to the verification logic, showing how the falsy empty string check leads to skipped authentication.",2026-02-25T03:14:15.623919+00:00
+nvidia-nemo/guardrails,1653,fix(llm): filter stop parameter for OpenAI reasoning models,https://github.com/NVIDIA-NeMo/Guardrails/pull/1653,"**Mutates caller's `llm_params` dict in-place**
+
+`llm_params[""stop""] = stop` modifies the caller's dictionary directly. If `llm_params` originates from a reusable object (e.g., `GenerationOptions.llm_params`), the `stop` key will persist and leak into subsequent calls that reuse the same dict. This could cause unexpected behavior where stop tokens from one call appear in later unrelated calls.
+
+The `_filter_params_for_openai_reasoning_models` function already correctly calls `.copy()` before modifying, but the mutation here happens before that copy.
+
+```suggestion
+    if stop:
+        if llm_params is not None:
+            llm_params = {**llm_params, ""stop"": stop}
+        else:
+            llm_params = {""stop"": stop}
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: nemoguardrails/actions/llm/utils.py
+Line: 219-223
+
+Comment:
+**Mutates caller's `llm_params` dict in-place**
+
+`llm_params[""stop""] = stop` modifies the caller's dictionary directly. If `llm_params` originates from a reusable object (e.g., `GenerationOptions.llm_params`), the `stop` key will persist and leak into subsequent calls that reuse the same dict. This could cause unexpected behavior where stop tokens from one call appear in later unrelated calls.
+
+The `_filter_params_for_openai_reasoning_models` function already correctly calls `.copy()` before modifying, but the mutation here happens before that copy.
+
+```suggestion
+    if stop:
+        if llm_params is not None:
+            llm_params = {**llm_params, ""stop"": stop}
+        else:
+            llm_params = {""stop"": stop}
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/NVIDIA-NeMo/Guardrails/pull/1653#discussion_r2822874591,"@trebedea this is a valid one 👍🏻 
+
+in test_actions_llm_utils.py
+
+```python
+@pytest.mark.asyncio
+async def test_llm_call_does_not_mutate_llm_params():
+    mock_llm = get_bound_llm_magic_mock(ainvoke_return_value={""content"": ""response""})
+    original_params = {""max_tokens"": 100}
+    await llm_call(mock_llm, ""prompt"", stop=[""User:""], llm_params=original_params)
+    assert original_params == {""max_tokens"": 100}
+```
+---
+Thanks @Pouyanpi! Also added the test, it's good to have it anyway.",2026-02-18T15:20:47.993000,In-place dict mutation causes state leakage across LLM calls,data_integrity,high,8,"This is a meaningful bug where modifying a shared dictionary in-place causes stop tokens to leak into subsequent unrelated LLM calls, potentially causing incorrect behavior in production. The catch requires understanding of Python mutability, object sharing patterns, and the broader codebase flow - not something a linter would catch.",2026-02-25T03:14:15.623919+00:00
