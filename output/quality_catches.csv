@@ -5108,3 +5108,82 @@ infinite recursion: when `crypto.randomUUID` is available, this calls itself inf
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/PostHog/posthog/pull/49034#discussion_r2852269107,,2026-02-25T10:47:14.754000,Infinite recursion bug in UUID generation function,runtime,high,8,"This catches a genuine infinite recursion bug where the function calls itself instead of calling crypto.randomUUID(), which would cause a stack overflow crash in production whenever UUID generation is needed. This is a meaningful runtime bug that would definitely cause problems.",2026-02-25T12:29:27.021851+00:00
+posthog/posthog,49032,fix: s3 batch export additional validation,https://github.com/PostHog/posthog/pull/49032,"`resolve_and_validate_host` receives a full URL (e.g., `http://127.0.0.1`) via `merged_config[""endpoint_url""]` at line 676, but passes it directly to `socket.getaddrinfo(host, None)` at line 436. `getaddrinfo` expects a hostname, not a URL. Need to parse the URL first to extract the hostname.
+
+```suggestion
+def resolve_and_validate_host(url: str) -> None:
+    """"""Ensure provided URL points to a non-internal IP.""""""
+    from urllib.parse import urlparse
+    
+    parsed = urlparse(url)
+    host = parsed.hostname
+    if not host:
+        raise ValueError(f""Could not extract hostname from URL: '{url}'"")
+    
+    try:
+        # getaddrinfo supports both ipv4 and ipv6
+        results = socket.getaddrinfo(host, None)
+    except socket.gaierror as e:
+        raise ValueError(f""Could not resolve '{host}': {e}"") from e
+
+    # Keeps only unique ips from the result tuple
+    resolved_ips = {r[4][0] for r in results}
+
+    for ip in resolved_ips:
+        try:
+            addr = ipaddress.ip_address(ip)
+        except ValueError:
+            raise ValueError(""Could not parse IP"")
+
+        if any(addr in network for network in INTERNAL_NETWORKS):
+            raise ValueError(f""'{host}' resolved to internal IP: {ip}"")
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: posthog/batch_exports/http.py
+Line: 432-450
+
+Comment:
+`resolve_and_validate_host` receives a full URL (e.g., `http://127.0.0.1`) via `merged_config[""endpoint_url""]` at line 676, but passes it directly to `socket.getaddrinfo(host, None)` at line 436. `getaddrinfo` expects a hostname, not a URL. Need to parse the URL first to extract the hostname.
+
+```suggestion
+def resolve_and_validate_host(url: str) -> None:
+    """"""Ensure provided URL points to a non-internal IP.""""""
+    from urllib.parse import urlparse
+    
+    parsed = urlparse(url)
+    host = parsed.hostname
+    if not host:
+        raise ValueError(f""Could not extract hostname from URL: '{url}'"")
+    
+    try:
+        # getaddrinfo supports both ipv4 and ipv6
+        results = socket.getaddrinfo(host, None)
+    except socket.gaierror as e:
+        raise ValueError(f""Could not resolve '{host}': {e}"") from e
+
+    # Keeps only unique ips from the result tuple
+    resolved_ips = {r[4][0] for r in results}
+
+    for ip in resolved_ips:
+        try:
+            addr = ipaddress.ip_address(ip)
+        except ValueError:
+            raise ValueError(""Could not parse IP"")
+
+        if any(addr in network for network in INTERNAL_NETWORKS):
+            raise ValueError(f""'{host}' resolved to internal IP: {ip}"")
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/49032#discussion_r2852295826,"yeah, missed this
+---
+seems a valid concern (or at least we do seem to be calling `resolve_and_validate_host` with both URLs and hosts)? though I don't understand how the tests are passing if it was an issue. 
+---
+ah I see I commented after you just pushed a fix :) 
+---
+not sure why tests were passing before, but now it should be correct/more robust ",2026-02-25T10:52:40.323000,SSRF validation bypass due to URL passed as hostname,security,critical,9,"This is a critical security vulnerability in SSRF (Server-Side Request Forgery) protection. The function meant to prevent requests to internal IPs would fail completely because socket.getaddrinfo() cannot resolve a full URL like 'http://127.0.0.1' - it would either error or not properly validate, allowing attackers to potentially access internal network resources. This bypasses an explicit security control designed to protect against internal network access.",2026-02-25T14:34:25.896753+00:00
