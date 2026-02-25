@@ -5080,3 +5080,8 @@ global mutable cache without thread safety - `_reverse_transform_cache` is acces
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/Alpaca-Network/gatewayz-backend/pull/1150#discussion_r2845514311,,2026-02-24T09:11:44.962000,Race condition in global cache initialization without proper locking,concurrency,high,8,"This catches a real race condition where the global _reverse_transform_cache is accessed and modified without holding the lock during first access. Multiple concurrent threads calling normalize_model_id_for_pricing() could cause duplicate cache builds or inconsistent reads, leading to incorrect pricing lookups in production.",2026-02-25T04:47:52.225423+00:00
+openreplay/openreplay,4402,Improve our mobile pipeline,https://github.com/openreplay/openreplay/pull/4402,"duplicate write causes data corruption - `f.buffer.Write(data)` writes the full data, then the if-condition checks if it needs flushing, and calls `f.write()` which writes the same data again. This results in writing the data twice to the buffer or file.
+
+```suggestion
+	// f.buffer.Write(data) - remove this duplicate write
+```",https://github.com/openreplay/openreplay/pull/4402#discussion_r2852093986,,2026-02-25T10:13:57.444000,Duplicate buffer write causes data corruption in session writer,data_integrity,high,8,"This is a meaningful bug catch - duplicate writes to a buffer would cause data corruption in the session writer, leading to corrupted data being written to files. This would affect production data integrity and is not something that would be caught by compilation or basic testing.",2026-02-25T10:29:46.505356+00:00
