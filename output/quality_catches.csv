@@ -5251,3 +5251,100 @@ This PR reverses the fix from #6226, which explicitly moved header discovery out
     message(STATUS ""Found nvCOMP: ${nvcomp_LIBS} ${nvcomp_INCLUDE_DIR}."")
     list(APPEND DALI_LIBS ${nvcomp_LIBS})
 ```",https://github.com/NVIDIA/DALI/pull/6231#discussion_r2853579882,,2026-02-25T15:02:07.689000,Undefined CMake variable causes build failure in static nvCOMP configuration,runtime,high,8,"This is a meaningful build configuration bug where nvcomp_INCLUDE_DIR is never set in the static build path but is used in multiple places, causing the stub generator to fail with invalid paths. The comment correctly identifies this as a regression that reverses a previous fix (#6226) and provides detailed analysis of exactly how the build will fail. While it's a build-time rather than runtime issue, it would block legitimate builds in a specific configuration.",2026-02-26T14:31:14.461229+00:00
+posthog/posthog-js,3156,fix(react-native): expo-file-system detection broken on Expo SDK 54 stable,https://github.com/PostHog/posthog-js/pull/3156,"Missing `await` on `file.write(value)`. The legacy implementation awaits `writeAsStringAsync` (line 147), and the `PostHogRNStorage.persist()` method tracks returned promises to implement `waitForPersist()` functionality. Without await, the promise resolves immediately before the write completes, breaking persistence guarantees.
+
+```suggestion
+          await file.write(value)
+```",https://github.com/PostHog/posthog-js/pull/3156#discussion_r2857842327,,2026-02-26T09:09:23.351000,Missing await on file.write breaks persistence guarantees,concurrency,high,8,"This is a meaningful async/await bug that would cause data integrity issues - the persistence promise would resolve before writes complete, breaking the `waitForPersist()` functionality and potentially causing data loss in production. This is not something a linter would catch and requires understanding the codebase's async patterns.",2026-02-26T16:29:56.405871+00:00
+twentyhq/twenty,18273,Add Twenty app settings custom app,https://github.com/twentyhq/twenty/pull/18273,"**Custom tab not cleared on removal**
+
+If an application previously had `settingsCustomTabFrontComponentUniversalIdentifier` set in its manifest and a subsequent manifest update removes it, the `settingsCustomTabFrontComponentId` stays `null` here, so `isDefined(null)` returns `false`, and the field is never included in the update call. This means the old `settingsCustomTabFrontComponentId` value persists in the database and the custom tab remains visible even though the app no longer defines one.
+
+Unlike `defaultRoleUniversalIdentifier` (which is required in `ApplicationManifest` and thus always present), `settingsCustomTabFrontComponentUniversalIdentifier` is optional and can be removed. Consider explicitly setting `settingsCustomTabFrontComponentId: null` in the update when the manifest no longer specifies it:
+
+```suggestion
+    let settingsCustomTabFrontComponentId: string | null = null;
+
+    const settingsCustomTabUniversalIdentifier =
+      manifest.application.settingsCustomTabFrontComponentUniversalIdentifier;
+
+    if (isDefined(settingsCustomTabUniversalIdentifier)) {
+      const flatFrontComponent = findFlatEntityByUniversalIdentifier({
+        flatEntityMaps: refreshedFlatFrontComponentMaps,
+        universalIdentifier: settingsCustomTabUniversalIdentifier,
+      });
+
+      if (!isDefined(flatFrontComponent)) {
+        throw new ApplicationException(
+          `Failed to resolve front component for settingsCustomTabFrontComponentUniversalIdentifier ${settingsCustomTabUniversalIdentifier}`,
+          ApplicationExceptionCode.ENTITY_NOT_FOUND,
+        );
+      }
+
+      settingsCustomTabFrontComponentId = flatFrontComponent.id;
+    }
+
+    if (
+      isDefined(defaultRoleId) ||
+      isDefined(settingsCustomTabFrontComponentId) ||
+      !isDefined(settingsCustomTabUniversalIdentifier)
+    ) {
+      await this.applicationService.update(ownerFlatApplication.id, {
+        ...(isDefined(defaultRoleId) ? { defaultRoleId } : {}),
+        ...(!isDefined(settingsCustomTabUniversalIdentifier)
+          ? { settingsCustomTabFrontComponentId: null }
+          : isDefined(settingsCustomTabFrontComponentId)
+            ? { settingsCustomTabFrontComponentId }
+            : {}),
+      });
+    }
+```",https://github.com/twentyhq/twenty/pull/18273#discussion_r2859216061,,2026-02-26T14:01:46.227000,Stale custom tab persists when manifest removes it,data_integrity,high,8,"This is a meaningful logic bug where removing an optional field from a manifest would leave stale data in the database, causing a custom tab to remain visible when it shouldn't. The analysis correctly identifies the asymmetry between required and optional fields and provides a concrete fix. This would cause incorrect behavior in production and isn't immediately obvious from reading the code.",2026-02-26T16:29:56.405871+00:00
+plexe-ai/plexe,174,fix: make torch optional for packaging,https://github.com/plexe-ai/plexe/pull/174,"making torch optional breaks default behavior - PyTorch is still in `DEFAULT_MODEL_TYPES` (`plexe/config.py:53-59`), so users who install without the pytorch extra will get ImportErrors when the system tries to use PyTorch models
+
+either remove PyTorch from `DEFAULT_MODEL_TYPES` or add runtime detection to filter it out when torch isn't installed
+
+```python
+# in config.py, add before DEFAULT_MODEL_TYPES:
+def _get_available_model_types():
+    """"""Filter model types based on installed dependencies.""""""
+    types = [ModelType.XGBOOST, ModelType.CATBOOST, ModelType.LIGHTGBM, ModelType.KERAS]
+    try:
+        import torch
+        types.append(ModelType.PYTORCH)
+    except ImportError:
+        pass
+    return types
+
+DEFAULT_MODEL_TYPES = _get_available_model_types()
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: pyproject.toml
+Line: 73
+
+Comment:
+making torch optional breaks default behavior - PyTorch is still in `DEFAULT_MODEL_TYPES` (`plexe/config.py:53-59`), so users who install without the pytorch extra will get ImportErrors when the system tries to use PyTorch models
+
+either remove PyTorch from `DEFAULT_MODEL_TYPES` or add runtime detection to filter it out when torch isn't installed
+
+```python
+# in config.py, add before DEFAULT_MODEL_TYPES:
+def _get_available_model_types():
+    """"""Filter model types based on installed dependencies.""""""
+    types = [ModelType.XGBOOST, ModelType.CATBOOST, ModelType.LIGHTGBM, ModelType.KERAS]
+    try:
+        import torch
+        types.append(ModelType.PYTORCH)
+    except ImportError:
+        pass
+    return types
+
+DEFAULT_MODEL_TYPES = _get_available_model_types()
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/plexe-ai/plexe/pull/174#discussion_r2859523534,,2026-02-26T14:59:23.596000,Optional torch dependency breaks default model types causing ImportError,runtime,high,8,This catches a real runtime bug where making torch optional without updating DEFAULT_MODEL_TYPES will cause ImportErrors for users who install without the pytorch extra. The comment correctly identifies the code path that would fail and provides a concrete fix with runtime detection.,2026-02-26T16:29:56.405871+00:00
