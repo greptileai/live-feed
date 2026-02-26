@@ -5188,3 +5188,20 @@ ah I see I commented after you just pushed a fix :)
 ---
 not sure why tests were passing before, but now it should be correct/more robust ",2026-02-25T10:52:40.323000,SSRF validation bypass due to URL passed as hostname,security,critical,9,"This is a critical security vulnerability in SSRF (Server-Side Request Forgery) protection. The function meant to prevent requests to internal IPs would fail completely because socket.getaddrinfo() cannot resolve a full URL like 'http://127.0.0.1' - it would either error or not properly validate, allowing attackers to potentially access internal network resources. This bypasses an explicit security control designed to protect against internal network access.",2026-02-25T14:34:25.896753+00:00
 nvidia/topograph,217,feat: Request Aggregation based on payload,https://github.com/NVIDIA/topograph/pull/217,"`Request.Nodes` excluded from hash - requests with same provider/engine but different node topologies produce identical hashes and get deduplicated incorrectly, sharing results despite requesting different node sets",https://github.com/NVIDIA/topograph/pull/217#discussion_r2850702139,,2026-02-25T04:04:17.164000,Hash function excludes Nodes field causing incorrect request deduplication,data_integrity,high,8,"Comment 9 identifies that Request.Nodes is excluded from the hash calculation, meaning requests with the same provider/engine but different node topologies will produce identical hashes. This causes incorrect deduplication where different requests share results, leading to wrong data being returned to users. This is a significant logic bug affecting correctness.",2026-02-25T20:20:56.528642+00:00
+gptme/gptme,1489,feat(eval): add SWE-bench evaluation modules (recovered from #142 and #424),https://github.com/gptme/gptme/pull/1489,"**`TestSpec` field types are incorrect**
+
+`repo_script_list`, `reset_repo_script_list`, and `eval_script_list` are typed as `str`, but every usage treats them as `list[str]` — `make_test_spec()` assigns lists to these fields (lines 309-315), and all the properties/methods (`eval_script`, `install_repo_script`, `reset_repo`, `eval_repo`, `setup_repo`) call `""\n"".join()` on them, which requires an iterable.
+
+While Python won't error at runtime (since `str` is iterable and `""\n"".join(str)` joins characters), this produces completely wrong output — each character on a separate line instead of each command on a separate line.
+
+```suggestion
+    instance_id: str
+    repo: str
+    version: str
+    repo_script_list: list[str]
+    reset_repo_script_list: list[str]
+    eval_script_list: list[str]
+    FAIL_TO_PASS: list[str]
+```",https://github.com/gptme/gptme/pull/1489#discussion_r2855494219,"Fixed in 517cf2a8 — changed `repo_script_list`, `reset_repo_script_list`, and `eval_script_list` from `str` to `list[str]` in the `TestSpec` dataclass to match how they're assigned and used.
+---
+Fixed in 986eaed69 — changed `repo_script_list`, `reset_repo_script_list`, and `eval_script_list` type annotations from `str` to `list[str]`.",2026-02-25T21:06:59.454000,Type annotation mismatch causes corrupted script output,type_error,high,8,"The TestSpec dataclass has fields typed as `str` but assigned `list[str]` values. When `""\n"".join()` is called on these fields, it iterates over characters of a string representation instead of list elements, producing completely garbled output like each character on a separate line instead of commands. This would cause all generated scripts to be broken.",2026-02-26T00:45:48.733501+00:00
