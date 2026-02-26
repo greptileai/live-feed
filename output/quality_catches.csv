@@ -5348,3 +5348,49 @@ DEFAULT_MODEL_TYPES = _get_available_model_types()
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/plexe-ai/plexe/pull/174#discussion_r2859523534,,2026-02-26T14:59:23.596000,Optional torch dependency breaks default model types causing ImportError,runtime,high,8,This catches a real runtime bug where making torch optional without updating DEFAULT_MODEL_TYPES will cause ImportErrors for users who install without the pytorch extra. The comment correctly identifies the code path that would fail and provides a concrete fix with runtime detection.,2026-02-26T16:29:56.405871+00:00
+gptme/gptme,1518,feat(tools): add /tools load command to enable tools mid-conversation,https://github.com/gptme/gptme/pull/1518,"**Missing thread-safety lock**
+
+`init_tools()` acquires `_tools_init_lock` to ensure thread-safe tool initialization, but `load_tool()` does not. In a server environment where multiple requests could concurrently call `/tools load`, this could lead to race conditions — e.g., duplicate tools appended to `_get_loaded_tools()` or a `has_tool` check passing on one thread while another is mid-append.
+
+Consider wrapping the body of `load_tool` with the same lock:
+
+```suggestion
+def load_tool(tool_name: str) -> ToolSpec:
+    """"""Load a single tool by name mid-conversation.
+
+    Finds the tool in available tools, initializes it, registers hooks/commands,
+    and adds it to the loaded tools list.
+
+    Raises:
+        ValueError: If tool not found or already loaded.
+    """"""
+    with _tools_init_lock:
+        if has_tool(tool_name):
+            raise ValueError(f""Tool '{tool_name}' is already loaded"")
+
+        available = {t.name: t for t in get_available_tools()}
+        if tool_name not in available:
+            raise ValueError(
+                f""Tool '{tool_name}' not found. Available: {', '.join(sorted(available.keys()))}""
+            )
+
+        tool = available[tool_name]
+        if not tool.is_available:
+            raise ValueError(
+                f""Tool '{tool_name}' is unavailable (likely missing dependencies)""
+            )
+
+        # Initialize if needed
+        if tool.init:
+            tool = tool.init()
+
+        # Register hooks and commands
+        tool.register_hooks()
+        tool.register_commands()
+
+        # Add to loaded tools
+        _get_loaded_tools().append(tool)
+        logger.info(""Loaded tool '%s' mid-conversation"", tool_name)
+
+        return tool
+```",https://github.com/gptme/gptme/pull/1518#discussion_r2859646818,Fixed in 11be6bc — wrapped `load_tool()` body with `with _tools_init_lock:` to match `init_tools()` thread-safety.,2026-02-26T15:21:17.957000,Race condition in tool loading without thread lock,concurrency,high,8,"The comment identifies a real race condition where `load_tool()` lacks thread-safety locking that `init_tools()` has. In concurrent server environments, this could cause duplicate tools to be loaded or check-then-act races. This is a meaningful concurrency bug that would cause problems in production multi-threaded scenarios.",2026-02-26T22:18:06.237514+00:00
