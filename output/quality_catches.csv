@@ -5399,3 +5399,14 @@ gptme/gptme,1529,feat(llm): add gptme provider for managed service,https://githu
 ```suggestion
     if not expires_at or time.time() > expires_at - 60:
 ```",https://github.com/gptme/gptme/pull/1529#discussion_r2861598259,Fixed in 280d8a0f6 — `expires_at=0` is now correctly treated as expired. Added test `test_load_token_zero_expires_at`.,2026-02-26T22:31:15.328000,Zero expiration timestamp bypasses token validity check,security,high,8,"This is a security-relevant bug where tokens with expires_at=0 would incorrectly pass the expiration check (since time.time() > 0 is always true, but the condition likely intended to reject missing/zero values). This could allow expired or invalid tokens to be treated as valid, bypassing authentication expiration controls.",2026-02-27T00:48:44.941910+00:00
+mellanox/hw-mgmt,2329,hw-mgmt: thermal control: add rc_log/syslog level configuration to tc_config,https://github.com/Mellanox/hw-mgmt/pull/2329,"**Copy-paste bug: wrong variable checked**
+
+Line 3189 checks `isinstance(log_level, int)` but the block sets `syslog_level` (lines 3190-3191). This means `syslog_level` will only be applied when `log_level` happens to be a valid integer — and will be silently skipped if `log_level` is absent from the config while `syslog_level` is present.
+
+The condition should check `syslog_level` instead, matching the pattern in `hw_management_thermal_control_2_5.py` (line 3561):
+
+```suggestion
+        if isinstance(syslog_level, int) and syslog_level >= 0:
+            self.log.info(""Setting syslog_level: {}"".format(syslog_level))
+            self.log.set_syslog_level(syslog_level)
+```",https://github.com/Mellanox/hw-mgmt/pull/2329#discussion_r2858607643,,2026-02-26T11:53:45.937000,Copy-paste bug causes syslog_level config to be silently ignored,logic,high,8,"Comment 3 identifies a genuine copy-paste bug where the code checks `isinstance(log_level, int)` but then operates on `syslog_level`. This means syslog_level configuration would be silently skipped when log_level is not present in config, causing the thermal control system to use wrong logging settings in production.",2026-02-27T08:23:50.248132+00:00
