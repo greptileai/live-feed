@@ -5410,3 +5410,59 @@ The condition should check `syslog_level` instead, matching the pattern in `hw_m
             self.log.info(""Setting syslog_level: {}"".format(syslog_level))
             self.log.set_syslog_level(syslog_level)
 ```",https://github.com/Mellanox/hw-mgmt/pull/2329#discussion_r2858607643,,2026-02-26T11:53:45.937000,Copy-paste bug causes syslog_level config to be silently ignored,logic,high,8,"Comment 3 identifies a genuine copy-paste bug where the code checks `isinstance(log_level, int)` but then operates on `syslog_level`. This means syslog_level configuration would be silently skipped when log_level is not present in config, causing the thermal control system to use wrong logging settings in production.",2026-02-27T08:23:50.248132+00:00
+posthog/posthog,49352,fix: Move sleep to async part of the code,https://github.com/PostHog/posthog/pull/49352,"infinite loop on success - missing `else` clause to exit loop when no exception occurs
+
+the original code had `else: return result` attached to the try-except block. without it, when `_run_load_job` succeeds, the loop continues indefinitely
+
+```suggestion
+        while True:
+            try:
+                result = await asyncio.to_thread(self._run_load_job, file, bq_table, job_config=job_config)
+            except (TooManyRequests, ServiceUnavailable, GatewayTimeout, InternalServerError) as err:
+                backoff = min(max_retry, initial_retry * (backoff_factor**attempt))
+                self.logger.exception(
+                    ""LoadJob transient error encountered"", attempt=attempt, backoff=backoff, error_code=err.code
+                )
+                self.external_logger.error(  # noqa: TRY400
+                    ""Encountered a service-side issue that will be retried in %d seconds, this is attempt number %d.""
+                    "" These type of errors indicate BigQuery may be under too much load from all sources. You may have""
+                    "" to check with BigQuery if it keeps happening consistently.""
+                    "" Error: %s"",
+                    backoff,
+                    attempt,
+                    err,
+                    attempt=attempt,
+                    backoff=backoff,
+                    error_code=err.code,
+                )
+                await asyncio.sleep(backoff)
+                attempt += 1
+            else:
+                return result
+```",https://github.com/PostHog/posthog/pull/49352#discussion_r2864263715,,2026-02-27T13:07:42.071000,Missing else clause causes infinite loop on success,logic,high,8,"Comment 1 correctly identifies that removing the `else: return result` clause from the try-except block causes an infinite loop when the operation succeeds - the loop has no exit path on success, only on exceptions. This would cause production batch exports to hang indefinitely.",2026-02-27T14:23:26.426503+00:00
+nvidia/cloudai,814,AI Dynamo updates,https://github.com/NVIDIA/cloudai/pull/814,"Pydantic's `default_factory` calls the callable with zero arguments, but this lambda expects `self`. When `GenAIPerf` (line 271) or `Workload` is instantiated without `report_name`, this will raise `TypeError: <lambda>() missing 1 required positional argument: 'self'`.
+
+Replace with:
+
+```suggestion
+    report_name: str | None = Field(
+        default=None,
+        serialization_alias=""report-name"",
+        validation_alias=AliasChoices(""report-name"", ""report_name""),
+    )
+```
+
+Then add a `@model_validator(mode='after')` to compute the default from `name` if `report_name` is `None`.",https://github.com/NVIDIA/cloudai/pull/814#discussion_r2851819877,,2026-02-25T09:23:30.499000,Pydantic default_factory lambda with wrong signature causes TypeError,runtime,high,8,"The comment correctly identifies that Pydantic's default_factory expects a zero-argument callable, but the lambda expects 'self'. This would cause a TypeError at runtime when instantiating Workload without report_name. This is a meaningful bug that would crash in production.",2026-02-27T14:23:26.426503+00:00
+gptme/gptme,1540,feat(tools): support loading custom tools from .py files via --tools,https://github.com/gptme/gptme/pull/1540,"Using `importlib.import_module(resolved_path.stem)` can cause module name collisions when loading multiple `.py` files with the same filename from different directories. The second import will reuse the cached module from `sys.modules` instead of loading the new file.
+
+Consider using `importlib.util.spec_from_file_location()` with a unique module name to avoid caching issues:
+
+```suggestion
+    spec = importlib.util.spec_from_file_location(f""__gptme_tool_{resolved_path.stem}_{id(resolved_path)}"", resolved_path)
+    if spec and spec.loader:
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = module
+        spec.loader.exec_module(module)
+    else:
+        raise ValueError(f""Failed to load module from {path}"")
+```",https://github.com/gptme/gptme/pull/1540#discussion_r2862140212,Fixed in e33472d — switched to `importlib.util.spec_from_file_location()` with a unique module name based on the full path hash. This avoids the `sys.modules` collision. Also removed the now-unnecessary `sys.path` manipulation and added `test_load_from_file_collision` to verify the fix.,2026-02-27T02:08:21.224000,Module name collision causes silent import failures with same-named files,logic,high,8,"This is a genuine bug catch - when loading custom tools from different directories with the same filename, Python's module caching in sys.modules would cause the second file to silently reuse the first module's content instead of loading the new file. This would cause confusing behavior in production where users' custom tools wouldn't load correctly. The fix using unique module names with spec_from_file_location is the correct solution.",2026-02-27T14:23:26.426503+00:00
