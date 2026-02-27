@@ -5466,3 +5466,20 @@ Consider using `importlib.util.spec_from_file_location()` with a unique module n
     else:
         raise ValueError(f""Failed to load module from {path}"")
 ```",https://github.com/gptme/gptme/pull/1540#discussion_r2862140212,Fixed in e33472d — switched to `importlib.util.spec_from_file_location()` with a unique module name based on the full path hash. This avoids the `sys.modules` collision. Also removed the now-unnecessary `sys.path` manipulation and added `test_load_from_file_collision` to verify the fix.,2026-02-27T02:08:21.224000,Module name collision causes silent import failures with same-named files,logic,high,8,"This is a genuine bug catch - when loading custom tools from different directories with the same filename, Python's module caching in sys.modules would cause the second file to silently reuse the first module's content instead of loading the new file. This would cause confusing behavior in production where users' custom tools wouldn't load correctly. The fix using unique module names with spec_from_file_location is the correct solution.",2026-02-27T14:23:26.426503+00:00
+nvidia/spark-rapids,14294,Add deletion vector loader,https://github.com/NVIDIA/spark-rapids/pull/14294,"**`RoaringBitmapArray.readFrom` called without magic number prefix**
+
+`originalBytes` contains only the native bitmap data after the magic number was already consumed by `DeltaSerializedBitmapLoader.load`. However, Delta Lake's `RoaringBitmapArray.readFrom(Array[Byte])` wraps the byte array in a `DataInputStream` and reads the **first 4 bytes as the magic number** before dispatching to the format-specific deserializer. Passing bytes without the prefix means the first 4 bytes of the actual native bitmap payload will be misinterpreted as the magic number, causing an `IOException(""Unexpected RoaringBitmapArray magic number: …"")` for every native-format deletion vector at runtime.
+
+The portable-format path avoids this entirely by reading the remaining bytes directly into a `HostMemoryBuffer`. The native-format path needs to reconstruct the full byte array (magic number + data) before calling `readFrom`, for example:
+
+```scala
+// Prepend the native magic number so readFrom can identify the format
+val magicBytes = java.nio.ByteBuffer.allocate(4)
+    .order(java.nio.ByteOrder.BIG_ENDIAN)
+    .putInt(NativeRoaringBitmapArraySerializationFormat.MAGIC_NUMBER)
+    .array()
+val fullBytes = magicBytes ++ originalBytes
+val roaringBitmapArray = RoaringBitmapArray.readFrom(fullBytes)
+```
+
+Because the native format is described as ""legacy"" and ""expected to be rare"", this path may not have been exercised during testing, which would explain why the bug isn't surfacing in the test branch.",https://github.com/NVIDIA/spark-rapids/pull/14294#discussion_r2861695771,Good catch 👍 Fixed. ,2026-02-26T22:53:38.502000,Missing magic number prefix causes RoaringBitmapArray deserialization failure,logic,high,8,"This catches a real runtime bug where the native-format deletion vector path would fail with an IOException because the magic number bytes were already consumed but readFrom expects them. This would cause every native-format deletion vector to fail at runtime, though the bug affects a 'legacy' format described as rare.",2026-02-27T18:21:16.968369+00:00
