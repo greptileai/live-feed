@@ -5394,3 +5394,8 @@ def load_tool(tool_name: str) -> ToolSpec:
 
         return tool
 ```",https://github.com/gptme/gptme/pull/1518#discussion_r2859646818,Fixed in 11be6bc — wrapped `load_tool()` body with `with _tools_init_lock:` to match `init_tools()` thread-safety.,2026-02-26T15:21:17.957000,Race condition in tool loading without thread lock,concurrency,high,8,"The comment identifies a real race condition where `load_tool()` lacks thread-safety locking that `init_tools()` has. In concurrent server environments, this could cause duplicate tools to be loaded or check-then-act races. This is a meaningful concurrency bug that would cause problems in production multi-threaded scenarios.",2026-02-26T22:18:06.237514+00:00
+gptme/gptme,1529,feat(llm): add gptme provider for managed service,https://github.com/gptme/gptme/pull/1529,"`expires_at=0` bypasses expiration check — tokens with missing/zero expiration treated as valid
+
+```suggestion
+    if not expires_at or time.time() > expires_at - 60:
+```",https://github.com/gptme/gptme/pull/1529#discussion_r2861598259,Fixed in 280d8a0f6 — `expires_at=0` is now correctly treated as expired. Added test `test_load_token_zero_expires_at`.,2026-02-26T22:31:15.328000,Zero expiration timestamp bypasses token validity check,security,high,8,"This is a security-relevant bug where tokens with expires_at=0 would incorrectly pass the expiration check (since time.time() > 0 is always true, but the condition likely intended to reject missing/zero values). This could allow expired or invalid tokens to be treated as valid, bypassing authentication expiration controls.",2026-02-27T00:48:44.941910+00:00
