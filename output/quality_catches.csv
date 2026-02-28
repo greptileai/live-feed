@@ -5536,3 +5536,41 @@ raycast/extensions,24711,Add account-manager extension,https://github.com/raycas
     set the clipboard to originalClipboard
   `;
 ```",https://github.com/raycast/extensions/pull/24711#discussion_r2708496306,,2026-01-20T14:03:43.161000,AppleScript injection vulnerability via unescaped user input,security,high,8,"Comment 5 identifies a real security vulnerability where user-controlled username/password values are interpolated directly into AppleScript without escaping, allowing command injection. This could let malicious input execute arbitrary AppleScript commands.",2026-02-28T16:13:49.823105+00:00
+cyberdesk-hq/cyberdriver,35,Keyboard input timing,https://github.com/cyberdesk-hq/cyberdriver/pull/35,"**`/shutdown` exposed on a public (non-internal) route without authentication**
+
+The endpoint is registered at both `/shutdown` and `/internal/shutdown`. The docstring says this is ""Intended for cloud control-plane use"", but neither path requires any authentication. Any process or user that can reach the HTTP port — including other processes on the same machine or, in misconfigured environments, remote hosts — can terminate cyberdriver by sending a `POST /shutdown`.
+
+Consider restricting the public `/shutdown` route, or adding at minimum a shared-secret check from `payload` / an `Authorization` header, so only the intended control-plane caller can trigger an exit.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: cyberdriver.py
+Line: 2315-2317
+
+Comment:
+**`/shutdown` exposed on a public (non-internal) route without authentication**
+
+The endpoint is registered at both `/shutdown` and `/internal/shutdown`. The docstring says this is ""Intended for cloud control-plane use"", but neither path requires any authentication. Any process or user that can reach the HTTP port — including other processes on the same machine or, in misconfigured environments, remote hosts — can terminate cyberdriver by sending a `POST /shutdown`.
+
+Consider restricting the public `/shutdown` route, or adding at minimum a shared-secret check from `payload` / an `Authorization` header, so only the intended control-plane caller can trigger an exit.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/cyberdesk-hq/cyberdriver/pull/35#discussion_r2867634915,,2026-02-28T16:44:16.935000,Unauthenticated /shutdown endpoint allows remote service termination,security,high,8,"The comment identifies a genuine security vulnerability where the /shutdown endpoint is exposed without any authentication, allowing any process or remote host that can reach the HTTP port to terminate the service. This is a real security issue that could enable denial-of-service attacks.",2026-02-28T20:12:42.113800+00:00
+ever-co/ever-gauzy,9513,[FEAT] Implement the SIM AI platform plugin integration into Gauzy platfom,https://github.com/ever-co/ever-gauzy/pull/9513,"**`AsyncExecutionResult` field name mismatch with actual API**
+
+The `AsyncExecutionResult` interface declares `taskId: string`, but `sim.service.ts` line 292 documents the actual API response shape as `{ success, async, jobId, executionId, message, statusUrl }` — the field is `jobId`, not `taskId`. This discrepancy causes the status logic in `triggerEventWorkflow` (line 545) to silently fail since `asyncResult.taskId` will always be `undefined` when the API returns `jobId`.
+
+The workaround on line 293 (`(result as any).jobId || asyncResult.taskId`) indicates the developer is aware of the mismatch, but leaving the type wrong makes it easy to reintroduce the bug. The type should be corrected to match the actual API contract:
+
+```suggestion
+	export interface AsyncExecutionResult {
+		success: boolean;
+		jobId: string;
+		status: 'queued';
+		createdAt: string;
+		links: { status: string };
+	}
+```",https://github.com/ever-co/ever-gauzy/pull/9513#discussion_r2867573214,,2026-02-28T15:34:50.543000,Type declaration mismatch causes silent workflow status failures,logic,high,8,"Comment 0 identifies a real API contract mismatch where AsyncExecutionResult declares `taskId` but the actual API returns `jobId`. This causes asyncResult.taskId to always be undefined, leading to incorrect status tracking in triggerEventWorkflow. The comment provides concrete evidence from the codebase showing the developer's own workaround for this bug.",2026-02-28T20:12:42.113800+00:00
