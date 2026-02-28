@@ -5501,3 +5501,38 @@ The check should be:
 ```
 
 This matches the pattern from the ""remove"" section and only exits when the event is from a DPU bus (slot_num is set) AND it's not voltmon1/2.",https://github.com/Mellanox/hw-mgmt/pull/2334#discussion_r2865274834,,2026-02-27T16:55:12.395000,Logic error prevents voltmon5 creation on management board,logic,high,8,"This is a meaningful logic bug where the conditional nesting is incorrect, causing the code to exit for ALL non-voltmon1/2 events on HI160 systems even when the event is from the management board (not a DPU bus). The reviewer correctly identified the inconsistency with the 'remove' section and provided a fix that matches the correct pattern. This would cause real functionality issues in production for modular systems.",2026-02-28T12:19:11.543613+00:00
+raycast/extensions,24711,Add account-manager extension,https://github.com/raycast/extensions/pull/24711,"**logic:** Critical security vulnerability: AppleScript injection. If `account.username` or `account.password` contain double quotes, the script will break or allow command injection.
+
+```suggestion
+  const escapeAppleScript = (str: string) => str.replace(/\\/g, ""\\\\"").replace(/""/g, '\\""');
+
+  const script = `
+    try
+      set originalClipboard to the clipboard
+    on error
+      set originalClipboard to """"
+    end try
+
+    -- 1. Enter Username
+    set the clipboard to ""${escapeAppleScript(account.username)}""
+    delay 0.1
+    tell application ""System Events"" to keystroke ""v"" using {command down}
+    
+    -- 2. Switch to Password field
+    delay 0.1
+    tell application ""System Events"" to key code 48 -- Tab
+    
+    -- 3. Enter Password
+    delay 0.1
+    set the clipboard to ""${escapeAppleScript(account.password || """")}""
+    delay 0.1
+    tell application ""System Events"" to keystroke ""v"" using {command down}
+    
+    -- 4. Submit
+    delay 0.2
+    tell application ""System Events"" to key code 36 -- Enter
+
+    delay 0.5
+    set the clipboard to originalClipboard
+  `;
+```",https://github.com/raycast/extensions/pull/24711#discussion_r2708496306,,2026-01-20T14:03:43.161000,AppleScript injection vulnerability via unescaped user input,security,high,8,"Comment 5 identifies a real security vulnerability where user-controlled username/password values are interpolated directly into AppleScript without escaping, allowing command injection. This could let malicious input execute arbitrary AppleScript commands.",2026-02-28T16:13:49.823105+00:00
