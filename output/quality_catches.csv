@@ -5483,3 +5483,21 @@ val roaringBitmapArray = RoaringBitmapArray.readFrom(fullBytes)
 ```
 
 Because the native format is described as ""legacy"" and ""expected to be rare"", this path may not have been exercised during testing, which would explain why the bug isn't surfacing in the test branch.",https://github.com/NVIDIA/spark-rapids/pull/14294#discussion_r2861695771,Good catch 👍 Fixed. ,2026-02-26T22:53:38.502000,Missing magic number prefix causes RoaringBitmapArray deserialization failure,logic,high,8,"This catches a real runtime bug where the native-format deletion vector path would fail with an IOException because the magic number bytes were already consumed but readFrom expects them. This would cause every native-format deletion vector to fail at runtime, though the bug affects a 'legacy' format described as rare.",2026-02-27T18:21:16.968369+00:00
+mellanox/hw-mgmt,2334,hw-mgmt: thermal: Fix missing voltmon5 in modular systems,https://github.com/Mellanox/hw-mgmt/pull/2334,"The nesting here differs from the ""remove"" section (lines 1510-1519) which was fixed in commit 94e4982. Current logic exits for ALL non-voltmon1/2 events on HI160 systems, even when `slot_num` is empty (not a DPU bus). This prevents management board voltmon5 from being created.
+
+The check should be:
+```suggestion
+					slot_num=$(find_dpu_slot_from_i2c_bus $input_bus_num)
+					if [ ! -z ""$slot_num"" ]; then
+						if [ ""$prefix"" == ""voltmon1"" ] || [ ""$prefix"" == ""voltmon2"" ]; then
+							environment_path=""$hw_management_path""/dpu""$slot_num""/environment
+							alarm_path=""$hw_management_path""/dpu""$slot_num""/alarm
+							thermal_path=""$hw_management_path""/dpu""$slot_num""/thermal
+						else
+							# Skip other voltmons events, since its not present in DPU.
+							exit 0
+						fi
+					fi
+```
+
+This matches the pattern from the ""remove"" section and only exits when the event is from a DPU bus (slot_num is set) AND it's not voltmon1/2.",https://github.com/Mellanox/hw-mgmt/pull/2334#discussion_r2865274834,,2026-02-27T16:55:12.395000,Logic error prevents voltmon5 creation on management board,logic,high,8,"This is a meaningful logic bug where the conditional nesting is incorrect, causing the code to exit for ALL non-voltmon1/2 events on HI160 systems even when the event is from the management board (not a DPU bus). The reviewer correctly identified the inconsistency with the 'remove' section and provided a fix that matches the correct pattern. This would cause real functionality issues in production for modular systems.",2026-02-28T12:19:11.543613+00:00
