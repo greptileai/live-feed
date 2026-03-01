@@ -5574,3 +5574,20 @@ The workaround on line 293 (`(result as any).jobId || asyncResult.taskId`) indic
 		links: { status: string };
 	}
 ```",https://github.com/ever-co/ever-gauzy/pull/9513#discussion_r2867573214,,2026-02-28T15:34:50.543000,Type declaration mismatch causes silent workflow status failures,logic,high,8,"Comment 0 identifies a real API contract mismatch where AsyncExecutionResult declares `taskId` but the actual API returns `jobId`. This causes asyncResult.taskId to always be undefined, leading to incorrect status tracking in triggerEventWorkflow. The comment provides concrete evidence from the codebase showing the developer's own workaround for this bug.",2026-02-28T20:12:42.113800+00:00
+nvidia/physicsnemo,1191,domino crash model arch and example,https://github.com/NVIDIA/physicsnemo/pull/1191,"**logic:** missing `timesteps` parameter in `process_volume` signature - function references `timesteps` on lines 716-755 but parameter is not declared. will cause NameError at runtime for transient models
+
+```suggestion
+    def process_volume(
+        self,
+        c_min: torch.Tensor,
+        c_max: torch.Tensor,
+        volume_coordinates: torch.Tensor,
+        volume_grid: torch.Tensor,
+        center_of_mass: torch.Tensor,
+        stl_vertices: torch.Tensor,
+        stl_indices: torch.Tensor,
+        volume_fields: torch.Tensor | None,
+        volume_features: torch.Tensor | None,
+        timesteps: torch.Tensor | None,
+    ) -> dict[str, torch.Tensor]:
+```",https://github.com/NVIDIA/physicsnemo/pull/1191#discussion_r2527634716,,2025-11-14T14:05:18.507000,Missing timesteps parameter causes NameError in transient models,runtime,high,8,"The comment correctly identifies that the `process_volume` function references `timesteps` on multiple lines (716-755) but the parameter is not declared in the function signature. This would cause a NameError at runtime specifically for transient model workflows, which is the core feature being added in this PR.",2026-03-01T03:14:44.554516+00:00
