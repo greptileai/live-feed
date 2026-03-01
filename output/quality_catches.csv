@@ -5591,3 +5591,27 @@ nvidia/physicsnemo,1191,domino crash model arch and example,https://github.com/N
         timesteps: torch.Tensor | None,
     ) -> dict[str, torch.Tensor]:
 ```",https://github.com/NVIDIA/physicsnemo/pull/1191#discussion_r2527634716,,2025-11-14T14:05:18.507000,Missing timesteps parameter causes NameError in transient models,runtime,high,8,"The comment correctly identifies that the `process_volume` function references `timesteps` on multiple lines (716-755) but the parameter is not declared in the function signature. This would cause a NameError at runtime specifically for transient model workflows, which is the core feature being added in this PR.",2026-03-01T03:14:44.554516+00:00
+infisical/infisical,5512,feat: support auth_method and org_slug query params for CLI browser login,https://github.com/Infisical/infisical/pull/5512,"**Consider adding a pattern constraint to `org_slug` validation**
+
+Organization slugs in Infisical are restricted to lowercase letters, numbers, and hyphens (enforced by `slugSchema` in the backend). This Zod validation accepts any string, which means values containing path traversal characters (e.g., `../`, `/`, `?`, `#`) would pass frontend validation and be interpolated into redirect URLs in `InitialStep.tsx`.
+
+Adding a regex or refinement here would reject invalid slugs before they reach the redirect logic:
+
+```suggestion
+  org_slug: z.string().regex(/^[a-z0-9-]+$/).optional().catch(undefined)
+```",https://github.com/Infisical/infisical/pull/5512#discussion_r2824669476,,2026-02-18T22:00:33.327000,Missing input validation enables URL path injection via org_slug,security,high,8,"Comment 1 identifies a security vulnerability where unvalidated org_slug parameter could contain path traversal characters (../, /, ?, #) that get interpolated into redirect URLs, potentially enabling URL manipulation attacks. The suggestion to add regex validation is concrete and actionable.",2026-03-01T16:13:53.262205+00:00
+onyx-dot-app/onyx,6522,Add Coda.io Import Connector,https://github.com/onyx-dot-app/onyx/pull/6522,"**logic:** hardcoded API token exposes credentials - retrieve from environment variable instead
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: backend/onyx/connectors/coda/test_standalone.py
+Line: 136:141
+
+Comment:
+**logic:** hardcoded API token exposes credentials - retrieve from environment variable instead
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/6522#discussion_r2581644342,,2025-12-02T15:18:14.115000,Hardcoded API token exposes credentials in test file,security,high,8,Comment 0 identifies a hardcoded API token in a test file that would expose credentials if committed to version control. This is a genuine security vulnerability that could lead to unauthorized access to Coda workspaces.,2026-03-01T16:13:53.262205+00:00
