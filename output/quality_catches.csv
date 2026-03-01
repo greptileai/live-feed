@@ -5615,3 +5615,26 @@ Comment:
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/onyx-dot-app/onyx/pull/6522#discussion_r2581644342,,2025-12-02T15:18:14.115000,Hardcoded API token exposes credentials in test file,security,high,8,Comment 0 identifies a hardcoded API token in a test file that would expose credentials if committed to version control. This is a genuine security vulnerability that could lead to unauthorized access to Coda workspaces.,2026-03-01T16:13:53.262205+00:00
+nvidia/earth2studio,716,Adding Interpolation Equirectangular DA model,https://github.com/NVIDIA/earth2studio/pull/716,"returns pyarrow module instead of table - should be `pa.Table.from_pandas(df)`
+
+```suggestion
+        return pa.Table.from_pandas(df)
+```",https://github.com/NVIDIA/earth2studio/pull/716#discussion_r2863121959,,2026-02-27T08:18:37.780000,Function returns pyarrow module instead of table object,logic,high,8,"This catch identifies a bug where the function returns the pyarrow module (`pa`) instead of the intended table object (`pa.Table.from_pandas(df)`). This would cause runtime failures when callers try to use the returned value as a table, as they'd receive a module object instead.",2026-03-01T20:13:18.228794+00:00
+posthog/posthog,49458,feat: configure httpx and aiohttp to use egress proxy,https://github.com/PostHog/posthog/pull/49458,"`external_httpx.Client()` will fail at runtime. `external_httpx` is a lazy proxy instance wrapping an `httpx.Client`, not the httpx module itself. Calling `.Client()` on it tries to access a `Client` attribute on the underlying client instance, which doesn't exist.
+
+The `external_httpx` implementation is designed for direct method calls like `external_httpx.get()`, not for creating new client instances. You need to either:
+1. Create a factory function similar to `external_aiohttp_session()` in `outbound_proxy.py`
+2. Make `_LazyExternalHttpx` implement `__enter__`/`__exit__` to support context manager usage directly
+
+Example fix in `outbound_proxy.py`:
+```
+def external_httpx_client(**kwargs: Any) -> Any:
+    import httpx
+    proxy_url = get_proxy_url()
+    return httpx.Client(proxy=proxy_url, **kwargs) if proxy_url else httpx.Client(**kwargs)
+```
+
+Then use:
+```suggestion
+    with external_httpx_client() as client:
+```",https://github.com/PostHog/posthog/pull/49458#discussion_r2868172112,,2026-03-01T01:45:28.355000,Runtime error from misusing lazy proxy as module,runtime,high,8,"This is a genuine runtime bug that would cause a crash in production. The developer incorrectly used a lazy proxy instance as if it were the httpx module itself, calling `.Client()` on something that doesn't have that attribute. This requires understanding the proxy pattern implementation and wouldn't be caught by simple linting or type checking.",2026-03-01T20:13:18.228794+00:00
