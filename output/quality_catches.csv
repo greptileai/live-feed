@@ -5648,3 +5648,10 @@ traceroot-ai/traceroot,469,[AgentOps] Support BYOK and  More Default LLMs,https:
           }
         );
 ```",https://github.com/traceroot-ai/traceroot/pull/469#discussion_r2867954679,Good catch — API keys in URLs get logged. Let me fix it.,2026-02-28T22:11:36.728000,API key exposed in URL query parameter gets logged,security,high,8,"This is a genuine security vulnerability where API keys passed as URL query parameters would be logged in server access logs, potentially exposing credentials. The fix to use header-based authentication is the correct approach to prevent credential leakage.",2026-03-02T06:32:51.274571+00:00
+twentyhq/twenty,18322,Do not console.log while consoleListener,https://github.com/twentyhq/twenty/pull/18322,"This is inside the `else` block (line 251) that only executes when `process.send` is falsy. The condition `process.send &&` will always be false here, so the result is never sent.
+
+If this fallback path is actually used, consider using `process.stdout.write()` instead:
+
+```suggestion
+            process.stdout.write(JSON.stringify({ ok: true, result: out }) + '\n');
+```",https://github.com/twentyhq/twenty/pull/18322#discussion_r2871871243,,2026-03-02T11:19:08.471000,Dead code path never sends result back to parent process,logic,high,8,"This is a genuine logic bug where the fallback code path has a condition that will always be false (checking `process.send &&` inside an `else` block that only executes when `process.send` is falsy). This means results would never be sent in the fallback scenario, causing silent failures. This requires understanding the control flow context and isn't immediately obvious.",2026-03-02T12:25:48.547654+00:00
