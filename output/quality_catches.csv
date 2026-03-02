@@ -5638,3 +5638,13 @@ Then use:
 ```suggestion
     with external_httpx_client() as client:
 ```",https://github.com/PostHog/posthog/pull/49458#discussion_r2868172112,,2026-03-01T01:45:28.355000,Runtime error from misusing lazy proxy as module,runtime,high,8,"This is a genuine runtime bug that would cause a crash in production. The developer incorrectly used a lazy proxy instance as if it were the httpx module itself, calling `.Client()` on something that doesn't have that attribute. This requires understanding the proxy pattern implementation and wouldn't be caught by simple linting or type checking.",2026-03-01T20:13:18.228794+00:00
+traceroot-ai/traceroot,469,[AgentOps] Support BYOK and  More Default LLMs,https://github.com/traceroot-ai/traceroot/pull/469,"API key in URL will be logged in server access logs. Use header-based authentication.
+
+```suggestion
+        const res = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models`,
+          {
+            headers: { ""x-goog-api-key"": apiKey || """" }
+          }
+        );
+```",https://github.com/traceroot-ai/traceroot/pull/469#discussion_r2867954679,Good catch — API keys in URLs get logged. Let me fix it.,2026-02-28T22:11:36.728000,API key exposed in URL query parameter gets logged,security,high,8,"This is a genuine security vulnerability where API keys passed as URL query parameters would be logged in server access logs, potentially exposing credentials. The fix to use header-based authentication is the correct approach to prevent credential leakage.",2026-03-02T06:32:51.274571+00:00
