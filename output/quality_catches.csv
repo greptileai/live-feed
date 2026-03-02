@@ -5662,3 +5662,16 @@ bitcoinppl/cove,606,Replace `map_err` closures with `ResultExt` convenience meth
         .map_err_display_alt(AppInitError::MainDatabaseMigration)?;
 ```",https://github.com/bitcoinppl/cove/pull/606#discussion_r2865914161,,2026-02-27T19:43:46.015000,Silent error swallowing removes critical migration error propagation,logic,high,8,"This is a meaningful bug catch - removing the `?` operator causes database migration recovery errors to be silently swallowed instead of propagated. This could lead to the application starting in a corrupted state after an interrupted migration, causing data integrity issues that would be difficult to diagnose. The catch required understanding the semantic difference between the old and new code patterns.",2026-03-02T18:27:08.741928+00:00
 ever-co/ever-gauzy,9546,fix(security): forgot password & change password API,https://github.com/ever-co/ever-gauzy/pull/9546,"Remove this `console.log`. It logs the entire request object which contains the user's password in plain text, creating a critical security vulnerability.",https://github.com/ever-co/ever-gauzy/pull/9546#discussion_r2872559779,,2026-03-02T13:48:09.971000,Console.log exposes user passwords in plain text,security,critical,9,Comment 1 identifies a critical security vulnerability where console.log logs the entire request object containing user passwords in plain text. This is a serious credential exposure issue that could lead to password theft from log files.,2026-03-02T18:27:08.741928+00:00
+nvidia/matx,1129,Add fltflt rounding and fmod functions,https://github.com/NVIDIA/MatX/pull/1129,"**Infinite loop when `b == 0`**
+
+When `b` is zero, `fltflt_div(a, 0)` returns `{0, 0}` due to the explicit `xn = 0.0f` guard in `fltflt_div`. This causes `trunc_q = {0, 0}` and `result = a` (the positive magnitude of the dividend). The correction loop `while (result >= b)` then evaluates `result >= 0.0`, which is always `true` for positive `result`, and since `fltflt_sub(result, {0,0})` leaves `result` unchanged, the loop never terminates.
+
+The same issue exists in the `fltflt_fmod(fltflt, float)` overload (line 622). The fix should guard against `b == 0` before entering the correction loops, returning NaN to match the behaviour of C's `fmod(x, 0)`:
+
+```cpp
+// Add before computing q:
+if (b.hi == 0.0f && b.lo == 0.0f) {
+    return fltflt{std::numeric_limits<float>::quiet_NaN(),
+                  std::numeric_limits<float>::quiet_NaN()};
+}
+```",https://github.com/NVIDIA/MatX/pull/1129#discussion_r2872982545,Updated in latest commit,2026-03-02T15:11:10.043000,Infinite loop when divisor is zero in fmod function,logic,high,8,"This catches a genuine infinite loop bug where fltflt_fmod will hang forever when the divisor b is zero, due to the correction loop condition always being true. This is a meaningful production bug that would cause programs to freeze, and the fix to return NaN matches standard C library behavior.",2026-03-02T22:17:08.518835+00:00
