@@ -5684,3 +5684,41 @@ A safer pattern is to unconditionally remove the file using `;` instead of `&&`:
 ```suggestion
   await executor.exec(""gh auth login --with-token < /tmp/.gh_token; rm -f /tmp/.gh_token"");
 ```",https://github.com/traceroot-ai/traceroot/pull/475#discussion_r2875333191,Fixed — changed `&&` to `;` so the token file is unconditionally removed.,2026-03-02T23:59:13.299000,GitHub token file persists after failed authentication,security,high,8,"This is a genuine security vulnerability where a GitHub token file would persist in the sandbox if authentication fails, exposing credentials to subsequent code execution. The fix is non-obvious and addresses real credential exposure risk in a production sandbox environment.",2026-03-03T00:50:35.837145+00:00
+onyx-dot-app/onyx,8959,fix(scim): only list SCIM-managed users and link pre-existing users,https://github.com/onyx-dot-app/onyx/pull/8959,"**SCIM users without `externalId` become invisible to `GET /Users`**
+
+The new inner join means a `ScimUserMapping` row is required for a user to appear in listings. However, `create_user` (and the adoption path) only creates a `ScimUserMapping` when `externalId` is present (see `if external_id: dal.create_user_mapping(...)`). Any user provisioned via `POST /Users` without an `externalId` will therefore never appear in `GET /Users`.
+
+Before this PR, such users were returned because the old query had no join requirement. This is now a silent gap: a successfully-provisioned SCIM user can be ""orphaned"" from listings.
+
+Possible mitigations:
+1. Create a `ScimUserMapping` with a synthetic/empty `external_id` when none is provided, so the inner join always succeeds for SCIM-provisioned users.
+2. Change to a left join and filter on a dedicated `is_scim_managed` boolean column or a separate `scim_provisioned` flag.
+
+In practice Okta always sends `externalId`, but this creates a silent gap for other IdPs and for tests that omit it.",https://github.com/onyx-dot-app/onyx/pull/8959#discussion_r2875512210,"Resolved — we now always create a `ScimUserMapping` on POST /Users, even without `externalId`. The `external_id` column was made nullable via alembic migration `a3b8d9e2f1c4`.",2026-03-03T01:13:43.048000,SCIM users without externalId become invisible in listings,data_integrity,high,8,This catch identifies a significant logic bug where the inner join requirement combined with conditional mapping creation causes SCIM-provisioned users without externalId to silently disappear from GET /Users listings. This breaks SCIM protocol compliance and could cause sync issues with non-Okta IdPs.,2026-03-03T06:29:10.661735+00:00
+plexe-ai/plexe,187,feat: add probability-aware metric support across search and evaluation,https://github.com/plexe-ai/plexe/pull/187,"**`loss_config` is not persisted by all training paths, silently disabling logit detection**
+
+`_uses_logits_output()` reads `self._loss_config` from metadata to detect whether the model was trained with `from_logits=True`. However, at least one Keras training code path in `plexe/execution/training/local_runner.py` saves `loss_class` but **not** `loss_config` in the metadata dict. For models produced by that path, `metadata.get(""loss_config"", {})` returns `{}`, so `from_logits` defaults to `False`, and `_uses_logits_output()` returns `False` even when the model actually outputs raw logits.
+
+The result is a **silent correctness failure**: for a Keras model trained with `BinaryCrossentropy(from_logits=True)` through the affected training path, `_probabilities_from_raw` will skip the sigmoid conversion and pass raw logits directly to the caller as if they were probabilities. All downstream `roc_auc` / `log_loss` values will be silently wrong.
+
+The fix should ensure `loss_config` is written consistently across all training paths, or add a validation/warning when `loss_config` is absent but `loss_class` suggests a loss that supports `from_logits`.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: plexe/templates/inference/keras_predictor.py
+Line: 67-75
+
+Comment:
+**`loss_config` is not persisted by all training paths, silently disabling logit detection**
+
+`_uses_logits_output()` reads `self._loss_config` from metadata to detect whether the model was trained with `from_logits=True`. However, at least one Keras training code path in `plexe/execution/training/local_runner.py` saves `loss_class` but **not** `loss_config` in the metadata dict. For models produced by that path, `metadata.get(""loss_config"", {})` returns `{}`, so `from_logits` defaults to `False`, and `_uses_logits_output()` returns `False` even when the model actually outputs raw logits.
+
+The result is a **silent correctness failure**: for a Keras model trained with `BinaryCrossentropy(from_logits=True)` through the affected training path, `_probabilities_from_raw` will skip the sigmoid conversion and pass raw logits directly to the caller as if they were probabilities. All downstream `roc_auc` / `log_loss` values will be silently wrong.
+
+The fix should ensure `loss_config` is written consistently across all training paths, or add a validation/warning when `loss_config` is absent but `loss_class` suggests a loss that supports `from_logits`.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/plexe-ai/plexe/pull/187#discussion_r2875886768,"Reviewed this path in detail. `loss_config` is currently persisted by Keras training flow, but I still added a defensive fallback in `KerasPredictor` for legacy artifacts that may miss `loss_config`: when classification loss metadata exists and raw outputs are outside [0,1], predictor now treats outputs as logits and applies sigmoid/softmax conversion. Added `test_keras_probabilities_infer_logits_when_loss_config_missing` to lock this behavior.",2026-03-03T03:36:59.828000,Missing loss_config silently produces incorrect probability outputs,data_integrity,high,8,"This catch identifies a silent correctness failure where Keras models trained with from_logits=True through certain training paths would have their raw logits incorrectly passed as probabilities, causing all downstream ROC-AUC and log_loss metrics to be silently wrong. This is a meaningful data integrity bug affecting ML model evaluation accuracy.",2026-03-03T06:29:10.661735+00:00
