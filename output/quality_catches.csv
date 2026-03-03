@@ -5949,3 +5949,140 @@ def run(self, dry_run: bool) -> int:
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/NVIDIA-NeMo/Guardrails/pull/1629#discussion_r2875407461,"@greptile check the fix in SHA 78e7724c1, can this be resolved?",2026-03-03T00:29:57.928000,Dry-run mode makes live HTTP request defeating its purpose,logic,medium,8,"Comment 6 identifies a meaningful logic bug where --dry-run (whose purpose is to preview without side effects) still calls _check_service() and makes a real HTTP request. If the server isn't running, the dry-run fails before showing the command, completely defeating the feature's purpose.",2026-03-03T18:27:03.349924+00:00
+browseros-ai/browseros-agent,398,feat: add get_dom and search_dom tools,https://github.com/browseros-ai/BrowserOS-agent/pull/398,"`searchId` leaked when `getSearchResults` throws
+
+`session.DOM.discardSearchResults` is only called in the happy path and the zero-results early-exit (line 586). If `getSearchResults` (line 590) throws an error that escapes the per-node `try/catch`, the `searchId` is never discarded, leaking a CDP search handle.
+
+Wrapping the retrieval and processing in a `try/finally` ensures cleanup regardless of the outcome:
+
+```suggestion
+const matched = await session.DOM.getSearchResults({
+  searchId: search.searchId,
+  fromIndex: 0,
+  toIndex: count,
+})
+
+const results: DomSearchResult[] = []
+const seen = new Set<number>()
+try {
+  for (const nodeId of matched.nodeIds) {
+    try {
+      const desc = await session.DOM.describeNode({ nodeId, depth: 0 })
+      let node = desc.node
+      let resolvedNodeId = nodeId
+
+      // Text/comment nodes: resolve to parent element via JS
+      if (node.nodeType !== 1) {
+        const resolved = await session.DOM.resolveNode({ nodeId })
+        if (!resolved.object.objectId) continue
+        const parentResult = await session.Runtime.callFunctionOn({
+          objectId: resolved.object.objectId,
+          functionDeclaration: 'function() { return this.parentElement; }',
+          returnByValue: false,
+        })
+        if (!parentResult.result.objectId) continue
+        const parentNode = await session.DOM.requestNode({
+          objectId: parentResult.result.objectId,
+        })
+        resolvedNodeId = parentNode.nodeId
+        const parentDesc = await session.DOM.describeNode({
+          nodeId: parentNode.nodeId,
+          depth: 0,
+        })
+        node = parentDesc.node
+      }
+
+      if (node.nodeType !== 1) continue
+      if (seen.has(node.backendNodeId)) continue
+      seen.add(node.backendNodeId)
+
+      results.push({
+        tag: node.localName,
+        nodeId: resolvedNodeId,
+        backendNodeId: node.backendNodeId,
+        attributes: parseNodeAttributes(node),
+      })
+    } catch {
+      // node may have been removed between search and describe
+    }
+  }
+} finally {
+  await session.DOM.discardSearchResults({ searchId: search.searchId })
+}
+return { results, totalCount: search.resultCount }
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: apps/server/src/browser/browser.ts
+Line: 590-641
+
+Comment:
+`searchId` leaked when `getSearchResults` throws
+
+`session.DOM.discardSearchResults` is only called in the happy path and the zero-results early-exit (line 586). If `getSearchResults` (line 590) throws an error that escapes the per-node `try/catch`, the `searchId` is never discarded, leaking a CDP search handle.
+
+Wrapping the retrieval and processing in a `try/finally` ensures cleanup regardless of the outcome:
+
+```suggestion
+const matched = await session.DOM.getSearchResults({
+  searchId: search.searchId,
+  fromIndex: 0,
+  toIndex: count,
+})
+
+const results: DomSearchResult[] = []
+const seen = new Set<number>()
+try {
+  for (const nodeId of matched.nodeIds) {
+    try {
+      const desc = await session.DOM.describeNode({ nodeId, depth: 0 })
+      let node = desc.node
+      let resolvedNodeId = nodeId
+
+      // Text/comment nodes: resolve to parent element via JS
+      if (node.nodeType !== 1) {
+        const resolved = await session.DOM.resolveNode({ nodeId })
+        if (!resolved.object.objectId) continue
+        const parentResult = await session.Runtime.callFunctionOn({
+          objectId: resolved.object.objectId,
+          functionDeclaration: 'function() { return this.parentElement; }',
+          returnByValue: false,
+        })
+        if (!parentResult.result.objectId) continue
+        const parentNode = await session.DOM.requestNode({
+          objectId: parentResult.result.objectId,
+        })
+        resolvedNodeId = parentNode.nodeId
+        const parentDesc = await session.DOM.describeNode({
+          nodeId: parentNode.nodeId,
+          depth: 0,
+        })
+        node = parentDesc.node
+      }
+
+      if (node.nodeType !== 1) continue
+      if (seen.has(node.backendNodeId)) continue
+      seen.add(node.backendNodeId)
+
+      results.push({
+        tag: node.localName,
+        nodeId: resolvedNodeId,
+        backendNodeId: node.backendNodeId,
+        attributes: parseNodeAttributes(node),
+      })
+    } catch {
+      // node may have been removed between search and describe
+    }
+  }
+} finally {
+  await session.DOM.discardSearchResults({ searchId: search.searchId })
+}
+return { results, totalCount: search.resultCount }
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/browseros-ai/BrowserOS-agent/pull/398#discussion_r2880051523,,2026-03-03T19:21:01.579000,CDP search handle leaked when getSearchResults throws exception,resource_leak,medium,8,This catches a real resource leak where CDP search handles are not cleaned up if getSearchResults throws an exception. The fix correctly identifies that discardSearchResults is only called in happy paths and proposes wrapping in try/finally. This is a meaningful bug that would cause resource accumulation in production.,2026-03-03T20:17:50.660338+00:00
