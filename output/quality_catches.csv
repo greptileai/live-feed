@@ -5747,3 +5747,26 @@ if (aHasCls !== bHasCls) {
   return aHasCls ? 1 : -1; // worst-tier loses to unclassified
 }
 ```",https://github.com/mrmps/SMRY/pull/75#discussion_r2876362673,,2026-03-03T06:28:00.582000,Worst-tier classification incorrectly beats unclassified good article,logic,high,8,"This catches a meaningful logic bug where the comparison function unconditionally promotes any classified result over unclassified ones, even when the classification is the worst possible tier (full_page_not_article). This would cause users to receive worse article extractions when a good unclassified result exists but loses to a classified bad result.",2026-03-03T10:23:13.404493+00:00
+posthog/posthog,49617,fix: Do not partition consumer table in BigQuery,https://github.com/PostHog/posthog/pull/49617,"**`time_partitioning=None` has no effect — `create_table` ignores it**
+
+The intent here is correct, but the fix is incomplete. The `create_table` method (lines 357–362) does **not** consult `table.time_partitioning` at all — it unconditionally adds `TimePartitioning` to the BigQuery table whenever `""timestamp""` is present in the fields:
+
+```python
+if isinstance(table, BigQueryTable) and ""timestamp"" in table:
+    bq_table.time_partitioning = bigquery.TimePartitioning(
+        type_=bigquery.TimePartitioningType.DAY, field=""timestamp""
+    )
+```
+
+Because the consumer table copies `bigquery_target_table.fields` (which will include `""timestamp""` for events and most other models), the stage table will still be physically created in BigQuery with day-level partitioning. Setting `time_partitioning=None` on the Python `BigQueryTable` object is a no-op with respect to the actual BigQuery API call.
+
+To make this fix effective, `create_table` should also respect the `table.time_partitioning` attribute, for example:
+
+```python
+if isinstance(table, BigQueryTable) and ""timestamp"" in table and table.time_partitioning is not False:
+    bq_table.time_partitioning = table.time_partitioning or bigquery.TimePartitioning(
+        type_=bigquery.TimePartitioningType.DAY, field=""timestamp""
+    )
+```
+
+Or more simply — gate the partitioning block on `table.time_partitioning is not None` being explicitly opted into, and update callers accordingly.",https://github.com/PostHog/posthog/pull/49617#discussion_r2877108263,"yeah, it's already fixed, go away",2026-03-03T09:27:21.219000,Setting time_partitioning=None is no-op due to create_table override,logic,high,8,"This is a meaningful logic bug where the developer's fix was incomplete - they set time_partitioning=None thinking it would disable partitioning, but the create_table method unconditionally adds partitioning when 'timestamp' is in fields, completely ignoring the attribute. This would cause the consumer table to still be partitioned in BigQuery despite the fix attempt, defeating the purpose of the PR. The reviewer identified the root cause and provided a concrete solution.",2026-03-03T12:24:40.729941+00:00
