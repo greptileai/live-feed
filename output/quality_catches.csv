@@ -5837,3 +5837,115 @@ if (!response.ok()) {
     // ...existing retry logic...
 }
 ```",https://github.com/PostHog/posthog/pull/49605#discussion_r2876765217,"Good catch — the `throw new Error(...)` for 4xx inside the `try` block was indeed caught by the outer `catch`, causing 4xx responses to be retried. Fixed by adding a `NonRetryableError` sentinel class: 4xx errors now throw `NonRetryableError`, and the catch block re-throws it immediately without retrying. CI is green.",2026-03-03T08:08:07.442000,4xx errors incorrectly retried despite being non-retryable,logic,medium,8,"This catches a genuine logic bug where 4xx HTTP errors were being retried despite the code intending them to be non-retryable. The error thrown inside the try block was caught by the outer catch, causing unintended retry behavior that contradicts the documented behavior and wastes time in CI on permanent failures.",2026-03-03T14:25:47.355647+00:00
+browseros-ai/browseros-agent,394,fix: move ChatV2Service to API services layer and add resolvePageIds,https://github.com/browseros-ai/BrowserOS-agent/pull/394,"**Scheduled-task `pageId` corrupted by unconditional second `resolvePageIds` call**
+
+For scheduled tasks, `messageContext` is `session.browserContext`, which was built with `activeTab.id = pageId` (an internal page ID from `browser.newPage()`, not a Chrome tab ID). Calling `resolvePageIds()` on this context passes the internal page ID to `resolveTabIds()`, which expects Chrome tab IDs. The lookup fails and returns an empty map, causing `pageId` to become `undefined` — exactly the regression this PR aims to fix.
+
+The second `resolvePageIds` call should be skipped for scheduled tasks:
+
+```suggestion
+    const messageContext = request.isScheduledTask
+      ? (session.browserContext ?? request.browserContext)
+      : request.browserContext
+    const resolvedMessageContext = request.isScheduledTask
+      ? messageContext
+      : await this.resolvePageIds(messageContext)
+    const userContent = formatUserMessage(
+      request.message,
+      resolvedMessageContext,
+    )
+```
+
+**Context Used:** Rule from `dashboard` - browseros specific code review guidelines ([source](https://app.greptile.com/review/custom-context?memory=5d205f91-9f0d-400b-8fcf-dec81219b910))
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: apps/server/src/api/services/chat-v2-service.ts
+Line: 125-132
+
+Comment:
+**Scheduled-task `pageId` corrupted by unconditional second `resolvePageIds` call**
+
+For scheduled tasks, `messageContext` is `session.browserContext`, which was built with `activeTab.id = pageId` (an internal page ID from `browser.newPage()`, not a Chrome tab ID). Calling `resolvePageIds()` on this context passes the internal page ID to `resolveTabIds()`, which expects Chrome tab IDs. The lookup fails and returns an empty map, causing `pageId` to become `undefined` — exactly the regression this PR aims to fix.
+
+The second `resolvePageIds` call should be skipped for scheduled tasks:
+
+```suggestion
+    const messageContext = request.isScheduledTask
+      ? (session.browserContext ?? request.browserContext)
+      : request.browserContext
+    const resolvedMessageContext = request.isScheduledTask
+      ? messageContext
+      : await this.resolvePageIds(messageContext)
+    const userContent = formatUserMessage(
+      request.message,
+      resolvedMessageContext,
+    )
+```
+
+**Context Used:** Rule from `dashboard` - browseros specific code review guidelines ([source](https://app.greptile.com/review/custom-context?memory=5d205f91-9f0d-400b-8fcf-dec81219b910))
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/browseros-ai/BrowserOS-agent/pull/394#discussion_r2879775980,,2026-03-03T18:07:22.772000,Unconditional resolvePageIds corrupts pageId for scheduled tasks,logic,high,8,"This is a meaningful logic bug that would cause scheduled tasks to fail in production. The AI correctly identified that the second resolvePageIds call passes internal page IDs to a function expecting Chrome tab IDs, causing the lookup to fail and pageId to become undefined - defeating the very purpose of the PR. This requires understanding the domain-specific difference between internal page IDs and Chrome tab IDs, making it a non-obvious catch.",2026-03-03T18:27:03.349924+00:00
+nvidia-nemo/guardrails,1629,feat(benchmark): Add Locust stress-test,https://github.com/NVIDIA-NeMo/Guardrails/pull/1629,"**`--dry-run` makes a live service check before previewing the command**
+
+`_check_service()` is called unconditionally before the `if dry_run:` guard on line 145. This means `--dry-run` — whose entire purpose is to preview the Locust command *without* any side effects — will still make a real HTTP request to the health endpoint. If the server isn't running when a user tries to preview the command, `run()` returns exit code 1 and never prints the command at all.
+
+The `if dry_run:` check should come first (or the service check should be skipped when `dry_run=True`):
+
+```python
+def run(self, dry_run: bool) -> int:
+    """"""Run the Locust load test.""""""
+    # For dry-run, print command without creating directories or metadata
+    if dry_run:
+        command = self._build_locust_command()
+        log.info(""Dry run mode. Command: %s"", "" "".join(command))
+        return 0
+
+    # Check service availability
+    try:
+        self._check_service()
+    except RuntimeError as e:
+        log.error(str(e))
+        return 1
+    ...
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: benchmark/locust/run_locust.py
+Line: 135-149
+
+Comment:
+**`--dry-run` makes a live service check before previewing the command**
+
+`_check_service()` is called unconditionally before the `if dry_run:` guard on line 145. This means `--dry-run` — whose entire purpose is to preview the Locust command *without* any side effects — will still make a real HTTP request to the health endpoint. If the server isn't running when a user tries to preview the command, `run()` returns exit code 1 and never prints the command at all.
+
+The `if dry_run:` check should come first (or the service check should be skipped when `dry_run=True`):
+
+```python
+def run(self, dry_run: bool) -> int:
+    """"""Run the Locust load test.""""""
+    # For dry-run, print command without creating directories or metadata
+    if dry_run:
+        command = self._build_locust_command()
+        log.info(""Dry run mode. Command: %s"", "" "".join(command))
+        return 0
+
+    # Check service availability
+    try:
+        self._check_service()
+    except RuntimeError as e:
+        log.error(str(e))
+        return 1
+    ...
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/NVIDIA-NeMo/Guardrails/pull/1629#discussion_r2875407461,"@greptile check the fix in SHA 78e7724c1, can this be resolved?",2026-03-03T00:29:57.928000,Dry-run mode makes live HTTP request defeating its purpose,logic,medium,8,"Comment 6 identifies a meaningful logic bug where --dry-run (whose purpose is to preview without side effects) still calls _check_service() and makes a real HTTP request. If the server isn't running, the dry-run fails before showing the command, completely defeating the feature's purpose.",2026-03-03T18:27:03.349924+00:00
