@@ -5675,3 +5675,12 @@ if (b.hi == 0.0f && b.lo == 0.0f) {
                   std::numeric_limits<float>::quiet_NaN()};
 }
 ```",https://github.com/NVIDIA/MatX/pull/1129#discussion_r2872982545,Updated in latest commit,2026-03-02T15:11:10.043000,Infinite loop when divisor is zero in fmod function,logic,high,8,"This catches a genuine infinite loop bug where fltflt_fmod will hang forever when the divisor b is zero, due to the correction loop condition always being true. This is a meaningful production bug that would cause programs to freeze, and the fix to return NaN matches standard C library behavior.",2026-03-02T22:17:08.518835+00:00
+traceroot-ai/traceroot,475,[AgentOps][Agent] Support Daytona Sandbox instead of Docker Container for production [1/n],https://github.com/traceroot-ai/traceroot/pull/475,"**GitHub token file not cleaned up when `gh auth login` fails**
+
+Using `&&` means `rm /tmp/.gh_token` only runs if `gh auth login` succeeds. If authentication fails (e.g., invalid token, gh binary fails to install), the token file persists for the lifetime of the sandbox. Although the sandbox is ephemeral, the token is still exposed to any code subsequently running inside it.
+
+A safer pattern is to unconditionally remove the file using `;` instead of `&&`:
+
+```suggestion
+  await executor.exec(""gh auth login --with-token < /tmp/.gh_token; rm -f /tmp/.gh_token"");
+```",https://github.com/traceroot-ai/traceroot/pull/475#discussion_r2875333191,Fixed — changed `&&` to `;` so the token file is unconditionally removed.,2026-03-02T23:59:13.299000,GitHub token file persists after failed authentication,security,high,8,"This is a genuine security vulnerability where a GitHub token file would persist in the sandbox if authentication fails, exposing credentials to subsequent code execution. The fix is non-obvious and addresses real credential exposure risk in a production sandbox environment.",2026-03-03T00:50:35.837145+00:00
