@@ -5770,3 +5770,70 @@ if isinstance(table, BigQueryTable) and ""timestamp"" in table and table.time_pa
 ```
 
 Or more simply — gate the partitioning block on `table.time_partitioning is not None` being explicitly opted into, and update callers accordingly.",https://github.com/PostHog/posthog/pull/49617#discussion_r2877108263,"yeah, it's already fixed, go away",2026-03-03T09:27:21.219000,Setting time_partitioning=None is no-op due to create_table override,logic,high,8,"This is a meaningful logic bug where the developer's fix was incomplete - they set time_partitioning=None thinking it would disable partitioning, but the create_table method unconditionally adds partitioning when 'timestamp' is in fields, completely ignoring the attribute. This would cause the consumer table to still be partitioned in BigQuery despite the fix attempt, defeating the purpose of the PR. The reviewer identified the root cause and provided a concrete solution.",2026-03-03T12:24:40.729941+00:00
+raycast/extensions,25656,Add wallhaven extension,https://github.com/raycast/extensions/pull/25656,"**Hook called after conditional return**
+
+`useCachedPromise` on line 74 is called after the early return on line 62, which violates React's [Rules of Hooks](https://react.dev/reference/rules/rules-of-hooks). Hooks must be called unconditionally and in the same order on every render. When `apiKey` or `username` is missing, the hook is never called — and if the user later fills in the preferences (causing a re-render), the number of hook calls changes, which can crash React.
+
+A straightforward fix is to move the hook call above the guard and use `execute: false` to skip the fetch when credentials are missing:
+
+```suggestion
+  const { data: collectionsData, isLoading } = useCachedPromise(
+    async () => {
+      const result = await getCollections();
+      return result.data;
+    },
+    [],
+    { execute: !!apiKey && !!username },
+  );
+
+  if (!apiKey || !username) {
+    return (
+      <List>
+        <List.EmptyView
+          icon={Icon.Key}
+          title=""API Key and Username Required""
+          description=""Set your Wallhaven API key and username in extension preferences to access collections.""
+        />
+      </List>
+    );
+  }
+```",https://github.com/raycast/extensions/pull/25656#discussion_r2836177427,,2026-02-21T13:18:35.280000,React hook called after conditional return violates Rules of Hooks,runtime,high,8,"This catches a genuine React Rules of Hooks violation where useCachedPromise is called after an early return statement. This would cause React to crash when the number of hook calls changes between renders (e.g., when user fills in preferences after initially missing them).",2026-03-03T14:25:47.355647+00:00
+posthog/posthog,49605,fix(e2e): Increase workspace creation timeout,https://github.com/PostHog/posthog/pull/49605,"**4xx errors are silently retried despite being non-retryable**
+
+The code throws a `new Error(...)` for 4xx responses on line 152–154 **inside the `try` block**, so that error is immediately caught by the `catch (error)` on line 159. The catch block then retries when `attempt < maxRetries` (line 162), meaning every 4xx response will be retried up to `maxRetries` times — directly contradicting the comment ""client errors (4xx) are not"" retryable and the PR description.
+
+To truly skip retries for 4xx, the error must either be thrown after the loop, or the catch block must inspect the error to distinguish non-retryable failures.
+
+One clean approach is to use a sentinel:
+
+```typescript
+class NonRetryableError extends Error {
+    constructor(message: string) {
+        super(message)
+        this.name = 'NonRetryableError'
+    }
+}
+
+// ...in the loop...
+if (!response.ok()) {
+    if (response.status() >= 500 && attempt < maxRetries) {
+        // retry 5xx
+        await this.delay(2000 * Math.pow(2, attempt - 1))
+        continue
+    }
+    if (throwOnError) {
+        throw new NonRetryableError(
+            `Playwright setup failed for '${setupType}': ${result.error || 'Unknown error'}`
+        )
+    }
+}
+
+// ...in the catch block...
+} catch (error) {
+    if (error instanceof NonRetryableError) {
+        throw error  // never retry 4xx
+    }
+    lastError = error instanceof Error ? error : new Error(String(error))
+    // ...existing retry logic...
+}
+```",https://github.com/PostHog/posthog/pull/49605#discussion_r2876765217,"Good catch — the `throw new Error(...)` for 4xx inside the `try` block was indeed caught by the outer `catch`, causing 4xx responses to be retried. Fixed by adding a `NonRetryableError` sentinel class: 4xx errors now throw `NonRetryableError`, and the catch block re-throws it immediately without retrying. CI is green.",2026-03-03T08:08:07.442000,4xx errors incorrectly retried despite being non-retryable,logic,medium,8,"This catches a genuine logic bug where 4xx HTTP errors were being retried despite the code intending them to be non-retryable. The error thrown inside the try block was caught by the outer catch, causing unintended retry behavior that contradicts the documented behavior and wastes time in CI on permanent failures.",2026-03-03T14:25:47.355647+00:00
