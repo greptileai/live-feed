@@ -6086,3 +6086,40 @@ return { results, totalCount: search.resultCount }
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/browseros-ai/BrowserOS-agent/pull/398#discussion_r2880051523,,2026-03-03T19:21:01.579000,CDP search handle leaked when getSearchResults throws exception,resource_leak,medium,8,This catches a real resource leak where CDP search handles are not cleaned up if getSearchResults throws an exception. The fix correctly identifies that discardSearchResults is only called in happy paths and proposes wrapping in try/finally. This is a meaningful bug that would cause resource accumulation in production.,2026-03-03T20:17:50.660338+00:00
+flashnetxyz/ts-sdk,57,fix: insta-claim transfer and cap lightning fee budget,https://github.com/flashnetxyz/ts-sdk/pull/57,"if `actualBtc < invoiceAmount`, `available` will be negative and the check `available > 0n` will fail, but the code will still attempt to pay the invoice with insufficient balance. This will cause a payment failure. Add an early return when `available <= 0n`
+
+```suggestion
+        let effectiveMaxLightningFee = requestedMaxLightningFee;
+        if (!quote.isZeroAmountInvoice) {
+          const actualBtc = safeBigInt(btcReceived);
+          const invoiceAmount = safeBigInt(quote.invoiceAmountSats);
+          const available = actualBtc - invoiceAmount;
+          if (available <= 0n) {
+            return {
+              success: false,
+              poolId: quote.poolId,
+              tokenAmountSpent: quote.tokenAmountRequired,
+              btcAmountReceived: btcReceived,
+              swapTransferId: swapResponse.outboundTransferId,
+              ammFeePaid: quote.estimatedAmmFee,
+              sparkTokenTransferId: swapResponse.inboundSparkTransferId,
+              error: `BTC received (${btcReceived} sats) is less than invoice amount (${quote.invoiceAmountSats} sats).`,
+            };
+          }
+          if (available < safeBigInt(effectiveMaxLightningFee)) {
+            effectiveMaxLightningFee = Number(available);
+          }
+        }
+```",https://github.com/flashnetxyz/ts-sdk/pull/57#discussion_r2838652061,,2026-02-22T23:32:20.295000,Missing early return allows payment with insufficient BTC balance,logic,high,8,"This is a meaningful logic bug in financial/payment code. When BTC received is less than the invoice amount, the code would still attempt to pay the invoice despite having insufficient balance, leading to payment failures. The catch prevents failed transactions and provides proper error handling for an edge case that could affect users' funds.",2026-03-03T22:16:14.239320+00:00
+nvidia/spark-rapids-tools,2048,Add platformEnabledTuningEntries and disable extraJavaOptions by default,https://github.com/NVIDIA/spark-rapids-tools/pull/2048,"`getOrElseUpdate` will create minimal entries without YAML metadata when keys don't exist in baseMap. Since `TuningEntryDefinition.loadTable()` filters out `enabled: false` entries, the extraJavaOptions won't be in TUNING_TABLE. This causes EMR to get entries with wrong `level` (Job instead of cluster), missing `description`, and missing `modifiedBy` tracking.
+
+Fix: Either modify `TuningEntryDefinition.loadTable()` to load all entries (not just enabled ones), or have `platformEnabledTuningEntries` load full definitions from YAML before enabling them.",https://github.com/NVIDIA/spark-rapids-tools/pull/2048#discussion_r2866695005,"changed loadTable() to load all entries, but kept TUNING_TABLE map only for enabled entries",2026-02-28T00:04:13.437000,Platform-enabled entries get wrong metadata due to filtered YAML loading,data_integrity,high,8,"This catch identifies a subtle but meaningful bug where disabled entries in YAML won't have proper metadata when re-enabled by platform overrides, causing EMR to get wrong configuration levels (Job instead of cluster) and missing tracking information. This could cause real misconfiguration in production Spark tuning.",2026-03-03T22:16:14.239320+00:00
+browserbase/stagehand,1775,chore: remove retired Claude 3.5 and 3.7 Sonnet models,https://github.com/browserbase/stagehand/pull/1775,"**Legacy-format model not in provider map will fail**
+
+`claude-sonnet-4-20250514` is added to `ALL_EVAL_MODELS` using the unprefixed legacy format, but this PR intentionally removed all Anthropic entries from `modelToProviderMap` in `LLMProvider.ts`. When `EVAL_PROVIDER=anthropic` is set, `filterModelByProvider` returns this entry and it gets passed to `LLMProvider.getClient()`. The non-prefixed path in `getClient` does `modelToProviderMap[modelName]` and — since `claude-sonnet-4-20250514` is no longer mapped — throws `UnsupportedModelError`.
+
+The old removed entries (`claude-3-5-sonnet-latest`, `claude-3-7-sonnet-latest`) worked because they were in `modelToProviderMap`. The fix is to use the AISDK-style prefix that `getClient` handles before consulting the map:
+
+```suggestion
+  ""anthropic/claude-sonnet-4-20250514"",
+```",https://github.com/browserbase/stagehand/pull/1775#discussion_r2875688657,Pre-existing issue - claude-sonnet-4-20250514 was also never in the legacy modelToProviderMap. The eval pipeline uses EVAL_MODELS env var (provider/model format in CI) and ALL_EVAL_MODELS is only a fallback filter by provider prefix.,2026-03-03T02:24:59.312000,Model format mismatch causes runtime error with Anthropic provider,runtime,high,8,"This is a meaningful logic bug that would cause a runtime UnsupportedModelError when running evals with EVAL_PROVIDER=anthropic. The reviewer correctly identified the inconsistency between adding the model in unprefixed format while the PR removed the necessary entries from modelToProviderMap, requiring the AISDK-style prefix format instead. This would definitely break in production use.",2026-03-03T22:16:14.239320+00:00
