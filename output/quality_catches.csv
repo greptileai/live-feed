@@ -6837,3 +6837,138 @@ A mitigation would be to store the registered `redirect_uris` (from the registra
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/PostHog/posthog/pull/49823#discussion_r2884316090,,2026-03-04T15:05:17.362000,Open redirect vulnerability enables OAuth authorization code theft,security,critical,9,"Comment 1 identifies a critical OAuth security vulnerability where an attacker can inject a malicious redirect_uri that bypasses server-side validation, allowing them to steal authorization codes and gain access to victim accounts. This is a textbook OAuth redirect_uri injection attack with a clear exploitation path.",2026-03-04T18:26:27.998694+00:00
+emerge-lab/pufferdrive,107,Puffer Scenario v0,https://github.com/Emerge-Lab/PufferDrive/pull/107,"**logic:** memory leak - `static_agent_indices` and `expert_static_agent_indices` are allocated twice, leaking the first allocation
+
+```suggestion
+    env->active_agent_indices = (int*)malloc(env->active_agent_count * sizeof(int));
+    env->static_agent_indices = (int*)malloc(env->static_agent_count * sizeof(int));
+    env->expert_static_agent_indices = (int*)malloc(env->expert_static_agent_count * sizeof(int));
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: pufferlib/ocean/drive/drive.h
+Line: 1459:1462
+
+Comment:
+**logic:** memory leak - `static_agent_indices` and `expert_static_agent_indices` are allocated twice, leaking the first allocation
+
+```suggestion
+    env->active_agent_indices = (int*)malloc(env->active_agent_count * sizeof(int));
+    env->static_agent_indices = (int*)malloc(env->static_agent_count * sizeof(int));
+    env->expert_static_agent_indices = (int*)malloc(env->expert_static_agent_count * sizeof(int));
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/Emerge-Lab/PufferDrive/pull/107#discussion_r2535669882,,2025-11-17T22:13:45.127000,Double malloc causes memory leak for agent index arrays,resource_leak,high,8,"This catches a real memory leak where arrays are allocated twice, with the first allocation being lost. In a simulation environment that likely runs for extended periods, this would cause memory to grow unbounded. The comment is clear and provides a concrete fix.",2026-03-04T20:18:34.985271+00:00
+workos/workos-go,506,ci: add release-please and conventional commit enforcement,https://github.com/workos/workos-go/pull/506,"Unpinned action version on `pull_request_target` trigger
+
+`amannn/action-semantic-pull-request@v5` uses a mutable tag. Because this workflow uses the `pull_request_target` event — which runs in the context of the base repository and has access to secrets — a compromised `v5` tag would execute with those elevated permissions.
+
+Pinning to an immutable commit SHA is the standard mitigation. Look up the full commit SHA for the `v5` release and pin it:
+
+```yaml
+- uses: amannn/action-semantic-pull-request@COMMIT_SHA # v5
+```",https://github.com/workos/workos-go/pull/506#discussion_r2885419403,,2026-03-04T18:36:08.865000,Unpinned GitHub Action with elevated secrets access risk,security,high,8,"Comment 0 identifies a genuine security vulnerability: using a mutable tag with pull_request_target trigger gives the action access to repository secrets. If the v5 tag were compromised, malicious code would run with elevated permissions. The comment correctly identifies the fix (SHA pinning) and the specific risk vector.",2026-03-04T20:18:34.985271+00:00
+onyx-dot-app/onyx,9014,chore: remove lightweight mode,https://github.com/onyx-dot-app/onyx/pull/9014,"Queue routing mismatch with supervisord.conf
+
+The heavy worker in `dev_run_background_jobs.py` only handles `connector_pruning,sandbox`, but in `supervisord.conf` the heavy worker also handles `connector_doc_permissions_sync,connector_external_group_sync,csv_generation` (line 61 of `supervisord.conf`).
+
+Meanwhile, the `user_file_processing` worker (line 112 of this file) is assigned `connector_doc_permissions_sync,connector_external_group_sync,csv_generation`, but the `user_file_processing` Celery app only autodiscovers `onyx.background.celery.tasks.user_file_processing` — it has no handlers for doc-permission-sync, external-group-sync, or csv-generation tasks (those are registered on the EE heavy app via `ee.onyx.background.celery.tasks.doc_permission_syncing`, `ee.onyx.background.celery.tasks.external_group_syncing`, and `ee.onyx.background.celery.tasks.query_history`).
+
+This means in the dev environment, any EE `connector_doc_permissions_sync`, `connector_external_group_sync`, or `csv_generation` tasks dispatched to the `user_file_processing` worker will raise a `celery.exceptions.NotRegistered` error and never execute.
+
+The queues `connector_doc_permissions_sync`, `connector_external_group_sync`, and `csv_generation` should be moved to `cmd_worker_heavy` to match the supervisord configuration:
+
+```suggestion
+        ""-Q"",
+        ""connector_pruning,connector_doc_permissions_sync,connector_external_group_sync,csv_generation,sandbox"",
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: backend/scripts/dev_run_background_jobs.py
+Line: 83-85
+
+Comment:
+Queue routing mismatch with supervisord.conf
+
+The heavy worker in `dev_run_background_jobs.py` only handles `connector_pruning,sandbox`, but in `supervisord.conf` the heavy worker also handles `connector_doc_permissions_sync,connector_external_group_sync,csv_generation` (line 61 of `supervisord.conf`).
+
+Meanwhile, the `user_file_processing` worker (line 112 of this file) is assigned `connector_doc_permissions_sync,connector_external_group_sync,csv_generation`, but the `user_file_processing` Celery app only autodiscovers `onyx.background.celery.tasks.user_file_processing` — it has no handlers for doc-permission-sync, external-group-sync, or csv-generation tasks (those are registered on the EE heavy app via `ee.onyx.background.celery.tasks.doc_permission_syncing`, `ee.onyx.background.celery.tasks.external_group_syncing`, and `ee.onyx.background.celery.tasks.query_history`).
+
+This means in the dev environment, any EE `connector_doc_permissions_sync`, `connector_external_group_sync`, or `csv_generation` tasks dispatched to the `user_file_processing` worker will raise a `celery.exceptions.NotRegistered` error and never execute.
+
+The queues `connector_doc_permissions_sync`, `connector_external_group_sync`, and `csv_generation` should be moved to `cmd_worker_heavy` to match the supervisord configuration:
+
+```suggestion
+        ""-Q"",
+        ""connector_pruning,connector_doc_permissions_sync,connector_external_group_sync,csv_generation,sandbox"",
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/9014#discussion_r2882040934,,2026-03-04T06:17:47.284000,Queue routing mismatch causes tasks to fail with NotRegistered error,logic,high,8,"Comment 1 identifies a critical queue routing misconfiguration where tasks for doc_permissions_sync, external_group_sync, and csv_generation would be sent to a worker that doesn't have handlers registered for them, causing celery.exceptions.NotRegistered errors. This is a meaningful bug that would break EE features in the dev environment.",2026-03-04T20:18:34.985271+00:00
+generaltranslation/gt,1061,fix: rtl edge cases,https://github.com/generaltranslation/gt/pull/1061,"**Language fallback overrides explicit LTR script**
+
+When a non-RTL script is successfully detected (e.g., `'latn'` for `ku-Latn`), the code still checks `isRtlLanguage`. This causes locales with an explicit LTR script to be incorrectly classified as `'rtl'` just because the base language code appears in `RTL_LANGUAGES`.
+
+Concrete examples that return incorrect `'rtl'`:
+- `ku-Latn` — Kurdish in Latin script (widely used in Turkey / Europe); `ku` is in `RTL_LANGUAGES` but `latn` is not RTL
+- `sd-Deva` — Sindhi in Devanagari script; `sd` is in `RTL_LANGUAGES` but Devanagari is LTR
+- `ug-Latn` — Uyghur in Latin script; same pattern
+
+If a non-`undefined` script was resolved but is not RTL, that is a definitive signal that the direction is LTR — the language-level fallback should be skipped.
+
+```suggestion
+  // Handle RTL script or language
+  if (isRtlScript(script)) return 'rtl';
+  if (script !== undefined) return 'ltr'; // Script is known and is not RTL → direction is LTR
+  if (isRtlLanguage(language)) return 'rtl';
+
+  return 'ltr';
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/core/src/locales/getLocaleDirection.ts
+Line: 32-36
+
+Comment:
+**Language fallback overrides explicit LTR script**
+
+When a non-RTL script is successfully detected (e.g., `'latn'` for `ku-Latn`), the code still checks `isRtlLanguage`. This causes locales with an explicit LTR script to be incorrectly classified as `'rtl'` just because the base language code appears in `RTL_LANGUAGES`.
+
+Concrete examples that return incorrect `'rtl'`:
+- `ku-Latn` — Kurdish in Latin script (widely used in Turkey / Europe); `ku` is in `RTL_LANGUAGES` but `latn` is not RTL
+- `sd-Deva` — Sindhi in Devanagari script; `sd` is in `RTL_LANGUAGES` but Devanagari is LTR
+- `ug-Latn` — Uyghur in Latin script; same pattern
+
+If a non-`undefined` script was resolved but is not RTL, that is a definitive signal that the direction is LTR — the language-level fallback should be skipped.
+
+```suggestion
+  // Handle RTL script or language
+  if (isRtlScript(script)) return 'rtl';
+  if (script !== undefined) return 'ltr'; // Script is known and is not RTL → direction is LTR
+  if (isRtlLanguage(language)) return 'rtl';
+
+  return 'ltr';
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/generaltranslation/gt/pull/1061#discussion_r2879821363,,2026-03-03T18:18:02.712000,Language fallback incorrectly overrides explicit LTR script detection,logic,high,8,"This is a genuine logic bug where locales with explicit LTR scripts (like ku-Latn, sd-Deva, ug-Latn) would be incorrectly classified as RTL because the language code is in RTL_LANGUAGES, even though the script explicitly indicates LTR direction. This would cause incorrect text rendering for real users of these language variants.",2026-03-04T20:18:34.985271+00:00
+ever-co/ever-gauzy,9560,[chore] Desktop UI/ plugins module and routing,https://github.com/ever-co/ever-gauzy/pull/9560,"**Duplicate store provider — two Akita instances will conflict**
+
+`PluginSettingsStore` now has `@Injectable({ providedIn: 'root' })`, which registers a root-level singleton via the root injector. However, the class is **still explicitly listed** in `plugins.module.ts`'s `providers` array (line 258), which causes Angular to create a **second instance** in the module's child injector.
+
+Akita uses a global store registry keyed by the `name` in `@StoreConfig`. Having two instances of the same store both trying to register as `'pluginSettings'` will either throw a runtime error (`Store with this name already exists`) or silently create split state where changes to one instance are invisible to the other — breaking the entire state layer for plugin settings.
+
+**Fix:** Either remove `PluginSettingsStore` from the `providers` array in `plugins.module.ts` (letting `providedIn: 'root'` handle DI everywhere), or remove `providedIn: 'root'` from the decorator and keep the explicit module provider. Do not do both.",https://github.com/ever-co/ever-gauzy/pull/9560#discussion_r2884737198,,2026-03-04T16:18:47.512000,Duplicate Akita store instances cause state split or runtime error,runtime,high,8,This catches a real Angular/Akita conflict where having both `providedIn: 'root'` and explicit module provider registration creates duplicate store instances. This would cause either a runtime error or silent state splitting where changes are invisible between components - a meaningful bug that would break plugin settings functionality in production.,2026-03-04T20:18:34.985271+00:00
