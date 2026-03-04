@@ -6140,3 +6140,121 @@ posthog/posthog,49720,chore: added new mcp providers,https://github.com/PostHog/
 2. **Incorrect ""Active"" UI state**: In `McpStoreSettings.tsx`, the recommended servers table uses `installedServerUrls.has(server.url)` to determine whether to show the ""Active"" badge. Since both entries share the same URL, installing either one will cause *both* Confluence and Jira rows to show as ""Active"" in the UI — misleading users into thinking they have two separate working connections.
 
 If Atlassian's single endpoint genuinely covers both products, consider merging them into one entry (e.g., ""Confluence & Jira"" or ""Atlassian""). If they are meant to be distinct installations, each needs its own unique URL.",https://github.com/PostHog/posthog/pull/49720#discussion_r2880047794,,2026-03-03T19:20:01.515000,Duplicate MCP URL causes DB constraint violation and wrong UI state,data_integrity,high,8,"This is a meaningful catch identifying that two different MCP providers share the same URL, which would cause a database unique constraint violation preventing users from installing both services. Additionally, it causes incorrect UI state showing both as 'Active' when only one is installed. This is a real bug that would affect users in production and requires understanding of the data model constraints.",2026-03-04T00:47:40.016415+00:00
+getarcaneapp/arcane,1946,"feat(cli): implement missing cli commands (projects, jobs, containers, gitops)",https://github.com/getarcaneapp/arcane/pull/1946,"**`syncCmd` returns exit code 0 on sync failure**
+
+When the sync operation itself reports failure (`result.Data.Success == false`), the command calls `output.Error(...)` but then `return nil`, which exits with code 0. Any script that calls `arcane gitops sync` and checks the exit code (`$?`) will not detect the failure and will silently continue.
+
+```suggestion
+		if result.Data.Success {
+			output.Success(""Sync triggered successfully: %s"", result.Data.Message)
+		} else {
+			errMsg := """"
+			if result.Data.Error != nil {
+				errMsg = *result.Data.Error
+			}
+			return fmt.Errorf(""sync failed: %s %s"", result.Data.Message, errMsg)
+		}
+		return nil
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: cli/pkg/gitops/cmd.go
+Line: 429-438
+
+Comment:
+**`syncCmd` returns exit code 0 on sync failure**
+
+When the sync operation itself reports failure (`result.Data.Success == false`), the command calls `output.Error(...)` but then `return nil`, which exits with code 0. Any script that calls `arcane gitops sync` and checks the exit code (`$?`) will not detect the failure and will silently continue.
+
+```suggestion
+		if result.Data.Success {
+			output.Success(""Sync triggered successfully: %s"", result.Data.Message)
+		} else {
+			errMsg := """"
+			if result.Data.Error != nil {
+				errMsg = *result.Data.Error
+			}
+			return fmt.Errorf(""sync failed: %s %s"", result.Data.Message, errMsg)
+		}
+		return nil
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/getarcaneapp/arcane/pull/1946#discussion_r2880413941,,2026-03-03T20:49:59.388000,Sync command returns success exit code on operation failure,logic,high,8,"The syncCmd returns exit code 0 even when the sync operation fails (result.Data.Success == false), causing scripts and automation that check exit codes to incorrectly assume success and continue. This is a meaningful logic bug that would cause real problems in CI/CD pipelines and automation.",2026-03-04T03:07:02.217571+00:00
+onyx-dot-app/onyx,8993,feat: Add illustrations to `opal`,https://github.com/onyx-dot-app/onyx/pull/8993,"`!!liveAgent` is a static boolean — it is `true` for the entire lifetime of the hook whenever a `liveAgent` is passed, meaning `isLoadingOnboarding` never becomes `false` in that scenario.
+
+In `AppPage.tsx` (line 856–863), the ""disable input during onboarding"" logic gates on `!isLoadingOnboarding`. Because that condition never resolves to `true` when `liveAgent` is set, the onboarding disabled-state guard is silently bypassed for every live-agent session, not just while providers are genuinely loading.
+
+If the intent is to track persona-specific provider fetching, this check should be tied to an actual async loading flag (e.g. a boolean derived from `useLLMProviders`) rather than the static presence of `liveAgent`.
+
+```suggestion
+    isLoading: isLoadingProviders,
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: web/src/hooks/useShowOnboarding.ts
+Line: 244
+
+Comment:
+`!!liveAgent` is a static boolean — it is `true` for the entire lifetime of the hook whenever a `liveAgent` is passed, meaning `isLoadingOnboarding` never becomes `false` in that scenario.
+
+In `AppPage.tsx` (line 856–863), the ""disable input during onboarding"" logic gates on `!isLoadingOnboarding`. Because that condition never resolves to `true` when `liveAgent` is set, the onboarding disabled-state guard is silently bypassed for every live-agent session, not just while providers are genuinely loading.
+
+If the intent is to track persona-specific provider fetching, this check should be tied to an actual async loading flag (e.g. a boolean derived from `useLLMProviders`) rather than the static presence of `liveAgent`.
+
+```suggestion
+    isLoading: isLoadingProviders,
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/8993#discussion_r2880489241,,2026-03-03T21:08:41.242000,Static boolean causes loading state to never resolve for live agents,logic,high,8,"This catches a real logic bug where `isLoadingOnboarding` uses a static boolean (`!!liveAgent`) instead of an actual loading state, causing the onboarding disabled-state guard to be permanently bypassed for all live-agent sessions. This would affect user experience in production by breaking the input disable logic during onboarding.",2026-03-04T03:07:02.217571+00:00
+nvidia/topograph,224,feat(gcp): enable k8s deployment with federated workload identity,https://github.com/NVIDIA/topograph/pull/224,"**Volume name mismatch will crash the pod**
+
+The `volumeMount` name `serviceAccountKeys` (line 77) does not match the corresponding `volume` name `gcpServiceAccountKeys` (line 102). Kubernetes requires these names to match exactly — the pod will fail to start with a `MountVolume.SetUp failed` error because no volume named `serviceAccountKeys` exists.
+
+```suggestion
+            - name: gcpServiceAccountKeys
+              mountPath: /etc/topograph/credentials/gcp-service-account-keys.json
+              readOnly: true
+```",https://github.com/NVIDIA/topograph/pull/224#discussion_r2880324024,,2026-03-03T20:27:51.153000,Volume name mismatch causes pod startup failure,runtime,high,8,"This catches a real production bug where a volumeMount references 'serviceAccountKeys' but the volume is named 'gcpServiceAccountKeys'. This mismatch would cause the pod to fail with a MountVolume.SetUp error, preventing deployment. This is a meaningful runtime bug that would definitely cause problems in production.",2026-03-04T03:07:02.217571+00:00
+browserbase/stagehand,1774,[feat]: add `page.setExtraHTTPHeaders()`,https://github.com/browserbase/stagehand/pull/1774,"**Headers read lazily — concurrent calls may apply the wrong headers**
+
+`applyExtraHTTPHeadersToSession` reads `this.extraHTTPHeaders` at the point where `Network.setExtraHTTPHeaders` is sent — not at the point where `setExtraHTTPHeaders` was called. Because of the `await session.send(""Network.enable"")` suspension point between lines 682 and 683, the event loop can yield control back to the caller. If a second `setExtraHTTPHeaders` call runs and mutates `this.extraHTTPHeaders` during that suspension, **all in-flight `applyExtraHTTPHeadersToSession` coroutines from the first call will send the second call's headers**, not the headers that were originally passed to the first call.
+
+This leads to two problems:
+1. A session may receive headers it should not have received yet.
+2. The `StagehandSetExtraHTTPHeadersError` thrown by the first call would report failures against header values that were actually from the second call.
+
+Capturing the headers as a function parameter (instead of reading `this.extraHTTPHeaders` lazily) eliminates the race:
+
+```typescript
+private async applyExtraHTTPHeadersToSession(
+  session: CDPSessionLike,
+  headers: Record<string, string>,  // snapshot passed in by caller
+): Promise<void> {
+  if (!headers || Object.keys(headers).length === 0) return;
+  await session.send(""Network.enable"");
+  await session.send(""Network.setExtraHTTPHeaders"", { headers });
+}
+```
+
+Then in `setExtraHTTPHeaders`:
+```typescript
+const snapshot = { ...headers };
+this.extraHTTPHeaders = snapshot;
+// ...
+sessions.map((session) => this.applyExtraHTTPHeadersToSession(session, snapshot))
+```
+
+And in `adoptOopifSession`:
+```typescript
+void this.applyExtraHTTPHeadersToSession(childSession, { ...this.extraHTTPHeaders }).catch(() => {});
+```",https://github.com/browserbase/stagehand/pull/1774#discussion_r2880661858,,2026-03-03T21:50:10.068000,Race condition in concurrent setExtraHTTPHeaders applies wrong headers,concurrency,medium,8,Comment 3 identifies a real race condition where concurrent calls to setExtraHTTPHeaders could cause sessions to receive the wrong headers due to async suspension points between Network.enable and Network.setExtraHTTPHeaders. This is a meaningful concurrency bug that could cause incorrect behavior in production when multiple header updates happen in quick succession.,2026-03-04T03:07:02.217571+00:00
