@@ -6379,3 +6379,115 @@ The same fix applies to `startStoppedCmd` at line 143.
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/getarcaneapp/arcane/pull/1946#discussion_r2879976381,,2026-03-03T19:00:00.485000,Missing HTTP status check allows silent failure after destructive operations,logic,high,8,"This catches a meaningful bug where system upgrade and start-stopped commands print success messages without checking HTTP response status, meaning users receive false confirmation that destructive operations succeeded when they actually failed. This could lead to users believing their system is upgrading when it isn't.",2026-03-04T06:26:14.613941+00:00
+posthog/posthog,49743,"fix(Insights): X-axis off by 1 edge case, depending on project TZ",https://github.com/PostHog/posthog/pull/49743,"**`isSubDay` computed before `inferInterval`, breaking UTC conversion for inferred hourly intervals**
+
+`isSubDay` is derived from the *explicitly provided* `interval` before `inferInterval` is ever called. When `interval` is `undefined` and the data turns out to be sub-daily (e.g. hourly UTC strings like `['2025-04-01 00:00:00', '2025-04-01 01:00:00', ...]`), `isSubDay` is `false`, so the timestamps are interpreted as *local* timezone strings rather than being converted from UTC. This means the displayed hour labels will be wrong in any non-UTC timezone for the inferred-hourly case.
+
+Concrete example — `interval: undefined`, `timezone: 'US/Pacific'`, data `['2025-04-01 00:00:00', '2025-04-01 01:00:00']`:
+- **Before this PR**: `dayjsUtcToTimezone` converts midnight UTC → 17:00 PST ✓
+- **After this PR**: `dayjs.tz('2025-04-01 00:00:00', 'US/Pacific')` treats it as midnight PST → displays `00:00` ✗
+
+The new tests in `does not shift month labels across month boundaries ($desc)` only exercise `interval: undefined` with *date-only strings* (which infer to monthly), so this regression is not caught.
+
+A simpler fix that avoids needing to know the interval in advance: branch on whether the string already contains a time component rather than on `interval`. ClickHouse datetime strings (with a time part) are always UTC; date-only strings are logical calendar dates and should be interpreted in the project timezone:
+
+```typescript
+const parsedDates = allDays.map((d) => {
+    const hasTime = d.includes(' ') || d.includes('T')
+    if (hasTime) {
+        // Datetime strings from ClickHouse are UTC — convert to the project timezone.
+        return dayjsUtcToTimezone(d, timezone, false)
+    }
+    // Date-only strings are logical calendar dates; treat midnight in the project timezone.
+    return dayjs.tz(d + ' 00:00:00', timezone)
+})
+```
+
+This also removes the need for the `try/catch` since both branches delegate to well-tested helpers.",https://github.com/PostHog/posthog/pull/49743#discussion_r2880898486,"dayjs.tz throws if it get's something thats not a date.. we should keep it. 
+rest is done",2026-03-03T22:50:50.717000,Timezone conversion regression breaks hour labels for inferred intervals,logic,high,8,"This is a sophisticated catch of a subtle logic bug where the order of operations causes incorrect timezone handling for inferred hourly intervals. The comment provides a concrete example showing how the PR introduces a regression where UTC timestamps get misinterpreted as local time, causing wrong hour labels in non-UTC timezones. The reviewer also explains why the new tests don't catch this case and proposes a cleaner fix.",2026-03-04T08:19:47.938478+00:00
+nvidia/transformerengine,2731,[PyTorch] Support single parameter for `GroupedLinear`,https://github.com/NVIDIA/TransformerEngine/pull/2731,"**`AttributeError` for non-quantized weights when `single_grouped_parameter=True`**
+
+When `weight_quantizers[0]` is `None` (the standard float16/bfloat16 non-FP8 case), the assertion evaluates `weight_quantizers[0].internal`, which raises `AttributeError: 'NoneType' object has no attribute 'internal'` before the assertion message is ever shown.
+
+The guard at line 766 only short-circuits for `delayed()` and `float8_current_scaling()` recipes, not for the `None` quantizer case. Since `make_grouped_tensor` defaults `internal = False` when `quantizer is None`, this code path is reachable and will crash for every non-quantized `GroupedLinear` created with `single_grouped_parameter=True`.
+
+```suggestion
+        # Re-register as a single grouped weight parameter.
+        assert (
+            isinstance(grouped_weights, torch.Tensor)
+            and (weight_quantizers[0] is None or not weight_quantizers[0].internal)
+        ), ""Found internal quantizer with `single_grouped_parameter=True`.""
+```",https://github.com/NVIDIA/TransformerEngine/pull/2731#discussion_r2881769545,,2026-03-04T04:44:48.756000,AttributeError crash when accessing None quantizer's attribute,runtime,high,8,"Comment 1 identifies a real runtime crash where accessing `weight_quantizers[0].internal` will raise AttributeError when the quantizer is None (standard non-FP8 case). This affects every non-quantized GroupedLinear with single_grouped_parameter=True, making it a significant bug that would crash in production.",2026-03-04T08:19:47.938478+00:00
+onyx-dot-app/onyx,8975,refactor: add OnyxErrorCode enum and migrate billing/license routers,https://github.com/onyx-dot-app/onyx/pull/8975,"**HTTPException swallowed and replaced with INTERNAL_ERROR 500**
+
+The `HTTPException` raised on line 157–160 (when `tenant_id` is not found) is immediately caught by the outer `except Exception as e:` on line 166, because `HTTPException` is a subclass of `Exception`. This means a missing-tenant-id condition — which should return a `400 VALIDATION_ERROR` — is instead wrapped and re-raised as a `500 INTERNAL_ERROR`, completely hiding the real cause from the caller.
+
+The fix is to move the tenant-id guard outside the `try` block (matching how `create_checkout_session` and `create_customer_portal_session` are structured in the same file), or to catch `HTTPException` first and re-raise it before the generic handler:
+
+```suggestion
+async def create_subscription_session(
+    request: CreateSubscriptionSessionRequest | None = None,
+    _: User = Depends(current_admin_user),
+) -> SubscriptionSessionResponse:
+    tenant_id = CURRENT_TENANT_ID_CONTEXTVAR.get()
+    if not tenant_id:
+        raise HTTPException(
+            status_code=OnyxErrorCode.VALIDATION_ERROR.status_code,
+            detail=OnyxErrorCode.VALIDATION_ERROR.detail(""Tenant ID not found""),
+        )
+
+    try:
+        billing_period = request.billing_period if request else ""monthly""
+        session_id = fetch_stripe_checkout_session(tenant_id, billing_period)
+        return SubscriptionSessionResponse(sessionId=session_id)
+
+    except Exception as e:
+        logger.exception(""Failed to create subscription session"")
+        raise HTTPException(
+            status_code=OnyxErrorCode.INTERNAL_ERROR.status_code,
+            detail=OnyxErrorCode.INTERNAL_ERROR.detail(str(e)),
+        )
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: backend/ee/onyx/server/tenants/billing_api.py
+Line: 149-171
+
+Comment:
+**HTTPException swallowed and replaced with INTERNAL_ERROR 500**
+
+The `HTTPException` raised on line 157–160 (when `tenant_id` is not found) is immediately caught by the outer `except Exception as e:` on line 166, because `HTTPException` is a subclass of `Exception`. This means a missing-tenant-id condition — which should return a `400 VALIDATION_ERROR` — is instead wrapped and re-raised as a `500 INTERNAL_ERROR`, completely hiding the real cause from the caller.
+
+The fix is to move the tenant-id guard outside the `try` block (matching how `create_checkout_session` and `create_customer_portal_session` are structured in the same file), or to catch `HTTPException` first and re-raise it before the generic handler:
+
+```suggestion
+async def create_subscription_session(
+    request: CreateSubscriptionSessionRequest | None = None,
+    _: User = Depends(current_admin_user),
+) -> SubscriptionSessionResponse:
+    tenant_id = CURRENT_TENANT_ID_CONTEXTVAR.get()
+    if not tenant_id:
+        raise HTTPException(
+            status_code=OnyxErrorCode.VALIDATION_ERROR.status_code,
+            detail=OnyxErrorCode.VALIDATION_ERROR.detail(""Tenant ID not found""),
+        )
+
+    try:
+        billing_period = request.billing_period if request else ""monthly""
+        session_id = fetch_stripe_checkout_session(tenant_id, billing_period)
+        return SubscriptionSessionResponse(sessionId=session_id)
+
+    except Exception as e:
+        logger.exception(""Failed to create subscription session"")
+        raise HTTPException(
+            status_code=OnyxErrorCode.INTERNAL_ERROR.status_code,
+            detail=OnyxErrorCode.INTERNAL_ERROR.detail(str(e)),
+        )
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/8975#discussion_r2879950081,,2026-03-03T18:47:15.171000,"HTTPException swallowed by generic except, returning wrong error code",logic,high,8,"This catches a real bug where a specific HTTPException (400 for missing tenant ID) gets caught by a broad 'except Exception' handler and re-raised as a 500 INTERNAL_ERROR, completely masking the actual error from API callers and making debugging harder. This is a meaningful logic bug that would cause incorrect error responses in production.",2026-03-04T08:19:47.938478+00:00
