@@ -6571,3 +6571,104 @@ The batch delete uses only `inArray(customers.internal_id, ids)` with no `org_id
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/useautumn/autumn/pull/877#discussion_r2883271749,,2026-03-04T11:28:26.508000,Missing org/env guards in batch delete could cause cross-tenant data deletion,security,high,8,"This is a meaningful security/data integrity catch. While internal_id is expected to be unique, the lack of org_id and env guards in a DELETE query creates a potential for cross-tenant data deletion if uniqueness constraints fail or if wrong IDs are passed. The comment correctly identifies this as inconsistent with other methods in the file and represents a real defensive security pattern that should be followed for multi-tenant systems.",2026-03-04T14:24:09.265934+00:00
+posthog/posthog,49609,feat(llm-gateway): use per-request posthog client in llm gateway callback,https://github.com/PostHog/posthog/pull/49609,"**`_truncate_for_capture` removal silently drops oversized events**
+
+The previous code guarded every call to `posthoganalytics.capture` with `_truncate_for_capture`, which capped event payloads at 800 KB by replacing large `$ai_output_choices` / `$ai_input` fields with a marker string. That guard (and its test class `TestTruncateForCapture`) has been deleted wholesale in this PR.
+
+PostHog's ingest pipeline rejects events larger than its configured limit. Without the truncation step, a large LLM response (e.g., a 900 KB completion) will be sent as-is to the new per-request `Posthog` client; the HTTP request will either be silently dropped by PostHog or cause the `client.capture()` call to raise inside the thread-pool future — where the exception is unobserved because the future is fire-and-forget.
+
+The same call site in `_on_failure` is affected:
+
+- `services/llm-gateway/src/llm_gateway/callbacks/posthog.py:221`
+
+If the truncation logic was intentionally removed (e.g., because it is now handled upstream or in the PostHog SDK itself), please add a comment explaining that. Otherwise the truncation should be restored before removing it here.",https://github.com/PostHog/posthog/pull/49609#discussion_r2876830726,,2026-03-03T08:23:55.534000,Removed truncation causes silent event drops for large payloads,data_integrity,high,8,This catch identifies a meaningful data integrity bug where the removal of truncation logic would cause large LLM events (>800KB) to be silently dropped or raise unobserved exceptions in fire-and-forget calls. The reviewer correctly traces through the code change implications and identifies a real production issue that would cause data loss for analytics events on large LLM responses. This is a non-obvious behavioral regression that wouldn't be caught by linters or immediate testing.,2026-03-04T16:23:31.608200+00:00
+posthog/posthog,49815,feat: ticket_number instead of id in URL,https://github.com/PostHog/posthog/pull/49815,"After calling `router.actions.replace(...)` to redirect from UUID to ticket_number URL, the listener continues executing on the old logic instance. Because kea keys logic by `props.id`, changing the URL unmounts the old instance and mounts a new one. However, before unmounting, the old instance continues to call `actions.setTicket`, `actions.loadMessages`, and sets up the message-polling interval. Meanwhile, the fresh instance mounts and triggers `afterMount` → `loadTicket` again, resulting in duplicate API calls.
+
+Add an early `return` to stop the old instance after redirect:
+
+```suggestion
+                // If accessed via UUID, redirect to ticket_number URL for cleaner URLs
+                const isUuid = props.id.toString().includes('-')
+                if (isUuid && ticket.ticket_number) {
+                    router.actions.replace(urls.supportTicketDetail(ticket.ticket_number))
+                    return
+                }
+```",https://github.com/PostHog/posthog/pull/49815#discussion_r2884097693,fixed,2026-03-04T14:26:43.467000,Race condition causes duplicate API calls after URL redirect,concurrency,medium,8,"This is a meaningful concurrency bug where the old Kea logic instance continues executing after URL redirect, causing duplicate API calls and potentially setting up duplicate polling intervals. The reviewer correctly identifies the framework-specific lifecycle behavior that wouldn't be caught by static analysis, and the fix (early return after redirect) is the appropriate solution.",2026-03-04T16:23:31.608200+00:00
+posthog/posthog,49752,fix(feature-flags): fix permissions and duplicate toast for default release conditions,https://github.com/PostHog/posthog/pull/49752,"Unlike the `partial_update` scope downgrade immediately above (lines 1088–1094, which is guarded by `is_session_auth`), this block applies to **all** authenticators. The comment above `partial_update` states:
+
+> NOTE: This downgrade only applies to session-based auth (browser users). All other auth methods (API keys, OAuth tokens, etc.) must have project:write to modify any fields, preserving the semantic meaning of read-only API keys.
+
+With this change, a personal API key scoped to `project:read` can now **PUT** to this endpoint, which contradicts that principle.
+
+If the intent is to preserve the design principle (read-only keys stay read-only), add `is_session_auth` guard similar to `partial_update`. If allowing `project:read` API keys to edit this setting is intentional as a convenience feature, a comment clarifying this deliberate design choice would help future reviewers understand the exception to the pattern above.
+
+**Context Used:** Rule from `dashboard` - Add inline comments to clarify the purpose of significant changes, especially when altering behavior... ([source](https://app.greptile.com/review/custom-context?memory=4d5b48c5-045d-4693-9cd9-4081bb19508b))",https://github.com/PostHog/posthog/pull/49752#discussion_r2881525360,,2026-03-04T02:56:46.995000,Read-only API key can modify project settings via PUT,security,high,9,"This is a significant security vulnerability where the permission scope downgrade was missing an authentication guard, allowing read-only API keys to modify project settings via PUT requests. This contradicts the explicit security design principle stated in the code comments and could lead to unauthorized modifications. The catch required understanding the authorization model and comparing with the adjacent code pattern.",2026-03-04T16:23:31.608200+00:00
+posthog/posthog,49801,fix(vercel): auto-redirect popup to Vercel after linking existing account,https://github.com/PostHog/posthog/pull/49801,"User-controlled URL takes priority for automatic redirect
+
+`nextUrl` (taken from the `?next=` query parameter) is evaluated before the server-side `sessionInfo?.next_url`. Because the redirect is now *automatic* (no user interaction), an attacker who tricks a user into loading this page with a crafted `?next=https://phishing.example` URL will silently redirect them immediately after they link their account — with no opportunity to inspect or cancel.
+
+The server-side `sessionInfo.next_url` is populated from the validated Vercel session stored by the backend and is far more trustworthy. Prefer it over the raw query parameter:
+
+```suggestion
+                const returnUrl = sessionInfo?.next_url || nextUrl
+                if (returnUrl) {
+                    window.location.href = returnUrl
+                }
+```
+
+Alternatively, if `nextUrl` must be supported, validate it against expected Vercel domains before using it (e.g. ensure it starts with `https://vercel.com/`). The same issue exists on the success-page button (`redirectUrl`, line 131) but the user-click requirement provides a small mitigation there.",https://github.com/PostHog/posthog/pull/49801#discussion_r2883669635,,2026-03-04T13:00:27.670000,Open redirect vulnerability enables phishing via automatic redirect,security,high,9,"This is a legitimate open redirect security vulnerability. The user-controlled `?next=` parameter takes priority and triggers an automatic redirect without user interaction, allowing attackers to craft malicious URLs that silently redirect users to phishing sites after authentication. The fix correctly prioritizes the server-validated URL over the user-controlled parameter.",2026-03-04T16:23:31.608200+00:00
+posthog/posthog,49802,fix: Add inner retry loop for quota exceeded errors,https://github.com/PostHog/posthog/pull/49802,"**`AttributeError` on `err.code` will crash the retry loop**
+
+`BigQueryQuotaExceededError` inherits from plain `Exception` and has no `.code` attribute, unlike the other exceptions in this tuple (`TooManyRequests`, `ServiceUnavailable`, etc.) which all inherit from `GoogleAPICallError` and carry a `.code` property.
+
+When a `BigQueryQuotaExceededError` is caught, the very first line of the handler (`error_code=err.code` at line 733) — and again at line 745 — will immediately raise an `AttributeError`, which propagates out of the `while True` loop entirely. This defeats the entire purpose of adding it here: instead of retrying, the export will fail with an unrelated `AttributeError`.
+
+You can fix this by either:
+
+**Option A** — add a `code` property to the custom exception:
+
+```python
+class BigQueryQuotaExceededError(Exception):
+    """"""Exception raised when a BigQuery quota is exceeded.""""""
+
+    code = 429  # mirrors HTTP 429 / TooManyRequests
+
+    def __init__(self, message: str):
+        super().__init__(f""A BigQuery quota has been exceeded. Error: {message}"")
+```
+
+**Option B** — use `getattr` defensively in the handler (applies to both occurrences at lines 733 and 745):
+
+```python
+self.logger.exception(
+    ""LoadJob transient error encountered"", attempt=attempt, backoff=backoff, error_code=getattr(err, ""code"", None)
+)
+```
+and
+```python
+    error_code=getattr(err, ""code"", None),
+```
+",https://github.com/PostHog/posthog/pull/49802#discussion_r2883676972,,2026-03-04T13:02:04.580000,AttributeError crashes retry loop defeating error handling purpose,runtime,high,8,"This is a meaningful runtime bug where accessing `.code` on a custom exception that doesn't have that attribute would crash the retry loop with an AttributeError, completely defeating the purpose of the error handling code. The catch requires understanding the exception hierarchy and recognizing that BigQueryQuotaExceededError inherits from Exception rather than GoogleAPICallError, making this a non-obvious bug that would cause production failures.",2026-03-04T16:23:31.608200+00:00
+cedarjs/cedar,1302,fix(cli): fix live-queries setup output (order and syntax),https://github.com/cedarjs/cedar/pull/1302,"**Idempotency bug: single-line imports not detected on re-runs**
+
+The PR removes `importLineRegex` (which matched single-line imports) and keeps only `multilineImportRegex` (which matches the closing `}` of multiline imports). However, this function always inserts a single-line import (line 181):
+
+```js
+""import { startLiveQueryListener } from 'src/lib/liveQueriesListener'""
+```
+
+On a second run (without `--force`), `multilineImportRegex` will not match this line, so `hasImport` will be `false` and the idempotency guard on line 139 will fail. The import will be inserted again, creating a duplicate.
+
+**Suggested fix:** Keep both regexes:
+
+```js
+const singleLineImportRegex =
+  /^import {[^}]*startLiveQueryListener[^}]*} from ['""]src\/lib\/liveQueriesListener['""];?$/
+
+const multilineImportRegex =
+  /^} from ['""]src\/lib\/liveQueriesListener['""];?$/
+
+const hasImport = contentLines.some((line) =>
+  singleLineImportRegex.test(line) || multilineImportRegex.test(line)
+)
+```",https://github.com/cedarjs/cedar/pull/1302#discussion_r2882669515,,2026-03-04T09:16:15.659000,Idempotency bug causes duplicate import insertion on re-runs,logic,medium,8,"This is a genuine logic bug where removing a regex pattern breaks idempotency checking, causing duplicate imports to be inserted on subsequent CLI runs. The catch requires understanding the interaction between the regex patterns and the inserted content, making it non-obvious. It would cause real problems for users running the setup command multiple times.",2026-03-04T16:23:31.608200+00:00
