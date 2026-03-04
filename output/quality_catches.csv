@@ -6258,3 +6258,124 @@ And in `adoptOopifSession`:
 ```typescript
 void this.applyExtraHTTPHeadersToSession(childSession, { ...this.extraHTTPHeaders }).catch(() => {});
 ```",https://github.com/browserbase/stagehand/pull/1774#discussion_r2880661858,,2026-03-03T21:50:10.068000,Race condition in concurrent setExtraHTTPHeaders applies wrong headers,concurrency,medium,8,Comment 3 identifies a real race condition where concurrent calls to setExtraHTTPHeaders could cause sessions to receive the wrong headers due to async suspension points between Network.enable and Network.setExtraHTTPHeaders. This is a meaningful concurrency bug that could cause incorrect behavior in production when multiple header updates happen in quick succession.,2026-03-04T03:07:02.217571+00:00
+joby-aviation/noodles.gl,340,fix: start GraphExecutor RAF loop and add debug logging,https://github.com/joby-aviation/noodles.gl/pull/340,"**RAF loop never stopped — potential resource leak**
+
+`stopExecutor()` is exported from `transform-graph.ts` but is never called anywhere in the codebase. Now that `updateGraph()` unconditionally starts the loop, the RAF will run forever once the first graph is built — surviving component unmounts, route changes, and HMR reloads. Each HMR cycle that causes the module to re-evaluate will also orphan the old `GraphExecutor`'s loop (its `this.loop` arrow function still holds a closure over the old `this` and keeps calling `requestAnimationFrame` indefinitely with no way to cancel it).
+
+Consider calling `stopExecutor()` in the React `useEffect` cleanup of whichever component owns the graph, or stopping the old executor inside `initializeExecutor()` before replacing it:
+
+```ts
+export function initializeExecutor(options?: ExecutorOptions): GraphExecutor {
+  // Stop the previous executor before replacing it
+  globalExecutor?.stop()
+  globalExecutor = new GraphExecutor(options)
+  ...
+}
+```
+
+**Context Used:** Rule from `dashboard` - Prefer React state (useState, useContext) for component-scoped state, or Zustand for state shared be... ([source](https://app.greptile.com/review/custom-context?memory=6b75e205-aa52-4dcf-9090-96951d636cd7))
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: noodles-editor/src/noodles/graph-executor.ts
+Line: 887-889
+
+Comment:
+**RAF loop never stopped — potential resource leak**
+
+`stopExecutor()` is exported from `transform-graph.ts` but is never called anywhere in the codebase. Now that `updateGraph()` unconditionally starts the loop, the RAF will run forever once the first graph is built — surviving component unmounts, route changes, and HMR reloads. Each HMR cycle that causes the module to re-evaluate will also orphan the old `GraphExecutor`'s loop (its `this.loop` arrow function still holds a closure over the old `this` and keeps calling `requestAnimationFrame` indefinitely with no way to cancel it).
+
+Consider calling `stopExecutor()` in the React `useEffect` cleanup of whichever component owns the graph, or stopping the old executor inside `initializeExecutor()` before replacing it:
+
+```ts
+export function initializeExecutor(options?: ExecutorOptions): GraphExecutor {
+  // Stop the previous executor before replacing it
+  globalExecutor?.stop()
+  globalExecutor = new GraphExecutor(options)
+  ...
+}
+```
+
+**Context Used:** Rule from `dashboard` - Prefer React state (useState, useContext) for component-scoped state, or Zustand for state shared be... ([source](https://app.greptile.com/review/custom-context?memory=6b75e205-aa52-4dcf-9090-96951d636cd7))
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/joby-aviation/noodles.gl/pull/340#discussion_r2881943381,,2026-03-04T05:40:36.149000,RAF loop resource leak on HMR and component unmounts,resource_leak,high,8,"Comment 1 identifies a genuine resource leak where requestAnimationFrame loops are never stopped, causing orphaned loops to accumulate during HMR reloads and component unmounts. This would cause real performance degradation in development and production, with each HMR cycle creating additional runaway RAF loops.",2026-03-04T06:26:14.613941+00:00
+silimate/yosys,114,Vcd fork,https://github.com/Silimate/yosys/pull/114,"Reverse iteration appears incorrect. In SystemVerilog packed structs, the first declared member occupies MSB. If `members` stores handles in declaration order (which `push_back` on line 178 suggests), then iterating with `rbegin/rend` produces last-declared-member-first concatenation, placing it in MSB position instead of LSB. This inverts the bit ordering. Use forward iteration (`begin()` to `end()`) instead.",https://github.com/Silimate/yosys/pull/114#discussion_r2865970756,"yes, whoops",2026-02-27T19:59:57.843000,Reverse iteration inverts bit ordering in packed structs,logic,high,8,"This catch identifies a critical bit ordering bug where reverse iteration would place the last-declared struct member in MSB position instead of LSB, inverting the entire packed struct representation. This would cause data corruption for all packed struct values. The developer confirmed with 'yes, whoops'.",2026-03-04T06:26:14.613941+00:00
+getarcaneapp/arcane,1946,"feat(cli): implement missing cli commands (projects, jobs, containers, gitops)",https://github.com/getarcaneapp/arcane/pull/1946,"**Missing HTTP status check before success message**
+
+Both `upgradeCmd` and `startStoppedCmd` call `c.Post(...)` but never check the HTTP response status before printing a success message. If the server returns a 4xx or 5xx error, the user will still see ""System upgrade initiated"" or ""Started all stopped containers"", silently swallowing the error.
+
+For `upgradeCmd` this is especially dangerous — the user just confirmed a destructive operation and receives false confirmation. Compare with `convertCmd` at line 191 which correctly calls `cmdutil.EnsureSuccessStatus(resp)`.
+
+```suggestion
+	resp, err := c.Post(cmd.Context(), types.Endpoints.SystemUpgrade(c.EnvID()), nil)
+	if err != nil {
+		return fmt.Errorf(""failed to upgrade system: %w"", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if err := cmdutil.EnsureSuccessStatus(resp); err != nil {
+		return fmt.Errorf(""failed to upgrade system: %w"", err)
+	}
+
+	if jsonOutput {
+		var result base.ApiResponse[any]
+		if err := json.NewDecoder(resp.Body).Decode(&result); err == nil {
+			if resultBytes, err := json.MarshalIndent(result.Data, """", ""  ""); err == nil {
+				fmt.Println(string(resultBytes))
+			}
+		}
+		return nil
+	}
+
+	output.Success(""System upgrade initiated"")
+	return nil
+```
+
+The same fix applies to `startStoppedCmd` at line 143.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: cli/pkg/system/cmd.go
+Line: 237-277
+
+Comment:
+**Missing HTTP status check before success message**
+
+Both `upgradeCmd` and `startStoppedCmd` call `c.Post(...)` but never check the HTTP response status before printing a success message. If the server returns a 4xx or 5xx error, the user will still see ""System upgrade initiated"" or ""Started all stopped containers"", silently swallowing the error.
+
+For `upgradeCmd` this is especially dangerous — the user just confirmed a destructive operation and receives false confirmation. Compare with `convertCmd` at line 191 which correctly calls `cmdutil.EnsureSuccessStatus(resp)`.
+
+```suggestion
+	resp, err := c.Post(cmd.Context(), types.Endpoints.SystemUpgrade(c.EnvID()), nil)
+	if err != nil {
+		return fmt.Errorf(""failed to upgrade system: %w"", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if err := cmdutil.EnsureSuccessStatus(resp); err != nil {
+		return fmt.Errorf(""failed to upgrade system: %w"", err)
+	}
+
+	if jsonOutput {
+		var result base.ApiResponse[any]
+		if err := json.NewDecoder(resp.Body).Decode(&result); err == nil {
+			if resultBytes, err := json.MarshalIndent(result.Data, """", ""  ""); err == nil {
+				fmt.Println(string(resultBytes))
+			}
+		}
+		return nil
+	}
+
+	output.Success(""System upgrade initiated"")
+	return nil
+```
+
+The same fix applies to `startStoppedCmd` at line 143.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/getarcaneapp/arcane/pull/1946#discussion_r2879976381,,2026-03-03T19:00:00.485000,Missing HTTP status check allows silent failure after destructive operations,logic,high,8,"This catches a meaningful bug where system upgrade and start-stopped commands print success messages without checking HTTP response status, meaning users receive false confirmation that destructive operations succeeded when they actually failed. This could lead to users believing their system is upgrading when it isn't.",2026-03-04T06:26:14.613941+00:00
