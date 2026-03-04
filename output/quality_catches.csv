@@ -6972,3 +6972,55 @@ ever-co/ever-gauzy,9560,[chore] Desktop UI/ plugins module and routing,https://g
 Akita uses a global store registry keyed by the `name` in `@StoreConfig`. Having two instances of the same store both trying to register as `'pluginSettings'` will either throw a runtime error (`Store with this name already exists`) or silently create split state where changes to one instance are invisible to the other — breaking the entire state layer for plugin settings.
 
 **Fix:** Either remove `PluginSettingsStore` from the `providers` array in `plugins.module.ts` (letting `providedIn: 'root'` handle DI everywhere), or remove `providedIn: 'root'` from the decorator and keep the explicit module provider. Do not do both.",https://github.com/ever-co/ever-gauzy/pull/9560#discussion_r2884737198,,2026-03-04T16:18:47.512000,Duplicate Akita store instances cause state split or runtime error,runtime,high,8,This catches a real Angular/Akita conflict where having both `providedIn: 'root'` and explicit module provider registration creates duplicate store instances. This would cause either a runtime error or silent state splitting where changes are invisible between components - a meaningful bug that would break plugin settings functionality in production.,2026-03-04T20:18:34.985271+00:00
+gtbitsofgood/hope-for-haiti,290,Ezra/280 advanced table filters,https://github.com/GTBitsOfGood/hope-for-haiti/pull/290,"Post-query filtering after pagination breaks expected behavior - filtering happens AFTER the database query (which already applied pagination), so users see incomplete results. For example, with 100 total offers where 20 match the filter, if pageSize=20, only the first 20 offers are queried, then filtered down to maybe 2-3 results, leaving 17+ empty slots on the page.
+
+This needs to be either: 1) moved before the database query as a WHERE clause, or 2) the total count needs to reflect post-filter results and pagination recalculated.",https://github.com/GTBitsOfGood/hope-for-haiti/pull/290#discussion_r2839079443,"@greptile review
+---
+@greptile review
+---
+yay",2026-02-23T04:56:50.602000,Post-pagination filtering breaks pagination and returns incomplete results,logic,high,8,"This catch identifies a significant logic bug where filtering happens after pagination, causing users to see incomplete results (e.g., requesting 20 items but receiving only 2-3). This would cause real user-facing problems and data display issues in production.",2026-03-04T22:16:24.522023+00:00
+posthog/posthog-js,3191,fix(replay): fall back to persisted config when remote config fetch fails,https://github.com/PostHog/posthog-js/pull/3191,"**`sessionRecording: false` no longer stops in-progress recording**
+
+With `_receivedFlags` removed, `initialize()` now calls `startIfEnabledOrStop()` immediately. If a fresh cached config (within the 5-minute TTL) says `enabled: true`, recording starts before the remote config response arrives. When the server then responds with `sessionRecording: false`, this branch returns early without either updating the persisted config or stopping the already-running recording.
+
+Concrete scenario:
+1. Recording was enabled on the previous page load (persisted config: `enabled: true`, fresh timestamp)
+2. An operator disables recording in the PostHog UI
+3. User returns within 5 minutes → `initialize()` starts recording from cache
+4. `onRemoteConfig({ sessionRecording: false })` arrives → we hit this `return` and do nothing
+5. Recording continues for the rest of the session despite being explicitly disabled server-side
+
+The `false` branch should persist the disabled state and call `startIfEnabledOrStop()` so `stopRecording()` is triggered. For example:
+
+```suggestion
+if (response.sessionRecording === false) {
+    this._persistRemoteConfig(response)   // persists enabled: false
+    this.startIfEnabledOrStop()           // _isRecordingEnabled → false → stopRecording()
+    return
+}
+```
+
+`_persistRemoteConfig` already handles this correctly: when `response.sessionRecording === false` it maps `sessionRecordingConfigResponse` to `undefined` and stores `enabled: false`, so `_isRecordingEnabled` would return false and `stopRecording()` would be called.",https://github.com/PostHog/posthog-js/pull/3191#discussion_r2879295118,This is a valid comment - changed the code to stop recording if the remote config comes in (with recording disabled) after the local copy has caused recording to start. However instead of using stopRecording I added a new discardRecording which stops the recorder but clears the buffer instead of flushing it.,2026-03-03T16:32:30.220000,Recording continues despite server-side disable due to missing stop call,logic,high,8,"This is a meaningful logic bug where disabling session recording server-side would fail to stop already-running recordings. The comment identifies a concrete scenario where cached config starts recording before remote config arrives, and the early return prevents both persisting the disabled state and calling stopRecording(). This has real user impact - recordings continue despite being explicitly disabled, which could have privacy/compliance implications.",2026-03-04T22:16:24.522023+00:00
+gptme/gptme,1588,feat(tauri): merge gptme-tauri into monorepo under tauri/ (subtree),https://github.com/gptme/gptme/pull/1588,"**Linux production CORS origin mismatch**
+
+In Tauri v2, the webview's reported `Origin` header differs by platform:
+- macOS: `tauri://localhost`
+- Linux: `http://tauri.localhost`
+- Windows: `https://tauri.localhost`
+
+The hardcoded `""tauri://localhost""` CORS value passed to `gptme-server --cors-origin` will cause the server to reject all API requests from the Linux AppImage, making the app non-functional in the Linux release build. Since the release matrix actively produces a Linux AppImage (ubuntu-24.04), this is a breaking issue for that artifact.
+
+```suggestion
+                // Determine CORS origin based on build mode and platform
+                let cors_origin = if cfg!(debug_assertions) {
+                    ""http://localhost:5701"" // Dev mode
+                } else if cfg!(target_os = ""linux"") {
+                    ""http://tauri.localhost"" // Linux production
+                } else if cfg!(target_os = ""windows"") {
+                    ""https://tauri.localhost"" // Windows production
+                } else {
+                    ""tauri://localhost"" // macOS production
+                };
+```
+
+The same issue exists in the `start_server` IPC command (lines 72–76) and should be updated consistently.",https://github.com/gptme/gptme/pull/1588#discussion_r2883870746,"✅ Fixed in commit 4f5ed21 — production mode now uses `http://tauri.localhost` on Linux/Windows and `tauri://localhost` on macOS via `cfg\!(target_os = ""macos"")`.",2026-03-04T13:42:02.405000,Linux CORS origin mismatch breaks API requests in production,runtime,high,8,"This identifies a platform-specific bug where hardcoded CORS origin 'tauri://localhost' works on macOS but fails on Linux (which uses 'http://tauri.localhost'), causing all API requests to be rejected and making the Linux AppImage release completely non-functional.",2026-03-04T22:16:24.522023+00:00
