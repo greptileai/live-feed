@@ -6494,3 +6494,15 @@ How can I resolve this? If you propose a fix, please make it concise.
 raycast/extensions,25218,Add unified Wispr Flow extension,https://github.com/raycast/extensions/pull/25218,"**SQL injection via dbPath**
 
 `writeSQL()` builds a shell command using `sqlite3 ""${dbPath}""`. If a user sets a custom Database Path containing a double quote (`""`) or shell metacharacters, it can break out of the quoted argument and execute arbitrary shell syntax when write actions run (archive/undo, dictionary edits). Preferences are user-controlled input, so `dbPath` must be safely passed without shell interpolation (e.g., use `execFileSync(""sqlite3"", [dbPath], { input: sql, ... })` in `db.ts`).",https://github.com/raycast/extensions/pull/25218#discussion_r2789394408,,2026-02-10T17:47:58.731000,SQL injection via shell metacharacters in database path,security,high,8,"This identifies a genuine security vulnerability where user-controlled preferences (database path) could contain shell metacharacters that break out of quoted arguments in execSync, enabling arbitrary shell command execution. This is a real injection vector in production code.",2026-03-04T10:20:45.091234+00:00
+posthog/posthog,49581,feat: error tracking insights page,https://github.com/PostHog/posthog/pull/49581,"**Summary stats never load on initial mount.**
+
+The `afterMount` hook only fires a PostHog analytics event but never calls `actions.loadSummaryStats()`. On first load of the Insights tab (when all URL params match their defaults), the `urlToAction` handler finds all param values equal to initial state values, so none of the dispatching conditions trigger. The `mergedFilterGroup` subscription only fires on *changes*, not on initial assignment. As a result, `summaryStats` remains `null` and all four stat cards permanently display ""—"" until the user manually changes a filter.
+
+The fix is to also trigger the initial load inside `afterMount`:
+
+```suggestion
+    afterMount(({ actions }) => {
+        posthog.capture('error_tracking_insights_viewed')
+        actions.loadSummaryStats()
+    }),
+```",https://github.com/PostHog/posthog/pull/49581#discussion_r2879226606,Fixed,2026-03-03T16:19:41.032000,Summary stats never load on initial page mount,logic,high,8,"This is a meaningful logic bug where the summary stats would never load on initial mount, leaving users with permanent placeholder values until they manually change a filter. The analysis correctly identifies the interaction between afterMount, urlToAction, and the subscription behavior that causes this issue. This would definitely affect users in production and isn't an obvious catch since it requires understanding the lifecycle of multiple Kea logic hooks.",2026-03-04T12:24:17.588645+00:00
