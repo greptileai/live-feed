@@ -6506,3 +6506,68 @@ The fix is to also trigger the initial load inside `afterMount`:
         actions.loadSummaryStats()
     }),
 ```",https://github.com/PostHog/posthog/pull/49581#discussion_r2879226606,Fixed,2026-03-03T16:19:41.032000,Summary stats never load on initial page mount,logic,high,8,"This is a meaningful logic bug where the summary stats would never load on initial mount, leaving users with permanent placeholder values until they manually change a filter. The analysis correctly identifies the interaction between afterMount, urlToAction, and the subscription behavior that causes this issue. This would definitely affect users in production and isn't an obvious catch since it requires understanding the lifecycle of multiple Kea logic hooks.",2026-03-04T12:24:17.588645+00:00
+posthog/posthog,49092,chore(devex): Upgrade @testing-library libs + reduce output of test:unit command,https://github.com/PostHog/posthog/pull/49092,"**Dependency array causes effect to re-run on every render**
+
+The `useRef`-based pattern that was removed had an explicit comment explaining its purpose: avoiding adding `refs` to the dependency array because it's typically an inline array (e.g. `[floatingRef, referenceRef, ...additionalRefs]` in `Popover.tsx`), which creates a new reference on every render.
+
+With the new dependency array `[refs, extraDeps, exceptTagNames, handleClickOutside]`, all four dependencies are new object/function references on every render in the primary callsite (`Popover.tsx`):
+
+- `refs` is `visible ? [floatingRef, referenceRef, ...additionalRefs] : []` — new array each render
+- `extraDeps` is `[visible]` — new array each render  
+- `handleClickOutside` is an inline arrow function — new reference each render
+
+This means document event listeners will be detached and re-attached on **every render** of `Popover`, which is a significant performance regression.
+
+Additionally, the semantics of `extraDeps` have changed: previously `extraDeps` *was* the entire dependency array, so callers could write `extraDeps={[visible]}` and the effect would re-run when `visible` changed. Now `extraDeps` is a single element compared by reference, so value changes inside the array won't trigger a re-run unless the array reference itself changes — which happens every render.
+
+Consider restoring the `useRef` pattern or stabilising the inputs at the call sites instead.",https://github.com/PostHog/posthog/pull/49092#discussion_r2878956868,,2026-03-03T15:31:27.646000,useEffect dependency array causes event listener churn on every render,performance,high,8,"This comment identifies a significant performance regression where document event listeners will be detached and re-attached on every render due to unstable dependency references. The analysis is thorough, explaining the specific callsite patterns that cause the issue and how the semantic meaning of extraDeps changed. This would cause real performance problems in production for Popover components.",2026-03-04T14:24:09.265934+00:00
+posthog/posthog,49796,fix(signals): Paginate fetch_video_segment_rows,https://github.com/PostHog/posthog/pull/49796,"**Non-deterministic ordering breaks offset-based pagination**
+
+`ORDER BY timestamp ASC` is used as the sort key for `LIMIT/OFFSET` pagination, but `timestamp` is unlikely to be unique across rows. If two or more rows share the same `timestamp` value, ClickHouse may return them in an arbitrary order — and that order may differ from one page query to the next. This can cause rows to be **skipped** or **duplicated** across page boundaries.
+
+To make pagination deterministic, add a stable secondary sort key, e.g. `document_id`:
+
+```suggestion
+                    ORDER BY timestamp ASC, document_id ASC
+                    LIMIT {page_size}
+                    OFFSET {offset}""""""
+```",https://github.com/PostHog/posthog/pull/49796#discussion_r2883599739,"Hmm, indeed, I haven't checked if timestamp conflicts. But this will certainly solve it, so let's use this",2026-03-04T12:44:56.289000,Non-deterministic pagination causes skipped or duplicated rows,data_integrity,high,8,"This is a meaningful data integrity bug - offset-based pagination without a unique sort key can cause rows to be skipped or duplicated across pages, leading to incorrect clustering results. This is a subtle issue that wouldn't be caught by linters or tests, and would cause real production problems with data processing.",2026-03-04T14:24:09.265934+00:00
+useautumn/autumn,877,feat: 🎸 move pricing agent to use a safer delete query,https://github.com/useautumn/autumn/pull/877,"**Delete query lacks `org_id`/`env` guard**
+
+The batch delete uses only `inArray(customers.internal_id, ids)` with no `org_id` or `env` filter. While `internal_id` is expected to be globally unique (acting as a primary key), adding the extra filter is a safer, more defensive pattern consistent with how `deleteByInternalId` and other methods in this file are written, and it prevents any risk if `internal_id` uniqueness is ever not enforced at the DB level.
+
+```suggestion
+			await db.delete(customers).where(
+				and(
+					inArray(customers.internal_id, ids),
+					eq(customers.org_id, orgId),
+					eq(customers.env, env),
+				),
+			);
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: server/src/internal/customers/CusService.ts
+Line: 462
+
+Comment:
+**Delete query lacks `org_id`/`env` guard**
+
+The batch delete uses only `inArray(customers.internal_id, ids)` with no `org_id` or `env` filter. While `internal_id` is expected to be globally unique (acting as a primary key), adding the extra filter is a safer, more defensive pattern consistent with how `deleteByInternalId` and other methods in this file are written, and it prevents any risk if `internal_id` uniqueness is ever not enforced at the DB level.
+
+```suggestion
+			await db.delete(customers).where(
+				and(
+					inArray(customers.internal_id, ids),
+					eq(customers.org_id, orgId),
+					eq(customers.env, env),
+				),
+			);
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/useautumn/autumn/pull/877#discussion_r2883271749,,2026-03-04T11:28:26.508000,Missing org/env guards in batch delete could cause cross-tenant data deletion,security,high,8,"This is a meaningful security/data integrity catch. While internal_id is expected to be unique, the lack of org_id and env guards in a DELETE query creates a potential for cross-tenant data deletion if uniqueness constraints fail or if wrong IDs are passed. The comment correctly identifies this as inconsistent with other methods in the file and represents a real defensive security pattern that should be followed for multi-tenant systems.",2026-03-04T14:24:09.265934+00:00
