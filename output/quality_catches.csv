@@ -7553,3 +7553,88 @@ When `data.stats.Executions` is empty or `StartTimeMs` is `undefined`, `Number(u
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/ydb-platform/ydb-embedded-ui/pull/3527#discussion_r2888812111,,2026-03-05T09:34:44.475000,Number(undefined) produces NaN corrupting query history sort order,data_integrity,high,8,"This catch identifies that `Number(undefined)` evaluates to `NaN`, which corrupts the query's startTime field. This breaks sort order in the current session and after page reload (since JSON serializes NaN to null), the backward-compatibility path cannot recover. This is a meaningful data integrity bug affecting user experience.",2026-03-05T14:26:39.127513+00:00
+nvidia/transformerengine,2680,[JAX] Integrate BF16 Grouped GEMM with on-device group sizes,https://github.com/NVIDIA/TransformerEngine/pull/2680,"**Nested function definition — compilation error on cuBLAS < 13.2**
+
+The fallback stub for `nvte_grouped_gemm_setup_workspace_size` (inside the `#else  // CUBLAS_VERSION < 130200` block) accidentally repeats the function signature on line 669, creating a nested function definition inside the outer function body. Nested (non-lambda) function definitions are not valid C++, so any build that links against a cuBLAS version older than 13.2 will fail to compile with an error along the lines of:
+
+```
+error: function definition is not allowed here
+```
+
+The inner function body should be placed directly in the outer function, not in a nested definition:
+
+```suggestion
+size_t nvte_grouped_gemm_setup_workspace_size(size_t num_tensors) {
+  NVTE_ERROR(
+      ""nvte_grouped_gemm_setup_workspace_size requires cuBLAS 13.2+, but compile-time cuBLAS ""
+      ""version is "",
+      CUBLAS_VERSION, "". Please upgrade to CUDA 13.2 or newer."");
+  return 0;
+}
+```",https://github.com/NVIDIA/TransformerEngine/pull/2680#discussion_r2885330461,,2026-03-04T18:15:41.216000,Nested function definition causes compilation error on older cuBLAS,runtime,high,8,"This catches a genuine compilation error where a function definition is accidentally nested inside another function body, which is invalid C++. This would break builds for any user with cuBLAS < 13.2, causing a hard compilation failure that affects a significant user population.",2026-03-05T17:26:55.542499+00:00
+run-ai/runai-model-streamer,129,align cuda tensors to 512 bytes,https://github.com/run-ai/runai-model-streamer/pull/129,"**ZeroDivisionError when alignment is 0**
+
+If `RUNAI_STREAMER_CUDA_ALIGNMENT=0` is set via the environment variable, `get_dist_buffer_alignment()` returns `0`, and the modulo expression `(-data_buffer_raw.data_ptr()) % alignment` (with `alignment=0`) raises a `ZeroDivisionError`. The helper `aligned_offset` correctly guards against this with `if alignment <= 1: return current_offset`, but the buffer-slicing code in `get_chunks` has no such guard.
+
+```suggestion
+        data_buffer = data_buffer_raw if alignment <= 1 else data_buffer_raw[(-data_buffer_raw.data_ptr()) % alignment:]
+        received_buffer = received_buffer_raw if alignment <= 1 else received_buffer_raw[(-received_buffer_raw.data_ptr()) % alignment:]
+```
+
+Alternatively, you can validate in `get_dist_buffer_alignment` that the returned value is at least `1`.",https://github.com/run-ai/runai-model-streamer/pull/129#discussion_r2889750555,,2026-03-05T12:40:22.829000,ZeroDivisionError when alignment environment variable is zero,runtime,high,8,"Comment 8 identifies a real runtime crash (ZeroDivisionError) that would occur when RUNAI_STREAMER_CUDA_ALIGNMENT=0 is set. The modulo operation with alignment=0 in the buffer-slicing code lacks the guard that exists in aligned_offset, causing a production crash. This is a meaningful bug with clear impact.",2026-03-05T17:26:55.542499+00:00
+twentyhq/twenty,18427,`[SDK]` Pure ESM,https://github.com/twentyhq/twenty/pull/18427,"**Global `require()` not available in pure ESM**
+
+The call `require(tempFile)` at line 91 relies on the CJS global `require`, which is **not available** in pure ESM module scope. This PR's stated goal is Pure ESM, yet this file already imports `createRequire` from `'module'` to create `appRequire` (line 55) for resolving React paths. The same mechanism should be used to actually load the compiled CJS temp file.
+
+Because `tempFile` is an absolute path, the resolution context of `createRequire` does not affect the lookup — `appRequire(tempFile)` would behave identically to the global `require(tempFile)` when loading by absolute path, while being ESM-safe.
+
+```suggestion
+    return appRequire(tempFile) as Record<string, unknown>;
+```
+
+Alternatively, if `appRequire` is not in scope where the temp file is loaded, a dedicated `createRequire(import.meta.url)(tempFile)` would also work.",https://github.com/twentyhq/twenty/pull/18427#discussion_r2890854448,,2026-03-05T15:49:22.222000,Global require() breaks in pure ESM module context,runtime,high,8,This is a meaningful runtime bug - using global `require()` in a pure ESM module would cause a runtime error since `require` is not defined in ESM scope. The catch is particularly valuable because it directly contradicts the PR's stated goal (Pure ESM) and the fix is non-obvious (using the already-imported `createRequire` mechanism). This would break functionality in production when the code runs as ESM.,2026-03-05T17:26:55.542499+00:00
+posthog/posthog,49969,chore(modeling): don't slam clickhouse just to test v2 workflow with duckgres,https://github.com/PostHog/posthog/pull/49969,"**Missing return value in `v2_only` path causes `AttributeError` in caller**
+
+When `inputs.v2_only=True`, the entire `if not inputs.v2_only:` block is skipped and the `run()` method implicitly returns `None`. However, the declared return type is `MaterializeViewWorkflowResult`, and the caller in `execute_dag.py` (lines 302–308) does:
+
+```python
+result: MaterializeViewWorkflowResult = await handle
+node_results.append(
+    NodeResult(
+        ...
+        rows_materialized=result.rows_materialized,
+        duration_seconds=result.duration_seconds,
+    )
+)
+```
+
+Accessing `.rows_materialized` and `.duration_seconds` on `None` will raise `AttributeError` for every workflow execution where `v2_only=True`. The workflow needs to either await the `duckgres_shadow_handle` and derive a result from it, or return a sentinel/empty `MaterializeViewWorkflowResult` in the `v2_only` path.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: posthog/temporal/data_modeling/workflows/materialize_view.py
+Line: 138-280
+
+Comment:
+**Missing return value in `v2_only` path causes `AttributeError` in caller**
+
+When `inputs.v2_only=True`, the entire `if not inputs.v2_only:` block is skipped and the `run()` method implicitly returns `None`. However, the declared return type is `MaterializeViewWorkflowResult`, and the caller in `execute_dag.py` (lines 302–308) does:
+
+```python
+result: MaterializeViewWorkflowResult = await handle
+node_results.append(
+    NodeResult(
+        ...
+        rows_materialized=result.rows_materialized,
+        duration_seconds=result.duration_seconds,
+    )
+)
+```
+
+Accessing `.rows_materialized` and `.duration_seconds` on `None` will raise `AttributeError` for every workflow execution where `v2_only=True`. The workflow needs to either await the `duckgres_shadow_handle` and derive a result from it, or return a sentinel/empty `MaterializeViewWorkflowResult` in the `v2_only` path.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/49969#discussion_r2889362821,,2026-03-05T11:20:03.817000,Missing return causes AttributeError when v2_only flag enabled,runtime,high,8,"This is a genuine runtime bug where a new code path (v2_only=True) skips the main logic block and implicitly returns None, but the caller expects a MaterializeViewWorkflowResult object and accesses its attributes. This would cause an AttributeError in production for every workflow execution with v2_only=True, not something caught by static analysis alone since it requires understanding the cross-file data flow.",2026-03-05T17:26:55.542499+00:00
