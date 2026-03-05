@@ -7488,3 +7488,68 @@ silimate/yosys,115,Sat clkgate,https://github.com/Silimate/yosys/pull/115,"Missi
 		                    ID($dffsre), ID($_DFF_P_), ID($_DFF_N_), ID($_DFFE_PP_),
 		                    ID($_DFFE_PN_), ID($_DFFE_NP_), ID($_DFFE_NN_)))
 ```",https://github.com/Silimate/yosys/pull/115#discussion_r2866083630,,2026-02-27T20:30:04.854000,Missing flip-flop types causes incorrect BFS graph traversal,logic,high,8,"This catches a genuine logic bug where the BFS traversal is missing several flip-flop types that are handled elsewhere in the codebase. This inconsistency would cause the algorithm to incorrectly traverse through registers instead of stopping at them, leading to wrong circuit analysis results. The catch required understanding the domain-specific pattern across multiple locations in the file.",2026-03-05T12:26:54.747789+00:00
+gptme/gptme-contrib,343,feat: add gptme-sessions package for session tracking and analytics,https://github.com/gptme/gptme-contrib/pull/343,"**`with_suffix("".jsonl.tmp"")` raises `ValueError` on Python 3.12+**
+
+Python 3.12 introduced a validation that rejects suffixes containing internal dots (i.e., any dot after the leading one). `"".jsonl.tmp""` contains an internal dot, so this line raises `ValueError: Invalid suffix '.jsonl.tmp'` on Python 3.12+ — meaning every call to `rewrite()` will crash on that runtime, despite the package declaring `requires-python = "">=3.10""` and listing Python 3.12 in its classifiers.
+
+The fix is to append `.tmp` to the full filename rather than replacing the suffix:
+
+```suggestion
+        tmp_path = self.path.with_name(self.path.name + "".tmp"")
+```
+
+This produces `session-records.jsonl.tmp` on all Python versions without invoking `with_suffix`'s validation.",https://github.com/gptme/gptme-contrib/pull/343#discussion_r2884298127,,2026-03-04T15:02:04.444000,Python 3.12+ crash from invalid suffix in atomic rewrite,runtime,high,8,"This catches a guaranteed crash on Python 3.12+ where `with_suffix('.jsonl.tmp')` raises ValueError due to stricter suffix validation. The package declares support for Python 3.10+ and lists 3.12 in classifiers, meaning every call to `rewrite()` would crash in production on newer Python versions.",2026-03-05T14:26:39.127513+00:00
+nvidia/dali,6245,Add non-cooperative jobs to new ThreadPool,https://github.com/NVIDIA/DALI/pull/6245,"**`wait_started_` poisoned when `executor_ == nullptr`**
+
+`wait_started_` is set to `true` at line 34 before the `executor_ == nullptr` guard at line 41. If `Wait()` is called on a job that has tasks but has not yet been `Run()`, the exception `""This job hasn't been run - cannot wait for it.""` is correctly thrown — but `wait_started_` remains `true` while `wait_completed_` remains `false`.
+
+A subsequent call sequence like:
+
+```cpp
+Job job;
+job.AddTask([]() {});
+try { job.Wait(); } catch (...) {}  // forgot to Run first
+job.Run(tp, false);
+job.Wait();  // ← throws ""already been waited for"" — wrong!
+```
+
+…silently fails to wait for the job, and then the destructor throws `""The job is not empty, but hasn't been discarded or waited for.""` because `wait_completed_` is never set. The error message seen by the caller is also misleading since the job was never successfully waited for.
+
+**Fix:** Move all precondition checks (the `executor_ == nullptr` and non-cooperative reentrance checks) above the `wait_started_ = true` assignment, so the flag is only mutated when the wait is actually going to proceed.",https://github.com/NVIDIA/DALI/pull/6245#discussion_r2879685009,,2026-03-03T17:49:34.669000,State corruption when Wait() throws before completing,logic,high,8,"Comment 0 identifies a real bug where `wait_started_` gets set to true before precondition checks, causing the job object to become permanently poisoned if an exception is thrown. This leads to incorrect error messages and potential resource leaks when the destructor throws. This is a meaningful logic bug that would cause problems in production.",2026-03-05T14:26:39.127513+00:00
+ydb-platform/ydb-embedded-ui,3527,feat(QueriesHistory): redesign,https://github.com/ydb-platform/ydb-embedded-ui/pull/3527,"**`Number(StartTimeMs)` produces `NaN` when execution stats are absent**
+
+When `data.stats.Executions` is empty or `StartTimeMs` is `undefined`, `Number(undefined)` evaluates to `NaN` and is stored as the query's `startTime`. This corrupts sort order in the current session. After page reload, JSON serializes `NaN` to `null`, and since `endTime` is no longer persisted in this new code, the backward-compatibility path cannot recover the start time.
+
+```suggestion
+        const {DurationUs, Executions: [{StartTimeMs}] = [{}]} = data.stats;
+        return {
+            startTime: StartTimeMs !== undefined ? Number(StartTimeMs) : undefined,
+            durationUs: DurationUs,
+            status,
+        };
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: src/store/reducers/query/api.ts
+Line: 60-75
+
+Comment:
+**`Number(StartTimeMs)` produces `NaN` when execution stats are absent**
+
+When `data.stats.Executions` is empty or `StartTimeMs` is `undefined`, `Number(undefined)` evaluates to `NaN` and is stored as the query's `startTime`. This corrupts sort order in the current session. After page reload, JSON serializes `NaN` to `null`, and since `endTime` is no longer persisted in this new code, the backward-compatibility path cannot recover the start time.
+
+```suggestion
+        const {DurationUs, Executions: [{StartTimeMs}] = [{}]} = data.stats;
+        return {
+            startTime: StartTimeMs !== undefined ? Number(StartTimeMs) : undefined,
+            durationUs: DurationUs,
+            status,
+        };
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/ydb-platform/ydb-embedded-ui/pull/3527#discussion_r2888812111,,2026-03-05T09:34:44.475000,Number(undefined) produces NaN corrupting query history sort order,data_integrity,high,8,"This catch identifies that `Number(undefined)` evaluates to `NaN`, which corrupts the query's startTime field. This breaks sort order in the current session and after page reload (since JSON serializes NaN to null), the backward-compatibility path cannot recover. This is a meaningful data integrity bug affecting user experience.",2026-03-05T14:26:39.127513+00:00
