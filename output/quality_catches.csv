@@ -7466,3 +7466,25 @@ execFile(""open"", [""-n"", ""-a"", ""Ghostty"", ""--args"", ""-e"", ""/bin/zsh"
 ```",https://github.com/raycast/extensions/pull/25697#discussion_r2837972881,,2026-02-22T14:33:18.400000,Command injection vulnerability via unescaped shell metacharacters,security,high,8,This is a legitimate command injection vulnerability where malicious service URLs containing single quotes or shell metacharacters could escape the AppleScript/shell context and execute arbitrary commands. The comment provides concrete exploit examples and a safer fix using execFile to avoid shell interpretation.,2026-03-05T08:22:54.554583+00:00
 raycast/extensions,24338,Update projects extension,https://github.com/raycast/extensions/pull/24338,"**Unquoted path in exec**
 The `execp` command interpolates `path` directly into `mdfind -onlyin ${path} ...` (all-projects-cache-builder-v2.ts:29-31). If a user’s scan path contains spaces (common, e.g. `~/Projects/Client Work`) the command will break; if it contains shell metacharacters, it can alter what gets executed. This should be properly quoted/escaped (or avoid the shell by using `spawn` with args) before merging.",https://github.com/raycast/extensions/pull/24338#discussion_r2794409963,,2026-02-11T16:56:53.359000,Command injection via unquoted path in shell exec,security,high,8,This catches a real security/correctness bug where user-controlled paths containing spaces or shell metacharacters could break command execution or potentially allow command injection. The fix properly quotes the path variable to prevent both issues.,2026-03-05T08:22:54.554583+00:00
+posthog/posthog,49699,refactor: Workflows destination now calls hog function API,https://github.com/PostHog/posthog/pull/49699,"HTTP errors silently ignored
+
+`session.post()` is awaited but the response is never checked. If the hog function API returns a 4xx or 5xx status code (e.g., the function is not found, validation fails, or the server is overloaded), the error is swallowed and the record will still be counted as successfully exported in `BatchExportResult`. This causes silent data loss with no retry.
+
+```suggestion
+    async def consume_chunk(self, data: bytes):
+        response = await self.session.post(
+            self.url,
+            # Data is already JSON encoded, so we can't use json=data.
+            data=b'{""clickhouse_event"":' + data + b""}"",
+            headers={""Content-Type"": ""application/json""},
+        )
+        response.raise_for_status()
+```",https://github.com/PostHog/posthog/pull/49699#discussion_r2879538068,"yeah, not doing any error handling at the moment, go away",2026-03-03T17:19:33.463000,Silent data loss from unchecked HTTP response status,data_integrity,high,8,"This is a meaningful bug catch - HTTP errors (4xx/5xx) are silently ignored, causing records to be incorrectly counted as successfully exported when they actually failed. This leads to silent data loss in a batch export workflow with no retry mechanism, which would cause real production issues. The fix is straightforward but the bug is non-obvious and has genuine impact on data integrity.",2026-03-05T12:26:54.747789+00:00
+silimate/yosys,115,Sat clkgate,https://github.com/Silimate/yosys/pull/115,"Missing `$_DFFE_*` flip-flop types that are included elsewhere (lines 76-79, 149-152, 406-409). This will cause BFS to incorrectly traverse through these register types instead of stopping at them.
+
+```suggestion
+		if (driver->type.in(ID($ff), ID($dff), ID($dffe), ID($adff), ID($adffe),
+		                    ID($sdff), ID($sdffe), ID($sdffce), ID($dffsr),
+		                    ID($dffsre), ID($_DFF_P_), ID($_DFF_N_), ID($_DFFE_PP_),
+		                    ID($_DFFE_PN_), ID($_DFFE_NP_), ID($_DFFE_NN_)))
+```",https://github.com/Silimate/yosys/pull/115#discussion_r2866083630,,2026-02-27T20:30:04.854000,Missing flip-flop types causes incorrect BFS graph traversal,logic,high,8,"This catches a genuine logic bug where the BFS traversal is missing several flip-flop types that are handled elsewhere in the codebase. This inconsistency would cause the algorithm to incorrectly traverse through registers instead of stopping at them, leading to wrong circuit analysis results. The catch required understanding the domain-specific pattern across multiple locations in the file.",2026-03-05T12:26:54.747789+00:00
