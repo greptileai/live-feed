@@ -7121,3 +7121,133 @@ The corresponding front-end layer in `store.ts` was correctly fixed to use `isBl
         const block = blocksById[id]
         if (!block || isDbBlockProtected(id, blocksById)) continue
 ```",https://github.com/simstudioai/sim/pull/3412#discussion_r2886574580,,2026-03-04T22:57:10.873000,Database layer bypasses ancestor protection allowing unauthorized state mutations,logic,high,8,"Comment 3 identifies a security/logic bug where the database operations layer only checks the block's own locked status, not the full ancestor chain. This inconsistency with the frontend allows blocks inside locked containers to have their enabled state mutated through the DB layer, bypassing protection that was correctly implemented elsewhere.",2026-03-05T00:48:16.792768+00:00
+isaac-sim/isaaclab,4816,"Add Multi Data Types, Simulation Backends, and Rendering Backends for Cartpole",https://github.com/isaac-sim/IsaacLab/pull/4816,"**`sync_state_to_usd()` is not CUDA-graph-compatible**
+
+`_simulate()` is called during CUDA graph capture in `initialize_solver()`:
+
+```python
+with wp.ScopedCapture() as capture:
+    cls._simulate()
+cls._graph = capture.graph
+```
+
+The newly added call to `cls.sync_state_to_usd()` at the end of `_simulate()` contains operations that are **incompatible with CUDA graph capture**:
+- `wp.synchronize()` (line 482) — a host-device synchronization point
+- `link_tf.numpy()` (line 484) — a GPU-to-CPU data transfer
+- Python `for` loops and USD API calls
+
+When `cls._usdrt_stage is not None` (which it is for Newton + RTX rendering), these calls will either fail at capture time or produce silently incorrect behaviour when the captured graph is replayed, because Python-side logic and host memory accesses are not replayed.
+
+The USD/Fabric sync should be moved **outside** `_simulate()` (and hence outside the CUDA graph) and called from `step()` after `wp.capture_launch(cls._graph)` returns.",https://github.com/isaac-sim/IsaacLab/pull/4816#discussion_r2884725364,,2026-03-04T16:16:43.761000,CUDA graph capture includes incompatible host synchronization operations,runtime,high,8,"This catch identifies a meaningful bug where sync_state_to_usd() contains host-device synchronization (wp.synchronize()), GPU-to-CPU transfers (.numpy()), and Python loops that are incompatible with CUDA graph capture. This would cause failures or incorrect behavior during graph replay in production when Newton + RTX rendering is enabled.",2026-03-05T03:10:23.029093+00:00
+onyx-dot-app/onyx,9005,feat(document index): Re-enable search settings swap,https://github.com/onyx-dot-app/onyx/pull/9005,"**`db_session` passed as `httpx_client`**
+
+`get_all_document_indices` does **not** accept a `db_session` parameter — its third positional argument is `httpx_client: httpx.Client | None = None`. Passing a SQLAlchemy `Session` object here means `VespaIndex` and `OpenSearchOldDocumentIndex` will receive the session as their HTTP client.
+
+Inside `VespaIndex.__init__`, the check `if httpx_client:` will evaluate to `True` for a non-`None` session, so `GlobalHTTPXClientContext(db_session)` will be constructed. This will cause an error at runtime when Vespa actually tries to use it as an HTTP client.
+
+The fix is to drop the third argument entirely (the default is `None`):
+
+```suggestion
+    document_indices = get_all_document_indices(
+        search_settings, new_search_settings
+    )
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: backend/onyx/server/manage/search_settings.py
+Line: 125-127
+
+Comment:
+**`db_session` passed as `httpx_client`**
+
+`get_all_document_indices` does **not** accept a `db_session` parameter — its third positional argument is `httpx_client: httpx.Client | None = None`. Passing a SQLAlchemy `Session` object here means `VespaIndex` and `OpenSearchOldDocumentIndex` will receive the session as their HTTP client.
+
+Inside `VespaIndex.__init__`, the check `if httpx_client:` will evaluate to `True` for a non-`None` session, so `GlobalHTTPXClientContext(db_session)` will be constructed. This will cause an error at runtime when Vespa actually tries to use it as an HTTP client.
+
+The fix is to drop the third argument entirely (the default is `None`):
+
+```suggestion
+    document_indices = get_all_document_indices(
+        search_settings, new_search_settings
+    )
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/9005#discussion_r2881261492,,2026-03-04T01:03:07.070000,SQLAlchemy session incorrectly passed as HTTP client,type_error,high,8,"This catches a genuine runtime bug where a database session object is passed as an HTTP client parameter due to incorrect argument positioning. This would cause a runtime error when the code attempts to use the session as an HTTP client for Vespa requests, breaking the search settings swap functionality.",2026-03-05T03:10:23.029093+00:00
+simstudioai/sim,3416,"fix(memory): add Bun.gc, stream cancellation, and unconsumed fetch drains",https://github.com/simstudioai/sim/pull/3416,"Missing final TextDecoder flush — incomplete multi-byte UTF-8 sequences will be silently dropped.
+
+`decoder.decode(value, { stream: true })` inside the loop deliberately holds back incomplete code-points to handle split UTF-8 boundaries. After the loop exits, any partial bytes buffered inside the decoder are never emitted to `chunks`, which means multi-byte characters (Chinese, Japanese, emoji) at chunk boundaries will be silently truncated or lost.
+
+Add a final flush after the loop to emit any remaining buffered bytes:
+
+```suggestion
+    try {
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        chunks.push(decoder.decode(value, { stream: true }))
+      }
+      // Flush any remaining bytes buffered by the streaming decoder
+      const tail = decoder.decode()
+      if (tail) chunks.push(tail)
+    } catch (error) {
+      logger.error('Error reading executor stream for block', { blockId, error })
+    } finally {
+      try {
+        await reader.cancel().catch(() => {})
+      } catch {}
+    }
+```",https://github.com/simstudioai/sim/pull/3416#discussion_r2886980965,,2026-03-05T01:07:35.653000,Missing TextDecoder flush drops multi-byte UTF-8 characters,data_integrity,high,8,"This catches a subtle but real bug where incomplete UTF-8 sequences (Chinese, Japanese, emoji characters split across chunk boundaries) would be silently truncated. The TextDecoder's streaming mode buffers partial multi-byte sequences, and without the final flush call, those buffered bytes are lost - causing data corruption for international users.",2026-03-05T03:10:23.029093+00:00
+onyx-dot-app/onyx,9046,fix: doc to hierarchynode connection in pruning,https://github.com/onyx-dot-app/onyx/pull/9046,"**Destructive merge silently overwrites non-None parents with None**
+
+The `dict.update()` at line 194 can cause data loss when the same document ID appears in multiple batches with different parent values. Specifically:
+
+1. Batch N contains a `SlimDocument` with `id=""page123""` and `parent_hierarchy_raw_node_id=""parent456""` → `batch_ids[""page123""] = ""parent456""`
+2. `all_raw_id_to_parent.update(batch_ids)` sets `all_raw_id_to_parent[""page123""] = ""parent456""`
+3. Batch N+K contains a `HierarchyNode` with `raw_node_id=""page123""` (representing ""page123"" as an ancestor) → `batch_ids[""page123""] = None` (since hierarchy nodes have no document-parent relationship)
+4. `all_raw_id_to_parent.update(batch_ids)` overwrites to `all_raw_id_to_parent[""page123""] = None`
+
+This is directly applicable to Confluence and Notion, where non-leaf pages appear as both `SlimDocument` (with real parent) and `HierarchyNode` (ancestor) entries across batches. The silent overwrite to `None` causes `_resolve_and_update_document_parents` to skip these documents entirely (filtering at parent is None), breaking their parent hierarchy connections on every pruning run.
+
+**Fix:** Use a non-destructive merge that preserves existing non-None values:
+
+```python
+for k, v in batch_ids.items():
+    if v is not None or k not in all_raw_id_to_parent:
+        all_raw_id_to_parent[k] = v
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: backend/onyx/background/celery/celery_utils.py
+Line: 194
+
+Comment:
+**Destructive merge silently overwrites non-None parents with None**
+
+The `dict.update()` at line 194 can cause data loss when the same document ID appears in multiple batches with different parent values. Specifically:
+
+1. Batch N contains a `SlimDocument` with `id=""page123""` and `parent_hierarchy_raw_node_id=""parent456""` → `batch_ids[""page123""] = ""parent456""`
+2. `all_raw_id_to_parent.update(batch_ids)` sets `all_raw_id_to_parent[""page123""] = ""parent456""`
+3. Batch N+K contains a `HierarchyNode` with `raw_node_id=""page123""` (representing ""page123"" as an ancestor) → `batch_ids[""page123""] = None` (since hierarchy nodes have no document-parent relationship)
+4. `all_raw_id_to_parent.update(batch_ids)` overwrites to `all_raw_id_to_parent[""page123""] = None`
+
+This is directly applicable to Confluence and Notion, where non-leaf pages appear as both `SlimDocument` (with real parent) and `HierarchyNode` (ancestor) entries across batches. The silent overwrite to `None` causes `_resolve_and_update_document_parents` to skip these documents entirely (filtering at parent is None), breaking their parent hierarchy connections on every pruning run.
+
+**Fix:** Use a non-destructive merge that preserves existing non-None values:
+
+```python
+for k, v in batch_ids.items():
+    if v is not None or k not in all_raw_id_to_parent:
+        all_raw_id_to_parent[k] = v
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/9046#discussion_r2886259810,,2026-03-04T21:36:06.964000,Dict merge silently overwrites parent hierarchy links with None,data_integrity,high,8,"This comment identifies a real data corruption bug where dict.update() can silently overwrite valid parent hierarchy node IDs with None when the same document appears in multiple batches. This would break parent hierarchy connections for Confluence/Notion documents on every pruning run, causing real user-facing data integrity issues.",2026-03-05T03:10:23.029093+00:00
