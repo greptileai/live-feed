@@ -7650,3 +7650,167 @@ The root cause is that Daft's `Tensor` is intentionally more flexible than the c
 1. Keep export as `DAFT_SUPER_EXTENSION_NAME` (internal encoding) instead of the canonical name, reserving canonical extension export for when storage is spec-conformant.
 2. Verify the physical storage is spec-conformant before emitting the canonical extension name.
 3. Document that this export is Daft-internal only.",https://github.com/Eventual-Inc/Daft/pull/6342#discussion_r2886192987,,2026-03-04T21:23:06.795000,Non-compliant Arrow extension type export causes interoperability failures,data_integrity,high,8,"This catches a subtle but significant data interoperability bug where Daft claims to export Arrow's canonical `arrow.variable_shape_tensor` extension type but uses an incompatible storage layout (List<UInt64> vs FixedSizeList<Int32>). External Arrow tools would fail to correctly read the data, causing silent data corruption or parse failures. This requires deep knowledge of Arrow specs and isn't something a compiler/linter would catch.",2026-03-05T18:48:10.245882+00:00
+useautumn/autumn,888,org configs,https://github.com/useautumn/autumn/pull/888,"**`skipBillingChanges` operator inconsistency**
+
+The `??` operator only returns the right side when the left is `null | undefined`. If a caller explicitly passes `no_billing_changes: false` with a `processor_subscription_id`, this evaluates to `false` — Stripe operations will be attempted against an externally-owned subscription.
+
+This is inconsistent with `setupUpdateSubscriptionBillingContext.ts`, which uses `||` and always skips billing when `processor_subscription_id` is present, regardless of `no_billing_changes`.
+
+If the intent is ""providing a `processor_subscription_id` always implies skipping billing changes"", use `||`:
+
+```suggestion
+		skipBillingChanges:
+			params.no_billing_changes === true ||
+			params.processor_subscription_id !== undefined,
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: server/src/internal/billing/v2/actions/attach/setup/setupAttachBillingContext.ts
+Line: 233-235
+
+Comment:
+**`skipBillingChanges` operator inconsistency**
+
+The `??` operator only returns the right side when the left is `null | undefined`. If a caller explicitly passes `no_billing_changes: false` with a `processor_subscription_id`, this evaluates to `false` — Stripe operations will be attempted against an externally-owned subscription.
+
+This is inconsistent with `setupUpdateSubscriptionBillingContext.ts`, which uses `||` and always skips billing when `processor_subscription_id` is present, regardless of `no_billing_changes`.
+
+If the intent is ""providing a `processor_subscription_id` always implies skipping billing changes"", use `||`:
+
+```suggestion
+		skipBillingChanges:
+			params.no_billing_changes === true ||
+			params.processor_subscription_id !== undefined,
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/useautumn/autumn/pull/888#discussion_r2891714213,,2026-03-05T19:11:06.139000,Operator inconsistency allows billing operations on external subscriptions,logic,high,8,"This is a meaningful logic bug where using `??` instead of `||` could cause Stripe operations to be incorrectly attempted on externally-owned subscriptions when a caller explicitly passes `no_billing_changes: false`. The catch identifies both the subtle operator behavior difference and cross-file inconsistency, preventing potential billing errors that could affect production users and external integrations.",2026-03-05T20:20:22.042884+00:00
+onyx-dot-app/onyx,9063,fix(llm): Handle Bedrock tool content in message history without toolConfig,https://github.com/onyx-dot-app/onyx/pull/9063,"**Consecutive user messages break Bedrock's alternating-message requirement**
+
+When an assistant turn contains multiple tool calls (e.g. parallel searches), the conversation history contains multiple consecutive `role=tool` messages — one per tool call. Converting each to a `role=user` message produces two (or more) consecutive user messages:
+
+```
+user        → ""what's the weather and news?""
+assistant   → [Tool Call] search_weather  [Tool Call] search_news
+user        → [Tool Result] id=tc_1  weather data
+user        → [Tool Result] id=tc_2  news data     ← consecutive user messages!
+assistant   → ""Here is…""
+```
+
+Bedrock's Converse API enforces strict user/assistant alternation and will raise a `ValidationException` (""Messages must alternate between user and assistant roles"") for this pattern. This is not covered by the unit tests which only test single-tool-call scenarios.
+
+**Suggested fix:** After the conversion loop, merge all consecutive converted tool-result user messages into a single user message:
+
+```python
+# after the main loop, merge consecutive synthetic user messages
+merged: list[dict[str, Any]] = []
+for msg in result:
+    if (
+        merged
+        and merged[-1][""role""] == ""user""
+        and msg[""role""] == ""user""
+        and ""[Tool Result]"" in (msg.get(""content"") or """")
+    ):
+        merged[-1][""content""] = merged[-1][""content""] + ""\n\n"" + msg[""content""]
+    else:
+        merged.append(msg)
+return merged
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: backend/onyx/llm/multi_llm.py
+Line: 154-162
+
+Comment:
+**Consecutive user messages break Bedrock's alternating-message requirement**
+
+When an assistant turn contains multiple tool calls (e.g. parallel searches), the conversation history contains multiple consecutive `role=tool` messages — one per tool call. Converting each to a `role=user` message produces two (or more) consecutive user messages:
+
+```
+user        → ""what's the weather and news?""
+assistant   → [Tool Call] search_weather  [Tool Call] search_news
+user        → [Tool Result] id=tc_1  weather data
+user        → [Tool Result] id=tc_2  news data     ← consecutive user messages!
+assistant   → ""Here is…""
+```
+
+Bedrock's Converse API enforces strict user/assistant alternation and will raise a `ValidationException` (""Messages must alternate between user and assistant roles"") for this pattern. This is not covered by the unit tests which only test single-tool-call scenarios.
+
+**Suggested fix:** After the conversion loop, merge all consecutive converted tool-result user messages into a single user message:
+
+```python
+# after the main loop, merge consecutive synthetic user messages
+merged: list[dict[str, Any]] = []
+for msg in result:
+    if (
+        merged
+        and merged[-1][""role""] == ""user""
+        and msg[""role""] == ""user""
+        and ""[Tool Result]"" in (msg.get(""content"") or """")
+    ):
+        merged[-1][""content""] = merged[-1][""content""] + ""\n\n"" + msg[""content""]
+    else:
+        merged.append(msg)
+return merged
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/9063#discussion_r2887119579,,2026-03-05T01:57:38.757000,Consecutive user messages violate Bedrock's alternating role requirement,logic,high,8,"This catches a real API contract violation that would cause Bedrock to reject requests with multiple parallel tool calls. The comment correctly identifies that converting multiple tool result messages to user messages creates consecutive user roles, breaking Bedrock's strict alternation requirement - a bug not covered by existing tests.",2026-03-05T20:20:22.042884+00:00
+gptme/gptme-contrib,346,feat(gptme-sessions): add signals subcommand for trajectory-based reward extraction,https://github.com/gptme/gptme-contrib/pull/346,"`file_writes` is not deduplicated before grading — retry-heavy sessions get inflated tier placement
+
+`writes = len(signals[""file_writes""])` counts every write operation including repeated edits to the same file. This can push a session into a higher grade tier even though no additional unique files were produced.
+
+Concrete example: an agent edits the same file 3 times (2 retries), no commits.
+- `writes = 3` → base `reward = 0.55` (the `writes >= 3` tier)
+- `retry_count = 2` → only the `-0.03` penalty fires (below the `>= 3` threshold)
+- Final grade: `0.52`
+
+Compare to an agent that edits 1 unique file with no retries:
+- `writes = 1` → base `reward = 0.40`
+- Final grade: `0.40`
+
+The 3-retries-on-one-file session scores `0.12` higher than the 1-unique-file session, despite identical unique output. Meanwhile `deliverables` (line 159) is already correctly deduplicated via `dict.fromkeys`.
+
+The fix is to count distinct, non-placeholder paths:
+
+```suggestion
+writes = len({f for f in signals[""file_writes""] if not f.startswith(""<"")})
+```
+
+Or deduplicate `file_writes` before returning from `extract_signals` / `extract_signals_cc`. The same issue affects the `is_productive` check on line 226 which uses `len(signals[""file_writes""]) >= 2`.",https://github.com/gptme/gptme-contrib/pull/346#discussion_r2890945643,"Fixed in d134d45 — grade_signals now uses `len(set(signals[""file_writes""]))` for tier placement, so repeated edits to the same file (e.g. 3 writes to foo.py = 1 unique) no longer inflate the grade tier beyond what the retry penalty offsets. Added `test_grade_signals_file_writes_deduplication` to verify the invariant.",2026-03-05T16:03:43.486000,File write deduplication missing causes inflated grade scores,logic,high,8,"This catches a significant logic bug where retry-heavy sessions incorrectly receive higher grades than sessions with unique file outputs. An agent editing the same file 3 times would score 0.52 while one editing 1 unique file scores 0.40, completely inverting the intended grading behavior for the Thompson sampling reward system.",2026-03-05T20:20:22.042884+00:00
+gptme/gptme,1596,feat(tauri): first-run setup wizard for new users,https://github.com/gptme/gptme/pull/1596,"**Stale closure risk in `updateSettings`**
+
+`updateSettings` captures `settings` from the render-time closure, not from the most recent state snapshot. The comment in `resetSettings` (line 66) explicitly notes this problem for that function and switches to a functional updater — but `updateSettings` was not updated with the same fix.
+
+If two `updateSettings` calls happen in rapid succession (e.g. a component updates two unrelated settings back-to-back before a re-render), the second call will overwrite the first because both captured the same stale `settings` snapshot.
+
+Using the functional form makes this safe:
+
+```tsx
+const updateSettings = (updates: Partial<Settings>) => {
+  setSettings((current) => {
+    const newSettings = { ...current, ...updates };
+    try {
+      localStorage.setItem('gptme-settings', JSON.stringify(newSettings));
+    } catch (error) {
+      console.error('Failed to save settings to localStorage:', error);
+    }
+    return newSettings;
+  });
+};
+```
+
+This also moves the `localStorage.setItem` inside the updater, keeping it consistent with how `resetSettings` was refactored.",https://github.com/gptme/gptme/pull/1596#discussion_r2886887890,"Fixed in 9275653ba — `updateSettings` now uses a functional `setSettings(current => ...)` updater, matching the pattern already applied to `resetSettings`.",2026-03-05T00:37:20.882000,Stale closure in updateSettings causes race condition losing updates,concurrency,high,8,"This catches a real race condition bug where rapid successive calls to updateSettings would lose data because each call captures stale state. When two settings are updated back-to-back before React re-renders, the second update overwrites the first. This is a meaningful logic bug that would cause user settings to be lost in production.",2026-03-05T20:20:22.042884+00:00
+emerge-lab/pufferdrive,319,Modifying score metric for segments of driving,https://github.com/Emerge-Lab/PufferDrive/pull/319,"division by zero when `goals_attempted_this_episode` is 0 (e.g., very short episodes in GOAL_GENERATE_NEW mode where agent hasn't collided and time < 1s)
+
+```suggestion
+        float frac_goal_reached = agent->goals_attempted_this_episode > 0 ? agent->goals_reached_this_episode / agent->goals_attempted_this_episode : 0.0f;
+```",https://github.com/Emerge-Lab/PufferDrive/pull/319#discussion_r2862281424,,2026-02-27T03:14:22.675000,Division by zero in goal completion ratio calculation,runtime,high,8,This catches a genuine division by zero bug that would cause undefined behavior/crash when calculating goal metrics for very short episodes where no goals were attempted. The scenario is plausible (short episodes where time < 1s) and the fix with a ternary operator is correct. This is a real runtime bug that could affect production.,2026-03-05T20:20:22.042884+00:00
