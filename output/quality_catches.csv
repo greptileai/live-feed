@@ -7442,3 +7442,27 @@ Alternatively, reset it at the call sites that complete the load (after `setNode
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/joby-aviation/noodles.gl/pull/350#discussion_r2887651246,,2026-03-05T05:14:06.207000,State flag can get stuck causing graph rebuild to be skipped,logic,high,8,"This is a meaningful logic bug where a ref flag used to skip graph transformations can become permanently stuck in the true state, causing legitimate structural changes (adding nodes/edges) to be silently ignored. The analysis is thorough with a concrete failure scenario, and this would cause real user-facing issues in production where new operators wouldn't get wired up.",2026-03-05T06:28:27.693373+00:00
+raycast/extensions,25697,Add grpcui extension,https://github.com/raycast/extensions/pull/25697,"**Command injection via insufficient escaping**
+
+The `escapeAppleScript` function (line 5) only escapes `\` and `""`, but the AppleScript is wrapped in single quotes for the shell `exec()` call (lines 11, 26). A service URL containing a single quote (`'`) breaks out of the outer shell string and allows arbitrary command execution.
+
+For example, a URL like `localhost:9000' && malicious_cmd && echo '` would produce:
+```
+osascript -e '...grpcui localhost:9000' && malicious_cmd && echo '...'
+```
+The single quote terminates the `osascript -e` argument, and `malicious_cmd` runs as a separate shell command.
+
+Similarly, for the Ghostty path (line 38-41), `escapeShell` only escapes single quotes but not other shell metacharacters (`;`, `&&`, `|`, `` ` ``, `$()`). Since the escaped string is passed to `zsh -c`, a URL like `localhost:9000; rm -rf /` would execute the second command.
+
+A safer approach would be to use `execFile` (which avoids shell interpretation) with `osascript` passed as arguments in an array, similar to how the `claudecast` extension handles this:
+```typescript
+import { execFile } from ""child_process"";
+
+// For Terminal/iTerm:
+execFile(""osascript"", [""-e"", script], callback);
+
+// For Ghostty, pass service through env variable:
+execFile(""open"", [""-n"", ""-a"", ""Ghostty"", ""--args"", ""-e"", ""/bin/zsh"", ""-l"", ""-c"", `grpcui '${escapeShell(service)}'`], callback);
+```",https://github.com/raycast/extensions/pull/25697#discussion_r2837972881,,2026-02-22T14:33:18.400000,Command injection vulnerability via unescaped shell metacharacters,security,high,8,This is a legitimate command injection vulnerability where malicious service URLs containing single quotes or shell metacharacters could escape the AppleScript/shell context and execute arbitrary commands. The comment provides concrete exploit examples and a safer fix using execFile to avoid shell interpretation.,2026-03-05T08:22:54.554583+00:00
+raycast/extensions,24338,Update projects extension,https://github.com/raycast/extensions/pull/24338,"**Unquoted path in exec**
+The `execp` command interpolates `path` directly into `mdfind -onlyin ${path} ...` (all-projects-cache-builder-v2.ts:29-31). If a user’s scan path contains spaces (common, e.g. `~/Projects/Client Work`) the command will break; if it contains shell metacharacters, it can alter what gets executed. This should be properly quoted/escaped (or avoid the shell by using `spawn` with args) before merging.",https://github.com/raycast/extensions/pull/24338#discussion_r2794409963,,2026-02-11T16:56:53.359000,Command injection via unquoted path in shell exec,security,high,8,This catches a real security/correctness bug where user-controlled paths containing spaces or shell metacharacters could break command execution or potentially allow command injection. The fix properly quotes the path variable to prevent both issues.,2026-03-05T08:22:54.554583+00:00
