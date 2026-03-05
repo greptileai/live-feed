@@ -7814,3 +7814,204 @@ emerge-lab/pufferdrive,319,Modifying score metric for segments of driving,https:
 ```suggestion
         float frac_goal_reached = agent->goals_attempted_this_episode > 0 ? agent->goals_reached_this_episode / agent->goals_attempted_this_episode : 0.0f;
 ```",https://github.com/Emerge-Lab/PufferDrive/pull/319#discussion_r2862281424,,2026-02-27T03:14:22.675000,Division by zero in goal completion ratio calculation,runtime,high,8,This catches a genuine division by zero bug that would cause undefined behavior/crash when calculating goal metrics for very short episodes where no goals were attempted. The scenario is plausible (short episodes where time < 1s) and the fix with a ternary operator is correct. This is a real runtime bug that could affect production.,2026-03-05T20:20:22.042884+00:00
+posthog/posthog,49928,feat(django): move group type mapping calls to personhog client,https://github.com/PostHog/posthog/pull/49928,"`fetch_group_type_mapping_result` returns `None` both when the client is not configured (line 63) and when the mapping genuinely doesn't exist. In `get_group_type_mapping_or_404`, both cases trigger `raise NotFound()`, which is immediately re-raised by `except NotFound: raise`, so the ORM fallback is **never reached** when personhog is enabled but the client is misconfigured.
+
+This is inconsistent with `_fetch_group_types_via_personhog`, which raises `RuntimeError(""personhog client not configured"")` for the same situation — allowing `except Exception` to catch it and fall through to ORM.
+
+Raise instead of returning `None` when the client is absent:
+
+```suggestion
+    client = get_personhog_client()
+    if client is None:
+        raise RuntimeError(""personhog client not configured"")
+```
+
+With this change, `get_group_type_mapping_or_404` will correctly fall back to the ORM on misconfiguration, matching the behaviour of `_fetch_group_types_via_personhog`.
+
+**Context Used:** Rule from `dashboard` - Add inline comments to clarify the purpose of significant changes, especially when altering behavior... ([source](https://app.greptile.com/review/custom-context?memory=4d5b48c5-045d-4693-9cd9-4081bb19508b))
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: posthog/personhog_client/converters.py
+Line: 61-63
+
+Comment:
+`fetch_group_type_mapping_result` returns `None` both when the client is not configured (line 63) and when the mapping genuinely doesn't exist. In `get_group_type_mapping_or_404`, both cases trigger `raise NotFound()`, which is immediately re-raised by `except NotFound: raise`, so the ORM fallback is **never reached** when personhog is enabled but the client is misconfigured.
+
+This is inconsistent with `_fetch_group_types_via_personhog`, which raises `RuntimeError(""personhog client not configured"")` for the same situation — allowing `except Exception` to catch it and fall through to ORM.
+
+Raise instead of returning `None` when the client is absent:
+
+```suggestion
+    client = get_personhog_client()
+    if client is None:
+        raise RuntimeError(""personhog client not configured"")
+```
+
+With this change, `get_group_type_mapping_or_404` will correctly fall back to the ORM on misconfiguration, matching the behaviour of `_fetch_group_types_via_personhog`.
+
+**Context Used:** Rule from `dashboard` - Add inline comments to clarify the purpose of significant changes, especially when altering behavior... ([source](https://app.greptile.com/review/custom-context?memory=4d5b48c5-045d-4693-9cd9-4081bb19508b))
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/49928#discussion_r2887495805,,2026-03-05T04:17:12.745000,Fallback to ORM never reached due to None return vs exception handling,logic,high,8,"This is a meaningful logic bug where the fallback mechanism silently fails. When the personhog client is misconfigured, the function returns None which gets treated as 'mapping not found' and raises NotFound, bypassing the ORM fallback entirely. This creates inconsistent behavior compared to similar functions and could cause production failures when the client is temporarily unavailable. The analysis shows deep understanding of the exception handling flow across multiple functions.",2026-03-05T22:16:16.498830+00:00
+plexe-ai/plexe,189,feat: support explicit split inputs and nn epoch overrides,https://github.com/plexe-ai/plexe/pull/189,"**Explicit val data silently overwritten by the splitter**
+
+When the caller provides `val_dataset_uri` but not `test_dataset_uri` and `generate_test_set=True`, there is a file-path collision that causes the user's validation data to be silently lost:
+
+1. `_materialize_explicit_split(spark, val_dataset_uri, ""val"", ..., splits_output_dir)` writes the user's val data to `{splits_output_dir}/val.parquet` and returns that path as `val_uri`.
+2. `run_split({""train"": ..., ""val"": test_ratio})` then calls `DatasetSplitterAgent.run(split_ratios, output_dir=splits_output_dir)`. The agent's own instructions direct it to write its output to `{output_dir}/val.parquet` — the **same path** — overwriting the user's explicit validation data with Spark's `mode='overwrite'`.
+3. Both `val_uri` and `generated_test_uri` end up pointing to `{splits_output_dir}/val.parquet`, which now contains the *splitter-generated* test data, not the user's val.
+
+The unit test in `test_prepare_data_generates_missing_test_when_only_val_is_provided` doesn't catch this because `_materialize_explicit_split` is monkeypatched to return the string `""copied_val.parquet""` while the fake splitter returns `""generated_test.parquet""` — these are different strings, masking the real-world path collision where both would resolve to the same filesystem path.
+
+A straightforward fix is to direct the splitter into a separate sub-directory so the two operations never share an output location:
+
+```python
+# generate a sub-directory specifically for the splitter's output
+split_gen_dir = f""{splits_output_dir}/generated"" if splits_output_dir.startswith(""s3://"") \
+    else str(Path(splits_output_dir) / ""generated"")
+
+train_uri, generated_test_uri, split_test_uri = run_split(split_ratios, output_dir=split_gen_dir)
+```
+
+Alternatively, name the explicit val output with a unique prefix (e.g. `explicit_val.parquet`) inside `_materialize_explicit_split` so it never collides with a file the splitter might produce.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: plexe/workflow.py
+Line: 950-1001
+
+Comment:
+**Explicit val data silently overwritten by the splitter**
+
+When the caller provides `val_dataset_uri` but not `test_dataset_uri` and `generate_test_set=True`, there is a file-path collision that causes the user's validation data to be silently lost:
+
+1. `_materialize_explicit_split(spark, val_dataset_uri, ""val"", ..., splits_output_dir)` writes the user's val data to `{splits_output_dir}/val.parquet` and returns that path as `val_uri`.
+2. `run_split({""train"": ..., ""val"": test_ratio})` then calls `DatasetSplitterAgent.run(split_ratios, output_dir=splits_output_dir)`. The agent's own instructions direct it to write its output to `{output_dir}/val.parquet` — the **same path** — overwriting the user's explicit validation data with Spark's `mode='overwrite'`.
+3. Both `val_uri` and `generated_test_uri` end up pointing to `{splits_output_dir}/val.parquet`, which now contains the *splitter-generated* test data, not the user's val.
+
+The unit test in `test_prepare_data_generates_missing_test_when_only_val_is_provided` doesn't catch this because `_materialize_explicit_split` is monkeypatched to return the string `""copied_val.parquet""` while the fake splitter returns `""generated_test.parquet""` — these are different strings, masking the real-world path collision where both would resolve to the same filesystem path.
+
+A straightforward fix is to direct the splitter into a separate sub-directory so the two operations never share an output location:
+
+```python
+# generate a sub-directory specifically for the splitter's output
+split_gen_dir = f""{splits_output_dir}/generated"" if splits_output_dir.startswith(""s3://"") \
+    else str(Path(splits_output_dir) / ""generated"")
+
+train_uri, generated_test_uri, split_test_uri = run_split(split_ratios, output_dir=split_gen_dir)
+```
+
+Alternatively, name the explicit val output with a unique prefix (e.g. `explicit_val.parquet`) inside `_materialize_explicit_split` so it never collides with a file the splitter might produce.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/plexe-ai/plexe/pull/189#discussion_r2892319321,"Kept this branch aligned with the current splitter contract in this PR scope: when only validation is supplied and a test split is requested, the 2-way splitter output is intentionally treated as the auxiliary test artifact. I am keeping output routing unchanged here to avoid introducing a second split-output contract in the same change set.
+---
+Addressed in the latest push: the val-only + generate-test branch now runs the splitter in a dedicated `generated` subdirectory under splits output, so explicit `val.parquet` is not overwritten. Added a regression assertion in `test_prepare_data_generates_missing_test_when_only_val_is_provided` to enforce this output routing.",2026-03-05T21:04:29.639000,Silent data overwrite causes user validation data loss,data_integrity,high,8,"This catch identifies a real file path collision bug where user-provided validation data would be silently overwritten by the splitter's output, causing data loss. The reviewer traces through the exact sequence of operations and explains how the test's mocking masked the real-world collision. This is a meaningful production bug that would affect users.",2026-03-05T22:16:16.498830+00:00
+simstudioai/sim,3422,feat(api): add tables and files v1 REST API with OpenAPI docs,https://github.com/simstudioai/sim/pull/3422,"**`sql.raw()` with column name interpolation**
+
+The column name `targetColumnName` is interpolated into a raw SQL fragment using `sql.raw()`:
+
+```ts
+sql`${userTableRows.data}->>${sql.raw(`'${targetColumnName}'`)} = ${String(targetValue)}`
+```
+
+While the column name is sourced from the validated table schema (and names are constrained to `[a-zA-Z0-9_]` by the regex at table-creation time), using `sql.raw()` bypasses Drizzle's parameterization layer. If the schema validation were ever relaxed or bypassed (e.g., direct DB manipulation), this would be a SQL injection vector.
+
+A safer alternative is to use a Drizzle `sql` cast with the column name as a parameter, or to re-validate `targetColumnName` immediately before use:
+
+```ts
+// Validate name before raw interpolation (belt-and-suspenders)
+if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(targetColumnName)) {
+  throw new Error(`Invalid column name: ${targetColumnName}`)
+}
+```",https://github.com/simstudioai/sim/pull/3422#discussion_r2892284350,,2026-03-05T20:56:44.529000,SQL injection risk via sql.raw() with column name interpolation,security,high,8,"This identifies a potential SQL injection vulnerability where column names are interpolated using sql.raw(), bypassing Drizzle's parameterization. While currently protected by schema validation, the comment correctly identifies this as a defense-in-depth issue that could become exploitable if validation is relaxed or bypassed.",2026-03-05T22:16:16.498830+00:00
+infisical/infisical,5603,fix: add missing CSP checks for GTM,https://github.com/Infisical/infisical/pull/5603,"**HTTP URL in `script-src` allows MITM script injection**
+
+`http://js.hs-scripts.com` (plain HTTP) is included in `script-src`. Allowing scripts to be loaded over an unencrypted connection is a critical security risk: an attacker on the same network path could intercept the HTTP response and inject arbitrary JavaScript into the page. This defeats a primary purpose of CSP — protecting against script injection — for users on untrusted networks.
+
+The HTTPS version `https://js.hs-scripts.com` is already listed immediately after it, so the `http://` entry appears to be a copy-paste mistake. The `http://` origin should be removed.",https://github.com/Infisical/infisical/pull/5603#discussion_r2891639945,,2026-03-05T18:56:24.040000,HTTP script source allows man-in-the-middle code injection,security,critical,9,"Allowing scripts from http:// (plain HTTP) in CSP completely undermines script injection protection. An attacker on the network path could inject arbitrary JavaScript into a secrets-management application, potentially leading to credential theft. This is a critical security vulnerability in a security-sensitive product.",2026-03-05T22:16:16.498830+00:00
+posthog/posthog-js,3122,feat(next): Add first class support for Next.js,https://github.com/PostHog/posthog-js/pull/3122,"`advanced_disable_feature_flags_on_first_load` is set unconditionally after `evaluateFlags()` returns, including when it returns `undefined`. When `bootstrap` is `undefined` (no cookie, opted-out) and this flag is `true`, the client will skip its initial flag fetch AND have no bootstrap data—feature flags will silently never load.
+
+Only set this flag when `bootstrap` was actually populated:
+
+```suggestion
+            bootstrap = await evaluateFlags(apiKey, resolvedOptions, bootstrapFlags, serverOptions)
+
+            // Only disable the first-load fetch when we actually have bootstrap
+            // data. If evaluateFlags returned undefined (no cookie, opted-out),
+            // the client still needs to fetch flags on first load.
+            if (bootstrap) {
+                resolvedOptions.advanced_disable_feature_flags_on_first_load = true
+            }
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/next/src/app/PostHogProvider.tsx
+Line: 95-99
+
+Comment:
+`advanced_disable_feature_flags_on_first_load` is set unconditionally after `evaluateFlags()` returns, including when it returns `undefined`. When `bootstrap` is `undefined` (no cookie, opted-out) and this flag is `true`, the client will skip its initial flag fetch AND have no bootstrap data—feature flags will silently never load.
+
+Only set this flag when `bootstrap` was actually populated:
+
+```suggestion
+            bootstrap = await evaluateFlags(apiKey, resolvedOptions, bootstrapFlags, serverOptions)
+
+            // Only disable the first-load fetch when we actually have bootstrap
+            // data. If evaluateFlags returned undefined (no cookie, opted-out),
+            // the client still needs to fetch flags on first load.
+            if (bootstrap) {
+                resolvedOptions.advanced_disable_feature_flags_on_first_load = true
+            }
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog-js/pull/3122#discussion_r2891468631,,2026-03-05T18:08:11.836000,Feature flags silently fail when bootstrap data is undefined,logic,high,8,This catches a meaningful logic bug where setting `advanced_disable_feature_flags_on_first_load = true` unconditionally causes feature flags to never load when there's no bootstrap data (no cookie or opted-out user). This would cause silent feature flag failures in production affecting user experience.,2026-03-05T22:16:16.498830+00:00
+gptme/gptme-contrib,351,feat(gptme-sessions): upstream Thompson sampling bandit engine + trigger field,https://github.com/gptme/gptme-contrib/pull/351,"**Out-of-range reward corrupts Beta parameters**
+
+`update()` accepts `reward: bool | float` and the docstring says `[0, 1]`, but there is no guard enforcing this contract. If a caller passes a value outside `[0, 1]` — say `reward = 2.0` — then `self.beta += 1.0 - 2.0 = -1.0`, and after one update `beta` can fall to `0.0`. A subsequent call to `random.betavariate(alpha, 0.0)` will raise `ValueError: betavariate: beta must be > 0.0`, crashing any code that later samples this arm.
+
+The CLI validates before calling `update`, but callers using the Python API directly have no protection. A one-line guard prevents silent state corruption:
+
+```python
+    def update(self, reward: bool | float) -> None:
+        r = float(reward)
+        if not 0.0 <= r <= 1.0:
+            raise ValueError(f""reward must be in [0, 1], got {r!r}"")
+        self.alpha += r
+        self.beta += 1.0 - r
+        self.total_selections += 1
+        if r > 0.5:
+            self.total_rewards += 1
+        self.last_updated = datetime.now(timezone.utc).isoformat()
+```",https://github.com/gptme/gptme-contrib/pull/351#discussion_r2891541982,"Fixed in c6d043d — BanditArm.update now raises ValueError for reward outside [0, 1] before touching alpha/beta.",2026-03-05T18:28:19.812000,Out-of-range reward corrupts Beta parameters causing crash,data_integrity,high,8,"This catches a real bug where passing reward values outside [0,1] corrupts the Beta distribution parameters, causing beta to go to 0 or negative, which will crash the system on the next sample() call with 'betavariate: beta must be > 0.0'. This is a meaningful data corruption bug that leads to production crashes.",2026-03-05T22:16:16.498830+00:00
+gptme/gptme-contrib,346,feat(gptme-sessions): add signals subcommand for trajectory-based reward extraction,https://github.com/gptme/gptme-contrib/pull/346,"**Placeholder writes inflate `writes` tier in `grade_signals`**
+
+When `_extract_path_from_args` returns `None`, both `extract_signals` (line 130) and `extract_signals_cc` (line 275) append `f""<{tool}>""` to `file_writes`. Because `grade_signals` deduplicates with `len(set(signals[""file_writes""]))`, writes from *different* tools with no extractable path each count as a distinct ""write"".
+
+Concretely, if an agent calls `save`, `write`, and `patch` and none produce an extractable path:
+- `file_writes = [""<save>"", ""<write>"", ""<patch>""]`
+- `writes = len(set(...)) == 3` → reward tier 0.55 (`writes >= 3`)
+- yet no real file was produced at all
+
+The fix is to exclude placeholder strings from the unique-write count in `grade_signals`, or to filter them out before appending:
+
+```python
+# Option A: filter placeholders in grade_signals
+writes = len({w for w in signals[""file_writes""] if not w.startswith(""<"")})
+
+# Option B: skip the placeholder entirely and don't append to file_writes
+```
+
+The same issue is present in `extract_signals_cc` at line 275 where `file_writes.append(f""<{tool}>"")` is called for CC write tools.",https://github.com/gptme/gptme-contrib/pull/346#discussion_r2891330534,,2026-03-05T17:30:56.178000,Placeholder writes inflate grade tier with fake file counts,logic,high,8,"This catches a real logic bug where placeholder strings like '<save>', '<write>', '<patch>' are counted as distinct unique file writes in the grading algorithm, artificially inflating the productivity score when no actual files were written. An agent with zero real output could receive a 0.55 reward tier.",2026-03-05T22:16:16.498830+00:00
