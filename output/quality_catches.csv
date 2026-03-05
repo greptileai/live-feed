@@ -7251,3 +7251,141 @@ for k, v in batch_ids.items():
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/onyx-dot-app/onyx/pull/9046#discussion_r2886259810,,2026-03-04T21:36:06.964000,Dict merge silently overwrites parent hierarchy links with None,data_integrity,high,8,"This comment identifies a real data corruption bug where dict.update() can silently overwrite valid parent hierarchy node IDs with None when the same document appears in multiple batches. This would break parent hierarchy connections for Confluence/Notion documents on every pruning run, causing real user-facing data integrity issues.",2026-03-05T03:10:23.029093+00:00
+onyx-dot-app/onyx,9020,feat(table): add DataTable config-driven wrapper component,https://github.com/onyx-dot-app/onyx/pull/9020,"Column ID mismatch breaks `columnKindMap` for deep accessor keys
+
+`columnKindMap` is keyed by `col.id` (the raw accessor string, e.g. `""user.email""`), but TanStack Table derives `header.id` by escaping dots and slashes in `accessorKey` — replacing them with underscores — so `header.id` becomes `""user_email""` while the map key is still `""user.email""`. Every downstream `columnKindMap.get(header.id)` call (lines 208, 343) returns `undefined` for any column using a deep accessor path.
+
+The column will still render (it falls through to the default `<TableCell>` path), but `colDef?.kind` is always `undefined`, so `dataCol?.icon` is never forwarded to `TableHead` and the sort-icon override is silently dropped.
+
+The builder already accepts `DeepKeys<TData>` for the accessor, so callers can reasonably pass nested paths. The cleanest fix is to force TanStack to use `col.id` as the authoritative column ID by adding it to the cloned definition:
+
+```suggestion
+    const clonedDef: ColumnDef<TData, any> = {
+      ...col.def,
+      id: col.id,
+      size:
+        ""fixed"" in resolvedWidth ? resolvedWidth.fixed : resolvedWidth.weight,
+    };
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: web/src/refresh-components/table/DataTable.tsx
+Line: 65-69
+
+Comment:
+Column ID mismatch breaks `columnKindMap` for deep accessor keys
+
+`columnKindMap` is keyed by `col.id` (the raw accessor string, e.g. `""user.email""`), but TanStack Table derives `header.id` by escaping dots and slashes in `accessorKey` — replacing them with underscores — so `header.id` becomes `""user_email""` while the map key is still `""user.email""`. Every downstream `columnKindMap.get(header.id)` call (lines 208, 343) returns `undefined` for any column using a deep accessor path.
+
+The column will still render (it falls through to the default `<TableCell>` path), but `colDef?.kind` is always `undefined`, so `dataCol?.icon` is never forwarded to `TableHead` and the sort-icon override is silently dropped.
+
+The builder already accepts `DeepKeys<TData>` for the accessor, so callers can reasonably pass nested paths. The cleanest fix is to force TanStack to use `col.id` as the authoritative column ID by adding it to the cloned definition:
+
+```suggestion
+    const clonedDef: ColumnDef<TData, any> = {
+      ...col.def,
+      id: col.id,
+      size:
+        ""fixed"" in resolvedWidth ? resolvedWidth.fixed : resolvedWidth.weight,
+    };
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/9020#discussion_r2887382812,Good catch — added `id: col.id` to the cloned def so TanStack uses our ID instead of escaping the accessor key.,2026-03-05T03:33:53.224000,Column ID mismatch breaks features for nested accessor paths,logic,medium,8,"This catch identifies a subtle but real bug where TanStack Table's automatic ID escaping (dots to underscores) causes a mismatch with the columnKindMap lookup, silently breaking icon forwarding and sort-icon overrides for any columns using nested accessor paths like 'user.email'. The fix is non-obvious and requires understanding library internals.",2026-03-05T04:42:01.314838+00:00
+onyx-dot-app/onyx,9054,refactor: consolidate AppInputBar search/chat rendering with animated transitions,https://github.com/onyx-dot-app/onyx/pull/9054,"**`initialMessage` prop changes are not synced to internal state — breaks URL-prefilled prompts in NRFPage**
+
+The `useEffect` that kept the internal `message` state in sync with prop changes to `initialMessage` has been removed. Because `useState(initialMessage)` only uses the initial value on mount, subsequent changes to the prop are ignored.
+
+This breaks the NRFPage flow where the component mounts with `initialMessage=""""`, then after mount a `useEffect` reads `window.location.search` and updates its `message` state:
+1. NRFPage mounts AppInputBar with `initialMessage=""""` 
+2. AppInputBar mounts and sets internal `message=""""` via `useState`
+3. NRFPage's `useEffect` (lines 143–151 of NRFPage.tsx) fires and calls `setMessage(userPrompt)` 
+4. NRFPage re-renders with `initialMessage={userPrompt}` 
+5. **But AppInputBar ignores it** — no effect to sync the new prop value to internal state
+
+The sync effect must be restored:
+
+```suggestion
+const [message, setMessage] = useState(initialMessage);
+const textAreaRef = useRef<HTMLTextAreaElement>(null);
+const textAreaWrapperRef = useRef<HTMLDivElement>(null);
+const filesWrapperRef = useRef<HTMLDivElement>(null);
+const filesContentRef = useRef<HTMLDivElement>(null);
+const containerRef = useRef<HTMLDivElement>(null);
+const { user } = useUser();
+const { isClassifying, classification } = useQueryController();
+
+// Expose reset and focus methods to parent via ref
+React.useImperativeHandle(ref, () => ({
+  reset: () => {
+    setMessage("""");
+  },
+  focus: () => {
+    textAreaRef.current?.focus();
+  },
+}));
+
+// Sync prop changes to internal state
+useEffect(() => {
+  if (initialMessage) {
+    setMessage(initialMessage);
+  }
+}, [initialMessage]);
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: web/src/sections/input/AppInputBar.tsx
+Line: 119-120
+
+Comment:
+**`initialMessage` prop changes are not synced to internal state — breaks URL-prefilled prompts in NRFPage**
+
+The `useEffect` that kept the internal `message` state in sync with prop changes to `initialMessage` has been removed. Because `useState(initialMessage)` only uses the initial value on mount, subsequent changes to the prop are ignored.
+
+This breaks the NRFPage flow where the component mounts with `initialMessage=""""`, then after mount a `useEffect` reads `window.location.search` and updates its `message` state:
+1. NRFPage mounts AppInputBar with `initialMessage=""""` 
+2. AppInputBar mounts and sets internal `message=""""` via `useState`
+3. NRFPage's `useEffect` (lines 143–151 of NRFPage.tsx) fires and calls `setMessage(userPrompt)` 
+4. NRFPage re-renders with `initialMessage={userPrompt}` 
+5. **But AppInputBar ignores it** — no effect to sync the new prop value to internal state
+
+The sync effect must be restored:
+
+```suggestion
+const [message, setMessage] = useState(initialMessage);
+const textAreaRef = useRef<HTMLTextAreaElement>(null);
+const textAreaWrapperRef = useRef<HTMLDivElement>(null);
+const filesWrapperRef = useRef<HTMLDivElement>(null);
+const filesContentRef = useRef<HTMLDivElement>(null);
+const containerRef = useRef<HTMLDivElement>(null);
+const { user } = useUser();
+const { isClassifying, classification } = useQueryController();
+
+// Expose reset and focus methods to parent via ref
+React.useImperativeHandle(ref, () => ({
+  reset: () => {
+    setMessage("""");
+  },
+  focus: () => {
+    textAreaRef.current?.focus();
+  },
+}));
+
+// Sync prop changes to internal state
+useEffect(() => {
+  if (initialMessage) {
+    setMessage(initialMessage);
+  }
+}, [initialMessage]);
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/9054#discussion_r2886563763,Fixed in e75f63f — restored the `initialMessage` sync useEffect.,2026-03-04T22:53:47.502000,Missing useEffect breaks URL-prefilled prompts in NRFPage,logic,high,8,"This catches a real functional bug where removing the useEffect sync breaks the URL-prefilled prompt feature. The reviewer correctly traces the React state lifecycle showing how initialMessage prop changes would be ignored after mount, breaking the NRFPage flow for users accessing URLs with pre-filled prompts.",2026-03-05T04:42:01.314838+00:00
