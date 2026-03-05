@@ -7389,3 +7389,56 @@ useEffect(() => {
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/onyx-dot-app/onyx/pull/9054#discussion_r2886563763,Fixed in e75f63f — restored the `initialMessage` sync useEffect.,2026-03-04T22:53:47.502000,Missing useEffect breaks URL-prefilled prompts in NRFPage,logic,high,8,"This catches a real functional bug where removing the useEffect sync breaks the URL-prefilled prompt feature. The reviewer correctly traces the React state lifecycle showing how initialMessage prop changes would be ignored after mount, breaking the NRFPage flow for users accessing URLs with pre-filled prompts.",2026-03-05T04:42:01.314838+00:00
+joby-aviation/noodles.gl,350,refactor: Simplify project loading and remove Theatre.js remnants,https://github.com/joby-aviation/noodles.gl/pull/350,"**`isProjectLoadRef` flag can become permanently stuck**
+
+`isProjectLoadRef.current` is set to `true` in `loadProjectFile` and is only reset inside the `graphStructureKey` effect — but the effect only runs when `graphStructureKey` actually changes. If loading a project results in the **same** `graphStructureKey` as the current state (e.g. re-loading the same project, or undo/redo of a position-only change), the effect is never triggered, the flag is never cleared, and the **next legitimate structural change** (adding/removing a node or edge) will incorrectly skip `transformGraph`.
+
+Concrete scenario:
+1. User undoes a position-only drag → `loadProjectFile` is called with the same node/edge IDs → `isProjectLoadRef.current = true`
+2. `graphStructureKey` doesn't change → the guard effect never fires → flag stays `true`
+3. User adds a new node → `graphStructureKey` changes → effect runs → sees `isProjectLoadRef.current = true` → resets flag and **returns early without rebuilding the graph** → new operator is never wired up
+
+A safe fix is to reset the flag in a `useEffect` that always runs on every render (or after every render caused by the load), rather than inside the conditional effect:
+
+```ts
+// Instead of resetting in the graphStructureKey effect, use a separate
+// unconditional effect to always clear the flag after a load completes.
+useEffect(() => {
+  isProjectLoadRef.current = false
+})
+```
+
+Alternatively, reset it at the call sites that complete the load (after `setNodes`/`setEdges` have been flushed), or use `flushSync` to ensure the effect fires before the flag window closes.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: noodles-editor/src/noodles/noodles.tsx
+Line: 241-252
+
+Comment:
+**`isProjectLoadRef` flag can become permanently stuck**
+
+`isProjectLoadRef.current` is set to `true` in `loadProjectFile` and is only reset inside the `graphStructureKey` effect — but the effect only runs when `graphStructureKey` actually changes. If loading a project results in the **same** `graphStructureKey` as the current state (e.g. re-loading the same project, or undo/redo of a position-only change), the effect is never triggered, the flag is never cleared, and the **next legitimate structural change** (adding/removing a node or edge) will incorrectly skip `transformGraph`.
+
+Concrete scenario:
+1. User undoes a position-only drag → `loadProjectFile` is called with the same node/edge IDs → `isProjectLoadRef.current = true`
+2. `graphStructureKey` doesn't change → the guard effect never fires → flag stays `true`
+3. User adds a new node → `graphStructureKey` changes → effect runs → sees `isProjectLoadRef.current = true` → resets flag and **returns early without rebuilding the graph** → new operator is never wired up
+
+A safe fix is to reset the flag in a `useEffect` that always runs on every render (or after every render caused by the load), rather than inside the conditional effect:
+
+```ts
+// Instead of resetting in the graphStructureKey effect, use a separate
+// unconditional effect to always clear the flag after a load completes.
+useEffect(() => {
+  isProjectLoadRef.current = false
+})
+```
+
+Alternatively, reset it at the call sites that complete the load (after `setNodes`/`setEdges` have been flushed), or use `flushSync` to ensure the effect fires before the flag window closes.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/joby-aviation/noodles.gl/pull/350#discussion_r2887651246,,2026-03-05T05:14:06.207000,State flag can get stuck causing graph rebuild to be skipped,logic,high,8,"This is a meaningful logic bug where a ref flag used to skip graph transformations can become permanently stuck in the true state, causing legitimate structural changes (adding nodes/edges) to be silently ignored. The analysis is thorough with a concrete failure scenario, and this would cause real user-facing issues in production where new operators wouldn't get wired up.",2026-03-05T06:28:27.693373+00:00
