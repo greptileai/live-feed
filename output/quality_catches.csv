@@ -8971,3 +8971,47 @@ gptme/gptme-contrib,398,feat(dashboard): add per-lesson detail pages with markdo
   {{ body_html | safe }}
 </div>
 ```",https://github.com/gptme/gptme-contrib/pull/398#discussion_r2896187110,,2026-03-06T14:49:37.869000,Jinja2 autoescape renders markdown HTML as escaped text,runtime,high,8,"This catches a significant rendering bug where all generated lesson pages would display raw HTML tags as text instead of formatted content, completely breaking the core feature of the PR. The markdown-to-HTML conversion would be useless without the `| safe` filter.",2026-03-06T18:23:09.359211+00:00
+simstudioai/sim,3433,feat(selectors): add dropdown selectors for 14 integrations,https://github.com/simstudioai/sim/pull/3433,"Authorization bypass for personal (non-workspace) credentials
+
+Both this route and `apps/sim/app/api/tools/sharepoint/lists/route.ts` only perform an authorization check when `resolved.workspaceId` is truthy. If the credential belongs to an individual user (i.e., `workspaceId` is `null`), **no ownership check is performed** — any authenticated user who knows another user's `credentialId` can fetch their Microsoft Planner plans or SharePoint lists.
+
+The POST-based selector routes in this same PR all go through `authorizeCredentialUse`, which handles both workspace and personal credential ownership. The GET routes should either:
+1. Switch to POST and use `authorizeCredentialUse` (consistent with the rest of the PR), or
+2. Add an explicit ownership check when `resolved.workspaceId` is `null`, e.g. verify that `accountRow.userId === session.user.id`.
+
+The same concern applies to `apps/sim/app/api/tools/sharepoint/lists/route.ts` lines 60-70.",https://github.com/simstudioai/sim/pull/3433#discussion_r2893379174,,2026-03-06T02:02:18.268000,Authorization bypass allows accessing other users' credentials,security,high,8,"Comment 10 identifies a real authorization bypass vulnerability where personal (non-workspace) credentials skip ownership verification, allowing any authenticated user who knows a credentialId to access another user's Microsoft Planner plans or SharePoint lists. This is a significant security issue that could expose sensitive data.",2026-03-06T22:14:54.150616+00:00
+davis7dotsh/better-context,213,fix: add Anthropic OAuth support for Pro/Max plan users,https://github.com/davis7dotsh/better-context/pull/213,"**Stale credentials can overwrite a freshly refreshed token**
+
+`createAnthropicOAuthFetch` unconditionally overwrites `_oauthAuth` with `initialAuth` every time it's called. Under concurrent load with an expired token, this causes a race condition:
+
+1. Thread A reads stale credentials from disk and calls `createAnthropicOAuthFetch` with them, setting the module state to stale
+2. Thread A triggers token refresh, which completes and updates the module state to a fresh token (line 229)
+3. Thread B concurrently reads the same stale credentials from disk (file hasn't been updated yet)
+4. Thread B calls `createAnthropicOAuthFetch` with stale credentials and overwrites the module state back to stale
+5. On next use, the fresh token is lost and the single-use refresh token has already been consumed, causing permanent auth failure until server restart
+
+Fix by adding a timestamp check to prevent overwriting with older credentials: only update the module state if the passed-in token is newer or if the state is empty.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: apps/server/src/providers/auth.ts
+Line: 245
+
+Comment:
+**Stale credentials can overwrite a freshly refreshed token**
+
+`createAnthropicOAuthFetch` unconditionally overwrites `_oauthAuth` with `initialAuth` every time it's called. Under concurrent load with an expired token, this causes a race condition:
+
+1. Thread A reads stale credentials from disk and calls `createAnthropicOAuthFetch` with them, setting the module state to stale
+2. Thread A triggers token refresh, which completes and updates the module state to a fresh token (line 229)
+3. Thread B concurrently reads the same stale credentials from disk (file hasn't been updated yet)
+4. Thread B calls `createAnthropicOAuthFetch` with stale credentials and overwrites the module state back to stale
+5. On next use, the fresh token is lost and the single-use refresh token has already been consumed, causing permanent auth failure until server restart
+
+Fix by adding a timestamp check to prevent overwriting with older credentials: only update the module state if the passed-in token is newer or if the state is empty.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/davis7dotsh/better-context/pull/213#discussion_r2897638923,,2026-03-06T20:08:23.472000,Race condition causes permanent auth failure with single-use refresh tokens,concurrency,high,8,"This identifies a serious race condition where concurrent requests with expired tokens can cause permanent authentication failure. When multiple threads refresh simultaneously, stale credentials can overwrite freshly refreshed tokens, and since OAuth refresh tokens are single-use, this leads to unrecoverable auth failures requiring server restart.",2026-03-06T22:14:54.150616+00:00
