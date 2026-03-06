@@ -8514,3 +8514,109 @@ Either remove `private_channel` from the `types` param and document the public-o
 ```suggestion
     requiredScopes: ['channels:read', 'channels:history', 'groups:read', 'groups:history', 'users:read'],
 ```",https://github.com/simstudioai/sim/pull/3430#discussion_r2893270837,done,2026-03-06T01:32:14.455000,Missing OAuth scopes cause silent failure for private channels,logic,high,8,"The connector claims to support private channels by including 'private_channel' in the API request types, but lacks the required OAuth scopes (groups:read, groups:history) to actually access them. This causes silent data loss where users expect private channel data to sync but it never does - a meaningful production bug affecting data integrity.",2026-03-06T06:26:53.091734+00:00
+joby-aviation/noodles.gl,361,feat: Add reset to default context menu for fields,https://github.com/joby-aviation/noodles.gl/pull/361,"**Reset silently no-ops when field has active keyframes**
+
+`field.setValue(field.defaultValue)` only updates the field's static base value. If the field currently has a keyframe track (i.e., `getTimelineStore().hasKeyframesForField(getFieldPath(op.id, contextMenu.inputName!))` is true), the rendered output is driven by the keyframe values, not the static value — so the reset has no visible effect from the user's perspective.
+
+Contrast with the ""Make static"" button directly below, which calls `getTimelineStore().deleteTrack(...)` to remove the keyframe track first.
+
+Two options to fix this:
+1. Hide ""Reset to default"" when the field has keyframes (let ""Make static"" handle that case).
+2. Proactively clear the keyframe track as part of the reset action.
+
+```suggestion
+                  onClick={() => {
+                    const field = op.inputs[contextMenu.inputName!]
+                    if (!field) return
+                    // If there's an active keyframe track, remove it first so the
+                    // static reset is actually reflected in the rendered output.
+                    const fp = getFieldPath(op.id, contextMenu.inputName!)
+                    if (getTimelineStore().hasKeyframesForField(fp)) {
+                      const before = captureTimelineState()
+                      getTimelineStore().deleteTrack(fp)
+                      fireTimelineMutation('Reset to default', before)
+                    }
+                    field.setValue(field.defaultValue)
+                    setContextMenu(null)
+                  }}
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: noodles-editor/src/noodles/components/node-properties.tsx
+Line: 980-983
+
+Comment:
+**Reset silently no-ops when field has active keyframes**
+
+`field.setValue(field.defaultValue)` only updates the field's static base value. If the field currently has a keyframe track (i.e., `getTimelineStore().hasKeyframesForField(getFieldPath(op.id, contextMenu.inputName!))` is true), the rendered output is driven by the keyframe values, not the static value — so the reset has no visible effect from the user's perspective.
+
+Contrast with the ""Make static"" button directly below, which calls `getTimelineStore().deleteTrack(...)` to remove the keyframe track first.
+
+Two options to fix this:
+1. Hide ""Reset to default"" when the field has keyframes (let ""Make static"" handle that case).
+2. Proactively clear the keyframe track as part of the reset action.
+
+```suggestion
+                  onClick={() => {
+                    const field = op.inputs[contextMenu.inputName!]
+                    if (!field) return
+                    // If there's an active keyframe track, remove it first so the
+                    // static reset is actually reflected in the rendered output.
+                    const fp = getFieldPath(op.id, contextMenu.inputName!)
+                    if (getTimelineStore().hasKeyframesForField(fp)) {
+                      const before = captureTimelineState()
+                      getTimelineStore().deleteTrack(fp)
+                      fireTimelineMutation('Reset to default', before)
+                    }
+                    field.setValue(field.defaultValue)
+                    setContextMenu(null)
+                  }}
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/joby-aviation/noodles.gl/pull/361#discussion_r2893600319,,2026-03-06T03:23:13.151000,Reset action silently fails when keyframes are active,logic,medium,8,"This is a meaningful logic bug where a user-facing 'Reset to default' action appears to do nothing when the field has active keyframes, causing confusion. The reviewer correctly identified the interaction between static values and keyframe tracks, and that the existing 'Make static' button handles this properly. This is not obvious from the code alone and requires understanding of the animation/timeline system.",2026-03-06T08:19:36.612362+00:00
+onyx-dot-app/onyx,8958,feat: Onyx CLI,https://github.com/onyx-dot-app/onyx/pull/8958,"**Type assertion panic when `http.DefaultTransport` is not `*http.Transport`**
+
+`http.DefaultTransport.(*http.Transport)` is a single-value type assertion. If `http.DefaultTransport` has been replaced by another value (e.g. in test environments, behind a custom proxy wrapper, or by another `init()` in the binary), this panics at startup with a failed type assertion.
+
+Use the two-value form to avoid the panic and fall back to a fresh transport:
+
+```go
+var transport *http.Transport
+if t, ok := http.DefaultTransport.(*http.Transport); ok {
+    transport = t.Clone()
+} else {
+    transport = &http.Transport{}
+}
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: cli/internal/api/client.go
+Line: 31
+
+Comment:
+**Type assertion panic when `http.DefaultTransport` is not `*http.Transport`**
+
+`http.DefaultTransport.(*http.Transport)` is a single-value type assertion. If `http.DefaultTransport` has been replaced by another value (e.g. in test environments, behind a custom proxy wrapper, or by another `init()` in the binary), this panics at startup with a failed type assertion.
+
+Use the two-value form to avoid the panic and fall back to a fresh transport:
+
+```go
+var transport *http.Transport
+if t, ok := http.DefaultTransport.(*http.Transport); ok {
+    transport = t.Clone()
+} else {
+    transport = &http.Transport{}
+}
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/8958#discussion_r2893486595,,2026-03-06T02:37:39.420000,Type assertion panic when DefaultTransport is replaced,runtime,high,8,This catches a real runtime panic that would crash the application at startup if http.DefaultTransport has been replaced with a non-*http.Transport value (common in test environments or with proxy wrappers). The single-value type assertion causes an immediate crash rather than graceful fallback.,2026-03-06T08:19:36.612362+00:00
