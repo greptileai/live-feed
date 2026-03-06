@@ -8432,3 +8432,85 @@ transformResponse: async (response: Response) => {
   // ...
 }
 ```",https://github.com/simstudioai/sim/pull/3434#discussion_r2893647234,,2026-03-06T03:43:26.932000,HTTP errors silently return success: true masking API failures,logic,high,8,"Comment 0 identifies a significant bug where HTTP-level errors (403, 429, 401) bypass error checking because Reddit returns a different JSON structure without the `json.errors` wrapper. This causes failed API calls to silently return `success: true`, misleading downstream code. The comment is the best-written of the duplicates, explaining the specific failure scenario with concrete examples.",2026-03-06T04:41:32.904620+00:00
+onyx-dot-app/onyx,8958,feat: Onyx CLI,https://github.com/onyx-dot-app/onyx/pull/8958,"`/new` clears the viewport but does not cancel in-progress streams. After `/new` is called:
+1. `m.isStreaming` remains `true` and `m.streamCh` continues receiving events
+2. Stale tokens from the old stream pass the `if !m.isStreaming` guard in `handleStreamEvent()` and accumulate in the freshly-cleared viewport
+3. When `StopEvent` arrives, `finishStream()` calls `finishAgent()`, which commits the buffered content as a new agent entry
+
+The fix is to cancel the stream before clearing, matching the pattern in `handleSessionResumed()` (lines 573–575):
+
+```suggestion
+func cmdNew(m Model) (Model, tea.Cmd) {
+	if m.isStreaming {
+		m, _ = m.cancelStream()
+	}
+	m.chatSessionID = nil
+	parentID := -1
+	m.parentMessageID = &parentID
+	m.needsRename = false
+	m.citations = nil
+	m.viewport.clearAll()
+	// Re-add splash as a scrollable entry
+	viewportHeight := m.viewportHeight()
+	if viewportHeight < 1 {
+		viewportHeight = m.height
+	}
+	m.viewport.addSplash(viewportHeight)
+	m.status.setSession("""")
+	return m, nil
+}
+```
+
+Note: `/clear` (line 52 in the same file) calls `cmdNew()` and has the same issue.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: cli/internal/tui/commands.go
+Line: 81-96
+
+Comment:
+`/new` clears the viewport but does not cancel in-progress streams. After `/new` is called:
+1. `m.isStreaming` remains `true` and `m.streamCh` continues receiving events
+2. Stale tokens from the old stream pass the `if !m.isStreaming` guard in `handleStreamEvent()` and accumulate in the freshly-cleared viewport
+3. When `StopEvent` arrives, `finishStream()` calls `finishAgent()`, which commits the buffered content as a new agent entry
+
+The fix is to cancel the stream before clearing, matching the pattern in `handleSessionResumed()` (lines 573–575):
+
+```suggestion
+func cmdNew(m Model) (Model, tea.Cmd) {
+	if m.isStreaming {
+		m, _ = m.cancelStream()
+	}
+	m.chatSessionID = nil
+	parentID := -1
+	m.parentMessageID = &parentID
+	m.needsRename = false
+	m.citations = nil
+	m.viewport.clearAll()
+	// Re-add splash as a scrollable entry
+	viewportHeight := m.viewportHeight()
+	if viewportHeight < 1 {
+		viewportHeight = m.height
+	}
+	m.viewport.addSplash(viewportHeight)
+	m.status.setSession("""")
+	return m, nil
+}
+```
+
+Note: `/clear` (line 52 in the same file) calls `cmdNew()` and has the same issue.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/8958#discussion_r2892661615,,2026-03-05T22:14:42.631000,Stale stream tokens leak into cleared viewport after /new command,logic,high,8,"This catches a real bug where /new command doesn't cancel active streams, causing stale tokens from the old conversation to accumulate in the freshly cleared viewport and appear as a new agent entry when StopEvent arrives. This would visibly corrupt the user experience with unexpected content appearing.",2026-03-06T06:26:53.091734+00:00
+simstudioai/sim,3430,feat(knowledge): add 10 new knowledge base connectors,https://github.com/simstudioai/sim/pull/3430,"**Missing scopes for private channels silently fail**
+
+The connector requests only `channels:read`, `channels:history`, and `users:read` at line 252, which only grant access to **public** channels. However, the code at lines 221 and 437 calls `conversations.list` with `types: 'public_channel,private_channel'`, suggesting private-channel support. Without `groups:read` and `groups:history` scopes, the private-channel type is silently ignored or returns empty results.
+
+Either remove `private_channel` from the `types` param and document the public-only limitation, or add the required scopes:
+
+```suggestion
+    requiredScopes: ['channels:read', 'channels:history', 'groups:read', 'groups:history', 'users:read'],
+```",https://github.com/simstudioai/sim/pull/3430#discussion_r2893270837,done,2026-03-06T01:32:14.455000,Missing OAuth scopes cause silent failure for private channels,logic,high,8,"The connector claims to support private channels by including 'private_channel' in the API request types, but lacks the required OAuth scopes (groups:read, groups:history) to actually access them. This causes silent data loss where users expect private channel data to sync but it never does - a meaningful production bug affecting data integrity.",2026-03-06T06:26:53.091734+00:00
