@@ -8674,3 +8674,192 @@ The idiomatic fix is to lift this state into the parent via a state variable, or
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/onyx-dot-app/onyx/pull/9060#discussion_r2886859322,,2026-03-05T00:24:39.062000,Module-level state causes stale data and race conditions across modal instances,concurrency,high,8,This catches a real bug where module-level state (`lastDocxResult`) shared across all component instances causes stale/wrong data when multiple modals are opened or when documents are quickly replaced. This affects production UX with incorrect word counts and document info being displayed.,2026-03-06T10:19:49.867805+00:00
+onyx-dot-app/onyx,9136,refactor: add `Disabled` primitive to `@opal/core`,https://github.com/onyx-dot-app/onyx/pull/9136,"**`Disabled` as direct child of `asChild` silently drops Radix's `onClick` handler**
+
+`<Popover.Trigger asChild>` uses Radix Slot internally. It merges its composed `onClick` (which calls `setOpen(!open)`) into the direct child via `React.cloneElement`. The direct child here is `<Disabled>`, which only destructures `{ disabled, allowClick, children }` — any extra props injected by the Slot (including the popover-toggle `onClick`, `aria-haspopup`, `data-state`, etc.) are silently discarded.
+
+Result: clicking the `OpenButton` does **not** open the LLM model picker, because no DOM element ever receives the Radix trigger's click handler.
+
+The old `Disabled` (a Radix `Slot`) forwarded all injected props to its child, so the chain was unbroken. The new `div`-wrapper approach requires a passthrough for Radix `asChild` patterns.
+
+Compare with the correct pattern in `ActionsPopover/index.tsx` (lines 1029–1039), where an intervening `<div>` is the actual Slot target and `<Disabled>` is only a grandchild — there the Radix click handler lands on the `<div>`, so the popover opens.
+
+**Fix option 1** — put the `<Disabled>` inside the trigger, not as its direct child:
+
+```suggestion
+        <Popover.Trigger asChild>
+          <div data-testid=""llm-popover-trigger"">
+            <Disabled disabled={disabled}>
+              <OpenButton
+                icon={
+                  folded
+                    ? SvgRefreshCw
+                    : getProviderIcon(
+                        llmManager.currentLlm.provider,
+                        llmManager.currentLlm.modelName
+                      )
+                }
+              >
+                {currentLlmDisplayName}
+              </OpenButton>
+            </Disabled>
+          </div>
+        </Popover.Trigger>
+```
+
+**Fix option 2** — spread extra props on the `Disabled` div so that Radix-injected attributes reach the DOM.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: web/src/refresh-components/popovers/LLMPopover.tsx
+Line: 356-373
+
+Comment:
+**`Disabled` as direct child of `asChild` silently drops Radix's `onClick` handler**
+
+`<Popover.Trigger asChild>` uses Radix Slot internally. It merges its composed `onClick` (which calls `setOpen(!open)`) into the direct child via `React.cloneElement`. The direct child here is `<Disabled>`, which only destructures `{ disabled, allowClick, children }` — any extra props injected by the Slot (including the popover-toggle `onClick`, `aria-haspopup`, `data-state`, etc.) are silently discarded.
+
+Result: clicking the `OpenButton` does **not** open the LLM model picker, because no DOM element ever receives the Radix trigger's click handler.
+
+The old `Disabled` (a Radix `Slot`) forwarded all injected props to its child, so the chain was unbroken. The new `div`-wrapper approach requires a passthrough for Radix `asChild` patterns.
+
+Compare with the correct pattern in `ActionsPopover/index.tsx` (lines 1029–1039), where an intervening `<div>` is the actual Slot target and `<Disabled>` is only a grandchild — there the Radix click handler lands on the `<div>`, so the popover opens.
+
+**Fix option 1** — put the `<Disabled>` inside the trigger, not as its direct child:
+
+```suggestion
+        <Popover.Trigger asChild>
+          <div data-testid=""llm-popover-trigger"">
+            <Disabled disabled={disabled}>
+              <OpenButton
+                icon={
+                  folded
+                    ? SvgRefreshCw
+                    : getProviderIcon(
+                        llmManager.currentLlm.provider,
+                        llmManager.currentLlm.modelName
+                      )
+                }
+              >
+                {currentLlmDisplayName}
+              </OpenButton>
+            </Disabled>
+          </div>
+        </Popover.Trigger>
+```
+
+**Fix option 2** — spread extra props on the `Disabled` div so that Radix-injected attributes reach the DOM.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/9136#discussion_r2894663628,Fixed.,2026-03-06T09:10:17.506000,Disabled wrapper silently drops Radix onClick handler breaking popover,logic,high,8,This catches a real functional bug where the LLM popover would fail to open because the Disabled component as direct child of asChild silently discards Radix's injected onClick handler. This is a meaningful production bug affecting user interaction.,2026-03-06T12:23:18.037952+00:00
+posthog/posthog,50115,fix(security): Upgrade langgraph-checkpoint and enable strict msgpack deserialization,https://github.com/PostHog/posthog/pull/50115,"**Strict msgpack mode not actually enabled**
+
+The PR title and description both state that strict msgpack deserialization is enabled by passing `allowed_msgpack_modules=None` to block non-allowlisted ext-type reconstruction. However, the implementation only passes `allowed_json_modules=True`, which controls JSON module reconstruction—not msgpack.
+
+```python
+JsonPlusSerializer(allowed_json_modules=True, allowed_msgpack_modules=None)
+```
+
+This means the code-level defense-in-depth mitigation for CVE-2026-28277 (unsafe msgpack deserialization) is not present. If strict mode causes compatibility issues, that should be documented here with an explanation of the constraint.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: ee/hogai/django_checkpoint/checkpointer.py
+Line: 96-99
+
+Comment:
+**Strict msgpack mode not actually enabled**
+
+The PR title and description both state that strict msgpack deserialization is enabled by passing `allowed_msgpack_modules=None` to block non-allowlisted ext-type reconstruction. However, the implementation only passes `allowed_json_modules=True`, which controls JSON module reconstruction—not msgpack.
+
+```python
+JsonPlusSerializer(allowed_json_modules=True, allowed_msgpack_modules=None)
+```
+
+This means the code-level defense-in-depth mitigation for CVE-2026-28277 (unsafe msgpack deserialization) is not present. If strict mode causes compatibility issues, that should be documented here with an explanation of the constraint.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/50115#discussion_r2893529330,"Good catch — the PR title/description is stale from an earlier iteration. Strict msgpack mode (`allowed_msgpack_modules=None`) was initially implemented but had to be reverted in commit 5833e04 because langgraph 0.4.10 doesn't support automatic allowlist derivation from state schemas, and strict mode blocks deserialization of PostHog's custom Pydantic message types.
+
+I've added an inline comment (ff4a1df) documenting this constraint directly in the code. The upgrade to langgraph-checkpoint 4.0.1 still provides meaningful security improvements:
+- `pickle_fallback=False` by default (blocks pickle deserialization — the most dangerous vector)
+- Deprecation warnings for unregistered ext types (visibility into what's being deserialized)
+- `LANGGRAPH_STRICT_MSGPACK` env var support for future strict enforcement once langgraph supports allowlist derivation",2026-03-06T02:55:48.150000,Security mitigation for CVE not actually implemented in code,security,high,8,"This is a meaningful security catch - the PR claims to enable strict msgpack deserialization to mitigate CVE-2026-28277, but the code only sets allowed_json_modules while leaving allowed_msgpack_modules unset. This means the security fix described in the PR title/description wasn't actually implemented, leaving the vulnerability potentially exploitable. The catch requires understanding both the CVE context and the specific API parameters.",2026-03-06T12:23:18.037952+00:00
+posthog/posthog,50142,feat(experiments): add explicit status field to Experiment model,https://github.com/PostHog/posthog/pull/50142,"**`status` field will be stale for newly-created experiments**
+
+The field is exposed as read-only in the API serializer, but there is no code path that updates it when an experiment transitions from `draft` to `running` or `stopped`. 
+
+The `update()` method in the serializer (line 538 in `ee/clickhouse/views/experiments.py`) still relies solely on `is_draft` (derived from `start_date`) for state logic and does not write back to the `status` field:
+
+```python
+if instance.is_draft and has_start_date:
+    feature_flag.active = True
+    feature_flag.save()
+    return super().update(instance, validated_data)
+```
+
+This means any experiment created after this migration is deployed and subsequently launched will report `status = ""draft""` in the API indefinitely — not `""running""` or `""stopped""` — until the follow-up transition logic lands.
+
+Since the field is already wired into API responses, clients that read `status` between this PR and the follow-up will receive incorrect data for live experiments. Consider either:
+- Deferring the serializer exposure until the write path is in place, or
+- Adding a computed `SerializerMethodField` that falls back to deriving status from `start_date`/`end_date` when the stored value is `null`/`""draft""` and `start_date` is set, to keep the API accurate in the interim.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: posthog/models/experiment.py
+Line: 75-81
+
+Comment:
+**`status` field will be stale for newly-created experiments**
+
+The field is exposed as read-only in the API serializer, but there is no code path that updates it when an experiment transitions from `draft` to `running` or `stopped`. 
+
+The `update()` method in the serializer (line 538 in `ee/clickhouse/views/experiments.py`) still relies solely on `is_draft` (derived from `start_date`) for state logic and does not write back to the `status` field:
+
+```python
+if instance.is_draft and has_start_date:
+    feature_flag.active = True
+    feature_flag.save()
+    return super().update(instance, validated_data)
+```
+
+This means any experiment created after this migration is deployed and subsequently launched will report `status = ""draft""` in the API indefinitely — not `""running""` or `""stopped""` — until the follow-up transition logic lands.
+
+Since the field is already wired into API responses, clients that read `status` between this PR and the follow-up will receive incorrect data for live experiments. Consider either:
+- Deferring the serializer exposure until the write path is in place, or
+- Adding a computed `SerializerMethodField` that falls back to deriving status from `start_date`/`end_date` when the stored value is `null`/`""draft""` and `start_date` is set, to keep the API accurate in the interim.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/50142#discussion_r2894323900,"it's not being used yet, this will be backfilled once the field exists",2026-03-06T07:43:30.674000,Stale status field causes incorrect API responses for live experiments,data_integrity,high,8,"This is a meaningful data integrity bug where a new status field is exposed in the API but never updated after experiment state transitions, causing clients to receive incorrect status values ('draft' instead of 'running' or 'stopped') for live experiments. The reviewer identified the gap between read exposure and write path, cross-referencing multiple files to understand the complete flow, and provided actionable solutions.",2026-03-06T12:23:18.037952+00:00
+gptme/gptme-contrib,379,feat(gptme-sessions): add discover CLI subcommand for all harnesses,https://github.com/gptme/gptme-contrib/pull/379,"**gptme sessions return directories, breaking `--signals`**
+
+`discover_gptme_sessions` returns session *directory* paths (e.g., `~/.local/share/gptme/logs/2026-03-05-my-task/`), while the other three discovery functions return `.jsonl` file paths. This causes two problems:
+
+1. **`--signals` always fails for gptme sessions** — `extract_from_path` calls `parse_trajectory(path)` which does `open(path)`. Opening a directory raises `IsADirectoryError` (subclass of `OSError`), which is caught by `except Exception` at line 310, so every gptme session appears as `[?] (signals error: [Errno 21] Is a directory: …)`.
+
+2. **Inconsistent `--json` output** — gptme entries carry directory paths while codex/cc/copilot entries carry `.jsonl` file paths. The documented example (`jq '.[].path'`) implies all paths point to files.
+
+The gptme trajectory file lives at `<session_dir>/conversation.jsonl`. A fix for this section:
+
+```suggestion
+if harness_filter in (None, ""gptme""):
+    for p in discover_gptme_sessions(start, today):
+        traj = p / ""conversation.jsonl""
+        discovered.append({""harness"": ""gptme"", ""path"": str(traj if traj.exists() else p)})
+```",https://github.com/gptme/gptme-contrib/pull/379#discussion_r2894955704,,2026-03-06T10:14:42.782000,Directory path inconsistency breaks signals extraction for gptme sessions,runtime,high,8,"This is a meaningful runtime bug where `discover_gptme_sessions` returns directory paths while other discovery functions return file paths, causing `--signals` to always fail with IsADirectoryError for gptme sessions. The comment provides excellent analysis showing exactly how the bug manifests (caught by generic exception handler, appears as error to users) and a concrete fix. This would cause real user-facing problems in production.",2026-03-06T12:23:18.037952+00:00
+democratizedspace/dspace,3879,Make chemistry quests artifact-driven with lab outputs,https://github.com/democratizedspace/dspace/pull/3879,"Manual-response path is permanently blocked.
+
+The `manual-response` dialogue node requires `d6238643` (`neutralized spill waste container`) to advance to `verify`, but this item is **only created** by the `chemistry-neutralize-acid-spill` process — which is only accessible from the `kit-response` path. The `manual-response` node offers no process step that produces this artifact, so any player who enters the manual path without already owning the artifact from a previous kit-path run will find the `""Manual neutralization complete; proceed to pH verification.""` option permanently locked.
+
+This means the alternate path advertised to the player (""manual neutralization with tighter checks"") can never be completed independently. The fix would be either:
+1. Add a `chemistry-neutralize-acid-spill` (or a distinct manual-neutralization process) as an option inside `manual-response`, or
+2. Remove the `d6238643` requirement from the `manual-response → verify` transition and gate on a different artifact that the manual path can produce.",https://github.com/democratizedspace/dspace/pull/3879#discussion_r2894208879,,2026-03-06T07:09:21.592000,Manual neutralization path permanently blocked by missing process,logic,high,8,This catches a genuine gameplay-blocking bug where an entire quest path (manual-response) is impossible to complete because it requires an artifact that can only be obtained through a different path. Players choosing manual neutralization would be permanently stuck.,2026-03-06T12:23:18.037952+00:00
