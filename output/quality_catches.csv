@@ -8620,3 +8620,57 @@ if t, ok := http.DefaultTransport.(*http.Transport); ok {
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/onyx-dot-app/onyx/pull/8958#discussion_r2893486595,,2026-03-06T02:37:39.420000,Type assertion panic when DefaultTransport is replaced,runtime,high,8,This catches a real runtime panic that would crash the application at startup if http.DefaultTransport has been replaced with a non-*http.Transport value (common in test environments or with proxy wrappers). The single-value type assertion causes an immediate crash rather than graceful fallback.,2026-03-06T08:19:36.612362+00:00
+gptme/gptme-contrib,368,feat(gptme-sessions): add Codex CLI and Copilot CLI trajectory support,https://github.com/gptme/gptme-contrib/pull/368,"Null `rate_limits` / nested fields crash `extract_usage_codex`
+
+`payload.get(""rate_limits"", {})` returns `None` (not `{}`) when `""rate_limits"": null` is present in the JSON — the default is only used when the key is absent. A truncated or error-interrupted Codex session can produce exactly this. The subsequent `.get(""primary"", {})` call on `None` then raises `AttributeError: 'NoneType' object has no attribute 'get'`.
+
+The same `or {}` guard that was applied to `payload` (line 748) must be applied to `rl`, `primary`, and `secondary` as well:
+
+```suggestion
+                rl = payload.get(""rate_limits"") or {}
+                primary = rl.get(""primary"") or {}
+                secondary = rl.get(""secondary"") or {}
+```",https://github.com/gptme/gptme-contrib/pull/368#discussion_r2893746571,"Fixed in dd456bd: changed to `payload.get(""rate_limits"") or {}` which correctly handles explicit JSON null. Added `test_extract_usage_codex_null_rate_limits` to cover this case — asserts model is extracted correctly but rate limit fields are absent when rate_limits is null.",2026-03-06T04:26:22.437000,Null JSON field causes AttributeError crash in Codex extractor,null,high,8,"This catches a real runtime bug where `payload.get('rate_limits', {})` returns `None` when JSON contains explicit `""rate_limits"": null`, causing AttributeError on subsequent `.get()` calls. This would crash production when processing truncated or error-interrupted Codex sessions - a realistic edge case.",2026-03-06T10:19:49.867805+00:00
+gptme/gptme,1573,feat(lessons): Thompson sampling effectiveness scoring for hybrid matcher,https://github.com/gptme/gptme/pull/1573,"**`AttributeError` not caught when arm value is not a dict**
+
+`arm_data.get(...)` assumes `arm_data` is a dict, but `AttributeError` is not in the caught exceptions (`json.JSONDecodeError, OSError, TypeError, ValueError`). If the state file contains a non-object value for any arm — e.g. `{""arms"": {""lesson.md"": 0.9}}` — the call to `arm_data.get(""alpha"", 1.0)` will raise `AttributeError`, which propagates uncaught and crashes `HybridLessonMatcher.__init__`.
+
+```suggestion
+        for arm_name, arm_data in arms.items():
+            if not isinstance(arm_data, dict):
+                logger.warning(f""Skipping arm {arm_name!r}: expected dict, got {type(arm_data).__name__}"")
+                continue
+            alpha = float(arm_data.get(""alpha"", 1.0))
+            beta = float(arm_data.get(""beta"", 1.0))
+            total = alpha + beta
+            posteriors[arm_name] = alpha / total if total > 0 else 0.5
+```
+
+Alternatively, add `AttributeError` to the `except` tuple at line 83, though that would still discard all previously-processed valid arms.",https://github.com/gptme/gptme/pull/1573#discussion_r2894619668,"Fixed in b9488a404 — moved try/except inside the loop with per-arm error handling. Now catches `AttributeError` (plus `TypeError`, `ValueError`) so non-dict arm values like `{""arms"": {""lesson.md"": 0.9}}` are skipped cleanly. Added `test_load_ts_posteriors_non_dict_arm_skipped` to verify: bad arm skipped, remaining valid arms still returned.",2026-03-06T09:00:34.563000,Uncaught AttributeError crashes matcher on malformed state file,runtime,high,8,"Comment 3 identifies a real production bug where a malformed state file with non-dict arm values (e.g., `{""arms"": {""lesson.md"": 0.9}}`) would cause an uncaught AttributeError that crashes the HybridLessonMatcher initialization. This is a meaningful runtime bug that would affect production when users have slightly malformed configuration files.",2026-03-06T10:19:49.867805+00:00
+onyx-dot-app/onyx,9060,feat: Docx preview variant,https://github.com/onyx-dot-app/onyx/pull/9060,"`lastDocxResult` is a module-level variable shared across all component instances and renders. This creates concrete bugs:
+
+1. **Multiple modals open simultaneously** – if two preview modals are open (or one is quickly replaced), the second document's load will overwrite `lastDocxResult` and both `headerDescription()` and `renderFooterRight()` will reflect the wrong document.
+2. **Stale header on re-open** – when a new document is opened, `headerDescription()` will still return the previous document's word count until the new `onLoad` fires, because `lastDocxResult` is never reset before the new fetch starts.
+3. **No React reactivity** – `headerDescription` and `renderFooterRight` read `lastDocxResult` directly; since it's not React state, React won't know to re-render the header/footer when it changes.
+
+The idiomatic fix is to lift this state into the parent via a state variable, or use `useCallback`-stabilised state inside `DocxPreview` and expose it upward. A minimal fix is to reset `lastDocxResult = null` at the beginning of `loadDocument()`, and track the result in React state so the parent re-renders when it changes.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: web/src/sections/modals/PreviewModal/variants/docxVariant.tsx
+Line: 102
+
+Comment:
+`lastDocxResult` is a module-level variable shared across all component instances and renders. This creates concrete bugs:
+
+1. **Multiple modals open simultaneously** – if two preview modals are open (or one is quickly replaced), the second document's load will overwrite `lastDocxResult` and both `headerDescription()` and `renderFooterRight()` will reflect the wrong document.
+2. **Stale header on re-open** – when a new document is opened, `headerDescription()` will still return the previous document's word count until the new `onLoad` fires, because `lastDocxResult` is never reset before the new fetch starts.
+3. **No React reactivity** – `headerDescription` and `renderFooterRight` read `lastDocxResult` directly; since it's not React state, React won't know to re-render the header/footer when it changes.
+
+The idiomatic fix is to lift this state into the parent via a state variable, or use `useCallback`-stabilised state inside `DocxPreview` and expose it upward. A minimal fix is to reset `lastDocxResult = null` at the beginning of `loadDocument()`, and track the result in React state so the parent re-renders when it changes.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/9060#discussion_r2886859322,,2026-03-05T00:24:39.062000,Module-level state causes stale data and race conditions across modal instances,concurrency,high,8,This catches a real bug where module-level state (`lastDocxResult`) shared across all component instances causes stale/wrong data when multiple modals are opened or when documents are quickly replaced. This affects production UX with incorrect word counts and document info being displayed.,2026-03-06T10:19:49.867805+00:00
