@@ -8406,3 +8406,29 @@ else:
 ```
 
 Alternatively, initialize `outcome = ""productive""` before the chain and let branches override it. Either way, add a test case with only `start_commit` provided (no `end_commit`) and zero/timeout exit code to prevent regression.",https://github.com/gptme/gptme-contrib/pull/359#discussion_r2892958864,"Fixed in 3c3e795: added `outcome = ""noop"" if exit_code == 124 else ""productive""` immediately after the warning log in the partial-commit branch. The elif chain now covers all paths without a dangling branch. Two regression tests added: partial-commit + exit_code=0 → productive, partial-commit + exit_code=124 → noop. All 109 tests pass.",2026-03-05T23:44:40.500000,UnboundLocalError crash when only one commit argument provided,runtime,high,8,"This catches a genuine runtime bug where the code path for partial commit arguments (one provided, one missing) falls through without assigning the 'outcome' variable, causing an UnboundLocalError crash when building the session record. This is a real bug that would crash in production with a specific but plausible input combination.",2026-03-06T03:09:28.337454+00:00
+simstudioai/sim,3434,"feat(reddit): add 5 new tools, fix bugs, and audit all endpoints against API docs",https://github.com/simstudioai/sim/pull/3434,"**Missing `response.ok` guard — HTTP errors silently return `success: true`**
+
+`transformResponse` only checks `data.json?.errors`, which covers Reddit API-level validation errors. However, when an HTTP-level error occurs — e.g., 403 if the recipient has blocked the sender, 429 rate-limiting, or 401 for an expired token — Reddit returns `{""message"": ""Forbidden"", ""error"": 403}` (no `json` wrapper). In that case, `data.json?.errors` is `undefined`, the error branch is skipped, and the function falls through to return `success: true` with `""Message sent successfully""`, silently masking the failure.
+
+The same pattern exists in `reply.ts` (also modified in this PR), which has the same `data.json?.errors`-only check.
+
+Add a `!response.ok` guard before the error check:
+
+```ts
+transformResponse: async (response: Response) => {
+  const data = await response.json()
+
+  if (!response.ok) {
+    const errorMsg = data?.message || `HTTP error ${response.status}`
+    return {
+      success: false,
+      output: { success: false, message: `Failed to send message: ${errorMsg}` },
+    }
+  }
+
+  if (data.json?.errors && data.json.errors.length > 0) {
+    // ...existing error handling
+  }
+  // ...
+}
+```",https://github.com/simstudioai/sim/pull/3434#discussion_r2893647234,,2026-03-06T03:43:26.932000,HTTP errors silently return success: true masking API failures,logic,high,8,"Comment 0 identifies a significant bug where HTTP-level errors (403, 429, 401) bypass error checking because Reddit returns a different JSON structure without the `json.errors` wrapper. This causes failed API calls to silently return `success: true`, misleading downstream code. The comment is the best-written of the duplicates, explaining the specific failure scenario with concrete examples.",2026-03-06T04:41:32.904620+00:00
