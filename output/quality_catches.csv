@@ -8307,3 +8307,102 @@ The R2 credentials are build-time infrastructure secrets — they are not needed
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/browseros-ai/BrowserOS-agent/pull/417#discussion_r2891805239,"Fixed. `config.ts` now allowlists only runtime-safe inlined vars (`BROWSEROS_CONFIG_URL`, `CODEGEN_SERVICE_URL`, `POSTHOG_API_KEY`, `SENTRY_DSN`, `NODE_ENV`, `LOG_LEVEL`) for `envVars` passed to `Bun.build define`. R2 credentials remain only in process env for build-time R2 operations and are no longer embedded in the compiled binary.",2026-03-05T19:26:40.083000,R2 credentials baked into distributed server binary,security,critical,9,"This is a critical security vulnerability where cloud storage credentials (R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY) would be embedded as plaintext strings in the compiled binary, allowing anyone with the binary to extract and abuse these secrets. The analysis traces the data flow through multiple files to demonstrate the complete vulnerability path.",2026-03-06T00:52:48.057418+00:00
+onyx-dot-app/onyx,8253,feat: lm studio provider,https://github.com/onyx-dot-app/onyx/pull/8253,"**Submitting with empty model list after fetch error**
+
+When the auto-fetch succeeds at least once (`hasFetched = true`, `fetchedModels = [model1, model2]`), and then a subsequent fetch fails (e.g. the LM Studio server goes down after the form was opened), `setFetchedModels([])` is called while `hasFetched` remains `true`. When the user submits, `hasFetched ? fetchedModels : modelConfigurations` resolves to `fetchedModels = []`, silently overwriting all existing model configurations with an empty list.
+
+This can happen in a normal edit flow: the form auto-fetches on open (succeeds → `hasFetched = true`), the user changes the `api_base` to an unreachable URL, gets an error, but then clicks **Save** anyway.
+
+The simplest fix is to reset `hasFetched` to `false` whenever a fetch error occurs, so the form falls back to the provider's stored models for submission:
+
+```typescript
+if (data.error) {
+  setFetchError(data.error);
+  setFetchedModels([]);
+  setHasFetched(false);  // fall back to DB models on error
+  return;
+}
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: web/src/sections/modals/llmConfig/LMStudioForm.tsx
+Line: 251-254
+
+Comment:
+**Submitting with empty model list after fetch error**
+
+When the auto-fetch succeeds at least once (`hasFetched = true`, `fetchedModels = [model1, model2]`), and then a subsequent fetch fails (e.g. the LM Studio server goes down after the form was opened), `setFetchedModels([])` is called while `hasFetched` remains `true`. When the user submits, `hasFetched ? fetchedModels : modelConfigurations` resolves to `fetchedModels = []`, silently overwriting all existing model configurations with an empty list.
+
+This can happen in a normal edit flow: the form auto-fetches on open (succeeds → `hasFetched = true`), the user changes the `api_base` to an unreachable URL, gets an error, but then clicks **Save** anyway.
+
+The simplest fix is to reset `hasFetched` to `false` whenever a fetch error occurs, so the form falls back to the provider's stored models for submission:
+
+```typescript
+if (data.error) {
+  setFetchError(data.error);
+  setFetchedModels([]);
+  setHasFetched(false);  // fall back to DB models on error
+  return;
+}
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/8253#discussion_r2892834365,,2026-03-05T23:04:38.168000,Empty model list silently overwrites existing models on fetch error,data_integrity,high,8,"This catch identifies a meaningful logic bug where a fetch error after a successful fetch would cause `hasFetched` to remain true while `fetchedModels` becomes empty, resulting in silently overwriting all existing model configurations with an empty list when the user saves. This could cause data loss in production.",2026-03-06T03:09:28.337454+00:00
+gptme/gptme,1563,feat(subagent): add ACP execution mode for multi-harness subagents,https://github.com/gptme/gptme/pull/1563,"**Race condition: cleanup may be skipped when thread finishes before `_subagents.append`**
+
+The `run_acp_subagent` thread is started on line 1019 **before** `_subagents.append(sa)` is called on line 1036. If the thread completes very quickly (especially in tests with mocked ACP clients), the `finally` block here searches `_subagents` for `agent_id` and finds nothing — so `_cleanup_isolation` is never called, silently leaking any worktree or temp directory created by `isolated=True`.
+
+This is most visible in the test suite, where mocked ACP clients complete instantly, but it can also happen with a very fast real agent.
+
+A simple fix is to pass `sa` directly once it's constructed, rather than looking it up by ID in `_subagents`:
+
+```python
+# Before starting the thread, use a mutable container as a forward reference
+sa_holder: list[Subagent] = []
+
+def run_acp_subagent():
+    ...
+    finally:
+        if sa_holder:
+            _cleanup_isolation(sa_holder[0])
+
+t = threading.Thread(target=run_acp_subagent, daemon=True)
+t.start()
+
+sa = Subagent(...)
+sa_holder.append(sa)  # set before the thread can race past the finally
+_subagents.append(sa)
+```",https://github.com/gptme/gptme/pull/1563#discussion_r2867797225,"Fixed in c1f1e6c6b: Subagent is now appended to `_subagents` before `t.start()`, so the `finally` block can always locate it even when the thread completes immediately (as happens in mocked tests).",2026-02-28T19:25:29.347000,Race condition causes cleanup to be skipped for fast-completing threads,concurrency,high,8,"This identifies a real race condition where the thread can complete before the Subagent is added to _subagents, causing the finally block's cleanup lookup to fail and leak worktrees/temp directories. This is a genuine concurrency bug with resource leak implications, especially visible in tests with mocked clients.",2026-03-06T03:09:28.337454+00:00
+gptme/gptme-contrib,359,feat(gptme-sessions): post_session() hook + CLI subcommand (Phase 3 of #349),https://github.com/gptme/gptme-contrib/pull/359,"`UnboundLocalError` crash when exactly one commit is provided
+
+The `elif (start_commit is None) != (end_commit is None)` branch (line 169) logs a warning and then falls out of the `elif` chain — but it **never assigns `outcome`**. Because `outcome` has no initializer before the chain, any path through this branch will raise `UnboundLocalError: local variable 'outcome' referenced before assignment` at line 189 when the record is built.
+
+Concrete scenario that crashes today:
+
+```bash
+gptme-sessions post-session \
+  --harness claude-code \
+  --start-commit ""$PRE_HEAD""
+  # --end-commit omitted (e.g. git rev-parse failed in the shell script)
+```
+
+With no trajectory and exit code 0, the code enters the warning branch (line 169), skips the remaining `elif` clauses (lines 178–182), and then tries to read `outcome` — crash.
+
+The fix is to set a fallback `outcome` in the warning branch before exiting:
+
+```python
+elif (start_commit is None) != (end_commit is None):
+    logger.warning(...)
+    # Continue to timeout / default fallbacks
+    outcome = ""noop"" if exit_code == 124 else ""productive""
+elif exit_code == 124:
+    outcome = ""noop""
+else:
+    outcome = ""productive""
+```
+
+Alternatively, initialize `outcome = ""productive""` before the chain and let branches override it. Either way, add a test case with only `start_commit` provided (no `end_commit`) and zero/timeout exit code to prevent regression.",https://github.com/gptme/gptme-contrib/pull/359#discussion_r2892958864,"Fixed in 3c3e795: added `outcome = ""noop"" if exit_code == 124 else ""productive""` immediately after the warning log in the partial-commit branch. The elif chain now covers all paths without a dangling branch. Two regression tests added: partial-commit + exit_code=0 → productive, partial-commit + exit_code=124 → noop. All 109 tests pass.",2026-03-05T23:44:40.500000,UnboundLocalError crash when only one commit argument provided,runtime,high,8,"This catches a genuine runtime bug where the code path for partial commit arguments (one provided, one missing) falls through without assigning the 'outcome' variable, causing an UnboundLocalError crash when building the session record. This is a real bug that would crash in production with a specific but plausible input combination.",2026-03-06T03:09:28.337454+00:00
