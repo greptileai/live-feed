@@ -8015,3 +8015,295 @@ writes = len({w for w in signals[""file_writes""] if not w.startswith(""<"")})
 ```
 
 The same issue is present in `extract_signals_cc` at line 275 where `file_writes.append(f""<{tool}>"")` is called for CC write tools.",https://github.com/gptme/gptme-contrib/pull/346#discussion_r2891330534,,2026-03-05T17:30:56.178000,Placeholder writes inflate grade tier with fake file counts,logic,high,8,"This catches a real logic bug where placeholder strings like '<save>', '<write>', '<patch>' are counted as distinct unique file writes in the grading algorithm, artificially inflating the productivity score when no actual files were written. An agent with zero real output could receive a 0.55 reward tier.",2026-03-05T22:16:16.498830+00:00
+getarcaneapp/arcane,1952,feat: add jwt refresh interval variable,https://github.com/getarcaneapp/arcane/pull/1952,"**No validation for zero or negative durations**
+
+`time.ParseDuration` successfully parses negative values (e.g. `""-1h""`) and zero (`""0s""`). If `JWT_REFRESH_EXPIRY` is set to a negative or zero duration, `time.Now().Add(s.refreshExpiry)` in `generateTokenPair` will produce an expiry in the past, silently causing every issued refresh token to be immediately expired. Adding a minimum positive check after a successful parse would prevent this silent misconfiguration:
+
+```go
+if d, err := time.ParseDuration(value); err == nil {
+    if d > 0 {
+        field.SetInt(int64(d))
+    } else {
+        // treat non-positive as invalid and fall through to the fallback
+        envTag := fieldType.Tag.Get(""env"")
+        defaultValue := fieldType.Tag.Get(""default"")
+        slog.Warn(""Non-positive duration for config field, using tagged default"",
+            ""field"", envTag, ""value"", value, ""default"", defaultValue)
+        if fallback, fallbackErr := time.ParseDuration(defaultValue); fallbackErr == nil {
+            field.SetInt(int64(fallback))
+        }
+    }
+} else {
+    ...
+}
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: backend/internal/config/config.go
+Line: 278-294
+
+Comment:
+**No validation for zero or negative durations**
+
+`time.ParseDuration` successfully parses negative values (e.g. `""-1h""`) and zero (`""0s""`). If `JWT_REFRESH_EXPIRY` is set to a negative or zero duration, `time.Now().Add(s.refreshExpiry)` in `generateTokenPair` will produce an expiry in the past, silently causing every issued refresh token to be immediately expired. Adding a minimum positive check after a successful parse would prevent this silent misconfiguration:
+
+```go
+if d, err := time.ParseDuration(value); err == nil {
+    if d > 0 {
+        field.SetInt(int64(d))
+    } else {
+        // treat non-positive as invalid and fall through to the fallback
+        envTag := fieldType.Tag.Get(""env"")
+        defaultValue := fieldType.Tag.Get(""default"")
+        slog.Warn(""Non-positive duration for config field, using tagged default"",
+            ""field"", envTag, ""value"", value, ""default"", defaultValue)
+        if fallback, fallbackErr := time.ParseDuration(defaultValue); fallbackErr == nil {
+            field.SetInt(int64(fallback))
+        }
+    }
+} else {
+    ...
+}
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>
+
+<a href=""https://app.greptile.com/ide/codex?prompt=This%20is%20a%20comment%20left%20during%20a%20code%20review.%0APath%3A%20backend%2Finternal%2Fconfig%2Fconfig.go%0ALine%3A%20278-294%0A%0AComment%3A%0A**No%20validation%20for%20zero%20or%20negative%20durations**%0A%0A%60time.ParseDuration%60%20successfully%20parses%20negative%20values%20%28e.g.%20%60%22-1h%22%60%29%20and%20zero%20%28%60%220s%22%60%29.%20If%20%60JWT_REFRESH_EXPIRY%60%20is%20set%20to%20a%20negative%20or%20zero%20duration%2C%20%60time.Now%28%29.Add%28s.refreshExpiry%29%60%20in%20%60generateTokenPair%60%20will%20produce%20an%20expiry%20in%20the%20past%2C%20silently%20causing%20every%20issued%20refresh%20token%20to%20be%20immediately%20expired.%20Adding%20a%20minimum%20positive%20check%20after%20a%20successful%20parse%20would%20prevent%20this%20silent%20misconfiguration%3A%0A%0A%60%60%60go%0Aif%20d%2C%20err%20%3A%3D%20time.ParseDuration%28value%29%3B%20err%20%3D%3D%20nil%20%7B%0A%20%20%20%20if%20d%20%3E%200%20%7B%0A%20%20%20%20%20%20%20%20field.SetInt%28int64%28d%29%29%0A%20%20%20%20%7D%20else%20%7B%0A%20%20%20%20%20%20%20%20%2F%2F%20treat%20non-positive%20as%20invalid%20and%20fall%20through%20to%20the%20fallback%0A%20%20%20%20%20%20%20%20envTag%20%3A%3D%20fieldType.Tag.Get%28%22env%22%29%0A%20%20%20%20%20%20%20%20defaultValue%20%3A%3D%20fieldType.Tag.Get%28%22default%22%29%0A%20%20%20%20%20%20%20%20slog.Warn%28%22Non-positive%20duration%20for%20config%20field%2C%20using%20tagged%20default%22%2C%0A%20%20%20%20%20%20%20%20%20%20%20%20%22field%22%2C%20envTag%2C%20%22value%22%2C%20value%2C%20%22default%22%2C%20defaultValue%29%0A%20%20%20%20%20%20%20%20if%20fallback%2C%20fallbackErr%20%3A%3D%20time.ParseDuration%28defaultValue%29%3B%20fallbackErr%20%3D%3D%20nil%20%7B%0A%20%20%20%20%20%20%20%20%20%20%20%20field.SetInt%28int64%28fallback%29%29%0A%20%20%20%20%20%20%20%20%7D%0A%20%20%20%20%7D%0A%7D%20else%20%7B%0A%20%20%20%20...%0A%7D%0A%60%60%60%0A%0AHow%20can%20I%20resolve%20this%3F%20If%20you%20propose%20a%20fix%2C%20please%20make%20it%20concise.&repo=getarcaneapp%2Farcane""><picture><source media=""(prefers-color-scheme: dark)"" srcset=""https://img.shields.io/badge/Fix_in_Codex-black?logo=data%3Aimage%2Fpng%3Bbase64%2CiVBORw0KGgoAAAANSUhEUgAAADAAAAAwCAYAAABXAvmHAAAAAXNSR0IArs4c6QAAAERlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAA6ABAAMAAAABAAEAAKACAAQAAAABAAAAMKADAAQAAAABAAAAMAAAAADbN2wMAAAGD0lEQVRoBe1ZC4hUVRg%2B%2Fx1H81GrjDNrarUmVpCVIokEFUrlo6SoRqFQBHfHfVFEglD0EqFQ1Mp9yO74AFuipQcZuRaEFhERtqgkheHW5hLN7I7rWu1jdub%2BfWfqjHfu3Lneuzuzu4F3Wc75n%2Bf%2F7vnPuf85I8TVZ3TfAOVj%2BE0bovO8Xs8qFmIJCQ7Ap45%2BRAg6q3PyWH048DV4YOX%2FGRaAitLORR7SdgsS99qFxsw%2FMtPLdWHf%2B3Z6Q5ENFQBVhbq2CaYtRMLjdGBMwdEBPbEhHC7G7OTncQ0gGGz2BKYuO0BE64YSArNoh91RQXwLsbiOieKC%2BXckWCuTfqSuMXDSjV%2FXAKrLOncJ0p5zM4gbXRbcKnSxtTY8%2FWMndq4AVIY6lxJrXyBtXNk5CcSsg3XTNEjxUEPDzF6zzEhrRuJKfU3QzpEIXsaBFH16PE84Ggyen2gXl2MAVaWxB%2BF2oZ2zvMuwuxVPm3TAzq8jAOUbuxYjabbbOSqgbG11KBbM5d82lytCnQ9rTK9gOu%2FO5WAk%2BNh%2Bfz1z9vS848eXJszjWQIIhU54vTxnD%2FJ9k9lg1GjWH61p9B82j5%2BVQjL48VxyZEwFj6iZtNXm4CU9zsz0ijk1yPcHzPxRp5nvsoohYwaqyqJrkFMhK8VR55GYaRVDGoAsEQR5XrdSMvNQDsi%2FC2Z%2BYWm6xsp%2FGkCgaNkjePs3WykZedgRBnVOLKhp9PmYk2uNskL2iTlrB5LjpQEg7x9zGMBP9eHi01K3tjHQjNlodmg3XLV2KwdpANh1llgpZPFYzK8siy5QfE70b0Y%2B2dYrSnc4LarW6ys3RGeYfaQBQHCTWWhFy1oIR4A3lKzuwKzzWA%2BO1o6yGUqL9L6BvNrhYPDMeKO9AQDZFk1GIyBYXl0WWa54bR3dO7A22hRdqFZWBIGiwLNG%2F5cBMLs6JbEYtzO1c8FbS8u8ARxKNhsdF6yvaS9WBqNTlP%2FLAAS1KqaTFrNwu3%2FqsnSpUds4%2FSOA%2BM6J7XB0kEpFWpEnXdwZAHCLW8ca0RajDdLoEyNdqD6TeFL5TgOIU%2FxdLMa4EjhpdSHCRj28nREpQXB1k66O0wBwdOtCQG8bA7Lts%2FilN35ph9JJLWqi%2BxVd0JbIv3LlzxPkGGkAkuhP6ltR952T%2FSs9OhbtwYNz%2BqWerGBRhrx5JZt8yvv6OpLSXwaA%2Ffv9fyZ1luWB5Wc7HQDzl3Xh6R8qepy46RkcN29TdKFbrLWYOtxkAJAD14f932M3idkGkby8ZcqvI%2BHUlkufda4WCX1WXFyc2tM3OCXS3TtJ%2FsfFwGRJS36in2cL1itSRWIuRxl8TpUykpV1Hkh96YiKM%2FQzCD5Xs99%2FQrHwddyOD8y1ija1p3C%2FU2viWZE9YO6tKovJbTldplgpSh5Kl0%2BVLGsGAhOLcgWTssEdZ0lFaSxVN1WXxZ5A8Dlv6DDQ3PL1XbPUYHZtaWlsNnaxEjsdKcN9Ub%2BIc5PSg03ms27dH5OLJnr%2FyuRmUqmpJu5EWSRvou0fFhcx7CkUY314dTo%2BgEhhy%2BcOcG%2B0lBiYGHtXbaPvecXKAiAFVaFYFwQ%2BpTRWWsxoa9v57ntSpct%2FQWWl0L98%2FmasBK3iwJtvF8n448bgpSwHAPGBMhwLLfL%2B7CAN3Fe7b2a7OR5LANHuvmYkapdZeaRpxDCI7XU3LnkXolL4zWp8yzUgFXGNXo5r9Horo8LzeEBn2hNn8VY47OuwGy8nAGmEffk97Bpr7BwUQoaUeQnl%2BTYnvi1TSBm2dVxYjy3wc0WPRIu06Rmknj1Ox7IFIFd8pDuyGk4zymanzoeih7f%2FQkPDXPlldvTYppDRg7yp9jC9hiP9IiM%2Fr30WLbhvWuXGp2MAymnqp1WNVqCkmI%2F0wjUHyVuCi7hXkovtITgsUbquWuZvu3tpeVOT75IbO9cA7JxXPNU%2BTZs8Za%2F7hc%2Fv9PQlyg8dmvG3nX8rWV4BqAEqN0ZXaJom022x4lm1WFtfoTx6ta7Bf8xK7oRXEABq4IrSyJ2keVbg9%2BBbkWpIN%2FZidiK64JN6MvnZ3n0zflC6V9v%2F6xv4B1Ee8WrvhIOWAAAAAElFTkSuQmCC&logoColor=white""><img alt=""Fix in Codex"" src=""https://img.shields.io/badge/Fix_in_Codex-white?logo=data%3Aimage%2Fpng%3Bbase64%2CiVBORw0KGgoAAAANSUhEUgAAADAAAAAwCAYAAABXAvmHAAAAAXNSR0IArs4c6QAAAERlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAA6ABAAMAAAABAAEAAKACAAQAAAABAAAAMKADAAQAAAABAAAAMAAAAADbN2wMAAAGD0lEQVRoBe1ZC4hUVRg%2B%2Fx1H81GrjDNrarUmVpCVIokEFUrlo6SoRqFQBHfHfVFEglD0EqFQ1Mp9yO74AFuipQcZuRaEFhERtqgkheHW5hLN7I7rWu1jdub%2BfWfqjHfu3Lneuzuzu4F3Wc75n%2Bf%2F7vnPuf85I8TVZ3TfAOVj%2BE0bovO8Xs8qFmIJCQ7Ap45%2BRAg6q3PyWH048DV4YOX%2FGRaAitLORR7SdgsS99qFxsw%2FMtPLdWHf%2B3Z6Q5ENFQBVhbq2CaYtRMLjdGBMwdEBPbEhHC7G7OTncQ0gGGz2BKYuO0BE64YSArNoh91RQXwLsbiOieKC%2BXckWCuTfqSuMXDSjV%2FXAKrLOncJ0p5zM4gbXRbcKnSxtTY8%2FWMndq4AVIY6lxJrXyBtXNk5CcSsg3XTNEjxUEPDzF6zzEhrRuJKfU3QzpEIXsaBFH16PE84Ggyen2gXl2MAVaWxB%2BF2oZ2zvMuwuxVPm3TAzq8jAOUbuxYjabbbOSqgbG11KBbM5d82lytCnQ9rTK9gOu%2FO5WAk%2BNh%2Bfz1z9vS848eXJszjWQIIhU54vTxnD%2FJ9k9lg1GjWH61p9B82j5%2BVQjL48VxyZEwFj6iZtNXm4CU9zsz0ijk1yPcHzPxRp5nvsoohYwaqyqJrkFMhK8VR55GYaRVDGoAsEQR5XrdSMvNQDsi%2FC2Z%2BYWm6xsp%2FGkCgaNkjePs3WykZedgRBnVOLKhp9PmYk2uNskL2iTlrB5LjpQEg7x9zGMBP9eHi01K3tjHQjNlodmg3XLV2KwdpANh1llgpZPFYzK8siy5QfE70b0Y%2B2dYrSnc4LarW6ys3RGeYfaQBQHCTWWhFy1oIR4A3lKzuwKzzWA%2BO1o6yGUqL9L6BvNrhYPDMeKO9AQDZFk1GIyBYXl0WWa54bR3dO7A22hRdqFZWBIGiwLNG%2F5cBMLs6JbEYtzO1c8FbS8u8ARxKNhsdF6yvaS9WBqNTlP%2FLAAS1KqaTFrNwu3%2FqsnSpUds4%2FSOA%2BM6J7XB0kEpFWpEnXdwZAHCLW8ca0RajDdLoEyNdqD6TeFL5TgOIU%2FxdLMa4EjhpdSHCRj28nREpQXB1k66O0wBwdOtCQG8bA7Lts%2FilN35ph9JJLWqi%2BxVd0JbIv3LlzxPkGGkAkuhP6ltR952T%2FSs9OhbtwYNz%2BqWerGBRhrx5JZt8yvv6OpLSXwaA%2Ffv9fyZ1luWB5Wc7HQDzl3Xh6R8qepy46RkcN29TdKFbrLWYOtxkAJAD14f932M3idkGkby8ZcqvI%2BHUlkufda4WCX1WXFyc2tM3OCXS3TtJ%2FsfFwGRJS36in2cL1itSRWIuRxl8TpUykpV1Hkh96YiKM%2FQzCD5Xs99%2FQrHwddyOD8y1ija1p3C%2FU2viWZE9YO6tKovJbTldplgpSh5Kl0%2BVLGsGAhOLcgWTssEdZ0lFaSxVN1WXxZ5A8Dlv6DDQ3PL1XbPUYHZtaWlsNnaxEjsdKcN9Ub%2BIc5PSg03ms27dH5OLJnr%2FyuRmUqmpJu5EWSRvou0fFhcx7CkUY314dTo%2BgEhhy%2BcOcG%2B0lBiYGHtXbaPvecXKAiAFVaFYFwQ%2BpTRWWsxoa9v57ntSpct%2FQWWl0L98%2FmasBK3iwJtvF8n448bgpSwHAPGBMhwLLfL%2B7CAN3Fe7b2a7OR5LANHuvmYkapdZeaRpxDCI7XU3LnkXolL4zWp8yzUgFXGNXo5r9Horo8LzeEBn2hNn8VY47OuwGy8nAGmEffk97Bpr7BwUQoaUeQnl%2BTYnvi1TSBm2dVxYjy3wc0WPRIu06Rmknj1Ox7IFIFd8pDuyGk4zymanzoeih7f%2FQkPDXPlldvTYppDRg7yp9jC9hiP9IiM%2Fr30WLbhvWuXGp2MAymnqp1WNVqCkmI%2F0wjUHyVuCi7hXkovtITgsUbquWuZvu3tpeVOT75IbO9cA7JxXPNU%2BTZs8Za%2F7hc%2Fv9PQlyg8dmvG3nX8rWV4BqAEqN0ZXaJom022x4lm1WFtfoTx6ta7Bf8xK7oRXEABq4IrSyJ2keVbg9%2BBbkWpIN%2FZidiK64JN6MvnZ3n0zflC6V9v%2F6xv4B1Ee8WrvhIOWAAAAAElFTkSuQmCC&logoColor=black""></picture></a>",https://github.com/getarcaneapp/arcane/pull/1952#discussion_r2887187861,,2026-03-05T02:20:52.341000,Zero/negative duration config silently breaks all refresh tokens,logic,high,8,"Comment 2 identifies that time.ParseDuration accepts negative and zero values, which would cause JWT refresh tokens to expire immediately in production, silently breaking authentication for all users. This is a meaningful logic bug with real security/availability impact that isn't immediately obvious.",2026-03-06T00:52:48.057418+00:00
+browseros-ai/browseros-agent,425,feat: integrate models.dev registry for model defaults,https://github.com/browseros-ai/BrowserOS-agent/pull/425,"**Prototype chain lookup via bracket notation**
+
+`registry[provider]` accesses inherited prototype-chain properties for keys like `__proto__` or `constructor`. For example, `GET /api/models/__proto__` would return the truthy `Object.prototype` value, bypassing the `if (!info)` 404 guard in the route handler (models.ts:33) and returning `{}` to the caller. The same applies to `getAllProviders()`, which returns the live registry object directly — if a caller mutates it, the in-memory registry is corrupted.
+
+Use `Object.hasOwn()` to guard both functions:
+
+```suggestion
+export function getModelDefaults(
+  provider: string,
+  modelId: string,
+): ModelInfo | undefined {
+  if (!Object.hasOwn(registry, provider)) return undefined
+  const p = registry[provider]
+  if (!Object.hasOwn(p.models, modelId)) return undefined
+  return p.models[modelId]
+}
+```
+
+And for `getProviderModels`:
+```ts
+export function getProviderModels(provider: string): ProviderInfo | undefined {
+  if (!Object.hasOwn(registry, provider)) return undefined
+  return registry[provider]
+}
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/models-dev/src/registry.ts
+Line: 15-24
+
+Comment:
+**Prototype chain lookup via bracket notation**
+
+`registry[provider]` accesses inherited prototype-chain properties for keys like `__proto__` or `constructor`. For example, `GET /api/models/__proto__` would return the truthy `Object.prototype` value, bypassing the `if (!info)` 404 guard in the route handler (models.ts:33) and returning `{}` to the caller. The same applies to `getAllProviders()`, which returns the live registry object directly — if a caller mutates it, the in-memory registry is corrupted.
+
+Use `Object.hasOwn()` to guard both functions:
+
+```suggestion
+export function getModelDefaults(
+  provider: string,
+  modelId: string,
+): ModelInfo | undefined {
+  if (!Object.hasOwn(registry, provider)) return undefined
+  const p = registry[provider]
+  if (!Object.hasOwn(p.models, modelId)) return undefined
+  return p.models[modelId]
+}
+```
+
+And for `getProviderModels`:
+```ts
+export function getProviderModels(provider: string): ProviderInfo | undefined {
+  if (!Object.hasOwn(registry, provider)) return undefined
+  return registry[provider]
+}
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/browseros-ai/BrowserOS-agent/pull/425#discussion_r2893078304,,2026-03-06T00:26:22.646000,Prototype pollution vulnerability via bracket notation lookup,security,high,8,This is a legitimate security vulnerability - accessing `registry[provider]` with user-controlled input like `__proto__` or `constructor` bypasses validation checks and could leak Object.prototype properties or enable prototype pollution attacks. The comment correctly identifies the attack vector through API routes and provides a concrete fix using Object.hasOwn().,2026-03-06T00:52:48.057418+00:00
+gptme/gptme,1601,feat(context): show metadata for binary files instead of silently ignoring,https://github.com/gptme/gptme/pull/1601,"**Regression: Image/PDF files broken in non-fresh-context mode**
+
+This change causes a regression in the default (non-fresh-context) mode. The calling code in `include_paths()` at line 512–525 uses a mutually exclusive if/else:
+
+```python
+if not use_fresh_context() and (
+    contents := _resource_to_codeblock(word, confirmed_urls=None)
+):
+    append_msg += ""\n\n"" + contents
+else:
+    # if we found a non-text file, include it in msg.files
+    file = _parse_prompt_files(word)
+```
+
+**Before**: When `_resource_to_codeblock()` encountered an image/PDF, it raised `UnicodeDecodeError`, returned `None`, and the else block called `_parse_prompt_files()` to add the file to `msg.files` for visual rendering.
+
+**After**: `_resource_to_codeblock()` now returns a metadata codeblock (truthy), the if condition succeeds, and the else block is skipped. Images and PDFs are silently downgraded to text metadata instead of being passed as visual content via `msg.files`.
+
+This only affects non-fresh-context mode; fresh-context mode always calls `_parse_prompt_files()` regardless.
+
+**Fix**: Guard against image/PDF extensions to preserve the existing visual-file handling:
+
+```suggestion
+    except UnicodeDecodeError:
+        # Binary file — return metadata instead of contents
+        # Skip visual formats already handled separately via msg.files
+        f = Path(prompt).expanduser()
+        if f.suffix[1:].lower() not in (""png"", ""jpg"", ""jpeg"", ""gif"", ""pdf""):
+            return _binary_file_metadata(f, prompt)
+        return None
+```",https://github.com/gptme/gptme/pull/1601#discussion_r2892908730,"Fixed in 06e881a. Added a guard to return `None` for visual formats (png, jpg, jpeg, gif, webp, pdf) so they fall through to the `else` branch in `include_paths()` and get added to `msg.files` via `_parse_prompt_files()` as before.",2026-03-05T23:26:44.139000,Regression breaks image/PDF visual rendering in non-fresh-context mode,logic,high,8,"This is an impressive catch of a subtle regression where the new feature (binary file metadata) inadvertently breaks existing functionality for image/PDF handling. The analysis correctly traces through the control flow showing how a truthy return value now prevents the else branch from executing, causing visual files to be downgraded to text metadata. This would affect real users and requires deep understanding of the codebase's branching logic.",2026-03-06T00:52:48.057418+00:00
+simstudioai/sim,3230,"feat(knowledge): connectors, user exclusions, expanded tools & airtable integration",https://github.com/simstudioai/sim/pull/3230,"**`restore` operation can un-delete soft-deleted documents**
+
+The `restore` WHERE clause does not include `isNull(document.deletedAt)`, so a caller who sends document IDs that are both `userExcluded = true` **and** `deletedAt IS NOT NULL` (i.e. already soft-deleted) will have those documents silently un-deleted — `deletedAt` is set back to `null`.
+
+The GET endpoint already prevents the UI from surfacing such documents (it filters `deletedAt IS NULL`), so in normal usage this path isn't reachable. However, a user with write access to the connector can craft a direct `PATCH` request to restore any previously-deleted connector document.
+
+The `exclude` operation below (line 195) correctly guards with `isNull(document.deletedAt)`. The `restore` branch should match:
+
+```suggestion
+      const updated = await db
+        .update(document)
+        .set({ userExcluded: false, deletedAt: null, enabled: true })
+        .where(
+          and(
+            eq(document.connectorId, connectorId),
+            inArray(document.id, documentIds),
+            eq(document.userExcluded, true),
+            isNull(document.deletedAt)
+          )
+        )
+        .returning({ id: document.id })
+```
+",https://github.com/simstudioai/sim/pull/3230#discussion_r2892913477,resolved,2026-03-05T23:28:06.771000,Restore operation can un-delete soft-deleted documents,data_integrity,high,8,This catch identifies a real security/data integrity bug where a user could craft a direct PATCH request to restore previously soft-deleted documents by exploiting the missing `isNull(document.deletedAt)` check in the restore operation. This bypasses the intended deletion logic and could resurface documents that should remain deleted.,2026-03-06T00:52:48.057418+00:00
+onyx-dot-app/onyx,9109,fix: EE route gating for upgrading CE users (#9026) to release v2.12,https://github.com/onyx-dot-app/onyx/pull/9109,"**CE deployments default to `true`, enabling ""fail open"" for EE routes**
+
+The new second operand evaluates to `true` whenever `LICENSE_ENFORCEMENT_ENABLED` is **not** explicitly set to `""false""` — including when the variable is entirely absent. In practice this means any vanilla CE deployment that sets neither `ENABLE_PAID_ENTERPRISE_EDITION_FEATURES` nor `LICENSE_ENFORCEMENT_ENABLED` will have `SERVER_SIDE_ONLY__PAID_ENTERPRISE_FEATURES_ENABLED = true`.
+
+The fast-path guard in `ee/layout.tsx` now passes unconditionally for these deployments, so EE route access is gated solely by the runtime `fetchStandardSettingsSS()` call. That call is wrapped in a `try/catch` that **fails open** (returns `children`) on any error:
+
+```ts
+} catch (error) {
+  // If settings fetch fails, allow access (fail open for better UX)
+  console.error(""Failed to fetch settings for EE check:"", error);
+}
+return children;
+```
+
+Previously, a CE deployment would be hard-blocked by the fast-path constant before any network call was ever made. Now a transient settings-API error silently grants full access to EE admin routes (user groups, analytics, RBAC, etc.).
+
+Consider logging or handling the fail-open case more conservatively, or at least explicitly documenting this risk in the code comment so future contributors understand the security trade-off.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: web/src/lib/constants.ts
+Line: 53-56
+
+Comment:
+**CE deployments default to `true`, enabling ""fail open"" for EE routes**
+
+The new second operand evaluates to `true` whenever `LICENSE_ENFORCEMENT_ENABLED` is **not** explicitly set to `""false""` — including when the variable is entirely absent. In practice this means any vanilla CE deployment that sets neither `ENABLE_PAID_ENTERPRISE_EDITION_FEATURES` nor `LICENSE_ENFORCEMENT_ENABLED` will have `SERVER_SIDE_ONLY__PAID_ENTERPRISE_FEATURES_ENABLED = true`.
+
+The fast-path guard in `ee/layout.tsx` now passes unconditionally for these deployments, so EE route access is gated solely by the runtime `fetchStandardSettingsSS()` call. That call is wrapped in a `try/catch` that **fails open** (returns `children`) on any error:
+
+```ts
+} catch (error) {
+  // If settings fetch fails, allow access (fail open for better UX)
+  console.error(""Failed to fetch settings for EE check:"", error);
+}
+return children;
+```
+
+Previously, a CE deployment would be hard-blocked by the fast-path constant before any network call was ever made. Now a transient settings-API error silently grants full access to EE admin routes (user groups, analytics, RBAC, etc.).
+
+Consider logging or handling the fail-open case more conservatively, or at least explicitly documenting this risk in the code comment so future contributors understand the security trade-off.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/9109#discussion_r2892731186,,2026-03-05T22:32:13.025000,Fail-open security flaw grants EE access on settings API errors,security,high,8,"This comment identifies a security regression where CE deployments could inadvertently gain access to EE admin routes (user groups, analytics, RBAC) due to a combination of the new default-true logic and the fail-open error handling. This is a meaningful authorization bypass that could expose enterprise features to unlicensed users.",2026-03-06T00:52:48.057418+00:00
+browseros-ai/browseros-agent,417,feat: build prod server resource artifact pipeline,https://github.com/browseros-ai/BrowserOS-agent/pull/417,"**R2 credentials baked into the compiled server binary**
+
+`buildInlineEnv` iterates over every key in `fileEnv` — including `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, and `R2_BUCKET` — and returns them all in the `envVars` map. That map is then passed verbatim to `compileServerBinaries` as the `envVars` argument:
+
+```ts
+// orchestrator.ts
+const compiled = await compileServerBinaries(
+  args.targets,
+  buildConfig.envVars,   // ← ALL env vars, including R2 creds
+  ...
+)
+```
+
+Inside `compile.ts`, every entry is injected via `Bun.build`'s `define` config:
+
+```ts
+define: {
+  ...Object.fromEntries(
+    Object.entries(envVars).map(([key, value]) => [
+      `process.env.${key}`,
+      JSON.stringify(value),  // ← statically embedded as string constants
+    ]),
+  ),
+```
+
+This means `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, and the account ID end up as plain strings compiled into the distributed server binary. Anyone who receives the binary can recover those credentials with a simple `strings` command.
+
+The R2 credentials are build-time infrastructure secrets — they are not needed by the server at runtime. A `BINARY_VARS` allowlist (e.g. only `BROWSEROS_CONFIG_URL`, `CODEGEN_SERVICE_URL`, `POSTHOG_API_KEY`, `SENTRY_DSN`, `NODE_ENV`, `LOG_LEVEL`) should be used to guard which vars are passed to `Bun.build`'s `define`, keeping R2 creds out of the binary entirely.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: scripts/build/server/config.ts
+Line: 45-53
+
+Comment:
+**R2 credentials baked into the compiled server binary**
+
+`buildInlineEnv` iterates over every key in `fileEnv` — including `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, and `R2_BUCKET` — and returns them all in the `envVars` map. That map is then passed verbatim to `compileServerBinaries` as the `envVars` argument:
+
+```ts
+// orchestrator.ts
+const compiled = await compileServerBinaries(
+  args.targets,
+  buildConfig.envVars,   // ← ALL env vars, including R2 creds
+  ...
+)
+```
+
+Inside `compile.ts`, every entry is injected via `Bun.build`'s `define` config:
+
+```ts
+define: {
+  ...Object.fromEntries(
+    Object.entries(envVars).map(([key, value]) => [
+      `process.env.${key}`,
+      JSON.stringify(value),  // ← statically embedded as string constants
+    ]),
+  ),
+```
+
+This means `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, and the account ID end up as plain strings compiled into the distributed server binary. Anyone who receives the binary can recover those credentials with a simple `strings` command.
+
+The R2 credentials are build-time infrastructure secrets — they are not needed by the server at runtime. A `BINARY_VARS` allowlist (e.g. only `BROWSEROS_CONFIG_URL`, `CODEGEN_SERVICE_URL`, `POSTHOG_API_KEY`, `SENTRY_DSN`, `NODE_ENV`, `LOG_LEVEL`) should be used to guard which vars are passed to `Bun.build`'s `define`, keeping R2 creds out of the binary entirely.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/browseros-ai/BrowserOS-agent/pull/417#discussion_r2891805239,"Fixed. `config.ts` now allowlists only runtime-safe inlined vars (`BROWSEROS_CONFIG_URL`, `CODEGEN_SERVICE_URL`, `POSTHOG_API_KEY`, `SENTRY_DSN`, `NODE_ENV`, `LOG_LEVEL`) for `envVars` passed to `Bun.build define`. R2 credentials remain only in process env for build-time R2 operations and are no longer embedded in the compiled binary.",2026-03-05T19:26:40.083000,R2 credentials baked into distributed server binary,security,critical,9,"This is a critical security vulnerability where cloud storage credentials (R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY) would be embedded as plaintext strings in the compiled binary, allowing anyone with the binary to extract and abuse these secrets. The analysis traces the data flow through multiple files to demonstrate the complete vulnerability path.",2026-03-06T00:52:48.057418+00:00
