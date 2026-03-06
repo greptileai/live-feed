@@ -8866,3 +8866,108 @@ This means the alternate path advertised to the player (""manual neutralization 
 raycast/extensions,24610,Add desktoprenamer extension,https://github.com/raycast/extensions/pull/24610,"**AppleScript injection via id**
 
 `RenameSpaceForm` interpolates `space.id` directly into AppleScript (`rename space ""${space.id}"" ...`). If `get all spaces` ever returns an id containing quotes/backslashes, this can break the script and allows AppleScript injection. Sanitize/escape `space.id` the same way you do in `switchSpace` before interpolation.",https://github.com/raycast/extensions/pull/24610#discussion_r2778451681,,2026-02-08T03:41:03.229000,AppleScript injection vulnerability via unsanitized space ID,security,high,8,"Comment 3 identifies a clear AppleScript injection vulnerability where space.id is interpolated directly into AppleScript without sanitization in RenameSpaceForm. This could allow script injection if IDs contain quotes/backslashes, potentially leading to arbitrary code execution. This is a meaningful security bug in production code.",2026-03-06T14:22:47.180967+00:00
+posthog/posthog,49868,fix: add new serializers to harden against FK IDOR,https://github.com/PostHog/posthog/pull/49868,"**Regression: `AttributeError` (500) on org creation when `logo_media_id` is supplied.**
+
+The `get_org` lambda resolves to `self.organization` from `OrganizationViewSet`, which raises `AttributeError(""Not valid for non-detail routes."")` when `not self.detail` — i.e., on non-detail routes like POST `/api/organizations/`.
+
+If a caller sends a non-null `logo_media_id` in a POST request to create an organisation, the call to `get_org()` on line 30 will raise `AttributeError` before the serializer's `validate_logo_media_id` can intercept it and return a clean 400. This is a regression: previously, `logo_media_id` was an unscoped `PrimaryKeyRelatedField`, and invalid PKs would fail validation with a proper 400 error.
+
+Consider guarding the lambda call:
+
+```suggestion
+    def get_queryset(self):
+        qs = super().get_queryset()
+        if qs is None:
+            return qs
+        get_org = self.context.get(""get_organization"")
+        if get_org:
+            try:
+                org = get_org()
+            except AttributeError:
+                return qs.none()
+            return qs.filter(**{self.scope_field: org})
+        return qs.none()
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: posthog/api/scoped_related_fields.py
+Line: 24-31
+
+Comment:
+**Regression: `AttributeError` (500) on org creation when `logo_media_id` is supplied.**
+
+The `get_org` lambda resolves to `self.organization` from `OrganizationViewSet`, which raises `AttributeError(""Not valid for non-detail routes."")` when `not self.detail` — i.e., on non-detail routes like POST `/api/organizations/`.
+
+If a caller sends a non-null `logo_media_id` in a POST request to create an organisation, the call to `get_org()` on line 30 will raise `AttributeError` before the serializer's `validate_logo_media_id` can intercept it and return a clean 400. This is a regression: previously, `logo_media_id` was an unscoped `PrimaryKeyRelatedField`, and invalid PKs would fail validation with a proper 400 error.
+
+Consider guarding the lambda call:
+
+```suggestion
+    def get_queryset(self):
+        qs = super().get_queryset()
+        if qs is None:
+            return qs
+        get_org = self.context.get(""get_organization"")
+        if get_org:
+            try:
+                org = get_org()
+            except AttributeError:
+                return qs.none()
+            return qs.filter(**{self.scope_field: org})
+        return qs.none()
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/49868#discussion_r2886322971,Fixed and added a test,2026-03-04T21:51:53.172000,Regression causes 500 error instead of 400 on org creation,runtime,high,8,This catch identifies a real regression where the new security hardening code would cause a 500 AttributeError instead of a proper 400 validation error when creating an organization with a logo_media_id. This is a meaningful runtime bug that would affect production users and degrade error handling.,2026-03-06T18:23:09.359211+00:00
+veda-labs/boring-vault,610,Add 1Inch V6 Decoder,https://github.com/Veda-Labs/boring-vault/pull/610,"V6 `swap` function missing executor validation - should be `view` instead of `pure`
+
+The V5 `swap` (line 37) validates `executor != oneInchExecutor` and `desc.srcReceiver != oneInchExecutor`, but the V6 version doesn't. This bypasses security checks.
+
+```suggestion
+    function swap(
+        address executor,
+        DecoderCustomTypes.SwapDescription calldata desc,
+        bytes calldata /*data*/
+    ) external view returns (bytes memory addressesFound) {
+        if (executor != oneInchExecutor || desc.srcReceiver != oneInchExecutor) revert OneInchDecoderAndSanitizer__InvalidExecutor();
+        addressesFound = abi.encodePacked(desc.srcToken, desc.dstToken, desc.dstReceiver);
+```",https://github.com/Veda-Labs/boring-vault/pull/610#discussion_r2843245793,,2026-02-23T21:47:03.039000,Missing executor validation in V6 swap bypasses security checks,security,critical,9,"This is a significant security vulnerability in a DeFi protocol. The V6 swap function was missing critical executor validation that exists in V5, which could allow unauthorized executors to perform swaps. In blockchain/DeFi contexts, such validation bypasses can lead to fund theft or manipulation. The catch required comparing implementations across versions and understanding the security model.",2026-03-06T18:23:09.359211+00:00
+veda-labs/boring-vault,613,LayerZero OFT multihop bridging support,https://github.com/Veda-Labs/boring-vault/pull/613,"`finalDestinationParams.oftCmd` and `finalDestinationParams.composeMsg` are not validated
+
+The decoder checks `_sendParam.oftCmd` before entering the multi-hop branch, but never validates the same fields on the decoded `finalDestinationParams`. This creates two security issues:
+
+1. **`finalDestinationParams.oftCmd`**: An operator can bypass the `OFTDecoderAndSanitizer__NonZeroOFTCommand` guard by encoding a non-empty `oftCmd` inside the compose message rather than in the outer `SendParam`. When the second-hop OFT processes the compose message and calls `send` with `finalDestinationParams`, the non-zero `oftCmd` is passed through unchecked.
+
+2. **`finalDestinationParams.composeMsg`**: A non-empty compose message inside the final-destination params allows an operator to chain a third unauthorized hop that is not captured in the Merkle leaf. The leaf only encodes parameters up to `finalDestinationParams.dstEid` / `finalDestinationParams.to` / amounts; it does not prevent a further nested compose.
+
+Both fields should be validated to be empty to maintain the same invariants as the single-hop path:
+
+```suggestion
+        // MultiHop support.
+        if (_sendParam.composeMsg.length > 0) {
+            // It requires the final destination parameters to be encoded in the compose message.
+            DecoderCustomTypes.SendParam memory finalDestinationParams =
+                abi.decode(_sendParam.composeMsg, (DecoderCustomTypes.SendParam));
+
+            if (finalDestinationParams.oftCmd.length > 0) {
+                revert OFTDecoderAndSanitizer__NonZeroOFTCommand();
+            }
+            if (finalDestinationParams.composeMsg.length > 0) {
+                revert OFTDecoderAndSanitizer__NonZeroMessage();
+            }
+
+            bytes32 amountBytes = bytes32(_sendParam.amountLD);
+```",https://github.com/Veda-Labs/boring-vault/pull/613#discussion_r2877747882,,2026-03-03T11:33:59.881000,Missing validation allows unauthorized multi-hop bridging bypass,security,critical,9,"This is a significant security vulnerability in a cross-chain bridging context. The comment correctly identifies that the decoder fails to validate `finalDestinationParams.oftCmd` and `finalDestinationParams.composeMsg`, allowing operators to bypass security guards by encoding malicious parameters in the compose message. This could enable unauthorized third-hop chaining or passing non-empty oftCmd that circumvents the Merkle leaf validation - a serious security issue in DeFi bridging infrastructure.",2026-03-06T18:23:09.359211+00:00
+gptme/gptme-contrib,398,feat(dashboard): add per-lesson detail pages with markdown rendering,https://github.com/gptme/gptme-contrib/pull/398,"Rendered markdown HTML will be escaped by Jinja2's autoescape setting, displaying raw HTML tags as text instead of formatted content.
+
+`body_html` is passed as a plain Python string to the template where `autoescape=True` is configured (line 282 in generate.py). Every `<h1>`, `<p>`, `<code>`, etc. will be escaped to `&lt;h1&gt;`, `&lt;p&gt;`, etc., appearing as plain text to the user. The tests don't catch this because they only assert on text content, not HTML structure.
+
+```suggestion
+<div class=""content"">
+  {{ body_html | safe }}
+</div>
+```",https://github.com/gptme/gptme-contrib/pull/398#discussion_r2896187110,,2026-03-06T14:49:37.869000,Jinja2 autoescape renders markdown HTML as escaped text,runtime,high,8,"This catches a significant rendering bug where all generated lesson pages would display raw HTML tags as text instead of formatted content, completely breaking the core feature of the PR. The markdown-to-HTML conversion would be useless without the `| safe` filter.",2026-03-06T18:23:09.359211+00:00
