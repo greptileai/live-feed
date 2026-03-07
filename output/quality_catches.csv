@@ -9104,3 +9104,38 @@ The selective stripping block (lines 114–123) is the correct implementation, b
 ```
 
 As a consequence, the unit test `test_vertex_ai_anthropic_output_config_effort_preserved` (which asserts `""output_config"" in transformed_data`) will fail against the current code, despite the PR claiming all 32 tests pass — worth double-checking.",https://github.com/BerriAI/litellm/pull/22691#discussion_r2891423615,,2026-03-05T17:56:39.343000,Dead code causes output_config.effort to always be discarded,logic,high,8,"Comment 1 identifies a significant logic bug where blanket pop() removes output_config before selective stripping logic can execute, causing reasoning effort settings for Claude 4.6 to be silently discarded despite explicit code intended to preserve them. This would cause incorrect API behavior in production.",2026-03-07T01:23:32.968367+00:00
+berriai/litellm,22951,feat: Add Canadian PII protection (PIPEDA),https://github.com/BerriAI/litellm/pull/22951,"This assertion checks the wrong variable — it tests whether `""smithj12""` is a *key* in the returned dictionary (which it never is), not whether the string appears in the masked output text. The check will always pass regardless of whether masking actually occurred.
+
+```suggestion
+        assert ""smithj12"" not in output
+```",https://github.com/BerriAI/litellm/pull/22951#discussion_r2893671713,,2026-03-06T03:53:36.925000,"Test assertion checks wrong variable, always passes",logic,high,8,"The test asserts that a string is not a key in a dictionary instead of checking if it appears in the output text. This means the test always passes regardless of whether masking actually occurred, completely defeating the purpose of the test and allowing bugs in the masking logic to go undetected.",2026-03-07T03:01:31.743063+00:00
+berriai/litellm,22906,fix(cost_calc): update custom_llm_provider when base_model has different provider prefix,https://github.com/BerriAI/litellm/pull/22906,"**`TypeError`: unexpected keyword arguments passed to `_map_optional_params_to_responses_api_request`**
+
+The call at line 327 passes `model=model` and `custom_llm_provider=custom_llm_provider` as keyword arguments, but the method signature (line 224) only accepts `self`, `optional_params`, and `responses_api_request`. Any code path that calls `transform_request` — i.e. every chat-completion request routed through `LiteLLMResponsesTransformationHandler` — will raise:
+
+```
+TypeError: _map_optional_params_to_responses_api_request() got an unexpected keyword argument 'model'
+```
+
+Either the method signature needs to be updated to accept these new parameters, or these extra kwargs must be removed from the call site. Since `model` and `custom_llm_provider` are not used inside `_map_optional_params_to_responses_api_request` today, removing them from the call is the minimal fix:
+
+```suggestion
+        self._map_optional_params_to_responses_api_request(
+            optional_params, responses_api_request,
+        )
+```",https://github.com/BerriAI/litellm/pull/22906#discussion_r2891841980,,2026-03-05T19:32:25.599000,TypeError from unexpected keyword arguments in API transformation,runtime,high,8,"This catches a real runtime bug where the method call passes `model` and `custom_llm_provider` keyword arguments that the method signature doesn't accept, causing a TypeError on every chat-completion request routed through this handler. This would crash in production.",2026-03-07T03:01:31.743063+00:00
+raycast/extensions,25185,Add skill-search extension,https://github.com/raycast/extensions/pull/25185,"**Shell injection risk**
+
+`runInTerminal()` builds an `osascript` command string that interpolates `command` after only escaping double quotes. If a skill name/source contains a single quote (`'`) or other AppleScript-breaking characters, this can break the script or allow unintended AppleScript execution because the outer `-e '...'` is single-quoted. This is user-controlled-ish via remote API data (skills.sh search) and needs robust escaping or a safer execution mechanism (e.g., avoid `exec` string interpolation; pass arguments without shell, or escape for both shell + AppleScript).",https://github.com/raycast/extensions/pull/25185#discussion_r2776984316,,2026-02-07T04:15:00.715000,Shell injection vulnerability in osascript command execution,security,high,8,"The comment identifies a shell injection vulnerability where remote API data (skill names from skills.sh) is interpolated into an osascript command with insufficient escaping. Only double quotes are escaped, but single quotes and other AppleScript-breaking characters could allow unintended script execution.",2026-03-07T03:01:31.743063+00:00
+berriai/litellm,22713,"[Feat[ extends OAuth2 M2M authentication support to info routes (/key/info, /team/info, /user/info, /model/info)",https://github.com/BerriAI/litellm/pull/22713,"**Logic bug: `or` should be `and`**
+
+This condition uses `or` but should use `and`. As written, `is_llm_api_route(route) is not True or is_info_route(route) is not True` will evaluate to `True` for **every** route — because any given route is either not an LLM API route or not an info route (it can't be both simultaneously). This means `_is_proxy_only_llm_api_error` will always return `False`, effectively disabling proxy-level error logging entirely.
+
+The original code only checked `is_llm_api_route`. The intended logic is to return `False` when the route is **neither** an LLM API route **nor** an info route, which requires `and`:
+
+```suggestion
+        if (
+            RouteChecks.is_llm_api_route(route) is not True and
+            RouteChecks.is_info_route(route) is not True
+        ):
+```",https://github.com/BerriAI/litellm/pull/22713#discussion_r2880787484,,2026-03-03T22:17:57.976000,Logic bug with or/and operator disables error logging,logic,high,8,"Comment 2 identifies a genuine logic bug where using `or` instead of `and` in a negated condition causes the function to always return False, completely disabling proxy-level error logging for all routes. This is a meaningful logic error that would affect production behavior.",2026-03-07T03:01:31.743063+00:00
