@@ -9062,3 +9062,45 @@ Since the stated purpose is for subclasses to override this method (e.g., for pe
 ```
 
 And update the two call sites accordingly (`self._skip_serialization()`).",https://github.com/reflex-dev/reflex/pull/6137#discussion_r2823676114,,2026-02-18T17:54:20.712000,Python name mangling prevents subclass override of skip_serialization,logic,high,8,"This catches a real Python behavior bug where double-underscore prefix causes name mangling, making the entire feature unusable. Subclasses trying to override `__skip_serialization` would have their overrides silently ignored, defeating the stated purpose of permission-based state visibility. This is a meaningful logic bug that would cause unexpected behavior in production.",2026-03-07T00:46:14.314829+00:00
+ethyca/fides,7573,[ENG-2691] Replace python-jose with joserfc,https://github.com/ethyca/fides/pull/7573,"**`DecodeError` too narrow — non-decode `JoseError` escapes as 500**
+
+`extract_payload` (line 70) catches and re-raises the full `JoseError` base class. `extract_token_and_load_client` (and its async twin at line 520) only catches the narrower `DecodeError` subclass. Any `JoseError` that is *not* a `DecodeError` — for example a key-size/algorithm mismatch raised by joserfc during decryption — will propagate uncaught all the way up and produce an unhandled 500 error instead of a 403.
+
+In `python-jose`, `JWEParseError` covered both structural parse failures and ciphertext corruption. In `joserfc` those failure modes may surface as different `JoseError` subclasses, so narrowing the catch to only `DecodeError` is not a safe like-for-like replacement.
+
+The fix is to catch the base `JoseError` here (and in the async variant), consistent with how the surrounding `_get_webhook_jwe_or_error`, `_get_request_task_jwe_or_error`, and `validate_download_token` functions already handle it.
+
+```suggestion
+    except JoseError as exc:
+        logger.debug(""Unable to parse auth token."")
+        raise AuthorizationError(detail=""Not Authorized for this action"") from exc
+```
+
+The same change is needed at line 520 in `extract_token_and_load_client_async`.",https://github.com/ethyca/fides/pull/7573#discussion_r2887761531,,2026-03-05T05:47:36.444000,Narrow exception catch causes 500 errors instead of 403,runtime,high,8,"This catches a real bug where the migration from python-jose to joserfc changed the exception hierarchy, but the code only catches DecodeError instead of the base JoseError. This would cause authentication failures to return 500 errors instead of proper 403 responses, affecting user experience and potentially masking security issues.",2026-03-07T01:23:32.968367+00:00
+berriai/litellm,22691,fix(vertex-ai): remove output_config from Vertex AI Anthropic requests,https://github.com/BerriAI/litellm/pull/22691,"**Blanket pop makes selective stripping dead code**
+
+Lines 111–112 unconditionally pop `output_config` from `data` *before* the selective stripping logic at lines 117–123 even runs. Because the key is already gone, `data.get(""output_config"")` at line 117 always returns `None`, so the `if isinstance(output_config, dict)` branch is never entered. The net effect is identical to the old blanket-removal behaviour: `output_config.effort` (reasoning effort for Claude 4.6) is always silently discarded, even though the comment says it should be preserved.
+
+The parent class `AnthropicConfig.transform_request` (via `**optional_params` spread and the explicit block at lines 1394–1406) inserts `output_config` into `data` when it is present in `optional_params`, so by the time control reaches line 112, the key is definitely in `data` — and the `pop` on that line removes it completely before the selective logic can do anything.
+
+The selective stripping block (lines 114–123) is the correct implementation, but the blanket pop immediately above it must be removed:
+
+```python
+        data.pop(""model"", None)  # vertex anthropic doesn't accept 'model' parameter
+
+        # VertexAI doesn't support output_format parameter, remove if present
+        data.pop(""output_format"", None)
+
+        # VertexAI doesn't support output_config.format (structured output schema),
+        # but does support output_config.effort (reasoning effort for Claude 4.6).
+        # Selectively strip only the unsupported ""format"" key.
+        output_config = data.get(""output_config"")
+        if isinstance(output_config, dict):
+            output_config.pop(""format"", None)
+            if not output_config:
+                data.pop(""output_config"", None)
+        elif output_config is not None:
+            data.pop(""output_config"", None)
+```
+
+As a consequence, the unit test `test_vertex_ai_anthropic_output_config_effort_preserved` (which asserts `""output_config"" in transformed_data`) will fail against the current code, despite the PR claiming all 32 tests pass — worth double-checking.",https://github.com/BerriAI/litellm/pull/22691#discussion_r2891423615,,2026-03-05T17:56:39.343000,Dead code causes output_config.effort to always be discarded,logic,high,8,"Comment 1 identifies a significant logic bug where blanket pop() removes output_config before selective stripping logic can execute, causing reasoning effort settings for Claude 4.6 to be silently discarded despite explicit code intended to preserve them. This would cause incorrect API behavior in production.",2026-03-07T01:23:32.968367+00:00
