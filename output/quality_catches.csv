@@ -9345,3 +9345,33 @@ Suggested fix: restore `CUSTOM_TOOL_START`/`CUSTOM_TOOL_DELTA` and only add the 
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/onyx-dot-app/onyx/pull/9164#discussion_r2898541639,,2026-03-07T00:44:58.112000,Custom tool collapsed streaming regression breaks functionality,logic,high,8,"This comment catches a regression bug where custom tool handling was accidentally replaced with Python tool checks, completely breaking collapsed streaming mode for all custom tools. This would cause visible UI issues in production for users using custom tools.",2026-03-07T10:11:39.587116+00:00
+gptme/gptme,1599,Add Nightmarket tool — API marketplace for AI agents,https://github.com/gptme/gptme/pull/1599,"**No user confirmation before financial transactions**
+
+The `call` command can trigger on-chain USDC payments via the x402 protocol, but the `confirm` callback (already in the function signature) is never called. An agent could autonomously spend real money without any human approval step, which is a significant concern for an autonomous tool.
+
+The `confirm` parameter should gate the `call` command before making the HTTP request:
+
+```python
+elif cmd == ""call"":
+    call_parts = lines[0].split(maxsplit=4)
+    if len(call_parts) < 3:
+        yield Message(""system"", ""Usage: call <endpoint_id> <method> [body_json] [payment_signature]"")
+        return
+    endpoint_id = call_parts[1]
+    method = call_parts[2].upper()
+    body = call_parts[3] if len(call_parts) > 3 else None
+    payment_sig = call_parts[4] if len(call_parts) > 4 else None
+
+    cost_note = "" (may incur USDC payment)"" if payment_sig else "" (will return 402; payment required)""
+    if not confirm(f""Call Nightmarket endpoint {endpoint_id} via {method}{cost_note}?""):
+        yield Message(""system"", ""Aborted."")
+        return
+
+    headers = {}
+    ...
+```",https://github.com/gptme/gptme/pull/1599#discussion_r2887067597,,2026-03-05T01:37:59.962000,Missing user confirmation before autonomous financial transactions,security,high,8,"This is a significant security issue where the tool can autonomously spend real USDC cryptocurrency without any human confirmation, despite having a `confirm` callback parameter available. This could lead to unauthorized financial transactions by AI agents.",2026-03-07T12:17:40.206000+00:00
+gptme/gptme,1600,Add CrowPay tool — payment service for AI agents,https://github.com/gptme/gptme/pull/1600,"**API key exposed in conversation history**
+
+When authorization returns 202 (needs human approval), the agent's API key is embedded directly into the suggested `crowpay` code block that gets written into the conversation transcript. Because gptme stores full conversation logs, this makes the API key accessible to anyone who can read the log file.
+
+The same issue exists in the `card` command at line 164. Consider printing only the approval ID and expecting the user to supply the key, or storing the key in a named environment variable that the agent can reference symbolically.",https://github.com/gptme/gptme/pull/1600#discussion_r2887067770,,2026-03-05T01:38:03.607000,API key exposed in conversation history logs,security,high,8,"This is a credential exposure vulnerability where the API key gets embedded in conversation transcripts that are persisted to disk. Anyone with access to log files could extract the payment service API key, which controls real financial transactions. This is a meaningful security issue in a financial tool.",2026-03-07T12:17:40.206000+00:00
