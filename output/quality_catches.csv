@@ -9375,3 +9375,65 @@ gptme/gptme,1600,Add CrowPay tool — payment service for AI agents,https://gith
 When authorization returns 202 (needs human approval), the agent's API key is embedded directly into the suggested `crowpay` code block that gets written into the conversation transcript. Because gptme stores full conversation logs, this makes the API key accessible to anyone who can read the log file.
 
 The same issue exists in the `card` command at line 164. Consider printing only the approval ID and expecting the user to supply the key, or storing the key in a named environment variable that the agent can reference symbolically.",https://github.com/gptme/gptme/pull/1600#discussion_r2887067770,,2026-03-05T01:38:03.607000,API key exposed in conversation history logs,security,high,8,"This is a credential exposure vulnerability where the API key gets embedded in conversation transcripts that are persisted to disk. Anyone with access to log files could extract the payment service API key, which controls real financial transactions. This is a meaningful security issue in a financial tool.",2026-03-07T12:17:40.206000+00:00
+posthog/posthog,50120,feat: add detailed cohort calculation performance metrics,https://github.com/PostHog/posthog/pull/50120,"**High-cardinality `team_id` label on histograms**
+
+All three histograms use `team_id` as a Prometheus label. In a multi-tenant system, this creates one set of time series per `(percentile_bucket, team_id)` combination per histogram bucket. For histograms specifically, each unique `(team_id, percentile_bucket)` pair creates `len(buckets) + 2` time series (one per bucket plus `_sum` and `_count`). With thousands of teams, this will cause very high cardinality in Prometheus, leading to memory exhaustion, slow queries, and potential scrape timeouts.
+
+The `percentile_bucket` label alone is sufficient for the stated goal of understanding performance bottlenecks by percentile tier. If per-team visibility is needed, consider using a separate low-cardinality label (e.g., binning teams into size categories) or using a dedicated observability solution for per-team data.
+
+Consider removing the `team_id` label:
+
+```python
+COHORT_CALCULATION_TOTAL_DURATION_HISTOGRAM = Histogram(
+    ""cohort_calculation_total_duration_seconds"",
+    ""Total duration of cohort calculation from start to finish"",
+    [""percentile_bucket""],
+    buckets=(0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0, 25.0, 50.0, 100.0, 250.0, 500.0, float(""inf"")),
+)
+```
+
+(Same for `COHORT_QUERY_EXECUTION_DURATION_HISTOGRAM` and `COHORT_DURATION_UPDATE_HISTOGRAM`.)
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: posthog/tasks/calculate_cohort.py
+Line: 66-85
+
+Comment:
+**High-cardinality `team_id` label on histograms**
+
+All three histograms use `team_id` as a Prometheus label. In a multi-tenant system, this creates one set of time series per `(percentile_bucket, team_id)` combination per histogram bucket. For histograms specifically, each unique `(team_id, percentile_bucket)` pair creates `len(buckets) + 2` time series (one per bucket plus `_sum` and `_count`). With thousands of teams, this will cause very high cardinality in Prometheus, leading to memory exhaustion, slow queries, and potential scrape timeouts.
+
+The `percentile_bucket` label alone is sufficient for the stated goal of understanding performance bottlenecks by percentile tier. If per-team visibility is needed, consider using a separate low-cardinality label (e.g., binning teams into size categories) or using a dedicated observability solution for per-team data.
+
+Consider removing the `team_id` label:
+
+```python
+COHORT_CALCULATION_TOTAL_DURATION_HISTOGRAM = Histogram(
+    ""cohort_calculation_total_duration_seconds"",
+    ""Total duration of cohort calculation from start to finish"",
+    [""percentile_bucket""],
+    buckets=(0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0, 25.0, 50.0, 100.0, 250.0, 500.0, float(""inf"")),
+)
+```
+
+(Same for `COHORT_QUERY_EXECUTION_DURATION_HISTOGRAM` and `COHORT_DURATION_UPDATE_HISTOGRAM`.)
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/50120#discussion_r2892938345,,2026-03-05T23:36:48.886000,High-cardinality team_id label will exhaust Prometheus memory,performance,high,8,"Using team_id as a Prometheus histogram label in a multi-tenant system creates explosive cardinality - with thousands of teams, each histogram creates (teams × buckets × percentile_buckets) time series, leading to memory exhaustion, slow queries, and scrape timeouts. This is a well-known Prometheus anti-pattern with real production impact.",2026-03-07T14:11:50.164828+00:00
+gptme/gptme,1566,"feat(skills): skill marketplace — install, uninstall, validate, init, publish",https://github.com/gptme/gptme/pull/1566,"`shutil.copytree` follows symlinks during local-path install
+
+When installing from a local path, `shutil.copytree(local_path, dest)` uses the default `symlinks=False`. This means symlinks inside the skill directory are **resolved and their targets are copied**, not the links themselves. A crafted skill directory with a symlink pointing to `/etc/passwd` or another sensitive file would silently copy that file's contents into the installed skill directory.
+
+`publish_skill` already defends against this by explicitly skipping symlinks in its archive loop, but the same protection is missing here.
+
+```suggestion
+        if dest.exists():
+            shutil.rmtree(dest)
+        shutil.copytree(local_path, dest, symlinks=True)
+```
+
+Using `symlinks=True` preserves symlinks as symlinks instead of following them. Alternatively, you can mirror `publish_skill`'s approach and explicitly reject skill directories containing symlinks before copying.",https://github.com/gptme/gptme/pull/1566#discussion_r2899400087,"Fixed in cbd4f31df — `shutil.copytree(local_path, dest)` changed to `shutil.copytree(local_path, dest, symlinks=True)`. With `symlinks=True`, symlinks in the source are preserved as symlinks in the destination instead of being followed and their targets copied, preventing a crafted skill directory from reading sensitive files like `/etc/passwd` into the installed skill directory.",2026-03-07T09:30:52.312000,Symlink following allows arbitrary file exfiltration during skill install,security,high,8,"This is a meaningful security vulnerability where a malicious skill package could use symlinks to copy sensitive system files (like /etc/passwd) into the installed skill directory. The comment correctly identifies the inconsistency with publish_skill which already defends against this, and provides a proper fix.",2026-03-07T14:11:50.164828+00:00
