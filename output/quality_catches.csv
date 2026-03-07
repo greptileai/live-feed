@@ -9467,3 +9467,107 @@ for raw_event in raw_events:
     else:
         rebuilt_events.append(raw_event)
 ```",https://github.com/BerriAI/litellm/pull/22882#discussion_r2888040930,,2026-03-05T06:57:08.064000,Broken SSE event ordering violates Anthropic protocol specification,logic,high,8,"This catch identifies a significant protocol violation where lifecycle events (content_block_stop, message_stop) are incorrectly emitted before the text content delta, breaking SSE consumers that follow the Anthropic spec. This would cause real issues for downstream consumers expecting proper event ordering.",2026-03-07T18:15:14.410353+00:00
+berriai/litellm,22419,fix: defer remote model cost map fetch to first use (simplified),https://github.com/BerriAI/litellm/pull/22419,"**`_cost_map_source_info` is a shared mutable singleton — TOCTOU race outside the lock**
+
+`_cost_map_source_info` is a module-level singleton in `get_model_cost_map.py` that is **written** by `get_model_cost_map()` and **read** here. While the call to `get_model_cost_map()` and the subsequent check at line 512 both occur inside `_model_cost_lock`, the lock only guards `_ensure_remote_model_cost()` itself — it does not prevent other callers of `get_model_cost_map()` (e.g., user code, `get_model_cost_map_source_info()`, or a test that calls `get_model_cost_map()` directly) from overwriting `_cost_map_source_info.source` between the return of `get_model_cost_map()` and the `if _cost_map_source_info.source != ""remote"":` check.
+
+If that race fires, a genuinely successful remote fetch could be misread as a local-fallback, causing the flag to stay `False` and the cooldown to activate — preventing any future fetch for the next 60 seconds.
+
+Consider returning the source together with the data instead of relying on a shared singleton, for example:
+
+```python
+# In get_model_cost_map, return a named tuple or dataclass:
+#   return ModelCostResult(data=content, source=""remote"", fallback_reason=None)
+# In _ensure_remote_model_cost:
+#   result = get_model_cost_map(url=_model_cost_url)
+#   if result.source != ""remote"": ...
+```
+
+Alternatively, snapshot the source value immediately after the call:
+```python
+remote = get_model_cost_map(url=_model_cost_url)
+source_snapshot = _cost_map_source_info.source   # snapshot while still holding lock
+if source_snapshot != ""remote"":
+    ...
+```
+The snapshot approach closes the window and is a minimal change to the current code.",https://github.com/BerriAI/litellm/pull/22419#discussion_r2893407254,,2026-03-06T02:10:12.765000,Race condition in singleton metadata causes incorrect fetch state tracking,concurrency,high,8,"Comment 9 identifies a TOCTOU race condition where the shared mutable singleton `_cost_map_source_info` can be modified by concurrent callers between the fetch and the check, causing a successful remote fetch to be misidentified as local fallback. This would incorrectly trigger the 60-second cooldown and prevent retry attempts, affecting production reliability.",2026-03-07T22:11:20.416225+00:00
+berriai/litellm,22562,fix(proxy): auto-generate Prisma client on startup for custom installs,https://github.com/BerriAI/litellm/pull/22562,"**Chunked path: partial HTTPException discards accumulated partial results**
+
+When `_make_single_bedrock_api_request` raises `HTTPException` for an intermediate chunk (e.g. a non-200 status on chunk 3 of 5), the `except HTTPException` block at line 488 logs the partial results but then unconditionally `raise`s. At this point the caller (`async_pre_call_hook`, `async_post_call_success_hook`, etc.) receives an `HTTPException` as if the *entire* request failed — even though earlier chunks may have already flagged content as `GUARDRAIL_INTERVENED`.
+
+This creates a security gap: if chunk 1 returns `GUARDRAIL_INTERVENED` and chunk 2 returns a 429 (ThrottlingException surfaced as non-200), the overall result is an `HTTPException(429)` rather than a guardrail-block exception. The blocked content slips through.
+
+Consider returning the merged partial result (with the worst action from successful chunks) rather than re-raising when at least one chunk succeeded:
+
+```python
+except HTTPException:
+    if responses:
+        partial_resp, partial_json = self._merge_guardrail_responses(responses)
+        # Worst action from completed chunks still wins
+        if self._should_raise_guardrail_blocked_exception(partial_resp):
+            raise self._get_http_exception_for_blocked_guardrail(partial_resp)
+        # Otherwise surface the HTTP error
+    raise
+```",https://github.com/BerriAI/litellm/pull/22562#discussion_r2892976772,,2026-03-05T23:51:20.339000,Security gap: HTTPException discards guardrail block from prior chunks,security,high,8,"This catch identifies a security vulnerability where if chunk 1 returns GUARDRAIL_INTERVENED (blocking content) but chunk 2 fails with an HTTP error (e.g., 429), the overall result becomes an HTTPException rather than a guardrail block, allowing blocked content to slip through. This is a meaningful security bug in the content moderation pipeline.",2026-03-07T22:11:20.416225+00:00
+berriai/litellm,22448,feat(responses-bridge): pass thinking_blocks as reasoning items with encrypted_content for OpenAI o-series,https://github.com/BerriAI/litellm/pull/22448,"**`item.summary` not guarded against `None` — causes `TypeError` in production**
+
+The generator `for s in item.summary` will raise `TypeError: 'NoneType' object is not iterable` if the API returns a `ResponseReasoningItem` with `summary=None`. This can happen when `reasoning.encrypted_content` is requested via `include` but the reasoning summary is not part of the response.
+
+The streaming path (line 1191–1194) is already defensive:
+```python
+summary_texts = output_item.get(""summary"", [])
+if isinstance(summary_texts, list):
+    thinking_text = """".join(...)
+```
+
+Recommended fix to match:
+```suggestion
+                item_text = """".join(
+                    getattr(s, ""text"", """") for s in (item.summary or [])
+                )
+```",https://github.com/BerriAI/litellm/pull/22448#discussion_r2893336459,,2026-03-06T01:50:38.116000,Unguarded None iteration causes TypeError in production,runtime,high,8,Comment 6 identifies a real runtime bug where iterating over `item.summary` will raise TypeError if the API returns `summary=None`. This is a production crash that would affect users when the API returns reasoning items without summaries. The fix is straightforward and the comment correctly notes the inconsistency with the defensive streaming path.,2026-03-07T22:11:20.416225+00:00
+berriai/litellm,22499,fix(proxy): add default max_idle_connection_lifetime to prevent stale PostgreSQL connections,https://github.com/BerriAI/litellm/pull/22499,"`None` config value yields literal `""None""` in DATABASE_URL
+
+`database_connection_idle_lifetime` is typed `Optional[int]` in `ConfigGeneralSettings`, so a user who explicitly writes `database_connection_idle_lifetime: null` in their YAML will produce a raw-dict entry of `None`. `dict.get()` returns the stored `None` (not the fallback) when the key is present, so `db_connection_idle_lifetime` becomes `None`. It then flows into `params` and `append_query_params`, where `urlencode` encodes it as the literal string `""None""` — producing `max_idle_connection_lifetime=None` in the DATABASE_URL, which Prisma will likely reject.
+
+To fix, use an `or` operator to fall back to the env var / enum default when the config value is falsy:
+
+```python
+db_connection_idle_lifetime = int(
+    general_settings.get(""database_connection_idle_lifetime"") or
+    os.getenv(
+        ""LITELLM_DB_IDLE_LIFETIME"",
+        str(LiteLLMDatabaseConnectionPool.database_connection_idle_lifetime.value),
+    )
+)
+```
+
+This ensures a `null` config entry falls through to the env-var / enum default rather than propagating `None`.",https://github.com/BerriAI/litellm/pull/22499#discussion_r2892883600,,2026-03-05T23:20:55.856000,Explicit null config value produces invalid DATABASE_URL parameter,data_integrity,high,8,"This catches a meaningful production bug where setting `database_connection_idle_lifetime: null` in YAML config causes 'None' to be encoded as a literal string in the DATABASE_URL, which Prisma would reject. This is a non-obvious edge case that would cause database connection failures in production.",2026-03-07T22:11:20.416225+00:00
+berriai/litellm,22504,fix(anthropic-passthrough): defer first content_block_start to respect thinking block ordering,https://github.com/BerriAI/litellm/pull/22504,"**Tool name restoration skipped for first `tool_use` block**
+
+In the deferred first-`content_block_start` path, `_translate_streaming_openai_chunk_to_anthropic_content_block` is called directly and the returned `ToolUseBlock` is emitted verbatim. However, the tool name restoration logic (which maps a truncated name back to the original via `self.tool_name_mapping`) lives exclusively in `_should_start_new_content_block` (lines 467–479) — a path that is **never reached for the first block**.
+
+Before this PR, the first actual tool block always arrived via `_should_start_new_content_block` (because an eager phantom text block was emitted first), so restoration was always applied. Now, when a response's very first chunk is a `tool_use` header with a name that was truncated to fit OpenAI's 64-character limit, the `content_block_start` sent to the client will contain the **truncated** name rather than the original, breaking any downstream tool-use parsing.
+
+The same restoration block from `_should_start_new_content_block` should be applied after `_translate_streaming_openai_chunk_to_anthropic_content_block` is called in the deferred path:
+
+```python
+if self.sent_content_block_start is False:
+    self.sent_content_block_start = True
+    block_type, content_block_start = (
+        self._adapter._translate_streaming_openai_chunk_to_anthropic_content_block(
+            choices=chunk.choices,
+        )
+    )
+    # Restore original tool name for the first block (same as _should_start_new_content_block)
+    if block_type == ""tool_use"":
+        from typing import cast
+        from litellm.types.llms.anthropic import ToolUseBlock
+        tool_block = cast(ToolUseBlock, content_block_start)
+        if tool_block.get(""name""):
+            truncated_name = tool_block[""name""]
+            tool_block[""name""] = self.tool_name_mapping.get(truncated_name, truncated_name)
+    ...
+```
+
+The same fix is needed in the async `__anext__` path (lines ~252–272).",https://github.com/BerriAI/litellm/pull/22504#discussion_r2892172783,,2026-03-05T20:35:28.167000,Tool name restoration skipped for first tool_use block,logic,high,8,"This catches a real logic bug where the PR's refactoring inadvertently breaks tool name restoration for the first tool_use block. When a tool name was truncated to meet OpenAI's 64-char limit, the first block would now return the truncated name instead of the original, breaking downstream tool-use parsing in production.",2026-03-07T22:11:20.416225+00:00
