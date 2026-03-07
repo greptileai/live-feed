@@ -9015,3 +9015,50 @@ Fix by adding a timestamp check to prevent overwriting with older credentials: o
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/davis7dotsh/better-context/pull/213#discussion_r2897638923,,2026-03-06T20:08:23.472000,Race condition causes permanent auth failure with single-use refresh tokens,concurrency,high,8,"This identifies a serious race condition where concurrent requests with expired tokens can cause permanent authentication failure. When multiple threads refresh simultaneously, stale credentials can overwrite freshly refreshed tokens, and since OAuth refresh tokens are single-use, this leads to unrecoverable auth failures requiring server restart.",2026-03-06T22:14:54.150616+00:00
+silimate/yosys,119,Autoscope Improvement,https://github.com/Silimate/yosys/pull/119,"**Shadowed variable causes function to always return empty string**
+
+`std::string scope = results[0]` on line 462 declares a *new* local variable inside the `else` block, which shadows the outer `scope` declared on line 404 (initialized to `""""`). When the `else` block exits, its local `scope` is destroyed, and `return scope` on line 465 returns the outer variable — which is always `""""`. This means `autoScope` will **never** return a valid scope, completely breaking the auto-discovery feature.
+
+The `std::string` type qualifier must be dropped so the assignment targets the outer variable:
+
+```suggestion
+		scope = results[0];
+	}
+	return scope;
+```
+
+Alternatively, `return results[0]` can be used directly inside the `else` block to make the intent clearer and avoid the shadowing entirely.",https://github.com/Silimate/yosys/pull/119#discussion_r2897259131,,2026-03-06T18:36:43.624000,Variable shadowing causes function to always return empty string,logic,high,8,"This is a significant logic bug where variable shadowing causes the autoScope function to always return an empty string, completely breaking the auto-discovery feature. The inner scope variable shadows the outer one, so the assignment never affects the returned value.",2026-03-07T00:46:14.314829+00:00
+infisical/infisical,5611,feat(secrets-overview): re-vamp create secret form,https://github.com/Infisical/infisical/pull/5611,"**Cryptographically insecure random number generation**
+
+`Math.random()` is not a cryptographically secure pseudo-random number generator (CSPRNG). For a password generator that produces values intended to be used as secrets, this significantly weakens the generated passwords since the output is predictable.
+
+Use `crypto.getRandomValues()` instead:
+
+```suggestion
+    const randomBytes = new Uint32Array(passwordOptions.length);
+    crypto.getRandomValues(randomBytes);
+    let newPassword = """";
+    for (let i = 0; i < passwordOptions.length; i += 1) {
+      newPassword += availableChars[randomBytes[i] % availableChars.length];
+```
+
+This ensures the generated passwords have proper entropy and cannot be predicted or reproduced by an attacker who knows the timing of the generation.",https://github.com/Infisical/infisical/pull/5611#discussion_r2893533739,,2026-03-06T02:57:45.400000,Cryptographically insecure PRNG used for password generation,security,high,9,"This is a significant security vulnerability in a secrets management platform (Infisical). Using Math.random() for password generation produces predictable outputs that could be exploited by attackers to guess generated secrets. The fix to use crypto.getRandomValues() is the correct cryptographic approach, and this is a non-obvious security issue that wouldn't be caught by linters or build tools.",2026-03-07T00:46:14.314829+00:00
+simstudioai/sim,3433,feat(selectors): add dropdown selectors for 14 integrations,https://github.com/simstudioai/sim/pull/3433,"OAuth access tokens exposed in URL query parameters
+
+The `jsm.serviceDesks`, `jsm.requestTypes`, and `confluence.spaces` selectors pass OAuth access tokens via `searchParams`, which appends them to the URL as query parameters. OAuth tokens in URLs can be leaked via server access logs, browser history, and Referer headers sent to third-party resources.
+
+The corresponding JSM and Confluence routes are GET handlers that read `accessToken` from `searchParams`. This is inconsistent with all other new selectors in this PR, which pass credentials in a POST request body.
+
+Consider switching these to POST requests where the access token is passed in the request body, consistent with the pattern used by the other 16 new selectors added in this PR.",https://github.com/simstudioai/sim/pull/3433#discussion_r2893282719,,2026-03-06T01:35:08.646000,OAuth access tokens exposed in URL query parameters,security,high,8,"This comment identifies a genuine security vulnerability where OAuth tokens are passed as URL query parameters instead of POST body, risking token exposure via server logs, browser history, and Referer headers. This is a well-documented security anti-pattern with real-world impact.",2026-03-07T00:46:14.314829+00:00
+reflex-dev/reflex,6137,feat: Add function to skip serialization.,https://github.com/reflex-dev/reflex/pull/6137,"**Name mangling prevents subclass override**
+
+The double-underscore prefix (`__skip_serialization`) triggers Python's name mangling. Inside `BaseState`, the call `self.__skip_serialization()` is compiled as `self._BaseState__skip_serialization()`, meaning it will **always** call `BaseState`'s version (which returns `False`), regardless of any override in a subclass.
+
+Since the stated purpose is for subclasses to override this method (e.g., for permissions/roles on states), this makes the feature unusable. Use a single leading underscore instead:
+
+```suggestion
+    def _skip_serialization(self) -> bool:
+        return False
+```
+
+And update the two call sites accordingly (`self._skip_serialization()`).",https://github.com/reflex-dev/reflex/pull/6137#discussion_r2823676114,,2026-02-18T17:54:20.712000,Python name mangling prevents subclass override of skip_serialization,logic,high,8,"This catches a real Python behavior bug where double-underscore prefix causes name mangling, making the entire feature unusable. Subclasses trying to override `__skip_serialization` would have their overrides silently ignored, defeating the stated purpose of permission-based state visibility. This is a meaningful logic bug that would cause unexpected behavior in production.",2026-03-07T00:46:14.314829+00:00
