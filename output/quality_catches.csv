@@ -9219,3 +9219,129 @@ This breaks every call to `encrypt_string_to_bytes` in MIT deployments — inclu
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/onyx-dot-app/onyx/pull/9162#discussion_r2899058259,,2026-03-07T05:50:37.796000,Parameter name mismatch causes TypeError in MIT deployments,runtime,high,8,"This catches a real runtime bug where the wrapper function calls the MIT implementation with a keyword argument 'key=' but the MIT function uses '_' as the parameter name, causing a TypeError on every encrypt call in MIT deployments. This would break all credential writes.",2026-03-07T08:14:52.485253+00:00
+gptme/gptme,1616,feat(cli): add tool exclusion with '-' prefix syntax,https://github.com/gptme/gptme/pull/1616,"**Mixing bare tool names with exclusion mode silently mislabels all as exclusions**
+
+When a user mixes a bare tool name with a `-` exclusion tool in the same list — e.g. `gptme -t=shell,-browser` — the code enters `exclusion_mode` and then calls `t.removeprefix(""-"")` on **all** entries:
+
+```python
+excluded_tools = [t.removeprefix(""-"") for t in tools_list]
+```
+
+For `tools_list = [""shell"", ""-browser""]`, this yields `excluded_tools = [""shell"", ""browser""]`, so `tool_allowlist_str = ""-shell,browser""`. The config layer then **excludes both** `shell` and `browser` from defaults — not just `browser`. The user, who likely intended ""I want shell + all defaults minus browser"", gets a very different result with no warning.
+
+The existing `additive_mode`/`exclusion_mode` guard catches `+`/`-` mixing, but bare-name + `-prefix` mixing is never caught. Consider adding a similar guard:
+
+```python
+if exclusion_mode and any(not t.startswith(""-"") for t in tools_list):
+    raise click.UsageError(
+        ""Cannot mix bare tool names with '-tool' (exclusion) syntax. ""
+        ""Use '-tool' for every tool when using exclusion mode.""
+    )
+```",https://github.com/gptme/gptme/pull/1616#discussion_r2898344012,"Fixed in ea7e097b4 — added an explicit guard before stripping the '-' prefix: if any bare tool names are present alongside '-' prefixed ones, we now raise a `UsageError` with a clear message. Mirrors the existing '+'/'-' mix check.",2026-03-06T23:21:18.693000,Mixing bare tool names with exclusion prefix silently excludes wrong tools,logic,high,8,"This catches a real logic bug where mixing bare tool names with '-' prefixed exclusions causes ALL tools to be treated as exclusions due to indiscriminate prefix stripping. Users would silently get completely wrong tool configurations, potentially losing access to tools they intended to keep.",2026-03-07T10:11:39.587116+00:00
+gptme/gptme,1620,feat(cli): add `gptme-util chats clean` command,https://github.com/gptme/gptme/pull/1620,"**Branch messages ignored when classifying conversations as empty**
+
+`conv.messages` only reflects the message count in the main `conversation.jsonl` file, as populated by `get_conversations()`:
+
+```python
+len_msgs = sum(1 for line in f if line.strip())
+```
+
+A conversation that has accumulated messages in branches (e.g. `branches/foo.jsonl`) will still report `conv.messages == 0` or `conv.messages == 1` if the main branch is thin, causing it to be flagged for deletion even though the user has meaningful work in a branch. Note that the size calculation at line 245 correctly uses `conv_dir.rglob(""*"")` and _will_ capture branch files — so users could see non-trivial disk sizes for conversations shown as having only `1 msg`, which is confusing and potentially dangerous when `--delete` is used.
+
+Consider checking the total message count across branches when `conv.branches > 1`:
+
+```python
+if conv.messages <= max_messages and conv.branches <= 1:
+    # safe to treat as empty
+```
+
+Or at minimum, surface `conv.branches` in the output so users can see which conversations have branch history before deleting them.",https://github.com/gptme/gptme/pull/1620#discussion_r2899319833,"Fixed in 7e21bfc24 — `find_empty_conversations` now also checks `conv.branches <= 1`, so conversations with branch history are not flagged as empty. `ConversationMeta.branches` is already populated by `get_conversations()`.",2026-03-07T08:38:57.791000,Branch messages ignored when flagging conversations for deletion,data_integrity,high,8,"This catch identifies a logic bug where conversations with meaningful work in branches could be incorrectly flagged as 'empty' and deleted, since conv.messages only counts main branch messages. This could cause user data loss - a significant real-world impact.",2026-03-07T10:11:39.587116+00:00
+simstudioai/sim,3456,feat(evernote): add Evernote integration with 11 tools,https://github.com/simstudioai/sim/pull/3456,"**Empty `tagNames` array silently clears all tags on update**
+
+When the route handler parses the `tagNames` string, a value like `"",""` (a comma with no real tags) passes the truthiness check, is split and trimmed, filtered to an empty array `[]`, then handed to `updateNote`. Because `parsedTags !== undefined`, the Thrift writer sends an empty list for field 15, which instructs Evernote to **delete all existing tags** from the note.
+
+Consider treating an empty parsed array the same as `undefined` (no-op) so that a user cannot accidentally clear all tags by supplying whitespace:
+
+```ts
+const parsedTags = tagNames
+  ? (() => {
+      const tags = (typeof tagNames === 'string'
+        ? tagNames.split(',').map((t: string) => t.trim()).filter(Boolean)
+        : tagNames)
+      return tags.length > 0 ? tags : undefined
+    })()
+  : undefined
+```",https://github.com/simstudioai/sim/pull/3456#discussion_r2899234917,"Fixed in 0e16b74 — empty parsed arrays are now treated as `undefined` (no-op) in both create-note and update-note routes, preventing accidental tag clearing.",2026-03-07T07:40:31.482000,Empty tag array silently deletes all existing tags,data_integrity,high,8,"This catch identifies a subtle but significant data integrity bug where a malformed input (comma-only string like ',') passes validation but results in an empty array that instructs Evernote to delete all tags from a note. This is a real production bug that could cause unexpected data loss for users.",2026-03-07T10:11:39.587116+00:00
+onyx-dot-app/onyx,9164,feat: Process tool call argument packets,https://github.com/onyx-dot-app/onyx/pull/9164,"Custom tool collapsed streaming broken — regression
+
+The previous code in this block checked `CUSTOM_TOOL_START` and `CUSTOM_TOOL_DELTA`, which allowed custom tool groups to correctly indicate they have content in collapsed streaming mode. The new code replaces those checks with Python tool conditions (`PYTHON_TOOL_START`, `PYTHON_TOOL_DELTA`), completely removing custom tools from this logic path.
+
+Since there is no other location in `stepHasCollapsedStreamingContent` that checks `CUSTOM_TOOL_START` or `CUSTOM_TOOL_DELTA`, custom tool groups will no longer return `true` from this function, breaking collapsed streaming mode for all custom tools.
+
+Additionally, the stale comment `// Custom tool shows running/completed state after start` is now incorrect — the code checks Python tool conditions — and the `PYTHON_TOOL_START` / `PYTHON_TOOL_DELTA` conditions are already fully covered by the block immediately above (lines 81–87), making this second check redundant.
+
+Suggested fix: restore `CUSTOM_TOOL_START`/`CUSTOM_TOOL_DELTA` and only add the new `TOOL_CALL_ARGUMENT_DELTA` check here (or collapse both Python blocks into one):
+
+```suggestion
+  // Custom tool shows running/completed state after start
+  if (
+    packetTypes.has(PacketType.CUSTOM_TOOL_START) ||
+    packetTypes.has(PacketType.CUSTOM_TOOL_DELTA)
+  ) {
+    return true;
+  }
+
+  // Python argument deltas arrive before PythonToolStart and have content
+  if (
+    packets.some(
+      (p) =>
+        p.obj.type === PacketType.TOOL_CALL_ARGUMENT_DELTA &&
+        (p.obj as ToolCallArgumentDelta).tool_type === ""python""
+    )
+  ) {
+    return true;
+  }
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: web/src/app/app/message/messageComponents/timeline/packetHelpers.ts
+Line: 89-100
+
+Comment:
+Custom tool collapsed streaming broken — regression
+
+The previous code in this block checked `CUSTOM_TOOL_START` and `CUSTOM_TOOL_DELTA`, which allowed custom tool groups to correctly indicate they have content in collapsed streaming mode. The new code replaces those checks with Python tool conditions (`PYTHON_TOOL_START`, `PYTHON_TOOL_DELTA`), completely removing custom tools from this logic path.
+
+Since there is no other location in `stepHasCollapsedStreamingContent` that checks `CUSTOM_TOOL_START` or `CUSTOM_TOOL_DELTA`, custom tool groups will no longer return `true` from this function, breaking collapsed streaming mode for all custom tools.
+
+Additionally, the stale comment `// Custom tool shows running/completed state after start` is now incorrect — the code checks Python tool conditions — and the `PYTHON_TOOL_START` / `PYTHON_TOOL_DELTA` conditions are already fully covered by the block immediately above (lines 81–87), making this second check redundant.
+
+Suggested fix: restore `CUSTOM_TOOL_START`/`CUSTOM_TOOL_DELTA` and only add the new `TOOL_CALL_ARGUMENT_DELTA` check here (or collapse both Python blocks into one):
+
+```suggestion
+  // Custom tool shows running/completed state after start
+  if (
+    packetTypes.has(PacketType.CUSTOM_TOOL_START) ||
+    packetTypes.has(PacketType.CUSTOM_TOOL_DELTA)
+  ) {
+    return true;
+  }
+
+  // Python argument deltas arrive before PythonToolStart and have content
+  if (
+    packets.some(
+      (p) =>
+        p.obj.type === PacketType.TOOL_CALL_ARGUMENT_DELTA &&
+        (p.obj as ToolCallArgumentDelta).tool_type === ""python""
+    )
+  ) {
+    return true;
+  }
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/9164#discussion_r2898541639,,2026-03-07T00:44:58.112000,Custom tool collapsed streaming regression breaks functionality,logic,high,8,"This comment catches a regression bug where custom tool handling was accidentally replaced with Python tool checks, completely breaking collapsed streaming mode for all custom tools. This would cause visible UI issues in production for users using custom tools.",2026-03-07T10:11:39.587116+00:00
