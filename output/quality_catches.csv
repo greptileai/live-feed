@@ -9139,3 +9139,25 @@ The original code only checked `is_llm_api_route`. The intended logic is to retu
             RouteChecks.is_info_route(route) is not True
         ):
 ```",https://github.com/BerriAI/litellm/pull/22713#discussion_r2880787484,,2026-03-03T22:17:57.976000,Logic bug with or/and operator disables error logging,logic,high,8,"Comment 2 identifies a genuine logic bug where using `or` instead of `and` in a negated condition causes the function to always return False, completely disabling proxy-level error logging for all routes. This is a meaningful logic error that would affect production behavior.",2026-03-07T03:01:31.743063+00:00
+nvidia-holoscan/holohub,1441,Generate and Display API Reference for Operators,https://github.com/nvidia-holoscan/holohub/pull/1441,"**`subprocess.run` has no timeout — doc build can hang indefinitely**
+
+If Doxygen stalls (e.g., due to a preprocessor macro expansion loop, a circular include, or an I/O issue on the operators tree), this call will block forever, hanging the entire documentation build in CI with no way to recover.
+
+Add a reasonable timeout:
+
+```suggestion
+    result = subprocess.run(
+        [""doxygen"", str(doxyfile)],
+        cwd=str(website_dir),
+        capture_output=True,
+        text=True,
+        timeout=300,  # 5-minute hard limit; adjust if large operator sets need more time
+    )
+```
+
+You'll also want to catch `subprocess.TimeoutExpired`:
+```python
+    except subprocess.TimeoutExpired:
+        logger.error(""Doxygen timed out after 300 seconds. Skipping C++ API doc generation."")
+        return {}
+```",https://github.com/nvidia-holoscan/holohub/pull/1441#discussion_r2897649468,,2026-03-06T20:11:03.892000,Missing subprocess timeout causes indefinite CI build hang,resource_leak,high,8,"The subprocess.run() call to Doxygen has no timeout, meaning if Doxygen stalls (macro loops, circular includes, I/O issues), the entire CI build hangs indefinitely with no recovery. This is a meaningful production bug that would cause real CI failures and blocked deployments.",2026-03-07T04:38:40.908051+00:00
