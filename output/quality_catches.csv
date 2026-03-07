@@ -9437,3 +9437,33 @@ When installing from a local path, `shutil.copytree(local_path, dest)` uses the 
 ```
 
 Using `symlinks=True` preserves symlinks as symlinks instead of following them. Alternatively, you can mirror `publish_skill`'s approach and explicitly reject skill directories containing symlinks before copying.",https://github.com/gptme/gptme/pull/1566#discussion_r2899400087,"Fixed in cbd4f31df — `shutil.copytree(local_path, dest)` changed to `shutil.copytree(local_path, dest, symlinks=True)`. With `symlinks=True`, symlinks in the source are preserved as symlinks in the destination instead of being followed and their targets copied, preventing a crafted skill directory from reading sensitive files like `/etc/passwd` into the installed skill directory.",2026-03-07T09:30:52.312000,Symlink following allows arbitrary file exfiltration during skill install,security,high,8,"This is a meaningful security vulnerability where a malicious skill package could use symlinks to copy sensitive system files (like /etc/passwd) into the installed skill directory. The comment correctly identifies the inconsistency with publish_skill which already defends against this, and provides a proper fix.",2026-03-07T14:11:50.164828+00:00
+berriai/litellm,22882,fix(presidio): handle Anthropic native SSE bytes in streaming unmask hook,https://github.com/BerriAI/litellm/pull/22882,"**Broken SSE event ordering — protocol events emitted before text content**
+
+The rebuilt SSE byte stream is assembled as `non_text_events + [text_delta_event]`. However, a real Anthropic SSE stream delivers lifecycle events that come *after* text deltas (i.e., `content_block_stop`, `message_delta`, `message_stop`) in that same `non_text_events` list. Placing them all before the new `text_delta_event` breaks the Anthropic SSE protocol order for any consumer that follows the spec.
+
+Example: for a normal stream `content_block_start → content_block_delta → content_block_stop → message_delta → message_stop`, the rebuilt stream becomes:
+
+```
+content_block_start   ← correct
+content_block_stop    ← wrong: comes before the text delta
+message_delta         ← wrong: comes before the text delta
+message_stop          ← wrong: comes before the text delta
+content_block_delta   ← actual text, after ""stop"" events
+```
+
+A correct approach would preserve the original stream order, inserting the merged unmasked `content_block_delta` in the position of the *first* `text_delta` event, and dropping subsequent `text_delta` events:
+
+```python
+# Instead of splitting into text/non-text buckets, preserve event order
+rebuilt_events: List[bytes] = []
+text_injected = False
+for raw_event in raw_events:
+    # ... parse as before ...
+    if is_text_delta:
+        if not text_injected:
+            rebuilt_events.append(merged_text_delta_event)
+            text_injected = True
+        # else: skip additional text_delta events (merged above)
+    else:
+        rebuilt_events.append(raw_event)
+```",https://github.com/BerriAI/litellm/pull/22882#discussion_r2888040930,,2026-03-05T06:57:08.064000,Broken SSE event ordering violates Anthropic protocol specification,logic,high,8,"This catch identifies a significant protocol violation where lifecycle events (content_block_stop, message_stop) are incorrectly emitted before the text content delta, breaking SSE consumers that follow the Anthropic spec. This would cause real issues for downstream consumers expecting proper event ordering.",2026-03-07T18:15:14.410353+00:00
