@@ -9571,3 +9571,171 @@ if self.sent_content_block_start is False:
 ```
 
 The same fix is needed in the async `__anext__` path (lines ~252–272).",https://github.com/BerriAI/litellm/pull/22504#discussion_r2892172783,,2026-03-05T20:35:28.167000,Tool name restoration skipped for first tool_use block,logic,high,8,"This catches a real logic bug where the PR's refactoring inadvertently breaks tool name restoration for the first tool_use block. When a tool name was truncated to meet OpenAI's 64-char limit, the first block would now return the truncated name instead of the original, breaking downstream tool-use parsing in production.",2026-03-07T22:11:20.416225+00:00
+simstudioai/sim,3460,refactor(queries): comprehensive TanStack Query best practices audit,https://github.com/simstudioai/sim/pull/3460,"`syncedRef` blocks re-sync after webhook creation
+
+`syncedRef.current` is set to `true` regardless of whether `webhook` is `null` or an actual webhook object. This means when a webhook is initially absent (e.g., before a deploy) and later created:
+
+1. First data arrival: `webhook === null` → `syncedRef.current = true`, `webhookId` set to `null` in the store
+2. After deploy → query refetches, `webhook` is now a valid object
+3. Effect runs again but `syncedRef.current === true` → **returns early, never syncing the new webhook ID**
+
+The result is that `webhookId` in the sub-block store remains `null` until the component unmounts and remounts, breaking webhook URL display for newly-deployed triggers.
+
+Only set `syncedRef.current = true` when a webhook was found:
+
+```suggestion
+    if (webhook) {
+      syncedRef.current = true
+      useSubBlockStore.getState().setValue(blockId, 'webhookId', webhook.id)
+```",https://github.com/simstudioai/sim/pull/3460#discussion_r2900564925,Great catch — this was a real regression. Fixed in 140723d by moving `syncedRef.current = true` inside the `if (webhook)` branch so that a null initial fetch doesn't permanently block re-sync when the webhook is created post-deploy.,2026-03-07T21:15:42.993000,syncedRef blocks webhook sync after creation causing stale null state,logic,high,8,"This catches a real logic bug where setting syncedRef=true on null webhook data permanently prevents syncing when a webhook is later created, breaking webhook URL display for newly-deployed triggers. This is a meaningful production bug affecting user-visible functionality.",2026-03-08T00:48:29.195213+00:00
+netflix/metaflow,2973,Implemented the end-to-end CI pipeline and test flow with KIND + Argo…,https://github.com/Netflix/metaflow/pull/2973,"**Health check block is not a valid step — dead code**
+
+The `run: |` on line 156 is at the same indentation level as a step (`      run:`), but it is **not** preceded by a list-item marker (`-`). In the GitHub Actions YAML schema, `steps:` is a sequence; every entry must begin with `-`. This stray `run:` key sits at the `jobs.k8s-argo-e2e` mapping level, which GitHub Actions does not recognise as a valid job property.
+
+In practice this means:
+- The entire MinIO health check loop (`MINIO_READY`, `for i in {1..60}`, the `kubectl exec` readiness poll, and the timeout guard) will **never execute**.
+- The `kubectl get pods -n minio` and `kubectl get svc -n minio minio` lines on 177–178 are also unreachable.
+
+Because the previous ""Deploy MinIO"" step only uses `kubectl wait --timeout=240` (with the already-flagged missing `s` unit suffix), there is now **no readiness guard at all** between MinIO startup and bucket creation, reintroducing the race condition that was supposed to have been fixed.
+
+The fix is to make this a proper named step (restoring the `- name:` prefix and correctly indenting the `run:` body to 10 spaces to match the rest of the workflow):
+```yaml
+      - name: Wait for MinIO readiness
+        run: |
+          set -euo pipefail
+          echo ""Waiting for MinIO readiness...""
+          MINIO_READY=false
+          for i in {1..60}; do
+            if kubectl exec -n minio deploy/minio -- curl -sf http://localhost:9000/minio/health/ready; then
+              echo ""MinIO is ready""
+              MINIO_READY=true
+              break
+            fi
+            echo ""MinIO not ready yet (attempt ${i}/60)...""
+            sleep 2
+          done
+          if [ ""${MINIO_READY}"" != ""true"" ]; then
+            echo ""ERROR: MinIO did not become ready after 120 seconds"" >&2
+            exit 1
+          fi
+          kubectl get pods -n minio
+          kubectl get svc -n minio minio
+```",https://github.com/Netflix/metaflow/pull/2973#discussion_r2899830620,"done
+",2026-03-07T14:39:03.853000,YAML indentation error makes health check code unreachable dead code,runtime,high,8,"Comment 7 identifies a critical YAML structural error where incorrect indentation causes the entire MinIO health check block to be parsed outside the `run:` block, making it dead code. This would cause the workflow to silently skip critical readiness checks and potentially cause a YAML parse error, completely breaking the CI pipeline.",2026-03-08T00:48:29.195213+00:00
+netflix/metaflow,2914,Add devcontainer.json utility generator,https://github.com/Netflix/metaflow/pull/2914,"**Shell injection risk in generated `postCreateCommand`**
+
+Package names and versions are interpolated directly into a shell command string (`pip install {deps_str}`) without any sanitization or quoting. Since `postCreateCommand` in the devcontainer spec is [executed via a shell](https://containers.dev/implementors/json_reference/#lifecycle-scripts), a malicious or malformed package name (e.g., containing `; rm -rf /` or `$(command)`) would result in arbitrary command execution when the devcontainer is built.
+
+Consider using `shlex.quote()` (already used elsewhere in the metaflow codebase) to sanitize each dependency string:
+
+```python
+import shlex
+deps = [shlex.quote(f""{pkg}{version}"") for pkg, version in python_dependencies.items()]
+```",https://github.com/Netflix/metaflow/pull/2914#discussion_r2844649649,,2026-02-24T05:44:46.049000,Shell injection vulnerability in pip install command generation,security,high,8,"Comment 1 identifies a genuine shell injection vulnerability where unsanitized package names could execute arbitrary commands when the devcontainer is built. This is a real security risk since postCreateCommand is executed via shell, and the fix using shlex.quote() was implemented.",2026-03-08T00:48:29.195213+00:00
+netflix/metaflow,2961,Refactor FlowSpec._get_parameters to use MRO-based attribute discovery (issue #2960),https://github.com/Netflix/metaflow/pull/2961,"**Incorrect parameter resolution on override**
+
+Walking `reversed(cls.__mro__)` (base-to-derived) and skipping already-seen names means that when a child class overrides a parent's `Parameter` with a different `Parameter`, the **base class's version** is yielded instead of the child's. This is the opposite of standard Python attribute resolution and the old `getattr(cls, var)` behavior.
+
+Consider:
+```python
+class Base(FlowSpec):
+    alpha = Parameter(""alpha"", default=10)
+
+class Child(Base):
+    alpha = Parameter(""alpha"", default=20)
+```
+
+- **Old code**: `getattr(Child, 'alpha')` → Child's Parameter (default=20). Correct.
+- **New code**: `reversed(cls.__mro__)` visits `Base` before `Child`, so Base's Parameter (default=10) is yielded and `'alpha'` is added to `returned`. When `Child` is reached, `'alpha'` is already in `returned` and is skipped. Incorrect.
+
+Additionally, this creates an **inconsistency with the cached path** (line 557): on subsequent calls, the cached path uses `getattr(cls, var)` which *does* return the most-derived value, so the first and second invocations would yield different `Parameter` objects.
+
+To fix this while keeping the MRO walk, iterate in MRO order (derived-to-base) instead of reversed:
+```suggestion
+        for base in cls.__mro__:
+            if not issubclass(base, FlowSpec):
+                continue
+
+            for var, val in base.__dict__.items():
+                if (
+                    var[0] != ""_""
+                    and var not in cls._NON_PARAMETERS
+                    and isinstance(val, Parameter)
+                    and var not in returned
+                ):
+                    build_list.append(var)
+                    returned.add(var)
+                    yield var, val
+```
+
+This way the most-derived class's Parameter wins (matching `getattr` semantics), and base-class Parameters are only picked up if not already shadowed.",https://github.com/Netflix/metaflow/pull/2961#discussion_r2878528233,,2026-03-03T14:17:07.238000,MRO traversal order causes wrong parameter override resolution,logic,high,8,"Comment 4 identifies a significant logic bug where reversed MRO traversal causes parent class parameters to be yielded instead of child class overrides, breaking standard Python attribute resolution semantics. This would cause incorrect parameter defaults in production and creates inconsistency between cached and uncached code paths.",2026-03-08T00:48:29.195213+00:00
+netflix/metaflow,2966,Fixed artifact serialization errors in TaskDataStore.persist(),https://github.com/Netflix/metaflow/pull/2966,"**Broken indentation moves code outside `for` loop**
+
+Lines 762–765 are indented at 8 spaces, which is the same level as the `for var in dir(flow):` loop on line 755. This means `val = getattr(flow, var)` and the subsequent `if` block execute **after** the loop finishes rather than **inside** each iteration — so only the last value of `var` from the loop would be processed.
+
+In the original code, these lines were properly indented at 12 spaces (inside the `for` loop). The same indentation problem also affects the comment on line 758 (at 8 spaces instead of 12).
+
+This is a regression that will break artifact persistence at runtime — only one artifact (the last one from `dir(flow)`) could ever be appended to `valid_artifacts`.",https://github.com/Netflix/metaflow/pull/2966#discussion_r2887754746,,2026-03-05T05:45:20.667000,Broken indentation moves artifact processing outside loop,logic,critical,8,"This catches a critical indentation bug that would cause artifact persistence to only process the last variable from dir(flow), breaking the core functionality of persisting all artifacts. This is a runtime regression that would silently corrupt data.",2026-03-08T00:48:29.195213+00:00
+netflix/metaflow,2963,perf: Optimize FlowSpec._get_parameters() to use MRO walk,https://github.com/Netflix/metaflow/pull/2963,"**Reversed MRO yields base-class version of overridden parameters**
+
+`reversed(cls.__mro__)` iterates from `object` → base classes → derived classes. Because the first occurrence of a parameter name is added to `returned` and subsequent occurrences are skipped, this yields the **base-class** version of any parameter that is overridden in a child class.
+
+The old `dir()` + `getattr()` code returned the **most-derived** version, because `getattr(cls, var)` follows standard MRO resolution (derived-first). This means if a subclass overrides a parent's `Parameter` (e.g., to change the default), the new code silently returns the parent's definition instead.
+
+Example:
+```python
+class Base(FlowSpec):
+    alpha = Parameter(""alpha"", default=1)
+
+class Child(Base):
+    alpha = Parameter(""alpha"", default=99)  # override
+```
+
+- Old code: `getattr(Child, 'alpha')` → returns `Child.alpha` (default=99)
+- New code: `reversed(Child.__mro__)` visits `Base` before `Child` → returns `Base.alpha` (default=1)
+
+Additionally, the **cached path** (line 557) still uses `getattr(cls, var)`, which resolves to the derived-class version. So the first (uncached) call and subsequent (cached) calls would return **different** `Parameter` objects for the same name when an override exists.
+
+To fix, iterate in normal MRO order (derived → base) without reversing:
+
+```suggestion
+        for base in cls.__mro__:
+            if not issubclass(base, FlowSpec):
+                continue
+            for var, val in base.__dict__.items():
+                if (
+                    var[0] != ""_""
+                    and var not in cls._NON_PARAMETERS
+                    and isinstance(val, Parameter)
+                    and var not in returned
+                ):
+                    build_list.append(var)
+                    returned.add(var)
+                    yield var, val
+```",https://github.com/Netflix/metaflow/pull/2963#discussion_r2880321300,,2026-03-03T20:27:05.208000,Reversed MRO causes overridden parameters to use base class values,logic,high,8,"This catch identifies a significant logic bug where reversing the MRO causes child class parameter overrides to be silently ignored, returning base class defaults instead. This would cause wrong behavior in production when users override parameters in subclasses, and creates inconsistency between cached and uncached code paths.",2026-03-08T00:48:29.195213+00:00
+netflix/metaflow,2987,Implemented the foreach @catch limitation fix in metaflow/plugins/cat…,https://github.com/Netflix/metaflow/pull/2987,"`parallel_foreach` steps not excluded from fallback logic
+
+The original `step_init` guard blocked `@catch` on all `foreach`-type steps. This PR removes it entirely, but `_populate_foreach_fallback_artifacts` only produces correct metadata for *regular* foreach steps (those with `foreach_param` set via `self.next(join, foreach=""items"")`).
+
+For `parallel_foreach` steps (those using `self.next(join, num_parallel=N)`), `node.foreach_param` is `None` and `flow._foreach_var` is `None`. This means:
+- `foreach_var` resolves to `None`
+- `flow._foreach_var` is set to `""_catch_foreach_fallback""` (the sentinel)
+- `flow._foreach_num_splits` is set to `1` (fallback)
+- The transition becomes `(out_funcs, ""_catch_foreach_fallback"")` — truthy
+
+At `runtime.py:1405`, the truthy `foreach` field triggers `_queue_task_foreach`, which spawns a single regular foreach split child rather than going through the UBF/parallel control mechanism. The downstream join will see 1 input instead of the expected `num_parallel` inputs, causing silent data loss.
+
+Before this PR, `@catch` on a `parallel_foreach` step would fail fast. Now it silently misbehaves. A targeted guard is needed:
+
+```suggestion
+    def _populate_foreach_fallback_artifacts(self, step, flow, graph):
+        node = graph[step]
+        if node.type != ""foreach"":
+            return None
+        if node.parallel_foreach:
+            raise MetaflowException(
+                ""@catch is defined for the step *%s* ""
+                ""but @catch is not supported in parallel foreach ""
+                ""steps (num_parallel)."" % step
+            )
+```",https://github.com/Netflix/metaflow/pull/2987#discussion_r2900484506,,2026-03-07T20:40:47.316000,Missing guard for parallel_foreach causes silent data loss,logic,high,8,"This comment identifies a significant logic bug where removing the original guard for @catch on foreach steps without properly handling parallel_foreach steps causes silent misbehavior. Instead of failing fast, the code now spawns a single regular foreach split instead of using the parallel control mechanism, causing the downstream join to see 1 input instead of expected num_parallel inputs - resulting in silent data loss.",2026-03-08T00:48:29.195213+00:00
