@@ -9811,3 +9811,38 @@ except ImportError:
 ```
 
 Or alternatively, keep `orjson` to the proxy-specific call sites and leave `safe_json_dumps.py` on stdlib `json`.",https://github.com/BerriAI/litellm/pull/23075#discussion_r2901052624,,2026-03-08T01:25:44.056000,Optional dependency imported unconditionally causes ImportError,runtime,high,8,"This catches a real runtime bug where orjson (an optional dependency) is imported in a core module path, causing ImportError for users who install litellm without the proxy extras. The import chain analysis is thorough and demonstrates this would break basic usage.",2026-03-08T04:40:53.707679+00:00
+raycast/extensions,26058,Update pie-for-pi-hole extension to support Pi-Hole V6,https://github.com/raycast/extensions/pull/26058,"**Global TLS verification disabled for entire process**
+
+Setting `process.env.NODE_TLS_REJECT_UNAUTHORIZED = ""0""` at module import time disables TLS certificate verification for the **entire Raycast process**, not just connections to the Pi-hole. Every HTTPS request Raycast (or any other extension running in the same process) makes — including calls to the Raycast store, telemetry, or other extensions — will silently bypass certificate validation, making them vulnerable to man-in-the-middle attacks.
+
+A safer approach is to pass a custom `https.Agent` with `rejectUnauthorized: false` only on the specific `fetch` calls targeting the local Pi-hole:
+
+```typescript
+import https from ""https"";
+
+const piholeAgent = new https.Agent({ rejectUnauthorized: false });
+
+export async function fetchWithTimeout(url: string, options?: RequestInit, timeoutMs = 5000): Promise<Response> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+      // @ts-expect-error – Node.js fetch accepts agent
+      agent: piholeAgent,
+    });
+    return response;
+  } catch (error: unknown) {
+    if (error instanceof Error && error.name === ""AbortError"") {
+      throw new PiholeConnectionError(""Request timed out. Check your Pi-hole URL."");
+    }
+    throw new PiholeConnectionError(""Failed to connect to Pi-hole. Check your URL and network."");
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+```
+
+This restricts the `rejectUnauthorized: false` behaviour to only requests made through this function.",https://github.com/raycast/extensions/pull/26058#discussion_r2890783924,,2026-03-05T15:40:17.547000,Global TLS verification disabled exposes all HTTPS requests to MITM attacks,security,high,8,"This comment identifies a significant security vulnerability where disabling TLS verification at the process level would affect all HTTPS requests from Raycast, not just Pi-hole connections. This creates a man-in-the-middle attack vector for any sensitive communications. The suggested fix properly scopes the TLS bypass to only Pi-hole requests.",2026-03-08T08:15:29.257459+00:00
