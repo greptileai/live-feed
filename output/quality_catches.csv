@@ -9861,3 +9861,26 @@ Fix by computing the epoch offset entirely from integers to avoid any timezone c
 ```
 
 This works regardless of server timezone because `EXTRACT(EPOCH FROM timestamp)` always returns seconds since the Unix epoch in UTC.",https://github.com/simstudioai/sim/pull/3464#discussion_r2901535227,,2026-03-08T08:24:09.325000,Timestamp timezone mismatch causes incorrect daily billing bucket assignments,data_integrity,high,8,"This catches a subtle but significant bug where PostgreSQL's implicit timezone casting between `timestamp` and `timestamptz` causes usage records to be assigned to wrong day buckets in non-UTC timezones, leading to incorrect billing calculations. This would cause real financial impact for customers.",2026-03-08T12:18:59.142891+00:00
+strawberry-graphql/strawberry,4291,fix: restore minimal mypy plugin for pydantic and support Annotated enums,https://github.com/strawberry-graphql/strawberry/pull/4291,"`instance` should be `ARG_POS`, not `ARG_OPT`
+
+The `instance` parameter of `from_pydantic` is a *required* positional argument in the real implementation:
+
+```python
+# strawberry/experimental/pydantic/object_type.py
+def from_pydantic_default(
+    instance: PydanticModel, extra: dict[str, Any] | None = None
+) -> ...:
+```
+
+Using `ARG_OPT` tells mypy that `instance` is optional (has a default value), so mypy will silently accept `User.from_pydantic()` with no arguments — a call that would fail at runtime with a `TypeError`. The kind should be `ARG_POS` to accurately reflect the required positional parameter.
+
+```suggestion
+        model_argument = Argument(
+            variable=Var(name=""instance"", type=model_type),
+            type_annotation=model_type,
+            initializer=None,
+            kind=ARG_POS,
+        )
+```
+
+(You will also need to import `ARG_POS` from `mypy.nodes`.)",https://github.com/strawberry-graphql/strawberry/pull/4291#discussion_r2901856652,,2026-03-08T13:42:57.631000,Required parameter incorrectly marked as optional causes silent runtime failures,type_error,high,8,"This catch identifies a meaningful bug where a required parameter is incorrectly marked as ARG_OPT instead of ARG_POS in the mypy plugin, causing mypy to accept calls without the required argument that would fail at runtime with TypeError. This defeats the purpose of type checking for this API.",2026-03-08T14:12:27.246380+00:00
