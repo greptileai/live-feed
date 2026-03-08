@@ -9884,3 +9884,56 @@ Using `ARG_OPT` tells mypy that `instance` is optional (has a default value), so
 ```
 
 (You will also need to import `ARG_POS` from `mypy.nodes`.)",https://github.com/strawberry-graphql/strawberry/pull/4291#discussion_r2901856652,,2026-03-08T13:42:57.631000,Required parameter incorrectly marked as optional causes silent runtime failures,type_error,high,8,"This catch identifies a meaningful bug where a required parameter is incorrectly marked as ARG_OPT instead of ARG_POS in the mypy plugin, causing mypy to accept calls without the required argument that would fail at runtime with TypeError. This defeats the purpose of type checking for this API.",2026-03-08T14:12:27.246380+00:00
+helixdb/helix-db,882,fix (sync): fix sync reconciliation for remote queries paths,https://github.com/HelixDB/helix-db/pull/882,"**Delete-before-write risks data loss on directory migration**
+
+When `current_queries_dir != target_queries_dir` (the path-migration case), the code deletes all files from `current_queries_dir` (lines 707–714) **before** writing the remote files to `target_queries_dir` (lines 730–737). If any write to `target_queries_dir` fails mid-way (e.g. disk full, permission error), the user's source files in `current_queries_dir` are already irreversibly deleted and cannot be recovered.
+
+The existing same-directory path (lines 681–700) correctly uses the safe write-then-delete ordering inherited from the original implementation. The migration path should follow the same pattern: write remote files to `target_queries_dir` first, then remove files from `current_queries_dir` and clean up stale files in `target_queries_dir`.
+
+```suggestion
+    // Safe ordering: write first, delete after
+    fs::create_dir_all(target_queries_dir)?;
+
+    for (relative_path, remote_entry) in remote_manifest {
+        let destination = safe_join_relative(target_queries_dir, relative_path)?;
+        if let Some(parent) = destination.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        fs::write(&destination, &remote_entry.content)
+            .map_err(|e| eyre!(""Failed to write {}: {}"", relative_path, e))?;
+    }
+
+    for relative_path in local_manifest.keys() {
+        let local_path = safe_join_relative(current_queries_dir, relative_path)?;
+        if local_path.exists() {
+            fs::remove_file(&local_path)
+                .map_err(|e| eyre!(""Failed to remove local file {}: {}"", relative_path, e))?;
+            Step::verbose_substep(&format!(""  Removed {}"", relative_path));
+        }
+    }
+
+    for relative_path in target_manifest
+        .keys()
+        .filter(|path| !remote_manifest.contains_key(*path))
+    {
+        let local_path = safe_join_relative(target_queries_dir, relative_path)?;
+        if local_path.exists() {
+            fs::remove_file(&local_path)
+                .map_err(|e| eyre!(""Failed to remove local file {}: {}"", relative_path, e))?;
+            Step::verbose_substep(&format!(""  Removed {}"", relative_path));
+        }
+    }
+```",https://github.com/HelixDB/helix-db/pull/882#discussion_r2902375493,,2026-03-08T20:26:33.531000,Delete-before-write ordering risks irreversible data loss on failure,data_integrity,high,8,"This is a meaningful logic bug where the migration path deletes source files before writing to the target directory. If the write fails mid-way (disk full, permissions), user data is permanently lost with no recovery. The reviewer correctly identifies the inconsistency with the same-directory path that uses safe write-then-delete ordering, and provides a concrete fix.",2026-03-08T22:12:10.003241+00:00
+berriai/litellm,23057,[Fix] User Filter Scope - Make Org-Scoping Opt-In,https://github.com/BerriAI/litellm/pull/23057,"**Cache set without TTL — stale values in multi-instance deployments**
+
+`async_set_cache` is called without a `ttl` parameter in both `get_ui_settings_cached` (here) and `update_ui_settings` (around line 1159). Without a TTL the in-process memory tier of `DualCache` never expires this entry.
+
+In single-instance or Redis-backed deployments this is tolerable because `update_ui_settings` overwrites the key on every write. However, in multi-instance deployments without Redis:
+
+1. Instance A warms its cache (cache miss → DB read, stores permanently).
+2. An admin updates the setting via Instance B → Instance B writes to DB and to its own in-memory cache.
+3. Instance A's cache is never invalidated and never re-reads from the DB, so it keeps serving the old `scope_user_search_to_org=False` value indefinitely — even if an admin has explicitly enabled the org-scoping security flag.
+
+Adding a short `ttl` (e.g. 60 seconds) to both `async_set_cache` calls is the standard mitigation used elsewhere in the codebase and ensures eventual consistency even when the Redis tier is absent.
+
+**Rule Used:** What: Avoid creating new database requests or Rout... ([source](https://app.greptile.com/review/custom-context?memory=0c2a17ad-5f29-423f-a48b-371852ac4169))",https://github.com/BerriAI/litellm/pull/23057#discussion_r2900850196,,2026-03-08T00:00:59.625000,Missing cache TTL causes stale security settings in multi-instance deployments,concurrency,high,8,"This catch identifies a real production bug where security settings (scope_user_search_to_org flag) can become permanently stale in multi-instance deployments without Redis. An admin enabling org-scoping security would not have it applied consistently across all instances, creating a security gap where users could search across organizations despite the setting being enabled.",2026-03-08T22:12:10.003241+00:00
