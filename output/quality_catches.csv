@@ -9739,3 +9739,20 @@ Before this PR, `@catch` on a `parallel_foreach` step would fail fast. Now it si
                 ""steps (num_parallel)."" % step
             )
 ```",https://github.com/Netflix/metaflow/pull/2987#discussion_r2900484506,,2026-03-07T20:40:47.316000,Missing guard for parallel_foreach causes silent data loss,logic,high,8,"This comment identifies a significant logic bug where removing the original guard for @catch on foreach steps without properly handling parallel_foreach steps causes silent misbehavior. Instead of failing fast, the code now spawns a single regular foreach split instead of using the parallel control mechanism, causing the downstream join to see 1 input instead of expected num_parallel inputs - resulting in silent data loss.",2026-03-08T00:48:29.195213+00:00
+berriai/litellm,23080,[Feature] UI - Internal Users: Allow Org Admins to View and Invite Users,https://github.com/BerriAI/litellm/pull/23080,"**Critical: No server-side authorization for organization_id parameter**
+
+The `get_users` endpoint accepts `organization_id` as a client-controlled query parameter and applies it as a filter, but performs no authorization check. Two critical paths exist:
+
+1. **Omit the parameter** — any authenticated user can call `/user/list` without `organization_id` and retrieve all users in the system.
+2. **Supply an arbitrary org ID** — an org admin can pass the ID of any organization to enumerate its members, even organizations they do not belong to.
+
+The existing `ui_view_users` endpoint (around line 1844) demonstrates the correct pattern:
+- Injects the `user_api_key_dict` via dependency
+- For non-proxy-admins, fetches the caller's actual organization memberships from the database
+- Enforces scope server-side, rejecting unauthorized access with a 403
+
+**Required fix:** The `get_users` function must follow the same pattern:
+- Inject `user_api_key_dict`
+- Check if the caller is a proxy admin
+- For non-proxy-admins, derive the permitted org IDs from their database record's organization_memberships
+- Force the `organization_memberships` filter to the caller's permitted orgs, ignoring any client-supplied value",https://github.com/BerriAI/litellm/pull/23080#discussion_r2901099683,,2026-03-08T01:45:36.025000,Missing server-side authorization allows users to view all system users,security,critical,9,"This is a critical authorization bypass vulnerability. The endpoint accepts client-controlled organization_id parameter without verification, allowing any authenticated user to enumerate all users in the system or access user lists from organizations they don't belong to. This is a textbook broken access control issue.",2026-03-08T03:10:53.291485+00:00
