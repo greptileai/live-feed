@@ -9756,3 +9756,58 @@ The existing `ui_view_users` endpoint (around line 1844) demonstrates the correc
 - Check if the caller is a proxy admin
 - For non-proxy-admins, derive the permitted org IDs from their database record's organization_memberships
 - Force the `organization_memberships` filter to the caller's permitted orgs, ignoring any client-supplied value",https://github.com/BerriAI/litellm/pull/23080#discussion_r2901099683,,2026-03-08T01:45:36.025000,Missing server-side authorization allows users to view all system users,security,critical,9,"This is a critical authorization bypass vulnerability. The endpoint accepts client-controlled organization_id parameter without verification, allowing any authenticated user to enumerate all users in the system or access user lists from organizations they don't belong to. This is a textbook broken access control issue.",2026-03-08T03:10:53.291485+00:00
+simstudioai/sim,3465,"feat(knowledge): add v1 knowledge base API, Obsidian/Evernote connectors, and docs",https://github.com/simstudioai/sim/pull/3465,"**Cross-workspace knowledge base access bypass**
+
+`checkKnowledgeBaseAccess(kbId, userId)` validates access against each KB's *own* workspace, not the `workspaceId` in the request body. A user who is a member of multiple workspaces can:
+
+1. Request with `workspaceId: ""workspaceA""` 
+2. Supply KB IDs that belong to workspaceB
+3. Pass `validateWorkspaceAccess` (checks user can access workspaceA)
+4. Pass `checkKnowledgeBaseAccess` (checks user can access their KB in workspaceB)
+5. Return documents from workspaceB despite specifying workspaceA
+
+Compare with `resolveKnowledgeBase` in `utils.ts:85` which explicitly asserts `kb.workspaceId === workspaceId` before allowing access. The same guard is needed here.
+
+After collecting accessible KBs, verify each belongs to the requested workspace:
+
+```ts
+// After line 86, add:
+const wrongWorkspaceIds = knowledgeBaseIds.filter((id, idx) => {
+  const check = accessChecks[idx]
+  return check?.hasAccess && (check as any).knowledgeBase?.workspaceId !== workspaceId
+})
+if (wrongWorkspaceIds.length > 0) {
+  return NextResponse.json(
+    { error: 'Knowledge base not found or access denied' },
+    { status: 404 }
+  )
+}
+```",https://github.com/simstudioai/sim/pull/3465#discussion_r2901094888,"Fixed — added a workspace ownership check to the KB filtering. The `accessibleKbIds` filter now also verifies `accessChecks[idx]?.knowledgeBase?.workspaceId === workspaceId`, so KBs from other workspaces are treated as not found even if the user has access to them. This matches the `resolveKnowledgeBase` pattern used in all other v1 knowledge routes.
+---
+Already fixed in the previous commit — `accessibleKbIds` filter now checks `accessChecks[idx]?.knowledgeBase?.workspaceId === workspaceId`.",2026-03-08T01:41:46.575000,Cross-workspace knowledge base access bypass vulnerability,security,critical,9,"This is a significant authorization bypass vulnerability where a user with access to multiple workspaces can query knowledge bases from workspace B while specifying workspace A in the request, leaking data across workspace boundaries. The comment clearly identifies the missing workspace ownership check and provides a concrete fix.",2026-03-08T04:40:53.707679+00:00
+berriai/litellm,23075,System performance bottlenecks,https://github.com/BerriAI/litellm/pull/23075,"**`orjson` is optional but imported unconditionally in a core module**
+
+`orjson` is declared as an optional dependency in `pyproject.toml` (only included in the `proxy` extras bundle). However, this file is imported unconditionally by `litellm/_logging.py` at module init time, which means any user who installs plain `pip install litellm` (without proxy extras) will get an `ImportError: No module named 'orjson'` the moment they do `import litellm`.
+
+The import chain is:
+```
+import litellm
+  → litellm/_logging.py
+    → from litellm.litellm_core_utils.safe_json_dumps import safe_dumps
+      → import orjson  # ← fails if orjson not installed
+```
+
+The original code used `json` from the stdlib, which is always available. A safe fix would be to add a fallback:
+
+```python
+try:
+    import orjson
+    def _dumps(data: Any, default=None) -> str:
+        return orjson.dumps(data, default=default).decode()
+except ImportError:
+    import json
+    def _dumps(data: Any, default=None) -> str:  # type: ignore[misc]
+        return json.dumps(data, default=default)
+```
+
+Or alternatively, keep `orjson` to the proxy-specific call sites and leave `safe_json_dumps.py` on stdlib `json`.",https://github.com/BerriAI/litellm/pull/23075#discussion_r2901052624,,2026-03-08T01:25:44.056000,Optional dependency imported unconditionally causes ImportError,runtime,high,8,"This catches a real runtime bug where orjson (an optional dependency) is imported in a core module path, causing ImportError for users who install litellm without the proxy extras. The import chain analysis is thorough and demonstrates this would break basic usage.",2026-03-08T04:40:53.707679+00:00
