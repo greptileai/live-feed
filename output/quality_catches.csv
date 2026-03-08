@@ -9846,3 +9846,18 @@ export async function fetchWithTimeout(url: string, options?: RequestInit, timeo
 ```
 
 This restricts the `rejectUnauthorized: false` behaviour to only requests made through this function.",https://github.com/raycast/extensions/pull/26058#discussion_r2890783924,,2026-03-05T15:40:17.547000,Global TLS verification disabled exposes all HTTPS requests to MITM attacks,security,high,8,"This comment identifies a significant security vulnerability where disabling TLS verification at the process level would affect all HTTPS requests from Raycast, not just Pi-hole connections. This creates a man-in-the-middle attack vector for any sensitive communications. The suggested fix properly scopes the TLS bypass to only Pi-hole requests.",2026-03-08T08:15:29.257459+00:00
+simstudioai/sim,3464,feat(mothership): billing,https://github.com/simstudioai/sim/pull/3464,"**`timestamp` vs `timestamptz` type mismatch in SQL expression**
+
+`usageLog.createdAt` is defined in the schema as `timestamp('created_at')` — that is, `timestamp without time zone`. However, the subtraction operand `${periodStart.toISOString()}::timestamptz` is `timestamp with time zone`.
+
+PostgreSQL has no direct `timestamp - timestamptz` operator. When it encounters this it falls back to an implicit session-timezone cast of the `timestamp` column to `timestamptz`. On deployments where the PostgreSQL session timezone is **not UTC** this implicit cast shifts every stored timestamp by the UTC offset, causing day-bucket assignments to be wrong (e.g. in UTC-5 a usage record at 23:00 UTC would be counted in the *next* day, inflating the next day's refresh cap absorption and under-counting the current day's).
+
+Fix by computing the epoch offset entirely from integers to avoid any timezone casting:
+
+```suggestion
+        sql<number>`FLOOR((EXTRACT(EPOCH FROM ${usageLog.createdAt}) - ${Math.floor(periodStart.getTime() / 1000)}) / 86400)`.as(
+          'day_index'
+        ),
+```
+
+This works regardless of server timezone because `EXTRACT(EPOCH FROM timestamp)` always returns seconds since the Unix epoch in UTC.",https://github.com/simstudioai/sim/pull/3464#discussion_r2901535227,,2026-03-08T08:24:09.325000,Timestamp timezone mismatch causes incorrect daily billing bucket assignments,data_integrity,high,8,"This catches a subtle but significant bug where PostgreSQL's implicit timezone casting between `timestamp` and `timestamptz` causes usage records to be assigned to wrong day buckets in non-UTC timezones, leading to incorrect billing calculations. This would cause real financial impact for customers.",2026-03-08T12:18:59.142891+00:00
