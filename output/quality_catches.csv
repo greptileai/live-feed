@@ -10117,3 +10117,28 @@ await mutate(undefined, {
   },
 });
 ```",https://github.com/raycast/extensions/pull/20713#discussion_r2874702186,,2026-03-02T21:16:18.599000,Cache corruption from passing wrong type to mutate function,data_integrity,high,8,"Comment 2 identifies a significant bug where passing a raw Response object to mutate() corrupts the useFetch cache, causing the monitor list to render as empty after any mutation. This affects multiple operations (pause, resume, delete) and would cause visible data loss in production.",2026-03-09T10:26:16.728352+00:00
+nvidia/earth2studio,733,Add the serve client code.,https://github.com/NVIDIA/earth2studio/pull/733,"`urljoin` drops path prefix from `base_url`
+
+When `base_url` contains a path component (e.g. `""http://gateway.example.com/api""`), calling `urljoin(base_url, ""/v1/infer/..."")` drops the path prefix because the second argument starts with `/`. For example:
+
+```python
+>>> urljoin(""http://gateway.example.com/api"", ""/v1/infer/workflow/exec_123/results/output.zarr"")
+'http://gateway.example.com/v1/infer/workflow/exec_123/results/output.zarr'
+```
+
+The same gateway deployment would return the wrong URL. By contrast, `_make_request` in `client.py` correctly handles this by appending `""/""` to the base URL and stripping the leading slash from the path:
+
+```python
+url = urljoin(self.base_url + ""/"", endpoint.lstrip(""/""))
+```
+
+Apply the same pattern here:
+
+```suggestion
+                result_url = urljoin(
+                    self.workflow.base_url + ""/"",
+                    (
+                        self.workflow.client.result_root_path(request_result) + result_path
+                    ).lstrip(""/""),
+                )
+```",https://github.com/NVIDIA/earth2studio/pull/733#discussion_r2898438718,Done.,2026-03-07T00:00:20.589000,urljoin drops path prefix from base URL causing wrong API endpoints,logic,high,8,"This catch identifies a real bug where urljoin with a leading slash in the second argument drops the path component from base_url, causing API requests to go to wrong endpoints when deployed behind a gateway with a path prefix. This would cause silent failures in production deployments.",2026-03-09T12:25:12.964527+00:00
