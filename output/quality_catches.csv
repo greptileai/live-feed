@@ -10059,3 +10059,61 @@ export async function updateWorkspaceFileContent(
     }
   }
 ```",https://github.com/simstudioai/sim/pull/3475#discussion_r2902766508,"Fixed — `updateWorkspaceFileContent` now calls `checkStorageQuota` before allowing size increases, matching the upload path.",2026-03-09T01:27:12.997000,Missing storage quota check allows bypassing storage limits,security,high,8,"This catches a billing/security bypass where users could expand files indefinitely without quota enforcement, circumventing storage limits that exist on the upload path. This is a meaningful security gap that could lead to resource abuse and billing issues.",2026-03-09T08:24:43.203612+00:00
+infisical/infisical,5166,fix(audit-logs): prevent invalid expiresAt timestamp,https://github.com/Infisical/infisical/pull/5166,"**Logic Issue: Project-level retention of 0 bypasses audit logging check**
+
+The current logic has a flaw when `project.auditLogsRetentionDays` is set to `0`:
+
+1. The check at line 61 (`if (retentionDays !== 0)`) is meant to skip insertion when retention is 0 (disabled)
+2. However, if `project.auditLogsRetentionDays = 0` and `retentionDays = 90`, the condition `project.auditLogsRetentionDays < retentionDays` evaluates to `true` (0 < 90)
+3. This sets `ttlInDays = 0`, resulting in `expiresAt = new Date(Date.now() + 0)` - an immediately expired audit log
+4. The audit log gets inserted anyway, just with immediate expiry
+
+This contradicts the intent of the check at line 61 and could allow bypassing audit log retention requirements.
+
+**Fix:** Add an additional check to skip insertion when project-level retention is 0:
+
+```typescript
+const ttlInDays =
+  project?.auditLogsRetentionDays !== undefined &&
+  project.auditLogsRetentionDays < retentionDays
+    ? project.auditLogsRetentionDays
+    : retentionDays;
+
+// Skip insertion if effective retention is 0
+if (ttlInDays === 0) {
+  return;
+}
+
+const ttl = ttlInDays * MS_IN_DAY;
+```
+
+Or alternatively, prevent the condition from selecting 0:
+
+```typescript
+const ttlInDays =
+  project?.auditLogsRetentionDays !== undefined &&
+  project.auditLogsRetentionDays > 0 &&
+  project.auditLogsRetentionDays < retentionDays
+    ? project.auditLogsRetentionDays
+    : retentionDays;
+```",https://github.com/Infisical/infisical/pull/5166#discussion_r2686643398,,2026-01-13T14:21:25.288000,Logic flaw creates immediately-expiring audit logs bypassing retention,logic,high,8,"This is a meaningful logic bug where setting project-level retention to 0 unintentionally creates audit logs that expire immediately rather than being properly disabled. This could have compliance/security implications as audit logs would appear to be retained but would actually expire instantly, potentially bypassing audit requirements. The analysis is thorough and identifies a non-obvious edge case in the retention logic.",2026-03-09T10:26:16.728352+00:00
+raycast/extensions,20713,Add phare-io-uptime extension,https://github.com/raycast/extensions/pull/20713,"**Incorrect type passed to `mutate` — cache corrupted after mutation**
+
+`mutate` is called with `Promise.resolve(response)` where `response` is a raw HTTP `Response` object. The `useFetch` cache type for this hook is `{ data: Monitor[] }`, so the resolved value from the async update will be written back to the cache as a `Response` object. Once the mutation settles, `data?.data` in `useMonitors` will be `undefined`, causing the monitor list to render as empty.
+
+The same pattern exists in `resumeMonitor` (line 157) and `deleteMonitor` (line 212).
+
+The fix is to pass only `optimisticUpdate` without an `asyncUpdate` promise (since the API responses for these operations are not the monitor list), or trigger a refetch:
+
+```ts
+// pauseMonitor / resumeMonitor / deleteMonitor — remove the asyncUpdate argument:
+await mutate(undefined, {
+  optimisticUpdate: (data) => {
+    if (!data?.data) return data;
+    return {
+      ...data,
+      data: data.data.map((monitor) => (monitor.id === monitorId ? { ...monitor, paused: true } : monitor)),
+    };
+  },
+});
+```",https://github.com/raycast/extensions/pull/20713#discussion_r2874702186,,2026-03-02T21:16:18.599000,Cache corruption from passing wrong type to mutate function,data_integrity,high,8,"Comment 2 identifies a significant bug where passing a raw Response object to mutate() corrupts the useFetch cache, causing the monitor list to render as empty after any mutation. This affects multiple operations (pause, resume, delete) and would cause visible data loss in production.",2026-03-09T10:26:16.728352+00:00
