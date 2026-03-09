@@ -10142,3 +10142,58 @@ Apply the same pattern here:
                     ).lstrip(""/""),
                 )
 ```",https://github.com/NVIDIA/earth2studio/pull/733#discussion_r2898438718,Done.,2026-03-07T00:00:20.589000,urljoin drops path prefix from base URL causing wrong API endpoints,logic,high,8,"This catch identifies a real bug where urljoin with a leading slash in the second argument drops the path component from base_url, causing API requests to go to wrong endpoints when deployed behind a gateway with a path prefix. This would cause silent failures in production deployments.",2026-03-09T12:25:12.964527+00:00
+berriai/litellm,22714,Litellm hashicorp vault config UI,https://github.com/BerriAI/litellm/pull/22714,"**Rollback wipes previously working env vars**
+
+If `initialize_secret_manager` fails, `_set_env_vars({})` unsets **all** Vault environment variables — including any that were previously set and working. This means a failed update attempt leaves the pod with no Vault connectivity at all, rather than restoring the prior working configuration.
+
+Consider saving the previous environment state before overwriting and restoring it on failure, rather than wiping everything. You can use `_get_current_env_values(HASHICORP_ENV_VAR_MAPPING)` (which already exists) to snapshot the previous config, then restore it in the `except` block instead of calling `_set_env_vars({})`.",https://github.com/BerriAI/litellm/pull/22714#discussion_r2880807488,,2026-03-03T22:23:25.571000,Rollback on failure wipes working Vault configuration,data_integrity,high,8,"This catches a significant bug where a failed configuration update would wipe all existing working Vault environment variables, leaving the system with no Vault connectivity instead of gracefully reverting to the previous working state. This could cause production outages.",2026-03-09T16:32:16.657267+00:00
+berriai/litellm,22655,feat(proxy): add Prisma DB pool and engine health metrics to Prometheus,https://github.com/BerriAI/litellm/pull/22655,"**Missing sleep on error causes tight spin loop**
+
+When `_collect_engine_health()` (which has no internal try/except) raises an exception, the outer `except Exception` catches it and logs a warning, but the `asyncio.sleep(self._interval)` on line 124 is never reached. The loop immediately retries, creating a CPU-bound tight loop that will flood logs and starve the event loop.
+
+Move the sleep so it always executes, or add a sleep in the error handler:
+
+```suggestion
+    async def _collection_loop(self) -> None:
+        while True:
+            try:
+                await self._collect_pool_metrics()
+                self._collect_engine_health()
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                verbose_proxy_logger.warning(""PrismaMetricsCollector loop error: %s"", e)
+            try:
+                await asyncio.sleep(self._interval)
+            except asyncio.CancelledError:
+                break
+```",https://github.com/BerriAI/litellm/pull/22655#discussion_r2880507262,"Fixed — moved `asyncio.sleep` outside the try/except into its own try/except block so it always executes, preventing a tight spin loop on error. See commit 8b6742a.",2026-03-03T21:13:08.313000,Missing sleep on error causes infinite tight spin loop,resource_leak,high,8,"When _collect_engine_health() raises an exception, the asyncio.sleep() is never reached, causing the loop to immediately retry without any delay. This creates a CPU-bound tight loop that floods logs and starves the event loop, effectively causing a denial of service condition during any persistent error state.",2026-03-09T16:32:16.657267+00:00
+synnaxlabs/synnax,2056,SY-3890: Fix Bad Analysis of Void Nodes in Flow Statements,https://github.com/synnaxlabs/synnax/pull/2056,"**Potential zero-handle edge source when first node in routing branch is void**
+
+The same class of bug can still occur in `analyzeOutputRoutingTable` when the *first* node in a routing-table branch (`i == 0`) is void. In that situation `prevOutputHandle` stays as the zero value `ir.Handle{}`. When `i == 1` is processed, the edge `Source: prevOutputHandle` will carry an empty handle (`Node: """", Param: """"`), which — just like the original bug — will cause `state.Node()` to look up a non-existent entry at runtime and dereference nil.
+
+The same guard at `i == 0` (first edge) always overrides the source with `ir.Handle{Node: sourceNode.Key, Param: outputName}`, so the branch-start edge is safe. It is only subsequent edges in the same branch that inherit the (still-zero) `prevOutputHandle`.
+
+This scenario is likely rare in practice, but a defensive approach would be to fall back to `sourceNode`'s output whenever `prevOutputHandle` is still the zero value:
+
+```go
+if i == 0 {
+    edges = append(edges, ir.Edge{
+        Source: ir.Handle{Node: sourceNode.Key, Param: outputName},
+        Target: result.input,
+        Kind:   ir.EdgeKindContinuous,
+    })
+} else {
+    src := prevOutputHandle
+    if src == (ir.Handle{}) {
+        src = ir.Handle{Node: sourceNode.Key, Param: outputName}
+    }
+    edges = append(edges, ir.Edge{
+        Source: src,
+        Target: result.input,
+        Kind:   ir.EdgeKindContinuous,
+    })
+}
+```
+
+Worth addressing as a follow-up, or adding a test that starts a routing-table branch with a void function.",https://github.com/synnaxlabs/synnax/pull/2056#discussion_r2903186262,,2026-03-09T04:54:34.016000,Nil pointer dereference when routing branch starts with void node,null,high,8,"This is a meaningful bug catch identifying a nil pointer dereference scenario in the same class as the PR's original fix. The comment correctly identifies that when the first node in a routing branch is void, `prevOutputHandle` remains zero-valued, causing subsequent edges to reference a non-existent entry and dereference nil at runtime. This demonstrates good code analysis to find a related but distinct edge case.",2026-03-09T16:32:16.657267+00:00
