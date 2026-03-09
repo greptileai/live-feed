@@ -9963,3 +9963,19 @@ if [ -n ""${{ env.NGC_API_KEY }}"" ]; then
   docker login -u '$oauthtoken' -p ""${{ env.NGC_API_KEY }}"" nvcr.io
 fi
 ```",https://github.com/isaac-sim/IsaacLab/pull/4877#discussion_r2901699222,,2026-03-08T11:17:50.053000,Missing NGC/nvcr.io authentication breaks Docker builds,runtime,high,8,"This identifies a critical authentication issue where the new action strips the credential store reference but doesn't re-authenticate to nvcr.io, causing Docker builds to fail when pulling the IsaacSim base image. This would break all CI builds on runners using credential helpers.",2026-03-09T04:45:25.743064+00:00
+nvidia/earth2studio,733,Add the serve client code.,https://github.com/NVIDIA/earth2studio/pull/733,"**Always-true assertion provides no test coverage**
+
+The assertion on this line is:
+
+```python
+assert out == ""https://example.com/?Policy=p"" or ""https://example.com?Policy=p""
+```
+
+Python evaluates this as `assert (out == ""https://example.com/?Policy=p"") or (""https://example.com?Policy=p"")`. Because the string `""https://example.com?Policy=p""` is non-empty and therefore truthy, this compound expression is **always `True`**, regardless of the actual value of `out`. The test never validates the URL shape for the empty-path case and will pass even if `_make_signed_path("""")` returns garbage.
+
+Correct the assertion so it actually checks the output:
+
+```suggestion
+        assert out in (""https://example.com/?Policy=p"", ""https://example.com?Policy=p"")
+```
+",https://github.com/NVIDIA/earth2studio/pull/733#discussion_r2897864914,Done.,2026-03-06T21:03:52.058000,Always-true assertion makes test provide no coverage,logic,medium,8,"This is a real logic bug where Python's operator precedence causes the assertion to always pass regardless of the actual value. The expression `assert out == X or Y` evaluates as `assert (out == X) or Y`, and since Y is a non-empty string (truthy), the assertion never fails. This completely defeats the purpose of the test, allowing bugs in `_make_signed_path` to go undetected.",2026-03-09T06:34:45.853044+00:00
