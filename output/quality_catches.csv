@@ -9937,3 +9937,14 @@ In single-instance or Redis-backed deployments this is tolerable because `update
 Adding a short `ttl` (e.g. 60 seconds) to both `async_set_cache` calls is the standard mitigation used elsewhere in the codebase and ensures eventual consistency even when the Redis tier is absent.
 
 **Rule Used:** What: Avoid creating new database requests or Rout... ([source](https://app.greptile.com/review/custom-context?memory=0c2a17ad-5f29-423f-a48b-371852ac4169))",https://github.com/BerriAI/litellm/pull/23057#discussion_r2900850196,,2026-03-08T00:00:59.625000,Missing cache TTL causes stale security settings in multi-instance deployments,concurrency,high,8,"This catch identifies a real production bug where security settings (scope_user_search_to_org flag) can become permanently stale in multi-instance deployments without Redis. An admin enabling org-scoping security would not have it applied consistently across all instances, creating a security gap where users could search across organizations despite the setting being enabled.",2026-03-08T22:12:10.003241+00:00
+nvidia/transformerengine,2739,[JAX] GEMM tex and FFI cleanup,https://github.com/NVIDIA/TransformerEngine/pull/2739,"Good fix: the pre-existing code had a copy-paste bug that checked `bias_1` instead of `bias_2`:
+```python
+use_bias_2 = bias_1 is not None   # <-- wrong
+```
+
+The corrected code now properly checks:
+```python
+has_bias_2 = bias_2 is not None
+```
+
+This fixes a latent bug where any scenario with asymmetric bias configuration (`bias_1=None, bias_2=<tensor>` or vice versa) would compute incorrect `dbias_2` gradients in the backward pass. Consider adding a unit test covering both asymmetric bias cases to prevent regression.",https://github.com/NVIDIA/TransformerEngine/pull/2739#discussion_r2891717558,,2026-03-05T19:11:38.418000,Copy-paste bug caused incorrect bias_2 gradient computation,logic,high,8,"This catches a real copy-paste bug where `use_bias_2 = bias_1 is not None` should have been checking `bias_2`, causing incorrect gradient computation when bias configurations are asymmetric. This would silently produce wrong results in production training runs.",2026-03-09T00:48:43.779993+00:00
