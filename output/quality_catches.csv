@@ -9948,3 +9948,18 @@ has_bias_2 = bias_2 is not None
 ```
 
 This fixes a latent bug where any scenario with asymmetric bias configuration (`bias_1=None, bias_2=<tensor>` or vice versa) would compute incorrect `dbias_2` gradients in the backward pass. Consider adding a unit test covering both asymmetric bias cases to prevent regression.",https://github.com/NVIDIA/TransformerEngine/pull/2739#discussion_r2891717558,,2026-03-05T19:11:38.418000,Copy-paste bug caused incorrect bias_2 gradient computation,logic,high,8,"This catches a real copy-paste bug where `use_bias_2 = bias_1 is not None` should have been checking `bias_2`, causing incorrect gradient computation when bias configurations are asymmetric. This would silently produce wrong results in production training runs.",2026-03-09T00:48:43.779993+00:00
+isaac-sim/isaaclab,4877,Adds CI Improvements - Stage 2,https://github.com/isaac-sim/IsaacLab/pull/4877,"**Missing NGC/nvcr.io authentication**
+
+The old `docker-build/action.yml` has a dedicated NGC Login step:
+```
+docker login -u \$oauthtoken -p ${{ env.NGC_API_KEY }} nvcr.io
+```
+This new action replaces it with a Docker-config copy that strips `credsStore`. The problem: on self-hosted runners using a credential helper (the default for Docker on Linux), nvcr.io credentials are stored **in the credential store**, not in the `auths` section of `~/.docker/config.json`. When `cfg['credsStore']=''` strips the store reference, the copied config no longer knows how to look up those credentials. Any subsequent `FROM nvcr.io/nvidian/isaac-sim:...` in the Dockerfile will fail with an auth error on any runner where nvcr.io wasn't previously logged in via plain-text auth.
+
+Add an explicit nvcr.io login inside the `if [ -n ""${ECR_REPOSITORY}"" ]` block (similar to what the old action does) so authentication is guaranteed regardless of credential-store state:
+
+```bash
+if [ -n ""${{ env.NGC_API_KEY }}"" ]; then
+  docker login -u '$oauthtoken' -p ""${{ env.NGC_API_KEY }}"" nvcr.io
+fi
+```",https://github.com/isaac-sim/IsaacLab/pull/4877#discussion_r2901699222,,2026-03-08T11:17:50.053000,Missing NGC/nvcr.io authentication breaks Docker builds,runtime,high,8,"This identifies a critical authentication issue where the new action strips the credential store reference but doesn't re-authenticate to nvcr.io, causing Docker builds to fail when pulling the IsaacSim base image. This would break all CI builds on runners using credential helpers.",2026-03-09T04:45:25.743064+00:00
