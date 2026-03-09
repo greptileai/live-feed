@@ -10197,3 +10197,132 @@ if i == 0 {
 ```
 
 Worth addressing as a follow-up, or adding a test that starts a routing-table branch with a void function.",https://github.com/synnaxlabs/synnax/pull/2056#discussion_r2903186262,,2026-03-09T04:54:34.016000,Nil pointer dereference when routing branch starts with void node,null,high,8,"This is a meaningful bug catch identifying a nil pointer dereference scenario in the same class as the PR's original fix. The comment correctly identifies that when the first node in a routing branch is void, `prevOutputHandle` remains zero-valued, causing subsequent edges to reference a non-existent entry and dereference nil at runtime. This demonstrates good code analysis to find a related but distinct edge case.",2026-03-09T16:32:16.657267+00:00
+posthog/posthog,50364,"feat(logs-alerting): add alerting models, migration, and feature flag",https://github.com/PostHog/posthog/pull/50364,"**`update_fields` tuple crash**
+
+`update_fields` in Django is commonly passed as a `tuple` (e.g., `obj.save(update_fields=(""enabled"",))`). Calling `.append()` on a tuple raises `AttributeError: 'tuple' object has no attribute 'append'`, causing a runtime crash whenever an alert is disabled and `update_fields` is not a list.
+
+```suggestion
+            if ""update_fields"" in kwargs and ""state"" not in kwargs[""update_fields""]:
+                kwargs[""update_fields""] = [*kwargs[""update_fields""], ""state""]
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: products/logs/backend/models.py
+Line: 89-90
+
+Comment:
+**`update_fields` tuple crash**
+
+`update_fields` in Django is commonly passed as a `tuple` (e.g., `obj.save(update_fields=(""enabled"",))`). Calling `.append()` on a tuple raises `AttributeError: 'tuple' object has no attribute 'append'`, causing a runtime crash whenever an alert is disabled and `update_fields` is not a list.
+
+```suggestion
+            if ""update_fields"" in kwargs and ""state"" not in kwargs[""update_fields""]:
+                kwargs[""update_fields""] = [*kwargs[""update_fields""], ""state""]
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/50364#discussion_r2906310092,,2026-03-09T15:50:44.787000,Tuple crash when saving with update_fields parameter,runtime,high,8,This catches a real runtime bug where calling .append() on a tuple would cause an AttributeError crash in production. The bug occurs in a common code path (saving with update_fields as a tuple) and would be difficult to catch without thorough testing of the save method's kwargs handling.,2026-03-09T18:28:09.604593+00:00
+posthog/posthog,50369,feat(dashboard): use tooltip with keyboard shortcut for editing layout,https://github.com/PostHog/posthog/pull/50369,"Duplicate `AppShortcut` name registration conflict
+
+There is already an `AppShortcut` with `name=""ToggleEditMode""` at line 293 (in the sidebar panel). Both shortcuts are mounted when `hasTileRedesign` is true.
+
+The registration in `appShortcutLogic.tsx` deduplicates by name — when the second shortcut registers, it overwrites the first (line 105-106: `const filtered = state.filter((shortcut) => shortcut.name !== appShortcut.name)`). Additionally, `unregisterAppShortcut(name)` removes all shortcuts matching that name (line 108).
+
+**The behavior difference matters:**
+- The sidebar shortcut (line 293-319) **toggles** edit mode: it checks `if (dashboardMode === DashboardMode.Edit)` to either exit or enter
+- This new header shortcut (line 578-603) only **enters** edit mode unconditionally
+
+**When both are mounted:**
+1. The header shortcut registers last, so it becomes the active handler
+2. Users lose the toggle-exit behavior — pressing the shortcut key will only enter edit mode, not exit
+3. If either component unmounts, `unregisterAppShortcut(""ToggleEditMode"")` removes both registrations, breaking the keyboard shortcut entirely until the surviving component re-registers
+
+**Suggested fix:** Use a distinct name (e.g. `""EnterEditMode""` for the header button) or guard one of them with `!hasTileRedesign` to ensure only one registers at a time.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: frontend/src/scenes/dashboard/DashboardHeader.tsx
+Line: 578-603
+
+Comment:
+Duplicate `AppShortcut` name registration conflict
+
+There is already an `AppShortcut` with `name=""ToggleEditMode""` at line 293 (in the sidebar panel). Both shortcuts are mounted when `hasTileRedesign` is true.
+
+The registration in `appShortcutLogic.tsx` deduplicates by name — when the second shortcut registers, it overwrites the first (line 105-106: `const filtered = state.filter((shortcut) => shortcut.name !== appShortcut.name)`). Additionally, `unregisterAppShortcut(name)` removes all shortcuts matching that name (line 108).
+
+**The behavior difference matters:**
+- The sidebar shortcut (line 293-319) **toggles** edit mode: it checks `if (dashboardMode === DashboardMode.Edit)` to either exit or enter
+- This new header shortcut (line 578-603) only **enters** edit mode unconditionally
+
+**When both are mounted:**
+1. The header shortcut registers last, so it becomes the active handler
+2. Users lose the toggle-exit behavior — pressing the shortcut key will only enter edit mode, not exit
+3. If either component unmounts, `unregisterAppShortcut(""ToggleEditMode"")` removes both registrations, breaking the keyboard shortcut entirely until the surviving component re-registers
+
+**Suggested fix:** Use a distinct name (e.g. `""EnterEditMode""` for the header button) or guard one of them with `!hasTileRedesign` to ensure only one registers at a time.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/50369#discussion_r2906554005,,2026-03-09T16:28:58.234000,Duplicate shortcut name causes toggle behavior loss and registration conflicts,logic,medium,8,"This is a meaningful logic bug that would cause broken user experience - the keyboard shortcut would lose its toggle-exit functionality and only enter edit mode. The analysis is thorough, identifying both the immediate behavior difference and the deeper issue with unregisterAppShortcut removing both registrations. This requires understanding the registration system's deduplication logic across multiple files, making it a non-obvious catch.",2026-03-09T18:28:09.604593+00:00
+onyx-dot-app/onyx,9174,fix: move available context tokens to useChatController and remove arbitrary 50% cap,https://github.com/onyx-dot-app/onyx/pull/9174,"**`??` fallback unreachable — API failure silently yields 0 tokens**
+
+`getAvailableContextTokens` has the return type `Promise<number>` and explicitly returns `0` (not `null` or `undefined`) when the HTTP response is not OK:
+
+```ts
+// lib.tsx
+if (!response.ok) {
+  return 0;
+}
+```
+
+Because the nullish-coalescing operator `??` only guards against `null` and `undefined`, the expression `available ?? DEFAULT_CONTEXT_TOKENS` evaluates to `0` whenever the API call fails with a non-OK status — the `DEFAULT_CONTEXT_TOKENS` branch is dead code for this path.
+
+The `catch` block in the effect only handles thrown exceptions (e.g. network errors), but `getAvailableContextTokens` swallows HTTP-level errors and returns `0` instead of throwing. So a 404, 500, or any other server error will silently cap the available context to `0` tokens, which will incorrectly flag every file upload as exceeding the context limit.
+
+```suggestion
+          const available = await getAvailableContextTokens(sessionId);
+          setIfActive(available > 0 ? available : DEFAULT_CONTEXT_TOKENS);
+```
+
+The same issue exists one level down in `getAvailableContextTokens` itself — the inner `return data?.available_tokens ?? 0;` should arguably also propagate a sentinel value (e.g. `null`) so callers can distinguish ""API returned zero tokens"" from ""API call failed"", but the minimum fix is the guard above.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: web/src/hooks/useChatController.ts
+Line: 1095-1096
+
+Comment:
+**`??` fallback unreachable — API failure silently yields 0 tokens**
+
+`getAvailableContextTokens` has the return type `Promise<number>` and explicitly returns `0` (not `null` or `undefined`) when the HTTP response is not OK:
+
+```ts
+// lib.tsx
+if (!response.ok) {
+  return 0;
+}
+```
+
+Because the nullish-coalescing operator `??` only guards against `null` and `undefined`, the expression `available ?? DEFAULT_CONTEXT_TOKENS` evaluates to `0` whenever the API call fails with a non-OK status — the `DEFAULT_CONTEXT_TOKENS` branch is dead code for this path.
+
+The `catch` block in the effect only handles thrown exceptions (e.g. network errors), but `getAvailableContextTokens` swallows HTTP-level errors and returns `0` instead of throwing. So a 404, 500, or any other server error will silently cap the available context to `0` tokens, which will incorrectly flag every file upload as exceeding the context limit.
+
+```suggestion
+          const available = await getAvailableContextTokens(sessionId);
+          setIfActive(available > 0 ? available : DEFAULT_CONTEXT_TOKENS);
+```
+
+The same issue exists one level down in `getAvailableContextTokens` itself — the inner `return data?.available_tokens ?? 0;` should arguably also propagate a sentinel value (e.g. `null`) so callers can distinguish ""API returned zero tokens"" from ""API call failed"", but the minimum fix is the guard above.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/9174#discussion_r2902420227,,2026-03-08T21:05:15.524000,API failure silently sets context tokens to zero,logic,high,8,"This catch identifies a subtle but impactful bug where API failures return 0 instead of null/undefined, causing the nullish coalescing fallback to be dead code. This would silently set available context to 0 tokens on any HTTP error, incorrectly flagging all file uploads as exceeding context limits.",2026-03-09T18:28:09.604593+00:00
