@@ -10501,3 +10501,67 @@ export function NotificationBanner() {
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/dyad-sh/dyad/pull/2901#discussion_r2892701442,,2026-03-05T22:24:39.206000,Dialog unmounted prematurely due to race condition with state update,concurrency,medium,8,This identifies a real race condition where the Mac notification guide dialog gets unmounted before users can see it because the settings update triggers a re-render that hides the banner (and its dialog) before the dialog can be displayed. This is a meaningful UX bug affecting Mac users that would occur in production.,2026-03-09T20:16:53.590071+00:00
+generaltranslation/gt,1088,feat(cli): python,https://github.com/generaltranslation/gt/pull/1088,"Escaped backslash before closing quote causes the string to never close. The check `content[i - 1] !== '\\'` is a single-backslash test, but doesn't account for escaped backslashes. A string like `""path\\""` ends with an escaped backslash followed by a real closing quote. At the closing `""`, the guard sees the preceding `\` and thinks the quote is escaped, so `inString` remains `true` forever. Everything after that is treated as inside a string, and `findMatchingBracket` silently returns `-1`, skipping the entire `install_requires` block.
+
+Fix by counting consecutive backslashes to determine if a quote is actually escaped:
+
+```suggestion
+    } else if (inString && ch === stringChar) {
+      // Count consecutive backslashes before this char
+      let backslashes = 0;
+      let j = i - 1;
+      while (j >= 0 && content[j] === '\\') { backslashes++; j--; }
+      if (backslashes % 2 === 0) inString = false; // unescaped quote (even # of backslashes)
+    }
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/cli/src/fs/determineFramework/matchSetupPyDependency.ts
+Line: 84-86
+
+Comment:
+Escaped backslash before closing quote causes the string to never close. The check `content[i - 1] !== '\\'` is a single-backslash test, but doesn't account for escaped backslashes. A string like `""path\\""` ends with an escaped backslash followed by a real closing quote. At the closing `""`, the guard sees the preceding `\` and thinks the quote is escaped, so `inString` remains `true` forever. Everything after that is treated as inside a string, and `findMatchingBracket` silently returns `-1`, skipping the entire `install_requires` block.
+
+Fix by counting consecutive backslashes to determine if a quote is actually escaped:
+
+```suggestion
+    } else if (inString && ch === stringChar) {
+      // Count consecutive backslashes before this char
+      let backslashes = 0;
+      let j = i - 1;
+      while (j >= 0 && content[j] === '\\') { backslashes++; j--; }
+      if (backslashes % 2 === 0) inString = false; // unescaped quote (even # of backslashes)
+    }
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/generaltranslation/gt/pull/1088#discussion_r2901410262,,2026-03-08T06:22:53.690000,"Escaped backslash breaks string parsing, skipping dependencies",logic,high,8,"This is a genuine parsing bug where strings ending with escaped backslashes (like ""path\\"") cause the bracket-matching algorithm to fail, silently skipping the entire install_requires block and missing real GT dependencies. The fix is well-explained and addresses a real edge case in production code.",2026-03-09T22:14:59.205841+00:00
+gptme/gptme,1622,feat(cli): add `gptme-util chats rename` command,https://github.com/gptme/gptme/pull/1622,"**`save()` creates unintended workspace symlink on rename**
+
+`ChatConfig.save()` does more than write `config.toml` — it also manages the workspace symlink. When a conversation has no pre-existing `config.toml` and no `workspace/` directory, `from_logdir` returns a `ChatConfig` whose `workspace` field defaults to `Path.cwd()` (via `default_factory=Path.cwd`). The `save()` method then detects that `self.workspace != (conv_dir / ""workspace"")` and creates a `workspace` symlink inside the conversation directory pointing to the current working directory.
+
+This means running:
+```bash
+gptme-util chats rename 2026-03-06-my-session ""Better Name""
+```
+…on a conversation that has no configured workspace will silently create `~/.local/share/gptme/logs/2026-03-06-my-session/workspace → $(pwd)`. That symlink can affect future sessions on that conversation unexpectedly.
+
+Additionally, `to_dict()` serializes **all** non-`None` field values, including the defaults (`stream: True`, `interactive: True`, `workspace: <cwd>`), so a new `config.toml` is also created with those defaults even though the user only wanted to change the name.
+
+A safer approach for rename is to only write the name field without going through the full `save()` path — or to pass the existing `workspace` back explicitly so `save()` sees no workspace change:
+```python
+conv_path = Path(conv.path)
+conv_dir = conv_path.parent
+
+chat_config = ChatConfig.from_logdir(conv_dir)
+# Preserve the existing workspace so save() doesn't create/modify the symlink
+if chat_config._logdir and (conv_dir / ""workspace"").is_dir() and not (conv_dir / ""workspace"").is_symlink():
+    pass  # workspace already points to the real dir, save() will leave it alone
+chat_config.name = new_name
+chat_config.save()
+```
+But the cleanest fix is to write only the TOML key without calling `save()` at all, or to load and mutate the raw TOML document directly (see the `TODO` comment already present in `save()`).",https://github.com/gptme/gptme/pull/1622#discussion_r2899383986,,2026-03-07T09:20:12.053000,Rename operation silently creates unintended workspace symlink,logic,high,8,"This catch identifies a significant side effect bug where a simple rename operation would unexpectedly create a workspace symlink pointing to the current working directory, potentially affecting future sessions and causing confusing behavior. The reviewer provided detailed analysis of the root cause and suggested proper fixes.",2026-03-09T22:14:59.205841+00:00
