@@ -9979,3 +9979,83 @@ Correct the assertion so it actually checks the output:
         assert out in (""https://example.com/?Policy=p"", ""https://example.com?Policy=p"")
 ```
 ",https://github.com/NVIDIA/earth2studio/pull/733#discussion_r2897864914,Done.,2026-03-06T21:03:52.058000,Always-true assertion makes test provide no coverage,logic,medium,8,"This is a real logic bug where Python's operator precedence causes the assertion to always pass regardless of the actual value. The expression `assert out == X or Y` evaluates as `assert (out == X) or Y`, and since Y is a non-empty string (truthy), the assertion never fails. This completely defeats the purpose of the test, allowing bugs in `_make_signed_path` to go undetected.",2026-03-09T06:34:45.853044+00:00
+posthog/posthog,50143,feat(experiments): set status when updating experiments,https://github.com/PostHog/posthog/pull/50143,"`status` silently not persisted on `update_fields` saves
+
+When `save(update_fields=[...])` is called without including `""status""`, Django only writes the listed columns — so `self.status` is set on the Python object but the DB row is never updated. This undermines the PR's stated goal of *always* writing the status field.
+
+Three existing call sites are affected:
+- `products/experiments/backend/experiment_service.py:287` — `save(update_fields=[""primary_metrics_ordered_uuids"", ""secondary_metrics_ordered_uuids""])`
+- `ee/clickhouse/views/experiments.py:1028` — `save(update_fields=[""exposure_cohort""])`
+- `posthog/admin/admins/experiment_admin.py:331` — `save(update_fields=[""metrics"", ""metrics_secondary""])`
+
+For experiments that already have a correct `status`, these calls are harmless today, but any experiment whose `status` is still `null` will stay `null` after one of these partial saves. Injecting `""status""` into `update_fields` makes the guarantee unconditional:
+
+```python
+def save(self, *args: Any, **kwargs: Any) -> None:
+    self.status = Experiment.compute_status(self.start_date, self.end_date)
+    if ""update_fields"" in kwargs:
+        kwargs[""update_fields""] = list(kwargs[""update_fields""]) + [""status""]
+    super().save(*args, **kwargs)
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: posthog/models/experiment.py
+Line: 103-105
+
+Comment:
+`status` silently not persisted on `update_fields` saves
+
+When `save(update_fields=[...])` is called without including `""status""`, Django only writes the listed columns — so `self.status` is set on the Python object but the DB row is never updated. This undermines the PR's stated goal of *always* writing the status field.
+
+Three existing call sites are affected:
+- `products/experiments/backend/experiment_service.py:287` — `save(update_fields=[""primary_metrics_ordered_uuids"", ""secondary_metrics_ordered_uuids""])`
+- `ee/clickhouse/views/experiments.py:1028` — `save(update_fields=[""exposure_cohort""])`
+- `posthog/admin/admins/experiment_admin.py:331` — `save(update_fields=[""metrics"", ""metrics_secondary""])`
+
+For experiments that already have a correct `status`, these calls are harmless today, but any experiment whose `status` is still `null` will stay `null` after one of these partial saves. Injecting `""status""` into `update_fields` makes the guarantee unconditional:
+
+```python
+def save(self, *args: Any, **kwargs: Any) -> None:
+    self.status = Experiment.compute_status(self.start_date, self.end_date)
+    if ""update_fields"" in kwargs:
+        kwargs[""update_fields""] = list(kwargs[""update_fields""]) + [""status""]
+    super().save(*args, **kwargs)
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/50143#discussion_r2903616633,,2026-03-09T07:15:28.246000,Django update_fields silently skips status field persistence,data_integrity,high,8,"This is a meaningful catch of a Django-specific bug where partial saves via update_fields would silently fail to persist the status field, directly undermining the PR's goal. The reviewer identified three specific call sites affected and provided a concrete fix. This requires Django ORM knowledge and cross-file analysis to catch, making it a non-obvious bug that would cause data inconsistency in production.",2026-03-09T08:24:43.203612+00:00
+simstudioai/sim,3475,feat(files): inline file viewer with text editing,https://github.com/simstudioai/sim/pull/3475,"No storage quota check before updating file content.
+
+`uploadWorkspaceFile` (for new files) calls `checkStorageQuota` before writing, but `updateWorkspaceFileContent` does not. A user could repeatedly expand an existing file — e.g., replacing a 1 KB file with 100 MB of text — without being blocked by the quota guard, circumventing storage limits.
+
+This is a billing/security issue: the quota check should prevent users from exceeding their plan's storage limit via file edits, just as it does for uploads.
+
+Add a quota check at the start of `updateWorkspaceFileContent`:
+
+```suggestion
+export async function updateWorkspaceFileContent(
+  workspaceId: string,
+  fileId: string,
+  userId: string,
+  content: Buffer
+): Promise<WorkspaceFileRecord> {
+  logger.info(`Updating workspace file content: ${fileId} for workspace ${workspaceId}`)
+
+  const fileRecord = await getWorkspaceFile(workspaceId, fileId)
+  if (!fileRecord) {
+    throw new Error('File not found')
+  }
+
+  // Check storage quota before allowing size increase
+  const sizeDiff = content.length - fileRecord.size
+  if (sizeDiff > 0) {
+    const quotaCheck = await checkStorageQuota(userId, sizeDiff)
+    if (!quotaCheck.allowed) {
+      throw new Error(quotaCheck.error || 'Storage limit exceeded')
+    }
+  }
+```",https://github.com/simstudioai/sim/pull/3475#discussion_r2902766508,"Fixed — `updateWorkspaceFileContent` now calls `checkStorageQuota` before allowing size increases, matching the upload path.",2026-03-09T01:27:12.997000,Missing storage quota check allows bypassing storage limits,security,high,8,"This catches a billing/security bypass where users could expand files indefinitely without quota enforcement, circumventing storage limits that exist on the upload path. This is a meaningful security gap that could lead to resource abuse and billing issues.",2026-03-09T08:24:43.203612+00:00
