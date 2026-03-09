@@ -10326,3 +10326,178 @@ The same issue exists one level down in `getAvailableContextTokens` itself — t
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/onyx-dot-app/onyx/pull/9174#discussion_r2902420227,,2026-03-08T21:05:15.524000,API failure silently sets context tokens to zero,logic,high,8,"This catch identifies a subtle but impactful bug where API failures return 0 instead of null/undefined, causing the nullish coalescing fallback to be dead code. This would silently set available context to 0 tokens on any HTTP error, incorrectly flagging all file uploads as exceeding context limits.",2026-03-09T18:28:09.604593+00:00
+dyad-sh/dyad,2918,Allow users to preview generated images,https://github.com/dyad-sh/dyad/pull/2918,"**Path traversal risk in `absolutePath` construction**
+
+`imagePath` is taken directly from the AI-generated node property and concatenated without sanitisation. If the value contains `../` segments, `absolutePath` can resolve to a location outside the app's project directory. This value is then passed to `ipc.system.openFilePath()`, which opens the resulting path in the system file manager.
+
+For example, if a prompt causes the model to emit `path=""../../sensitive-file""`, the construction `${appPath}/${imagePath}` would create a path that traverses outside the intended directory.
+
+Consider validating that the resolved path stays within the expected directory:
+
+```ts
+const resolved =
+  appPath && imagePath
+    ? (() => {
+        const joined = `${appPath}/${imagePath}`;
+        const normalised = joined
+          .split(""/"")
+          .reduce<string[]>((acc, seg) => {
+            if (seg === "".."") acc.pop();
+            else if (seg !== ""."") acc.push(seg);
+            return acc;
+          }, [])
+          .join(""/"");
+        return normalised.startsWith(appPath) ? normalised : undefined;
+      })()
+    : undefined;
+const absolutePath = resolved;
+```
+
+The same concern applies to the `imageUrl` construction on lines 45–51: `encodeURIComponent` leaves `..` unchanged (dots are valid URL characters), so a traversal path passes through to the `dyad-media://` protocol handler unchanged.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: src/components/chat/DyadImageGeneration.tsx
+Line: 52-53
+
+Comment:
+**Path traversal risk in `absolutePath` construction**
+
+`imagePath` is taken directly from the AI-generated node property and concatenated without sanitisation. If the value contains `../` segments, `absolutePath` can resolve to a location outside the app's project directory. This value is then passed to `ipc.system.openFilePath()`, which opens the resulting path in the system file manager.
+
+For example, if a prompt causes the model to emit `path=""../../sensitive-file""`, the construction `${appPath}/${imagePath}` would create a path that traverses outside the intended directory.
+
+Consider validating that the resolved path stays within the expected directory:
+
+```ts
+const resolved =
+  appPath && imagePath
+    ? (() => {
+        const joined = `${appPath}/${imagePath}`;
+        const normalised = joined
+          .split(""/"")
+          .reduce<string[]>((acc, seg) => {
+            if (seg === "".."") acc.pop();
+            else if (seg !== ""."") acc.push(seg);
+            return acc;
+          }, [])
+          .join(""/"");
+        return normalised.startsWith(appPath) ? normalised : undefined;
+      })()
+    : undefined;
+const absolutePath = resolved;
+```
+
+The same concern applies to the `imageUrl` construction on lines 45–51: `encodeURIComponent` leaves `..` unchanged (dots are valid URL characters), so a traversal path passes through to the `dyad-media://` protocol handler unchanged.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/dyad-sh/dyad/pull/2918#discussion_r2893621020,,2026-03-06T03:32:33.034000,Path traversal vulnerability in AI-generated image path handling,security,high,8,"This is a legitimate security vulnerability where AI-generated content containing '../' segments could traverse outside the intended directory and access sensitive files. The path is passed to openFilePath() which opens files in the system file manager, creating potential for information disclosure. While the attack vector requires AI model manipulation, the security impact of path traversal is real and meaningful.",2026-03-09T20:16:53.590071+00:00
+nvidia/matx,1134,Perf/add sarbp benchmark,https://github.com/NVIDIA/MatX/pull/1134,"Stray `g` breaks compilation. The leading `g` in the copyright banner is a C++ syntax error — any translation unit that includes this header will fail to compile with ""error: 'g' was not declared in this scope"".
+
+```suggestion
+////////////////////////////////////////////////////////////////////////////////
+```",https://github.com/NVIDIA/MatX/pull/1134#discussion_r2902481873,Fixed,2026-03-08T21:54:25.959000,Stray character in header file breaks compilation,runtime,high,8,Comment 6 identifies a compilation-breaking syntax error where a stray 'g' character in the copyright banner would cause any translation unit including this header to fail compilation. This is a guaranteed build failure that would prevent the code from being used at all.,2026-03-09T20:16:53.590071+00:00
+dyad-sh/dyad,2901,Adding a tip banner for chat notification,https://github.com/dyad-sh/dyad/pull/2901,"**Mac guide dialog unmounted before user can see it**
+
+When a Mac user clicks ""Enable"" in the banner and permission is already granted (or becomes granted), the `enable()` function calls `updateSettings({ enableChatCompletionNotifications: true })` on line 34 of `useEnableNotifications.ts` **without awaiting it**. It then immediately calls `setShowMacGuide(true)`.
+
+Because the promise is not awaited, React re-renders before the IPC call completes. When `settings.enableChatCompletionNotifications` flips to `true` in the cache, `NotificationBanner` re-evaluates the early-return guard on lines 11–16 and returns `null`, unmounting the entire fragment including `MacNotificationGuideDialog`. The user either never sees the dialog or sees it only briefly before it disappears.
+
+**`ChatCompletionNotificationSwitch` doesn't have this problem** because it always renders its dialog regardless of the `isEnabled` state.
+
+To fix, move the dialog outside the early-return guard:
+
+```tsx
+export function NotificationBanner() {
+  const { settings, updateSettings } = useSettings();
+  const { enable, showMacGuide, setShowMacGuide } = useEnableNotifications();
+
+  const shouldShowBanner =
+    settings &&
+    settings.enableChatCompletionNotifications !== true &&
+    settings.skipNotificationBanner !== true;
+
+  const handleSkip = () => {
+    updateSettings({ skipNotificationBanner: true });
+  };
+
+  return (
+    <>
+      {shouldShowBanner && (
+        <SkippableBanner
+          icon={Bell}
+          message=""Get notified when chat responses finish.""
+          enableLabel=""Enable""
+          onEnable={enable}
+          onSkip={handleSkip}
+          data-testid=""notification-tip-banner""
+        />
+      )}
+      <MacNotificationGuideDialog
+        open={showMacGuide}
+        onClose={() => setShowMacGuide(false)}
+      />
+    </>
+  );
+}
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: src/components/chat/NotificationBanner.tsx
+Line: 11-16
+
+Comment:
+**Mac guide dialog unmounted before user can see it**
+
+When a Mac user clicks ""Enable"" in the banner and permission is already granted (or becomes granted), the `enable()` function calls `updateSettings({ enableChatCompletionNotifications: true })` on line 34 of `useEnableNotifications.ts` **without awaiting it**. It then immediately calls `setShowMacGuide(true)`.
+
+Because the promise is not awaited, React re-renders before the IPC call completes. When `settings.enableChatCompletionNotifications` flips to `true` in the cache, `NotificationBanner` re-evaluates the early-return guard on lines 11–16 and returns `null`, unmounting the entire fragment including `MacNotificationGuideDialog`. The user either never sees the dialog or sees it only briefly before it disappears.
+
+**`ChatCompletionNotificationSwitch` doesn't have this problem** because it always renders its dialog regardless of the `isEnabled` state.
+
+To fix, move the dialog outside the early-return guard:
+
+```tsx
+export function NotificationBanner() {
+  const { settings, updateSettings } = useSettings();
+  const { enable, showMacGuide, setShowMacGuide } = useEnableNotifications();
+
+  const shouldShowBanner =
+    settings &&
+    settings.enableChatCompletionNotifications !== true &&
+    settings.skipNotificationBanner !== true;
+
+  const handleSkip = () => {
+    updateSettings({ skipNotificationBanner: true });
+  };
+
+  return (
+    <>
+      {shouldShowBanner && (
+        <SkippableBanner
+          icon={Bell}
+          message=""Get notified when chat responses finish.""
+          enableLabel=""Enable""
+          onEnable={enable}
+          onSkip={handleSkip}
+          data-testid=""notification-tip-banner""
+        />
+      )}
+      <MacNotificationGuideDialog
+        open={showMacGuide}
+        onClose={() => setShowMacGuide(false)}
+      />
+    </>
+  );
+}
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/dyad-sh/dyad/pull/2901#discussion_r2892701442,,2026-03-05T22:24:39.206000,Dialog unmounted prematurely due to race condition with state update,concurrency,medium,8,This identifies a real race condition where the Mac notification guide dialog gets unmounted before users can see it because the settings update triggers a re-render that hides the banner (and its dialog) before the dialog can be displayed. This is a meaningful UX bug affecting Mac users that would occur in production.,2026-03-09T20:16:53.590071+00:00
