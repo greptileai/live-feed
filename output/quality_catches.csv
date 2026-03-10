@@ -10759,3 +10759,103 @@ case 'create-row': {
 ```
 
 Note: this also requires adding a `patchUndoRowId` action to the store, mirroring `patchRedoRowId`.",https://github.com/simstudioai/sim/pull/3504#discussion_r2910122313,Good catch — fixed. Added `patchUndoRowId` to the store (patches `create-row` entries in the undo stack) and wired it into the `create-row` redo path via `onSuccess` callback. See commit 30f723f.,2026-03-10T08:24:02.319000,Stale row ID in undo stack causes silent deletion failure,data_integrity,high,8,"This catch identifies a significant data integrity bug where redo of a create-row action would leave a stale row ID in the undo stack, causing subsequent undo operations to silently fail when trying to delete a non-existent row. This is a meaningful logic bug affecting the undo/redo feature that would cause user-visible problems in production.",2026-03-10T10:22:31.006829+00:00
+nvidia/cloudai,821,Megatron-Bridge updates,https://github.com/NVIDIA/cloudai/pull/821,"**Step time unit mismatch (ms reported as seconds)**
+
+The JSON key is `""elapsed time per iteration (ms)""`, meaning the extracted values are in **milliseconds**. However, the variable is named `step_times_s`, the report header writes `""Step Time (s)\n""`, and the old implementation (which this replaces) correctly extracted values already in seconds from log lines like `""Step Time : 9.09s""`.
+
+As a result, a training step that took 9090 ms would be reported as ""9090 s"" instead of the correct ""9.09 s"" — a 1000× error.
+
+```suggestion
+        step_times_s: list[float] = [data[str(step)][""elapsed time per iteration (ms)""] / 1000.0 for step in steps]
+```",https://github.com/NVIDIA/cloudai/pull/821#discussion_r2910587409,resolved,2026-03-10T09:53:51.744000,Step time reported with 1000x error due to ms/s unit mismatch,data_integrity,high,8,"This catches a significant data corruption bug where step times would be reported 1000x larger than actual values due to treating milliseconds as seconds. This would cause incorrect metrics and misleading reports in production, affecting users' understanding of training performance.",2026-03-10T12:24:53.165190+00:00
+posthog/posthog,50436,feat(experiments): consolidate business logic into ExperimentService,https://github.com/PostHog/posthog/pull/50436,"**Method shadowed by setattr loop**
+
+`ExperimentSerializer` stores the validated `feature_flag_key` field under the source name `get_feature_flag_key` in `validated_data`. When that value matches the existing flag, line 440 discards it from `extra_keys` but leaves it in `update_data`. The loop here then calls `setattr(experiment, ""get_feature_flag_key"", ...)`.
+
+Because `get_feature_flag_key` is a regular method on `Experiment` (not a DB field), this shadows the method with an instance attribute on the returned object. Any code that subsequently calls `experiment.get_feature_flag_key()` would raise `TypeError: 'str' object is not callable`.
+
+The fix is to remove the key from `update_data` before applying attribute changes:
+
+```suggestion
+        update_data.pop(""get_feature_flag_key"", None)
+        for attr, value in update_data.items():
+            setattr(experiment, attr, value)
+        experiment.save()
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: products/experiments/backend/experiment_service.py
+Line: 547-549
+
+Comment:
+**Method shadowed by setattr loop**
+
+`ExperimentSerializer` stores the validated `feature_flag_key` field under the source name `get_feature_flag_key` in `validated_data`. When that value matches the existing flag, line 440 discards it from `extra_keys` but leaves it in `update_data`. The loop here then calls `setattr(experiment, ""get_feature_flag_key"", ...)`.
+
+Because `get_feature_flag_key` is a regular method on `Experiment` (not a DB field), this shadows the method with an instance attribute on the returned object. Any code that subsequently calls `experiment.get_feature_flag_key()` would raise `TypeError: 'str' object is not callable`.
+
+The fix is to remove the key from `update_data` before applying attribute changes:
+
+```suggestion
+        update_data.pop(""get_feature_flag_key"", None)
+        for attr, value in update_data.items():
+            setattr(experiment, attr, value)
+        experiment.save()
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/50436#discussion_r2909893769,,2026-03-10T07:32:53.144000,Method shadowed by setattr loop causes TypeError,runtime,high,8,"This catches a real runtime bug where setattr dynamically shadows the `get_feature_flag_key` method with a string value, causing any subsequent call to that method to raise a TypeError. This is a non-obvious bug that would cause production failures when updating experiments.",2026-03-10T12:24:53.165190+00:00
+gptme/gptme,1640,feat(release): centralize release pipeline in release.yml,https://github.com/gptme/gptme/pull/1640,"**`releaseDraft: true` may convert an already-published release back to draft**
+
+`publish_release.sh` creates and **publishes** the GitHub release (no `--draft` flag). When the Tauri `release` job then runs via `workflow_dispatch` against that same tag, `tauri-apps/tauri-action@v0` receives `releaseDraft: true`. If the action calls `updateRelease` on the existing release, it will flip `draft → true`, effectively unpublishing the release and requiring a manual re-publish afterwards.
+
+Consider setting `releaseDraft: false` when triggered via `workflow_dispatch` (i.e., when `publish_release.sh` has already created the release), and reserving `releaseDraft: true` for the classic tag-push flow where the Tauri action is the release creator:
+
+```suggestion
+          releaseDraft: ${{ inputs.tag == '' }}
+```
+
+This way, when dispatched with a tag (from `scheduled-release.yml`), the action uploads assets to the existing published release without toggling its draft state; when triggered by a tag-push event (no `inputs.tag`), it creates the release as a draft as before.",https://github.com/gptme/gptme/pull/1640#discussion_r2910902604,Fixed — `releaseDraft: ${{ inputs.tag == '' }}` so dispatched releases (from release.yml) don't flip the draft state.,2026-03-10T10:50:53.564000,Tauri action flips published release back to draft state,logic,high,8,"This catches a subtle but impactful bug where the Tauri action would convert an already-published GitHub release back to draft mode, effectively unpublishing it for users. This is a real workflow logic bug that would cause production releases to disappear until manually re-published.",2026-03-10T12:24:53.165190+00:00
+onyx-dot-app/onyx,9189,feat(custom-tools): enhance custom tool error handling and timeline UI,https://github.com/onyx-dot-app/onyx/pull/9189,"**`tool_call_arguments` not guarded against `None`**
+
+`tool_call.tool_call_arguments` is a `postgresql.JSONB()` column declared without `nullable=False` and without a server default (see `db/models.py:2736`), so it can be `NULL` in the database. Calling `.items()` on `None` raises `AttributeError`, which is swallowed by the outer `except Exception` at line 729 — silently dropping the entire custom-tool step from the reloaded session.
+
+`chat_utils.py:600` already demonstrates the correct guard for the same field: `tool_call.tool_call_arguments or {}`.
+
+```suggestion
+                        custom_args = {
+                            k: v
+                            for k, v in (tool_call.tool_call_arguments or {}).items()
+                            if k != ""requestBody""
+                        }
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: backend/onyx/server/query_and_chat/session_loading.py
+Line: 710-714
+
+Comment:
+**`tool_call_arguments` not guarded against `None`**
+
+`tool_call.tool_call_arguments` is a `postgresql.JSONB()` column declared without `nullable=False` and without a server default (see `db/models.py:2736`), so it can be `NULL` in the database. Calling `.items()` on `None` raises `AttributeError`, which is swallowed by the outer `except Exception` at line 729 — silently dropping the entire custom-tool step from the reloaded session.
+
+`chat_utils.py:600` already demonstrates the correct guard for the same field: `tool_call.tool_call_arguments or {}`.
+
+```suggestion
+                        custom_args = {
+                            k: v
+                            for k, v in (tool_call.tool_call_arguments or {}).items()
+                            if k != ""requestBody""
+                        }
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/9189#discussion_r2909724582,,2026-03-10T06:56:21.480000,Null database column causes silent exception dropping session data,null,high,8,"This catch identifies a real null-pointer bug where calling .items() on a potentially NULL database column would raise AttributeError, which gets silently swallowed by a broad exception handler, causing custom-tool steps to be dropped from reloaded sessions without any indication. The reviewer correctly identifies the database schema allows NULL and points to existing code demonstrating the proper guard pattern.",2026-03-10T12:24:53.165190+00:00
