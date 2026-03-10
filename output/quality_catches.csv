@@ -11185,3 +11185,69 @@ let mut old_reverse_entries = old_reverse_entries;
 old_reverse_entries.sort_by(|a, b| a.term.cmp(&b.term));
 ```
 or use a `HashMap`-based diff instead of the sorted merge.",https://github.com/HelixDB/helix-db/pull/884#discussion_r2912640098,,2026-03-10T15:36:07.936000,LMDB binary sort order mismatches alphabetical merge logic,data_integrity,high,8,"This catches a subtle but significant data integrity bug where the sorted-merge algorithm assumes alphabetical ordering but LMDB sorts by raw bincode bytes (length-prefixed), causing incorrect index updates and potential corruption. This is a non-obvious bug requiring deep understanding of both the serialization format and database behavior.",2026-03-10T18:28:47.557609+00:00
+onyx-dot-app/onyx,9241,fix: update jira group sync endpoint,https://github.com/onyx-dot-app/onyx/pull/9241,"**`accountType` filter silently drops all users on older Jira DC**
+
+Filtering by `accountType == ""atlassian""` is a Jira Cloud and DC 9.0+ concept. For Jira Data Center versions 6.0–8.x, the `/group/member` response does not include an `accountType` field on user objects — `member.get(""accountType"")` returns `None`, which is never equal to `""atlassian""`, so **every user is silently discarded**.
+
+This means any customer still on Jira DC 6.0–8.x who upgrades Onyx will suddenly see all their groups appear empty, even though the old `group_members()` call worked fine for them. The code comment says the endpoint is available since Jira 6.0, but the filtering semantics only hold for DC 9.0+ and Cloud.
+
+A straightforward guard is to include members where `accountType` is absent (Server/DC pre-9.0 behaviour) while still excluding Cloud app/customer accounts:
+
+```python
+        account_type = member.get(""accountType"")
+        # On Jira Server/DC < 9.0 accountType is absent; include those users.
+        # On Cloud/DC 9.0+ filter to real user accounts only.
+        if account_type is not None and account_type != _ATLASSIAN_ACCOUNT_TYPE:
+            continue
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: backend/ee/onyx/external_permissions/jira/group_sync.py
+Line: 80-82
+
+Comment:
+**`accountType` filter silently drops all users on older Jira DC**
+
+Filtering by `accountType == ""atlassian""` is a Jira Cloud and DC 9.0+ concept. For Jira Data Center versions 6.0–8.x, the `/group/member` response does not include an `accountType` field on user objects — `member.get(""accountType"")` returns `None`, which is never equal to `""atlassian""`, so **every user is silently discarded**.
+
+This means any customer still on Jira DC 6.0–8.x who upgrades Onyx will suddenly see all their groups appear empty, even though the old `group_members()` call worked fine for them. The code comment says the endpoint is available since Jira 6.0, but the filtering semantics only hold for DC 9.0+ and Cloud.
+
+A straightforward guard is to include members where `accountType` is absent (Server/DC pre-9.0 behaviour) while still excluding Cloud app/customer accounts:
+
+```python
+        account_type = member.get(""accountType"")
+        # On Jira Server/DC < 9.0 accountType is absent; include those users.
+        # On Cloud/DC 9.0+ filter to real user accounts only.
+        if account_type is not None and account_type != _ATLASSIAN_ACCOUNT_TYPE:
+            continue
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/9241#discussion_r2913982411,,2026-03-10T19:32:33.709000,Silent user filtering breaks group sync on older Jira versions,logic,high,8,"This catch identifies a significant compatibility bug where the accountType filter silently discards all users on Jira DC 6.0-8.x because the field doesn't exist in those versions. This would cause all groups to appear empty for customers on older Jira versions, breaking permissions sync functionality.",2026-03-10T20:17:31.872108+00:00
+berriai/litellm,22999,feat(panw-prisma-airs): PANW Prisma AIRS guardrail with apply_guardrail support,https://github.com/BerriAI/litellm/pull/22999,"**`developer` role excluded from latest-message detection — scan bypass possible**
+
+`_get_latest_user_text_indices` searches only for `role == ""user""` (line 1624) when locating the ""latest human-turn message"". The PR also updated `_extract_text_from_messages` to treat `developer` role the same as `user` (for OpenAI o1/o3 models). This creates an inconsistency:
+
+If a conversation ends with a `developer` message that comes *after* the last `user` message — e.g.:
+```
+messages = [
+    {""role"": ""user"", ""content"": ""earlier benign prompt""},
+    {""role"": ""developer"", ""content"": ""malicious injection content""},
+]
+```
+`_get_latest_user_text_indices` identifies the `user` message (index 0) as the ""last user message"", and only its text index is placed in `scannable`. The `developer` message content ends up with a text index that is **not** in `scannable`, so when `_use_latest_user_only=True` (the Anthropic default), the `developer` message is silently skipped from scanning entirely.
+
+The fix is to include `developer` role in the detection loop, consistent with how `_extract_text_from_messages` works:
+
+```suggestion
+        last_user_msg_idx: Optional[int] = None
+        for idx in range(len(messages) - 1, -1, -1):
+            msg = messages[idx]
+            if isinstance(msg, dict) and msg.get(""role"") in (""user"", ""developer""):
+                last_user_msg_idx = idx
+                break
+```",https://github.com/BerriAI/litellm/pull/22999#discussion_r2907443331,,2026-03-09T19:18:15.790000,Security scan bypass for developer role messages,security,high,8,"This catches a security bypass where 'developer' role messages (used by OpenAI o1/o3 models) are excluded from guardrail scanning when using latest-user-only mode. An attacker could inject malicious content in a developer message that follows the last user message, completely bypassing the PANW AIRS security scan.",2026-03-10T20:17:31.872108+00:00
