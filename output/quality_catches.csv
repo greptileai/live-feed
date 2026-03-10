@@ -10587,3 +10587,29 @@ if self._stop_task_wait_timeout > 0 and not self._job_end and self.launcher.need
         return True
     # ... proceed to clear and start new deferred thread
 ```",https://github.com/NVIDIA/NVFlare/pull/4275#discussion_r2898326431,,2026-03-06T23:14:43.500000,Race condition in deferred stop can terminate wrong subprocess,concurrency,high,8,"This is a sophisticated race condition catch where multiple deferred threads can be spawned without proper synchronization, leading to a thread terminating the wrong subprocess. The detailed multi-step scenario demonstrates a real concurrency bug that could cause incorrect task termination in production, affecting distributed computing workflows. This requires understanding of threading semantics and event-based synchronization patterns.",2026-03-10T00:44:53.193269+00:00
+berriai/litellm,22273,Fix: Restrict MCP server/access group assignment for non-admins in view_all mode,https://github.com/BerriAI/litellm/pull/22273,"**`assert` in production security check**
+
+`assert` statements are stripped when Python runs with optimization flags (`-O` or `-OO`). Since this is a security-critical validation path, the assertion would silently disappear, allowing `allowed_access_group_ids` to be `None`. The subsequent `if g not in None` on line 331 would then raise a `TypeError` instead of a clear 403 — or worse, if the code is ever refactored to handle `None` differently, it could skip validation entirely. Replace the `assert` with an explicit check:
+
+```suggestion
+    if allowed_access_group_ids is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={""error"": ""Unable to determine allowed MCP access groups.""},
+        )
+```",https://github.com/BerriAI/litellm/pull/22273#discussion_r2863777218,,2026-02-27T11:03:45.057000,Assert statement in security check stripped in production,security,high,8,"Using assert for security-critical validation is dangerous because Python's -O flag strips assertions in production, which would bypass MCP access group permission checks. This is a real security vulnerability that could allow non-admin users to assign unauthorized MCP access groups.",2026-03-10T03:07:47.687363+00:00
+isaac-sim/isaaclab,4896,Resolves ECR_CACHE_URL from env or AWS SSM,https://github.com/isaac-sim/IsaacLab/pull/4896,"**Shell-injection risk via direct `${{ inputs.ecr-url }}` interpolation**
+
+GitHub Actions interpolates `${{ inputs.ecr-url }}` into the shell script **before** the shell executes it. If a caller passes a value containing shell metacharacters — e.g. `""; malicious-command; echo ""` — those characters are executed verbatim. The safer pattern is to expose the input as an environment variable in the `env:` block and then read it in the script:
+
+```yaml
+    - name: ECR Build, Push, Pull
+      shell: bash
+      env:
+        INPUT_ECR_URL: ${{ inputs.ecr-url }}
+      run: |
+        ...
+        ECR_URL=""${INPUT_ECR_URL:-}""
+```
+
+The same applies to `${{ inputs.image-tag }}` (line 47), `${{ inputs.dockerfile-path }}` (line 144), and `${{ inputs.cache-tag }}` (line 93/163), though those are currently only set from hardcoded workflow values. Addressing `ecr-url` is most urgent because this input is new, explicitly user-facing, and its description encourages callers to supply a URL from external sources (SSM / env vars).",https://github.com/isaac-sim/IsaacLab/pull/4896#discussion_r2908580635,"We're using inputs that go into the shell extensively, we secure runners properly for it not to be a big an issue. However sanitation via env var block is a good idea!",2026-03-10T00:06:42.634000,Shell injection vulnerability via direct GitHub Actions input interpolation,security,high,8,"This comment identifies a genuine shell injection vulnerability where user-controllable inputs are directly interpolated into shell scripts without sanitization. While the developer acknowledges they secure runners, this is still a valid security concern that could allow command injection via crafted ecr-url values.",2026-03-10T03:07:47.687363+00:00
