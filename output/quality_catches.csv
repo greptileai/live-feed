@@ -11110,3 +11110,78 @@ Consider removing the `isRecentlyCreated` check from the selector entirely (or b
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/PostHog/posthog/pull/50439#discussion_r2910187489,,2026-03-10T08:37:51.692000,Memoized selector with Date.now() causes stale time comparison,logic,medium,8,"This catches a real logic bug where using `new Date()` inside a memoized Kea selector causes the time comparison to become stale. The selector caches the result based on input selectors, so a dashboard could remain stuck in 'new dashboard' mode indefinitely after the initial 30-second window check passes. This is a subtle but meaningful behavioral bug.",2026-03-10T16:32:45.335184+00:00
+onyx-dot-app/onyx,9225,fix: Prevent the removal and hiding of default model (#9131) to release v3.0,https://github.com/onyx-dot-app/onyx/pull/9225,"**`sync_auto_mode_models` can make the default model invisible with no protection**
+
+The loop at lines 805–810 marks any model not in the recommended config as `is_visible = False`. This runs **before** the default-update check and is not gated by the protection added to `upsert_llm_provider`. If:
+1. The current CHAT default is present in the provider, AND
+2. It is **not** in the new recommended config, AND
+3. There is no `recommended_default` (or the provider doesn't own the current global default)
+
+…then the default model will be committed to the database as `is_visible = False` by line 864, with `is_default = True` still set — the exact state this PR aims to prevent.
+
+A guard similar to the one in `upsert_llm_provider` should be added before marking models invisible:
+
+```python
+current_default_id = current_default.id if current_default else None
+for model_name, model in existing_models.items():
+    if model_name not in recommended_visible_model_names:
+        if model.id == current_default_id:
+            # Don't hide the default model; the default-switch logic below will handle it
+            continue
+        if model.is_visible:
+            model.is_visible = False
+            changes += 1
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: backend/onyx/db/llm.py
+Line: 845-863
+
+Comment:
+**`sync_auto_mode_models` can make the default model invisible with no protection**
+
+The loop at lines 805–810 marks any model not in the recommended config as `is_visible = False`. This runs **before** the default-update check and is not gated by the protection added to `upsert_llm_provider`. If:
+1. The current CHAT default is present in the provider, AND
+2. It is **not** in the new recommended config, AND
+3. There is no `recommended_default` (or the provider doesn't own the current global default)
+
+…then the default model will be committed to the database as `is_visible = False` by line 864, with `is_default = True` still set — the exact state this PR aims to prevent.
+
+A guard similar to the one in `upsert_llm_provider` should be added before marking models invisible:
+
+```python
+current_default_id = current_default.id if current_default else None
+for model_name, model in existing_models.items():
+    if model_name not in recommended_visible_model_names:
+        if model.id == current_default_id:
+            # Don't hide the default model; the default-switch logic below will handle it
+            continue
+        if model.is_visible:
+            model.is_visible = False
+            changes += 1
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/9225#discussion_r2909945772,,2026-03-10T07:45:30.416000,Default model can be hidden despite protection logic,logic,high,8,"This catches a genuine logic bug where the sync function bypasses the protection added elsewhere in the PR, allowing the default model to become invisible - the exact state the PR was designed to prevent. The reviewer correctly identified the ordering issue and provided a concrete fix, demonstrating deep understanding of the code flow and the business requirement.",2026-03-10T18:28:47.557609+00:00
+helixdb/helix-db,884,fix (core): Core fixes,https://github.com/HelixDB/helix-db/pull/884,"**Sorted-merge assumes alphabetical order, but LMDB returns entries in binary byte-comparison order**
+
+`update_doc_with_reverse_entries` performs a sorted merge comparing `old_reverse_entries` (read via `reverse_entries_rw` from the `DUP_SORT` LMDB database) against `new_reverse_entries` (produced by `reverse_entries_from_term_counts`, which sorts alphabetically by term string).
+
+The problem is the LMDB dupsort database stores `ReversePostingEntry` values as raw bincode bytes (`Database<U128<BE>, Bytes>`) and sorts duplicates by **byte-level lexicographic comparison**. Bincode encodes `String` as an 8-byte little-endian length prefix followed by content, so a 1-character term sorts before a 10-character term regardless of the actual characters. For example:
+
+- Term `""b""` (bincode: `[1,0,0,0,0,0,0,0,'b',…]`) would sort **before** term `""aa""` (bincode: `[2,0,0,0,0,0,0,0,'a','a',…]`) in the DB, but alphabetically `""aa"" < ""b""`.
+
+Consequences:
+1. The `old_reverse_entries == new_reverse_entries` equality check (line ~440 in the current file) can return `false` for logically identical entry sets, causing unnecessary work.
+2. More critically, the merge loop would compare entries from mismatched positions, leading to incorrect deletes/inserts and potential index corruption.
+
+**Fix**: After reading old entries from the DB, re-sort them alphabetically before the merge:
+```rust
+let mut old_reverse_entries = old_reverse_entries;
+old_reverse_entries.sort_by(|a, b| a.term.cmp(&b.term));
+```
+or use a `HashMap`-based diff instead of the sorted merge.",https://github.com/HelixDB/helix-db/pull/884#discussion_r2912640098,,2026-03-10T15:36:07.936000,LMDB binary sort order mismatches alphabetical merge logic,data_integrity,high,8,"This catches a subtle but significant data integrity bug where the sorted-merge algorithm assumes alphabetical ordering but LMDB sorts by raw bincode bytes (length-prefixed), causing incorrect index updates and potential corruption. This is a non-obvious bug requiring deep understanding of both the serialization format and database behavior.",2026-03-10T18:28:47.557609+00:00
