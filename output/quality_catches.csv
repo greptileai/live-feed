@@ -11251,3 +11251,25 @@ The fix is to include `developer` role in the detection loop, consistent with ho
                 last_user_msg_idx = idx
                 break
 ```",https://github.com/BerriAI/litellm/pull/22999#discussion_r2907443331,,2026-03-09T19:18:15.790000,Security scan bypass for developer role messages,security,high,8,"This catches a security bypass where 'developer' role messages (used by OpenAI o1/o3 models) are excluded from guardrail scanning when using latest-user-only mode. An attacker could inject malicious content in a developer message that follows the last user message, completely bypassing the PANW AIRS security scan.",2026-03-10T20:17:31.872108+00:00
+isaac-sim/isaaclab,4907,Adds Conservative Docker Builds,https://github.com/isaac-sim/IsaacLab/pull/4907,"**Credentials directory never cleaned up**
+
+The old single-step implementation used `trap 'rm -rf ""${DOCKER_CONFIG_DIR}""' EXIT` so credentials were removed when the step's bash process exited. In the new multi-step design the temp directory must outlive step 1, so the trap was necessarily removed — but no compensating cleanup step with `if: always()` was added.
+
+`${DOCKER_CONFIG_DIR}/config.json` is written with nvcr.io auth (step 1) and ECR auth (step 3), so it holds live registry credentials. On self-hosted runners (`runs-on: [self-hosted, gpu]`) these directories will accumulate until manually purged.
+
+Add a final cleanup step to the composite action:
+
+```yaml
+- name: Cleanup docker config
+  if: always()
+  shell: bash
+  run: |
+    if [ -n ""${DOCKER_CONFIG}"" ] && [ -d ""${DOCKER_CONFIG}"" ]; then
+      rm -rf ""${DOCKER_CONFIG}""
+    fi
+```",https://github.com/isaac-sim/IsaacLab/pull/4907#discussion_r2910839266,,2026-03-10T10:38:57.337000,Live registry credentials left on disk without cleanup,security,high,8,"This is a security issue where live registry credentials (nvcr.io and ECR auth) are written to a temp directory but never cleaned up due to removal of the trap during refactoring. On self-hosted runners, these credentials accumulate and could be accessed by other processes or jobs.",2026-03-10T22:14:54.452803+00:00
+berriai/litellm,23200,feat(ui): OpenAPI MCP server support with popular API quick-picker,https://github.com/BerriAI/litellm/pull/23200,"`lru_cache` permanently caches the failure result
+
+`_load_openapi_registry` catches all exceptions and returns `{""apis"": []}` on failure — but `@functools.lru_cache(maxsize=1)` caches whatever the function returns, including that empty error value. If the first call fails (transient I/O, file not yet deployed, startup timing issue, etc.), every subsequent request will return an empty registry for the lifetime of the process. The only recovery path is a full process restart.
+
+The fix is to move the exception handling to the caller (`get_openapi_registry`), and let `_load_openapi_registry` raise normally on failure. That way `lru_cache` only caches successful parse results, while the router handler returns a graceful `{""apis"": []}` fallback on each individual failing request without poisoning the cache.",https://github.com/BerriAI/litellm/pull/23200#discussion_r2913606485,,2026-03-10T18:17:10.166000,LRU cache permanently caches failure result causing persistent errors,logic,high,8,"This catches a real bug where lru_cache caches the empty error fallback on first failure, making the registry permanently broken until process restart. This is a meaningful production issue that would be hard to debug - transient errors become permanent.",2026-03-10T22:14:54.452803+00:00
