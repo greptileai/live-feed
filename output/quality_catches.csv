@@ -10632,3 +10632,101 @@ The test endpoint already uses the correct pattern — it returns a generic `'Fa
     }
   }
 ```",https://github.com/simstudioai/sim/pull/3500#discussion_r2908772349,"Good catch — fixed. Now logs the detailed error server-side and returns a generic ""Failed to deliver webhook"" to the client, matching the pattern already used in the test endpoint.",2026-03-10T01:25:45.094000,SSRF validation details leaked in error messages enable network probing,security,high,8,"This catches a meaningful security vulnerability where SSRF protection error messages are exposed to users, allowing them to probe internal network topology by observing different error messages for blocked IPs vs. generic failures. This is a real information disclosure issue in a security-focused PR.",2026-03-10T04:42:04.965814+00:00
+onyx-dot-app/onyx,9192,fix(mcp): use CE-compatible chat endpoint for search_indexed_documents,https://github.com/onyx-dot-app/onyx/pull/9192,"**`content` field will always be `None`**
+
+The `ChatFullResponse.top_documents` field is typed as `list[SearchDoc]`, and `SearchDoc` does **not** have a `content` field. Only the EE-only `SearchDocWithContent` (a subclass of `SearchDoc`) had `content: str | None`, and the old code explicitly set `""include_content"": True` to populate it.
+
+With the new endpoint, `doc.get(""content"")` will always return `None` for every document, making the `content` key in the output useless. MCP clients relying on document text snippets will see `null` for every result.
+
+The correct field to use from `SearchDoc` for a text snippet is `blurb`. Consider replacing `""content""` with `""blurb""` in `fields_to_return`, or mapping `content` to `blurb` so the output schema stays the same:
+
+```suggestion
+        fields_to_return = [
+            ""semantic_identifier"",
+            ""blurb"",
+            ""source_type"",
+            ""link"",
+            ""score"",
+        ]
+```
+
+Or if you want to preserve the `content` key in the output for API compatibility:
+
+```python
+documents = [
+    {
+        ""semantic_identifier"": doc.get(""semantic_identifier""),
+        ""content"": doc.get(""blurb""),  # blurb is the text snippet in SearchDoc
+        ""source_type"": doc.get(""source_type""),
+        ""link"": doc.get(""link""),
+        ""score"": doc.get(""score""),
+    }
+    for doc in result.get(""top_documents"", [])
+]
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: backend/onyx/mcp_server/tools/search.py
+Line: 143-149
+
+Comment:
+**`content` field will always be `None`**
+
+The `ChatFullResponse.top_documents` field is typed as `list[SearchDoc]`, and `SearchDoc` does **not** have a `content` field. Only the EE-only `SearchDocWithContent` (a subclass of `SearchDoc`) had `content: str | None`, and the old code explicitly set `""include_content"": True` to populate it.
+
+With the new endpoint, `doc.get(""content"")` will always return `None` for every document, making the `content` key in the output useless. MCP clients relying on document text snippets will see `null` for every result.
+
+The correct field to use from `SearchDoc` for a text snippet is `blurb`. Consider replacing `""content""` with `""blurb""` in `fields_to_return`, or mapping `content` to `blurb` so the output schema stays the same:
+
+```suggestion
+        fields_to_return = [
+            ""semantic_identifier"",
+            ""blurb"",
+            ""source_type"",
+            ""link"",
+            ""score"",
+        ]
+```
+
+Or if you want to preserve the `content` key in the output for API compatibility:
+
+```python
+documents = [
+    {
+        ""semantic_identifier"": doc.get(""semantic_identifier""),
+        ""content"": doc.get(""blurb""),  # blurb is the text snippet in SearchDoc
+        ""source_type"": doc.get(""source_type""),
+        ""link"": doc.get(""link""),
+        ""score"": doc.get(""score""),
+    }
+    for doc in result.get(""top_documents"", [])
+]
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/9192#discussion_r2906508024,,2026-03-09T16:21:36.921000,Content field always returns None after endpoint migration,logic,high,8,"This catches a real production bug where migrating to a new endpoint breaks the content field - MCP clients expecting document text snippets will receive null for every result, making the search feature effectively broken for any consumer relying on document content.",2026-03-10T06:26:42.364654+00:00
+raycast/extensions,26149,feat(toggl-track): add local script triggers for timer events,https://github.com/raycast/extensions/pull/26149,"`scriptPath` is not shell-quoted in the `exec` call. This causes two issues:
+
+1. Paths containing spaces (e.g., `/Users/me/my scripts/run.sh`) will be split by the shell and fail silently.
+2. A preference value containing shell metacharacters (e.g., `myscript.sh; rm -rf ~`) could execute unintended commands.
+
+The safer approach is to use `execFile` instead, which bypasses the shell entirely and passes arguments as an array:
+
+```suggestion
+import { execFile } from ""child_process"";
+
+function runTrigger(scriptPath: string, payload?: TimeEntry | null) {
+  if (!scriptPath) return;
+  const arg = payload ? JSON.stringify(payload) : """";
+  execFile(scriptPath, [arg], (error) => {
+    if (error) console.error(`Trigger error: ${error}`);
+  });
+}
+```",https://github.com/raycast/extensions/pull/26149#discussion_r2903128982,,2026-03-09T04:28:44.807000,Command injection vulnerability via unquoted shell execution,security,high,8,This comment identifies a real security vulnerability where user-controlled preference values could execute arbitrary shell commands through metacharacter injection. The suggestion to use execFile instead of exec properly mitigates the command injection risk by bypassing shell interpretation.,2026-03-10T06:26:42.364654+00:00
+raycast/extensions,23908,Add Ray DSL Viewer extension,https://github.com/raycast/extensions/pull/23908,"**Remote rendering dependency**
+
+`mermaidToImageUrl` always sends the diagram content to `mermaid.ink` via an image URL. That means any Mermaid/Markdown input (including clipboard) is exfiltrated to a third-party service whenever the preview renders. If this is intended, it should be explicitly disclosed in the command/extension description (and ideally in README) so users understand their content is sent off-device; otherwise this needs a local rendering approach.",https://github.com/raycast/extensions/pull/23908#discussion_r2773678896,,2026-02-06T11:28:30.898000,User content silently exfiltrated to third-party service,security,high,8,This catches a significant privacy/security issue where user clipboard and input content is sent to mermaid.ink without user consent or disclosure. This is a meaningful data exposure concern that could leak sensitive information users paste into the extension.,2026-03-10T06:26:42.364654+00:00
