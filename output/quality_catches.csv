@@ -10613,3 +10613,22 @@ GitHub Actions interpolates `${{ inputs.ecr-url }}` into the shell script **befo
 ```
 
 The same applies to `${{ inputs.image-tag }}` (line 47), `${{ inputs.dockerfile-path }}` (line 144), and `${{ inputs.cache-tag }}` (line 93/163), though those are currently only set from hardcoded workflow values. Addressing `ecr-url` is most urgent because this input is new, explicitly user-facing, and its description encourages callers to supply a URL from external sources (SSM / env vars).",https://github.com/isaac-sim/IsaacLab/pull/4896#discussion_r2908580635,"We're using inputs that go into the shell extensively, we secure runners properly for it not to be a big an issue. However sanitation via env var block is a good idea!",2026-03-10T00:06:42.634000,Shell injection vulnerability via direct GitHub Actions input interpolation,security,high,8,"This comment identifies a genuine shell injection vulnerability where user-controllable inputs are directly interpolated into shell scripts without sanitization. While the developer acknowledges they secure runners, this is still a valid security concern that could allow command injection via crafted ecr-url values.",2026-03-10T03:07:47.687363+00:00
+simstudioai/sim,3500,fix(security): add SSRF protection to database tools and webhook delivery,https://github.com/simstudioai/sim/pull/3500,"**SSRF-block details exposed in error message**
+
+When `secureFetchWithValidation` rejects a URL for SSRF reasons, it throws with messages like `""webhookUrl resolves to a blocked IP address""` or `""webhookUrl hostname could not be resolved""`. Returning `err.message` here surfaces those strings in the delivery record. A workspace user who controls the webhook URL configuration could systematically probe internal hostnames and IP ranges by observing whether the error mentions ""blocked IP address"" versus a generic network error, effectively using the delivery pipeline as a network scanner.
+
+The test endpoint already uses the correct pattern — it returns a generic `'Failed to deliver webhook'` regardless of the underlying error. Apply the same treatment here:
+
+```suggestion
+  } catch (error: unknown) {
+    const err = error as Error
+    logger.warn('Webhook delivery failed', {
+      error: err.message,
+      webhookUrl: webhookConfig.url,
+    })
+    return {
+      success: false,
+      error: 'Failed to deliver webhook',
+    }
+  }
+```",https://github.com/simstudioai/sim/pull/3500#discussion_r2908772349,"Good catch — fixed. Now logs the detailed error server-side and returns a generic ""Failed to deliver webhook"" to the client, matching the pattern already used in the test endpoint.",2026-03-10T01:25:45.094000,SSRF validation details leaked in error messages enable network probing,security,high,8,"This catches a meaningful security vulnerability where SSRF protection error messages are exposed to users, allowing them to probe internal network topology by observing different error messages for blocked IPs vs. generic failures. This is a real information disclosure issue in a security-focused PR.",2026-03-10T04:42:04.965814+00:00
