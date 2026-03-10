@@ -10859,3 +10859,88 @@ Comment:
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/onyx-dot-app/onyx/pull/9189#discussion_r2909724582,,2026-03-10T06:56:21.480000,Null database column causes silent exception dropping session data,null,high,8,"This catch identifies a real null-pointer bug where calling .items() on a potentially NULL database column would raise AttributeError, which gets silently swallowed by a broad exception handler, causing custom-tool steps to be dropped from reloaded sessions without any indication. The reviewer correctly identifies the database schema allows NULL and points to existing code demonstrating the proper guard pattern.",2026-03-10T12:24:53.165190+00:00
+gptme/gptme,1643,refactor: consolidate release pipeline into single workflow,https://github.com/gptme/gptme/pull/1643,"**External script downloaded from mutable `master` branch**
+
+`build_changelog.py` is fetched from `ActivityWatch/activitywatch@master` without a pinned commit SHA. A breaking change or malicious commit to that file at any point would silently affect every release build. This was also present in the deleted `scheduled-release.yml`, but the consolidation is a good opportunity to fix it.
+
+Consider pinning to a specific commit SHA:
+
+```suggestion
+          wget -q -O scripts/build_changelog.py \
+            https://raw.githubusercontent.com/ActivityWatch/activitywatch/<PINNED_SHA>/scripts/build_changelog.py
+```
+
+Or, if the script changes frequently and needs to stay up-to-date, at least pin to a tag rather than `master`.",https://github.com/gptme/gptme/pull/1643#discussion_r2911542336,"Fixed — pinned to commit `ade74fd` (Oct 2025, latest change). Also pinned the same URL in the Makefile.",2026-03-10T12:53:47.491000,Unpinned external script download enables supply chain attack,security,high,8,This is a legitimate security vulnerability - downloading an external script from a mutable branch (master) in a release pipeline could allow supply chain attacks if the upstream repository is compromised or makes breaking changes. This directly affects the integrity of released packages.,2026-03-10T14:28:19.701390+00:00
+posthog/posthog,50373,feat(dashboards): allow users to move dashboards into projects from the list page,https://github.com/PostHog/posthog/pull/50373,"Missing access control check for ""Move to another folder""
+
+Unlike the `Edit` and `Delete` buttons in the same actions overlay — both of which are wrapped in `AccessControlAction` with `minAccessLevel={AccessControlLevel.Editor}` — the new ""Move to another folder"" button is not access-controlled. Moving a dashboard to a different folder is a modification and should require at least editor-level access, consistent with the other mutation actions.
+
+```suggestion
+                                      {itemsByRef[`dashboard::${id}`] && (
+                                          <AccessControlAction
+                                              resourceType={AccessControlResourceType.Dashboard}
+                                              minAccessLevel={AccessControlLevel.Editor}
+                                              userAccessLevel={user_access_level}
+                                          >
+                                              <LemonButton
+                                                  onClick={() => {
+                                                      const entry = itemsByRef[`dashboard::${id}`]
+                                                      openMoveToModal([entry as FileSystemEntry])
+                                                  }}
+                                                  fullWidth
+                                                  data-attr=""dashboard-move-to-folder""
+                                              >
+                                                  Move to another folder
+                                              </LemonButton>
+                                          </AccessControlAction>
+                                      )}
+```
+
+**Rule Used:** When implementing new features, ensure that owners... ([source](https://app.greptile.com/review/custom-context?memory=9655b466-451a-401a-9ba0-5bf3e7b7f9f8))
+
+**Learnt From**
+[PostHog/posthog#31236](https://github.com/PostHog/posthog/pull/31236)
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: frontend/src/scenes/dashboard/dashboards/DashboardsTable.tsx
+Line: 214-225
+
+Comment:
+Missing access control check for ""Move to another folder""
+
+Unlike the `Edit` and `Delete` buttons in the same actions overlay — both of which are wrapped in `AccessControlAction` with `minAccessLevel={AccessControlLevel.Editor}` — the new ""Move to another folder"" button is not access-controlled. Moving a dashboard to a different folder is a modification and should require at least editor-level access, consistent with the other mutation actions.
+
+```suggestion
+                                      {itemsByRef[`dashboard::${id}`] && (
+                                          <AccessControlAction
+                                              resourceType={AccessControlResourceType.Dashboard}
+                                              minAccessLevel={AccessControlLevel.Editor}
+                                              userAccessLevel={user_access_level}
+                                          >
+                                              <LemonButton
+                                                  onClick={() => {
+                                                      const entry = itemsByRef[`dashboard::${id}`]
+                                                      openMoveToModal([entry as FileSystemEntry])
+                                                  }}
+                                                  fullWidth
+                                                  data-attr=""dashboard-move-to-folder""
+                                              >
+                                                  Move to another folder
+                                              </LemonButton>
+                                          </AccessControlAction>
+                                      )}
+```
+
+**Rule Used:** When implementing new features, ensure that owners... ([source](https://app.greptile.com/review/custom-context?memory=9655b466-451a-401a-9ba0-5bf3e7b7f9f8))
+
+**Learnt From**
+[PostHog/posthog#31236](https://github.com/PostHog/posthog/pull/31236)
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/50373#discussion_r2906778403,"This sounds like a potentially valid comment
+---
+oh looks like you adressed it already 🥳 ",2026-03-09T17:06:12.871000,Missing access control on dashboard move action,security,high,8,"This is a meaningful security catch - the new 'Move to another folder' button lacks access control that other mutation actions (Edit, Delete) have. This would allow users without editor-level access to move dashboards, which is an authorization bypass. The catch required understanding the access control pattern used elsewhere in the same component and recognizing the inconsistency.",2026-03-10T14:28:19.701390+00:00
