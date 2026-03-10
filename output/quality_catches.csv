@@ -10730,3 +10730,32 @@ function runTrigger(scriptPath: string, payload?: TimeEntry | null) {
 raycast/extensions,23908,Add Ray DSL Viewer extension,https://github.com/raycast/extensions/pull/23908,"**Remote rendering dependency**
 
 `mermaidToImageUrl` always sends the diagram content to `mermaid.ink` via an image URL. That means any Mermaid/Markdown input (including clipboard) is exfiltrated to a third-party service whenever the preview renders. If this is intended, it should be explicitly disclosed in the command/extension description (and ideally in README) so users understand their content is sent off-device; otherwise this needs a local rendering approach.",https://github.com/raycast/extensions/pull/23908#discussion_r2773678896,,2026-02-06T11:28:30.898000,User content silently exfiltrated to third-party service,security,high,8,This catches a significant privacy/security issue where user clipboard and input content is sent to mermaid.ink without user consent or disclosure. This is a meaningful data exposure concern that could leak sensitive information users paste into the extension.,2026-03-10T06:26:42.364654+00:00
+simstudioai/sim,3504,feat: inline chunk editor and table batch ops with undo/redo,https://github.com/simstudioai/sim/pull/3504,"**Stale `rowId` in undo stack after `create-row` redo**
+
+When a `create-row` action is redone, `createRowMutation.mutate(...)` issues a POST that returns a brand-new server-generated row ID. `popRedo` moves the original undo entry — which still carries the **old** `rowId` — back onto the undo stack. If the user then undoes again, `deleteRowMutation.mutate(action.rowId)` targets the stale ID, the server responds ""row not found"", and the deletion silently fails.
+
+The `patchRedoRowId` mechanism already exists on the store to handle exactly this pattern (see the `delete-rows` undo branch at line 105). The same approach is needed here: patch the undo entry's `rowId` after the redo `onSuccess` callback provides the newly created row's ID.
+
+```typescript
+case 'create-row': {
+  if (direction === 'undo') {
+    deleteRowMutation.mutate(action.rowId)
+  } else {
+    createRowMutation.mutate(
+      { data: {}, position: action.position },
+      {
+        onSuccess: (response) => {
+          const newRowId = extractCreatedRowId(response as Record<string, unknown>)
+          if (newRowId) {
+            // Patch the undo entry that was just pushed back onto the undo stack
+            patchUndoRowId(tableId, action.rowId, newRowId)
+          }
+        },
+      }
+    )
+  }
+  break
+}
+```
+
+Note: this also requires adding a `patchUndoRowId` action to the store, mirroring `patchRedoRowId`.",https://github.com/simstudioai/sim/pull/3504#discussion_r2910122313,Good catch — fixed. Added `patchUndoRowId` to the store (patches `create-row` entries in the undo stack) and wired it into the `create-row` redo path via `onSuccess` callback. See commit 30f723f.,2026-03-10T08:24:02.319000,Stale row ID in undo stack causes silent deletion failure,data_integrity,high,8,"This catch identifies a significant data integrity bug where redo of a create-row action would leave a stale row ID in the undo stack, causing subsequent undo operations to silently fail when trying to delete a non-existent row. This is a meaningful logic bug affecting the undo/redo feature that would cause user-visible problems in production.",2026-03-10T10:22:31.006829+00:00
