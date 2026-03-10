@@ -10944,3 +10944,169 @@ How can I resolve this? If you propose a fix, please make it concise.
 </details>",https://github.com/PostHog/posthog/pull/50373#discussion_r2906778403,"This sounds like a potentially valid comment
 ---
 oh looks like you adressed it already 🥳 ",2026-03-09T17:06:12.871000,Missing access control on dashboard move action,security,high,8,"This is a meaningful security catch - the new 'Move to another folder' button lacks access control that other mutation actions (Edit, Delete) have. This would allow users without editor-level access to move dashboards, which is an authorization bypass. The catch required understanding the access control pattern used elsewhere in the same component and recognizing the inconsistency.",2026-03-10T14:28:19.701390+00:00
+posthog/posthog,50426,feat: add multi-slack-integration support to subscriptions,https://github.com/PostHog/posthog/pull/50426,"**`target_value` cleared when editing existing subscriptions**
+
+`IntegrationChoice` has an internal `useEffect` that auto-selects the first integration whenever `value` is falsy (line 44–47 of `IntegrationChoice.tsx`). For any existing Slack subscription that has `integration_id = null` (i.e. all currently existing subscriptions), this auto-selection fires on mount and calls this `onChange` handler with `newValue = firstIntegrationId` and `value = null`. Since `newValue !== value` is true, `target_value` is immediately cleared.
+
+The result is that every time a user opens an existing Slack subscription for editing, their previously-selected Slack channel (the `target_value`) is wiped and they are forced to re-select it before saving. This is a silent regression — the form marks itself as changed and the user may not notice the cleared channel before hitting ""Save"".
+
+A safe fix is to only clear `target_value` for a user-initiated integration change, not the initial auto-selection. One approach:
+
+```tsx
+onChange={(newValue) => {
+    const previousValue = value
+    onChange(newValue)
+    // Only clear target_value when the user actively switches integrations,
+    // not during the initial auto-selection when value is null.
+    if (previousValue !== null && newValue !== previousValue) {
+        logic.actions.setSubscriptionValue('target_value', '')
+    }
+}}
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: frontend/src/lib/components/Subscriptions/views/EditSubscription.tsx
+Line: 252-257
+
+Comment:
+**`target_value` cleared when editing existing subscriptions**
+
+`IntegrationChoice` has an internal `useEffect` that auto-selects the first integration whenever `value` is falsy (line 44–47 of `IntegrationChoice.tsx`). For any existing Slack subscription that has `integration_id = null` (i.e. all currently existing subscriptions), this auto-selection fires on mount and calls this `onChange` handler with `newValue = firstIntegrationId` and `value = null`. Since `newValue !== value` is true, `target_value` is immediately cleared.
+
+The result is that every time a user opens an existing Slack subscription for editing, their previously-selected Slack channel (the `target_value`) is wiped and they are forced to re-select it before saving. This is a silent regression — the form marks itself as changed and the user may not notice the cleared channel before hitting ""Save"".
+
+A safe fix is to only clear `target_value` for a user-initiated integration change, not the initial auto-selection. One approach:
+
+```tsx
+onChange={(newValue) => {
+    const previousValue = value
+    onChange(newValue)
+    // Only clear target_value when the user actively switches integrations,
+    // not during the initial auto-selection when value is null.
+    if (previousValue !== null && newValue !== previousValue) {
+        logic.actions.setSubscriptionValue('target_value', '')
+    }
+}}
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/50426#discussion_r2908324825,implemented suggestion,2026-03-09T22:45:35.223000,Auto-selection silently clears user's Slack channel on edit,logic,high,8,"This catches a real user-facing regression where editing existing Slack subscriptions would silently wipe the previously-selected channel due to useEffect auto-selection logic firing on mount. Users could unknowingly save subscriptions with cleared target_value, causing data loss.",2026-03-10T16:32:45.335184+00:00
+berriai/litellm,22191,fix presidio memory leak,https://github.com/BerriAI/litellm/pull/22191,"**Sensitive data logged at INFO level**
+
+This `verbose_proxy_logger.info` call logs the original PII text (e.g., phone numbers, SSNs) in the message: `Created token ... for original text: '{new_text[start:end]}'`. Since the entire purpose of this module is to protect PII, logging the original sensitive text at INFO level undermines that goal. This should either be removed or downgraded to DEBUG level with the original text redacted.",https://github.com/BerriAI/litellm/pull/22191#discussion_r2859440854,,2026-02-26T14:44:52.565000,PII data logged at INFO level defeats privacy protection,security,high,8,"This is a security issue where the PII protection module itself logs sensitive data (phone numbers, SSNs, etc.) at INFO level, completely undermining the purpose of the guardrail. This could lead to PII exposure in production logs, which is a meaningful security vulnerability.",2026-03-10T16:32:45.335184+00:00
+berriai/litellm,23162,fix(security): strip secret_fields from guardrail logging response,https://github.com/BerriAI/litellm/pull/23162,"**`secret_fields` not stripped from `List[dict]` responses**
+
+The `guardrail_response` field is typed as `Optional[Union[dict, str, List[dict]]]` in `StandardLoggingGuardrailInformation`. The stripping only applies when `clean_guardrail_response` is a plain `dict`. If a guardrail returns a list of dicts where any inner dict contains `secret_fields`, those entries will be logged without stripping.
+
+While the primary trigger (guardrails_ai returning the full data dict) produces a top-level dict, the guard should be consistent with the declared type:
+
+```python
+if isinstance(clean_guardrail_response, dict):
+    clean_guardrail_response.pop(""secret_fields"", None)
+elif isinstance(clean_guardrail_response, list):
+    for item in clean_guardrail_response:
+        if isinstance(item, dict):
+            item.pop(""secret_fields"", None)
+```
+",https://github.com/BerriAI/litellm/pull/23162#discussion_r2906215914,,2026-03-09T15:34:38.396000,Secret fields not stripped from List[dict] guardrail responses,security,high,8,"This comment identifies a security vulnerability where secret_fields containing Authorization headers would not be stripped when guardrail_response is a List[dict] instead of a plain dict. This could lead to credential exposure in logs, which is a meaningful security bug since the PR's explicit purpose is to prevent logging of sensitive authentication data.",2026-03-10T16:32:45.335184+00:00
+twentyhq/twenty,18478,[Fix] : NOT filter not supported for record groups,https://github.com/twentyhq/twenty/pull/18478,"**Semantic mismatch: GQL NOT uses NOT(AND) but the workflow evaluator uses NOR**
+
+The GQL filter produced here is `not: { and: [A, B, ...] }`, which evaluates to **NOT(A AND B)** — i.e., true when *at least one* condition fails (by De Morgan's law: `¬(A∧B) = ¬A ∨ ¬B`).
+
+However, the companion `evaluateFilterConditions` implementation in `packages/twenty-server/src/modules/workflow/workflow-executor/workflow-actions/filter/utils/evaluate-filter-conditions.util.ts` uses:
+```typescript
+case 'NOT':
+  return allResults.every((result) => !result);
+```
+…which is **NOR** semantics — true only when *all* conditions fail (`¬A ∧ ¬B`). The test comments at line 1428 in the workflow spec explicitly describe this as ""None of"" (NOR semantics).
+
+For a group with two filters where one passes and one fails:
+- GQL: `not: { and: [pass, fail] }` → `NOT(true AND false)` → `NOT(false)` → **true**
+- Evaluator: `every(r => !r)` on `[true, false]` → **false**
+
+These produce opposite results in the partial-match case, meaning the same NOT group behaves differently in record views (GQL) vs. workflow filter evaluations.
+
+To align the GQL filter with NOR semantics, replace `and` inside `not` with `or`:
+
+```typescript
+  } else if (
+    currentRecordFilterGroup.logicalOperator ===
+    RecordFilterGroupLogicalOperator.NOT
+  ) {
+    return {
+      not: {
+        or: [
+          ...groupRecordGqlOperationFilters,
+          ...subGroupRecordGqlOperationFilters,
+        ],
+      },
+    };
+  } else {
+```
+
+`not: { or: [A, B] }` = NOT(A OR B) = ¬A ∧ ¬B = NOR, matching the evaluator's behaviour.",https://github.com/twentyhq/twenty/pull/18478#discussion_r2897753303,,2026-03-06T20:39:09.376000,Semantic mismatch between GQL NOT filter and workflow evaluator logic,logic,high,9,"This catches a significant logic bug where the GQL filter produces NOT(AND) semantics while the workflow evaluator uses NOR semantics, causing the same NOT filter group to produce opposite results in different contexts (record views vs workflow evaluations). This is a subtle but impactful correctness issue that would cause user-visible inconsistent behavior.",2026-03-10T16:32:45.335184+00:00
+posthog/posthog,50439,"refactor(dashboards): extract DashboardModals, move local state to logic, add tests",https://github.com/PostHog/posthog/pull/50439,"`new Date()` inside a Kea selector causes stale time comparison
+
+Kea selectors are memoized based on their input selectors (`s.dashboard` and `s.dashboardLoading`). Calling `new Date()` inside the selector body means the timestamp is captured at the moment the selector was last computed — it won't be refreshed just because time passes. If the dashboard loads within 30 seconds of creation, `isRecentlyCreated` will be `true` and the selector will cache that result. It will remain `true` indefinitely until `dashboard` or `dashboardLoading` changes again, meaning a newly-created dashboard could be stuck in ""new dashboard"" mode forever.
+
+The previous `useMemo` approach worked differently: it re-evaluated `new Date()` on every React render cycle, so it would naturally become stale after the component re-rendered for any reason.
+
+Consider removing the `isRecentlyCreated` check from the selector entirely (or basing it on a dedicated timestamp reducer rather than the current wall clock), for example:
+
+```suggestion
+        isNewDashboard: [
+            (s) => [s.dashboard, s.dashboardLoading],
+            (dashboard, dashboardLoading): boolean => {
+                if (!dashboard || dashboardLoading) {
+                    return false
+                }
+                return (
+                    Boolean(dashboard._highlight) ||
+                    dashboard.name === 'New Dashboard' ||
+                    !dashboard.tiles ||
+                    dashboard.tiles.length === 0
+                )
+            },
+        ],
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: frontend/src/scenes/dashboard/dashboardLogic.tsx
+Line: 1277-1292
+
+Comment:
+`new Date()` inside a Kea selector causes stale time comparison
+
+Kea selectors are memoized based on their input selectors (`s.dashboard` and `s.dashboardLoading`). Calling `new Date()` inside the selector body means the timestamp is captured at the moment the selector was last computed — it won't be refreshed just because time passes. If the dashboard loads within 30 seconds of creation, `isRecentlyCreated` will be `true` and the selector will cache that result. It will remain `true` indefinitely until `dashboard` or `dashboardLoading` changes again, meaning a newly-created dashboard could be stuck in ""new dashboard"" mode forever.
+
+The previous `useMemo` approach worked differently: it re-evaluated `new Date()` on every React render cycle, so it would naturally become stale after the component re-rendered for any reason.
+
+Consider removing the `isRecentlyCreated` check from the selector entirely (or basing it on a dedicated timestamp reducer rather than the current wall clock), for example:
+
+```suggestion
+        isNewDashboard: [
+            (s) => [s.dashboard, s.dashboardLoading],
+            (dashboard, dashboardLoading): boolean => {
+                if (!dashboard || dashboardLoading) {
+                    return false
+                }
+                return (
+                    Boolean(dashboard._highlight) ||
+                    dashboard.name === 'New Dashboard' ||
+                    !dashboard.tiles ||
+                    dashboard.tiles.length === 0
+                )
+            },
+        ],
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/50439#discussion_r2910187489,,2026-03-10T08:37:51.692000,Memoized selector with Date.now() causes stale time comparison,logic,medium,8,"This catches a real logic bug where using `new Date()` inside a memoized Kea selector causes the time comparison to become stale. The selector caches the result based on input selectors, so a dashboard could remain stuck in 'new dashboard' mode indefinitely after the initial 30-second window check passes. This is a subtle but meaningful behavioral bug.",2026-03-10T16:32:45.335184+00:00
