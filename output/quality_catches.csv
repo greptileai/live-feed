@@ -11591,3 +11591,40 @@ Consider adding back at minimum the tenant and organization filters on the joine
 					query.andWhere(p(`""timeLogs"".""startedAt"" BETWEEN :start AND :end`), { start, end });
 ```
 ",https://github.com/ever-co/ever-gauzy/pull/9588#discussion_r2916229889,,2026-03-11T06:40:36.309000,Removed tenant/organization isolation filters enables cross-tenant data leakage,security,high,8,"This comment identifies a security regression where tenant and organization isolation filters were removed from joined timeLogs queries. This breaks multi-tenant data isolation and could leak time logs across tenants/organizations if junction table data ever becomes inconsistent, representing a genuine security vulnerability in a multi-tenant SaaS application.",2026-03-11T12:26:22.411230+00:00
+berriai/litellm,23322,[Feat]: Add support for gemini embedding 2 preview,https://github.com/BerriAI/litellm/pull/23322,"**Text-only Vertex AI input raises `ValueError`**
+
+For `vertex_ai/gemini-embedding-2-preview` with text-only input, the routing logic sets `mode = ""batch_embedding""` (line 158). This is then passed to `_get_token_and_url(..., custom_llm_provider=""vertex_ai"", mode=""batch_embedding"")`. However, `_get_vertex_url` (called internally) has no handler for `mode == ""batch_embedding""` — it only handles `""chat""`, `""embedding""`, `""image_generation""`, and `""count_tokens""`. This falls through to the guard:
+
+```python
+if not url or not endpoint:
+    raise ValueError(f""Unable to get vertex url/endpoint for mode: batch_embedding"")
+```
+
+This means **any text-only embedding call to `vertex_ai/gemini-embedding-2-preview` will raise a `ValueError`** at runtime. The model is configured with `uses_embed_content: true` in `model_prices_and_context_window.json` and routed to this handler via `main.py`, yet text input is unusable.
+
+The fix should check the provider (and/or `uses_embed_content`) when determining mode for Vertex AI, so that text-only inputs also use `mode = ""embedding""` (which calls `_get_embedding_url` → `embedContent` endpoint) and the corresponding `transform_openai_input_gemini_embed_content` request body format:
+
+```python
+# Determine if this model always requires embedContent (e.g. vertex_ai/gemini-embedding-2-preview)
+uses_embed_content = (custom_llm_provider == ""vertex_ai"") and _check_uses_embed_content(model)
+
+if is_multimodal or uses_embed_content:
+    mode = ""embedding""
+else:
+    mode = ""batch_embedding""
+```
+",https://github.com/BerriAI/litellm/pull/23322#discussion_r2916049829,,2026-03-11T05:45:11.936000,Text-only Vertex AI embeddings raise ValueError at runtime,runtime,high,8,This catch identifies a genuine runtime bug where text-only embedding calls to vertex_ai/gemini-embedding-2-preview will always fail with a ValueError because the mode 'batch_embedding' has no handler in _get_vertex_url. This is a meaningful production bug that would break a core feature for users.,2026-03-11T14:27:39.571211+00:00
+berriai/litellm,23331,fix(logging): scrub callback config params to prevent Langfuse secret leak,https://github.com/BerriAI/litellm/pull/23331,"**`self.optional_params` remains unsanitized**
+
+On line 530, `self.optional_params = optional_params` stores the raw (unsanitized) dict. The sanitized copy is only placed inside `model_call_details`. While `self.optional_params` is currently only used internally (for cost calculation at line 1455), the field is a public attribute on the `Logging` object. Any code that accesses `logging_obj.optional_params` directly (e.g. custom logger hooks) will still receive the unredacted params including credentials.
+
+Consider also sanitizing `self.optional_params`:
+
+```suggestion
+        self.optional_params = optional_params
+        sanitized_optional_params = scrub_callback_config_params_from_dict(
+            dict(optional_params)
+        )
+```
+
+and replacing `self.optional_params` for cost calculation with the underlying original where needed, or document that the attribute is intentionally unredacted for internal use only.",https://github.com/BerriAI/litellm/pull/23331#discussion_r2916668610,,2026-03-11T08:19:10.047000,Incomplete sanitization leaves credentials exposed in public attribute,security,high,8,"Comment 0 identifies a security vulnerability where the fix to prevent credential leaks is incomplete - while model_call_details is sanitized, self.optional_params remains a public attribute containing raw credentials that custom logger hooks could access, defeating the purpose of the security fix.",2026-03-11T14:27:39.571211+00:00
