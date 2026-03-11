@@ -11628,3 +11628,112 @@ Consider also sanitizing `self.optional_params`:
 ```
 
 and replacing `self.optional_params` for cost calculation with the underlying original where needed, or document that the attribute is intentionally unredacted for internal use only.",https://github.com/BerriAI/litellm/pull/23331#discussion_r2916668610,,2026-03-11T08:19:10.047000,Incomplete sanitization leaves credentials exposed in public attribute,security,high,8,"Comment 0 identifies a security vulnerability where the fix to prevent credential leaks is incomplete - while model_call_details is sanitized, self.optional_params remains a public attribute containing raw credentials that custom logger hooks could access, defeating the purpose of the security fix.",2026-03-11T14:27:39.571211+00:00
+solana-foundation/kora,378,"fix(security): harden sig_verify, oracle staleness, transfer fees, and CPI stubs",https://github.com/solana-foundation/kora/pull/378,"**Staleness check silently bypassed when `block_id` is `None`**
+
+When `max_price_staleness_slots > 0`, a price whose `block_id` is `None` passes straight through `Ok(())` without any check. This completely defeats the purpose of the staleness guard: an operator who sets `max_price_staleness_slots` expects *all* prices to be validated, but any oracle that omits `block_id` (the Mock oracle, any future third-party oracle, or a malfunctioning Jupiter response) will silently bypass the limit.
+
+The safe behaviour is to treat a missing `block_id` as an unverifiable price and return an error when staleness enforcement is enabled:
+
+```suggestion
+        let max_staleness = config.validation.max_price_staleness_slots;
+        if max_staleness > 0 {
+            match price.block_id {
+                Some(block_id) => {
+                    let current_slot = rpc_client
+                        .get_slot()
+                        .await
+                        .map_err(|e| KoraError::RpcError(format!(""Failed to get current slot: {e}"")))?;
+                    let age = current_slot.saturating_sub(block_id);
+                    if age > max_staleness {
+                        return Err(KoraError::ValidationError(format!(
+                            ""Oracle price data{} is stale: age {} slots exceeds max {} slots"",
+                            label, age, max_staleness
+                        )));
+                    }
+                }
+                None => {
+                    return Err(KoraError::ValidationError(format!(
+                        ""Oracle price data{} has no block_id; cannot verify staleness"",
+                        label
+                    )));
+                }
+            }
+        }
+        Ok(())
+```
+",https://github.com/solana-foundation/kora/pull/378#discussion_r2918933014,,2026-03-11T14:56:21.051000,Missing block_id silently bypasses oracle staleness validation,security,high,8,"Comment 3 identifies a security bypass where oracle price staleness checks are completely skipped when block_id is None, defeating the purpose of the staleness guard. This allows potentially stale or manipulated price data to pass validation, which could lead to incorrect fee calculations or financial losses in a blockchain payment context.",2026-03-11T16:28:34.723783+00:00
+infisical/infisical,5652,fix(auth): show sub-org selector during SAML/OAuth and CLI login,https://github.com/Infisical/infisical/pull/5652,"**`willAutoSelectDefaultOrg` prematurely triggers org selection during loading**
+
+The memo returns `true` while `orgsWithSubOrgs.isPending` to keep the spinner visible — but the `useEffect` at line 323 also depends on `willAutoSelectDefaultOrg` as a trigger condition:
+
+```ts
+if (willAutoSelectDefaultOrg && defaultSelectedOrg) {
+  handleSelectOrganization(defaultSelectedOrg);
+}
+```
+
+Because `organizations` (a cheaper call) often resolves before `orgsWithSubOrgs`, here is the likely sequence when the server's `defaultAuthOrgId` is configured:
+
+1. `organizations.data` loads → `defaultSelectedOrg` is set
+2. `orgsWithSubOrgs.isPending` is still `true` → `willAutoSelectDefaultOrg = true`
+3. The effect fires and **calls `handleSelectOrganization` immediately** — before we know whether the org has sub-orgs
+4. `orgsWithSubOrgs.data` later arrives with sub-orgs → `willAutoSelectDefaultOrg` becomes `false`, but the API call already happened
+
+This race condition can still bypass the sub-org selector for users in a deployment with `defaultAuthOrgId` set, which is exactly what this PR aims to fix.
+
+The two concerns should be separated: use `willAutoSelectDefaultOrg` **only** to determine whether to auto-select (i.e., never `true` while still pending), and derive the spinner condition independently:
+
+```ts
+// True only after data has loaded and confirms no sub-orgs exist
+const willAutoSelectDefaultOrg = useMemo(() => {
+  if (!defaultSelectedOrg || callbackPort || orgsWithSubOrgs.isPending) return false;
+  const orgEntry = orgsWithSubOrgs.data?.find((o) => o.id === defaultSelectedOrg.id);
+  return (orgEntry?.subOrganizations.length ?? 0) === 0;
+}, [defaultSelectedOrg, callbackPort, orgsWithSubOrgs.isPending, orgsWithSubOrgs.data]);
+
+// Separate flag: keep spinner while sub-org data is still loading for a default org
+const isLoadingSubOrgCheck = !!defaultSelectedOrg && !callbackPort && orgsWithSubOrgs.isPending;
+```
+
+Then in the loading guard (line 504):
+```ts
+((isInitialOrgCheckLoading || willAutoSelectDefaultOrg || isLoadingSubOrgCheck) && !shouldShowMfa)
+```
+",https://github.com/Infisical/infisical/pull/5652#discussion_r2915159864,,2026-03-11T00:10:19.793000,Race condition bypasses sub-org selector during auth flow,concurrency,high,8,"This is a well-analyzed race condition where the auto-select logic fires before sub-org data loads, directly undermining the PR's security-related goal of showing the sub-org selector during SAML/OAuth login. The detailed trace of the sequence and proposed fix demonstrates deep understanding of the async timing issue that would be difficult to catch without careful code analysis.",2026-03-11T16:28:34.723783+00:00
+posthog/posthog,50534,feat(data-warehouse): add optional names filter to get_schemas,https://github.com/PostHog/posthog/pull/50534,"When `names=[]` is passed, `tuple([])` produces an empty tuple `()` and the resulting SQL fragment `AND table_name IN ()` is invalid syntax — SQL Server will raise a syntax error. This is in contrast to the PostgreSQL/Redshift implementations which use `= ANY(%(names)s)`, which correctly handles an empty array. The same issue exists in the MySQL implementation.
+
+Consider guarding against this edge case:
+
+```suggestion
+        if names is not None:
+            if not names:
+                connection.close()
+                return {}
+            params[""names""] = tuple(names)
+            names_filter = ""AND table_name IN %(names)s""
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: posthog/temporal/data_imports/sources/mssql/mssql.py
+Line: 68-70
+
+Comment:
+When `names=[]` is passed, `tuple([])` produces an empty tuple `()` and the resulting SQL fragment `AND table_name IN ()` is invalid syntax — SQL Server will raise a syntax error. This is in contrast to the PostgreSQL/Redshift implementations which use `= ANY(%(names)s)`, which correctly handles an empty array. The same issue exists in the MySQL implementation.
+
+Consider guarding against this edge case:
+
+```suggestion
+        if names is not None:
+            if not names:
+                connection.close()
+                return {}
+            params[""names""] = tuple(names)
+            names_filter = ""AND table_name IN %(names)s""
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/50534#discussion_r2913392419,,2026-03-10T17:37:22.693000,Empty list causes SQL syntax error in MSSQL/MySQL queries,runtime,high,8,"This catches a real runtime bug where passing an empty list for `names` would generate invalid SQL syntax (`IN ()`) causing database errors in production. The reviewer correctly identifies the edge case, explains the root cause, notes it affects multiple files, and provides a working fix.",2026-03-11T16:28:34.723783+00:00
