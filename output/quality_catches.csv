@@ -11305,3 +11305,140 @@ When a list-content message has `redacted_thinking` blocks in its inline content
 ```suggestion
                         if isinstance(_item, dict) and _item.get(""type"") in (""thinking"", ""redacted_thinking""):
 ```",https://github.com/BerriAI/litellm/pull/23093#discussion_r2912769035,,2026-03-10T15:54:15.134000,Missing redacted_thinking block type causes duplicate blocks and API errors,logic,high,8,"The comment identifies a real logic bug where `redacted_thinking` blocks are not detected by the `_list_has_thinking` check (only checks for `type == ""thinking""`), causing duplicate blocks to be added to the payload and triggering Anthropic's signature verification error in production. This is a meaningful bug that would affect users.",2026-03-11T00:45:24.101121+00:00
+simstudioai/sim,3511,fix(credentials): autosync behaviour cross workspace,https://github.com/simstudioai/sim/pull/3511,"**Silent draft failure leaves user with no credential**
+
+The `try/catch` here only catches network-level errors (e.g., no internet). HTTP error responses (`4xx`/`5xx`) from `/api/credentials/draft` do **not** throw — `fetch` resolves normally with those status codes — so they are silently ignored.
+
+In the new architecture, credential creation depends entirely on a draft existing: `processCredentialDraft` in `auth.ts` returns early when no draft is found. If the draft POST fails (e.g., server returns 500), the OAuth modal still opens, the user authenticates, but `processCredentialDraft` finds no draft and creates nothing. The user's OAuth account is linked but no credential row appears in the workspace — a silent, complete failure.
+
+The old `syncWorkspaceOAuthCredentialsForUser` would have been a fallback for this, but that code has been removed in this PR.
+
+Consider checking `response.ok` and treating HTTP failures the same way as network failures — either blocking the OAuth flow or noting the risk more explicitly:
+
+```ts
+try {
+  const res = await fetch('/api/credentials/draft', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      workspaceId,
+      providerId: connectorProviderId,
+      displayName,
+    }),
+  })
+  if (!res.ok) {
+    // Draft creation failed — log or handle; OAuth flow should not proceed
+    // without a draft since credential creation now depends on it.
+    logger.warn('Failed to create credential draft', { status: res.status })
+    return
+  }
+} catch {
+  // Network error — draft creation failed
+  return
+}
+```
+",https://github.com/simstudioai/sim/pull/3511#discussion_r2915460716,,2026-03-11T02:14:23.078000,Silent credential draft failure breaks OAuth flow completely,logic,high,8,"This is a meaningful logic bug where HTTP error responses (4xx/5xx) are silently ignored due to fetch not throwing on HTTP errors. The comment correctly identifies that this causes a complete silent failure in the new credential architecture - users complete OAuth but no credential is created, with no fallback since the old sync mechanism was removed in this PR. This is a non-obvious bug with real user impact.",2026-03-11T03:07:32.178620+00:00
+berriai/litellm,23314,feat: add model_cost aliases expansion support,https://github.com/BerriAI/litellm/pull/23314,"The docstring opened at line 187 is never closed with `""""""`. As a result, the entire function body (lines 196–237) — including variable declarations, the for loop, conflict-handling logic, and the return statement — is treated as plain text inside the docstring string. The function has no executable body and will always return `None`.
+
+In `get_model_cost_map`, every return path calls `_expand_model_aliases(...)`, so `litellm.model_cost` will be set to `None` at startup, breaking all downstream model cost and capability lookups.
+
+Fix: Add a closing `""""""` at the end of line 195:
+
+```suggestion
+    If an alias collides with an existing canonical entry the alias is
+    skipped and a warning is logged.
+    """"""
+    aliases_to_add: Dict[str, dict] = {}
+```",https://github.com/BerriAI/litellm/pull/23314#discussion_r2915441634,,2026-03-11T02:06:36.779000,"Unclosed docstring makes function return None, breaking startup",runtime,critical,9,"The unclosed docstring causes the entire function body to be treated as a string literal, making the function return None. Since get_model_cost_map calls this function on every return path, litellm.model_cost would be set to None at startup, breaking all model cost lookups - a guaranteed production crash.",2026-03-11T03:07:32.178620+00:00
+berriai/litellm,23297,feat(chat-ui): responses API + MCP tool execution in /chat,https://github.com/BerriAI/litellm/pull/23297,"**Duplicate conversation context sent on every turn after the first**
+
+When `responsesSessionId` is non-null (i.e., from the second user message onward), `makeOpenAIResponsesRequest` is called with **both** the full conversation `history` (all prior user + assistant messages plus the new user message) **and** `previousResponseId` pointing to the prior session.
+
+The OpenAI Responses API with `previous_response_id` chains sessions: the prior context is already stored server-side and the `input` field is supposed to contain **only the new message(s) for this turn**. Sending the full history as `input` alongside `previous_response_id` causes the model to see the entire prior exchange twice:
+
+- Context from `previous_response_id` chain: `[user₁, assistant₁]`
+- Context from `input` (full history): `[user₁, assistant₁, user₂]`
+- Net context seen by the model: `[user₁, assistant₁, user₁, assistant₁, user₂]`
+
+This duplication grows with every turn, wasting tokens and potentially degrading response quality.
+
+The fix is to send only the newest user message as `input` when `responsesSessionId` is already set:
+
+```tsx
+const history = responsesSessionId
+  ? [{ role: ""user"" as const, content: trimmed }]
+  : [
+      ...(historyOverride ?? (activeConversation?.messages ?? [])
+        .filter((m): m is typeof m & { role: ""user"" | ""assistant"" } =>
+          m.role === ""user"" || m.role === ""assistant""
+        )
+        .map((m) => ({ role: m.role, content: m.content }))
+      ),
+      { role: ""user"" as const, content: trimmed },
+    ];
+```",https://github.com/BerriAI/litellm/pull/23297#discussion_r2915093843,,2026-03-10T23:46:45.630000,Duplicate conversation context sent causing token waste and quality degradation,logic,high,8,"This comment identifies a significant logic bug where the full conversation history is sent alongside the session ID, causing the model to see all prior messages twice. This grows worse with each turn, wasting tokens and degrading response quality - a real user-facing bug in the core chat functionality.",2026-03-11T03:07:32.178620+00:00
+onyx-dot-app/onyx,9234,fix: Consolidate search state-machine,https://github.com/onyx-dot-app/onyx/pull/9234,"**Phase set to `""search-results""` after search was aborted**
+
+`performSearch` silently swallows `AbortError` by returning normally instead of re-throwing. Because of this, both `submit` and `refineSearch` unconditionally call `setPhase(""search-results"")` after the awaited `performSearch` resolves, even when the search was cancelled.
+
+Concretely, if `reset()` is called while a search is in-flight:
+1. `reset()` aborts the `AbortController` and calls `setPhase(""idle"")`
+2. `performSearch` catches the `AbortError` and **returns without throwing**
+3. `submit` resumes after `await performSearch(...)` and calls `setPhase(""search-results"")`, overriding the `""idle""` state set in step 1
+
+This leaves the UI stuck in `""search-results""` with empty results, showing `SearchUI` with no data. The same race occurs in `refineSearch` and for rapid re-submits where the first in-flight search is aborted by the second `submit`.
+
+The most targeted fix is to check whether the abort controller has already fired before advancing the phase:
+
+```
+// Search mode: immediately show SearchUI with loading state
+if (appMode === ""search"") {
+  setPhase(""searching"");
+  await performSearch(submitQuery, filters);
+  if (searchAbortRef.current?.signal.aborted) return;
+  setPhase(""search-results"");
+  setAppMode(""search"");
+  return;
+}
+```
+
+Apply the same guard in the `auto` branch and in `refineSearch`.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: web/src/ee/providers/QueryControllerProvider.tsx
+Line: 160-165
+
+Comment:
+**Phase set to `""search-results""` after search was aborted**
+
+`performSearch` silently swallows `AbortError` by returning normally instead of re-throwing. Because of this, both `submit` and `refineSearch` unconditionally call `setPhase(""search-results"")` after the awaited `performSearch` resolves, even when the search was cancelled.
+
+Concretely, if `reset()` is called while a search is in-flight:
+1. `reset()` aborts the `AbortController` and calls `setPhase(""idle"")`
+2. `performSearch` catches the `AbortError` and **returns without throwing**
+3. `submit` resumes after `await performSearch(...)` and calls `setPhase(""search-results"")`, overriding the `""idle""` state set in step 1
+
+This leaves the UI stuck in `""search-results""` with empty results, showing `SearchUI` with no data. The same race occurs in `refineSearch` and for rapid re-submits where the first in-flight search is aborted by the second `submit`.
+
+The most targeted fix is to check whether the abort controller has already fired before advancing the phase:
+
+```
+// Search mode: immediately show SearchUI with loading state
+if (appMode === ""search"") {
+  setPhase(""searching"");
+  await performSearch(submitQuery, filters);
+  if (searchAbortRef.current?.signal.aborted) return;
+  setPhase(""search-results"");
+  setAppMode(""search"");
+  return;
+}
+```
+
+Apply the same guard in the `auto` branch and in `refineSearch`.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/9234#discussion_r2912965957,Fixed in c3a82418f.,2026-03-10T16:26:01.683000,Race condition allows aborted search to override reset state,concurrency,high,8,"Comment 7 identifies a race condition where an aborted search can override the 'idle' state set by reset(), leaving the UI stuck showing SearchUI with no data. This is a meaningful concurrency bug that would cause incorrect UI state in production when users rapidly interact with search.",2026-03-11T03:07:32.178620+00:00
