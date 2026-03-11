@@ -11576,3 +11576,18 @@ The established pattern in this codebase (see `funnelPathsExpansionLogic.ts:94`)
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/PostHog/posthog/pull/50572#discussion_r2914814072,,2026-03-10T22:21:54.504000,Missing breakpoint() causes spurious error toasts on request cancellation,concurrency,medium,8,"This is a meaningful concurrency bug in Kea's listener pattern. When a user types quickly, older requests get superseded but their catch blocks incorrectly show error toasts and mark state as errored because BreakpointError isn't handled. The reviewer correctly identified the established codebase pattern and the specific user-facing impact (spurious error messages). This requires framework-specific knowledge and isn't something a linter would catch.",2026-03-11T10:23:30.072681+00:00
+ever-co/ever-gauzy,9588,fix(core): resolve expired S3 presigned URLs for employee time slot profile images,https://github.com/ever-co/ever-gauzy/pull/9588,"**Removed tenant/org isolation filters on joined `timeLogs` in inner query**
+
+The previous implementation explicitly filtered `timeLogs.tenantId`, `timeLogs.organizationId`, and `timeLogs.employeeId` in the inner time-slot query for the TypeORM branch. This PR removes all three filters, leaving only a date-range filter on `timeLogs.startedAt`.
+
+While in practice `time_slot` is already constrained to a specific `tenantId`, `organizationId`, and `employeeId`, the removal of explicit filters on the joined `timeLogs` breaks the defence-in-depth principle. If a `time_slot_time_logs` junction row is ever created pointing across tenants or organisations (e.g. via a data migration bug), this query would silently return time logs from a different tenant/org.
+
+Consider adding back at minimum the tenant and organization filters on the joined `timeLogs`:
+
+```suggestion
+					// Filter joined timeLogs by date range
+					query.andWhere(p(`""timeLogs"".""tenantId"" = :tenantId`), { tenantId });
+					query.andWhere(p(`""timeLogs"".""organizationId"" = :organizationId`), { organizationId });
+					query.andWhere(p(`""timeLogs"".""startedAt"" BETWEEN :start AND :end`), { start, end });
+```
+",https://github.com/ever-co/ever-gauzy/pull/9588#discussion_r2916229889,,2026-03-11T06:40:36.309000,Removed tenant/organization isolation filters enables cross-tenant data leakage,security,high,8,"This comment identifies a security regression where tenant and organization isolation filters were removed from joined timeLogs queries. This breaks multi-tenant data isolation and could leak time logs across tenants/organizations if junction table data ever becomes inconsistent, representing a genuine security vulnerability in a multi-tenant SaaS application.",2026-03-11T12:26:22.411230+00:00
