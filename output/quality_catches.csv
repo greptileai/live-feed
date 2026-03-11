@@ -11531,3 +11531,48 @@ if team_id is not None and isinstance(team_id, str) and team_id.strip():
         )
     redacted_mcp_servers = await _get_team_scoped_mcp_server_list(team_id.strip())
 ```",https://github.com/BerriAI/litellm/pull/23323#discussion_r2916166403,,2026-03-11T06:20:41.231000,Missing authorization allows enumeration of any team's MCP servers,security,critical,9,"This is a serious authorization bypass vulnerability where any authenticated user can enumerate MCP server configurations for any team by simply passing an arbitrary team_id parameter, without verifying team membership. This exposes sensitive server configuration data across team boundaries.",2026-03-11T08:22:13.769551+00:00
+posthog/posthog,50572,fix: handle API errors in taxonomic filter property values loading,https://github.com/PostHog/posthog/pull/50572,"Missing `breakpoint()` inside catch block. Kea's `breakpoint()` (line 455, inside the `try`) throws a `BreakpointError` when a newer listener invocation has superseded this one (i.e. the user triggered another load while this one was in flight). Because `BreakpointError` is *not* a `DOMException`, the `AbortError` guard on line 488 won't catch it, so execution falls through to `setOptionsError` and `lemonToast.error(...)` — incorrectly marking the options as errored and showing a spurious ""Failed to load property values"" toast.
+
+The established pattern in this codebase (see `funnelPathsExpansionLogic.ts:94`) is to call `breakpoint()` at the top of the catch block so that Kea's own cancellation signal is re-thrown before user-visible error handling runs:
+
+```suggestion
+            } catch (e) {
+                breakpoint()
+                // Don't show error for aborted requests (user typed new search query)
+                if (e instanceof DOMException && e.name === 'AbortError') {
+                    return
+                }
+                cache.abortController = null
+                actions.setOptionsError(propertyKey)
+                lemonToast.error('Failed to load property values')
+            }
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: frontend/src/models/propertyDefinitionsModel.ts
+Line: 486-494
+
+Comment:
+Missing `breakpoint()` inside catch block. Kea's `breakpoint()` (line 455, inside the `try`) throws a `BreakpointError` when a newer listener invocation has superseded this one (i.e. the user triggered another load while this one was in flight). Because `BreakpointError` is *not* a `DOMException`, the `AbortError` guard on line 488 won't catch it, so execution falls through to `setOptionsError` and `lemonToast.error(...)` — incorrectly marking the options as errored and showing a spurious ""Failed to load property values"" toast.
+
+The established pattern in this codebase (see `funnelPathsExpansionLogic.ts:94`) is to call `breakpoint()` at the top of the catch block so that Kea's own cancellation signal is re-thrown before user-visible error handling runs:
+
+```suggestion
+            } catch (e) {
+                breakpoint()
+                // Don't show error for aborted requests (user typed new search query)
+                if (e instanceof DOMException && e.name === 'AbortError') {
+                    return
+                }
+                cache.abortController = null
+                actions.setOptionsError(propertyKey)
+                lemonToast.error('Failed to load property values')
+            }
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/50572#discussion_r2914814072,,2026-03-10T22:21:54.504000,Missing breakpoint() causes spurious error toasts on request cancellation,concurrency,medium,8,"This is a meaningful concurrency bug in Kea's listener pattern. When a user types quickly, older requests get superseded but their catch blocks incorrectly show error toasts and mark state as errored because BreakpointError isn't handled. The reviewer correctly identified the established codebase pattern and the specific user-facing impact (spurious error messages). This requires framework-specific knowledge and isn't something a linter would catch.",2026-03-11T10:23:30.072681+00:00
