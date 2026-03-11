@@ -11442,3 +11442,39 @@ Apply the same guard in the `auto` branch and in `refineSearch`.
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/onyx-dot-app/onyx/pull/9234#discussion_r2912965957,Fixed in c3a82418f.,2026-03-10T16:26:01.683000,Race condition allows aborted search to override reset state,concurrency,high,8,"Comment 7 identifies a race condition where an aborted search can override the 'idle' state set by reset(), leaving the UI stuck showing SearchUI with no data. This is a meaningful concurrency bug that would cause incorrect UI state in production when users rapidly interact with search.",2026-03-11T03:07:32.178620+00:00
+berriai/litellm,21398,feat(openai_like): add Responses API support to JSON providers,https://github.com/BerriAI/litellm/pull/21398,"**Perplexity JSON entry causes critical regression in chat completions**
+
+Adding `""perplexity""` to this file creates a critical issue. In `ProviderConfigManager.get_provider_chat_config()`, JSON providers are checked **first** (utils.py lines 8064-8072):
+
+```python
+# Check JSON providers FIRST (these override standard mappings)
+if JSONProviderRegistry.exists(provider.value):
+    ...
+    return create_config_class(provider_config)()  # ← returns generic JSON config
+```
+
+Since `LlmProviders.PERPLEXITY.value == ""perplexity""`, the lookup matches this JSON entry **before** reaching `_PROVIDER_CONFIG_MAP`, silently replacing the Python `PerplexityChatConfig` with a generic JSON-generated class for all Perplexity chat completion requests. This breaks:
+
+1. **`PERPLEXITY_API_KEY` fallback** — Only `PERPLEXITYAI_API_KEY` is recognized; existing users only setting `PERPLEXITY_API_KEY` will get 401 errors.
+2. **`PERPLEXITY_API_BASE` env var support** — The generic JSON config does not check this env var.
+3. **Perplexity-specific response parsing** — Citation annotations (`ChatCompletionAnnotationURLCitation`), cost dict conversion, and other custom transformations are lost.
+
+Either remove the Perplexity JSON entry (Python class already handles everything) or invert the lookup order in `get_provider_chat_config()` to prioritize Python classes (as `get_provider_responses_api_config()` correctly does).",https://github.com/BerriAI/litellm/pull/21398#discussion_r2914412996,,2026-03-10T20:53:21.173000,JSON provider registry silently overrides Python chat config breaking Perplexity,logic,high,8,"This identifies a critical regression where adding Perplexity to the JSON providers file causes the JSON config to be checked first, silently replacing the custom Python PerplexityChatConfig. This would break existing users relying on PERPLEXITY_API_KEY env var and lose Perplexity-specific response parsing including citation annotations.",2026-03-11T04:42:19.104285+00:00
+berriai/litellm,23297,feat(chat-ui): responses API + MCP tool execution in /chat,https://github.com/BerriAI/litellm/pull/23297,"**Edit/retry sends stale `responsesSessionId` alongside the truncated history**
+
+When `handleEditAndResend` calls `handleSend(newContent, priorMessages)`, the code correctly enters the `historyOverride` branch and builds `history = [...priorMessages, newContent]` — the rewound conversation. However, `responsesSessionId` is **not reset** before this call, so `makeOpenAIResponsesRequest` is invoked with both:
+
+- `input`: the truncated history (up to the edit point), and
+- `previous_response_id`: the session from the *latest* turn (which includes all the messages that were just truncated).
+
+The server-side session chain restores the full pre-edit context on top of the new input, meaning the model sees the truncated history **twice** — once from the input and once from the session — producing duplicated or inconsistent results that grow worse with each subsequent edit.
+
+The simplest fix is to derive `previousResponseId` conditionally inside `handleSend` so that any `historyOverride` call always starts a fresh session:
+
+```tsx
+// When historyOverride is used (edit / retry), the server-side session chain
+// is no longer valid for the rewritten history, so we must start fresh.
+const previousResponseId = historyOverride ? null : responsesSessionId;
+```
+
+Then replace every reference to `responsesSessionId` in the `makeOpenAIResponsesRequest` call with `previousResponseId`.",https://github.com/BerriAI/litellm/pull/23297#discussion_r2915125639,,2026-03-10T23:58:08.741000,Edit/retry sends stale session ID causing duplicate context,logic,high,8,"This catches a significant logic bug where editing/retrying a message uses a stale responsesSessionId, causing the server-side session chain to restore full pre-edit context alongside the truncated history. This results in duplicated/inconsistent context that grows worse with each edit, directly affecting model response quality.",2026-03-11T04:42:19.104285+00:00
