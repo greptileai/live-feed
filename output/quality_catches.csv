@@ -11895,3 +11895,39 @@ if (my_relative_index == send_peer_index &&
   return nullptr;
 }
 ```",https://github.com/NVIDIA/Fuser/pull/5963#discussion_r2915146212,,2026-03-11T00:06:02.057000,Global device rank compared against relative team indices causes incorrect local-copy bypass,logic,high,8,"This catch identifies a subtle but significant logic bug where global device ranks are incorrectly compared against relative team indices. For teams not starting at rank 0, the local-copy optimization is silently skipped, causing unnecessary NCCL send/recv operations to self instead of the intended no-op path. This would cause incorrect behavior in production for multi-device configurations.",2026-03-11T20:18:09.345044+00:00
+synnaxlabs/synnax,2066,SY-3901: Retry Acquiring Control on Core Restart,https://github.com/synnaxlabs/synnax/pull/2066,"**Concurrent retries can leak a writer**
+
+If two async operations (e.g. a `set()` and a `setAuthority()`) run concurrently and both receive a retryable error at the same time, both enter the retry path independently. Each will:
+
+1. Call `closeWriter()` — both race to close the same `this.writer` and set `this.writer = undefined`.
+2. Call `doAcquire()` — both open a **new** writer via `client.openWriter(...)`.
+3. Each stores its newly opened writer into `this.writer`, overwriting the other.
+
+The writer opened by the first `doAcquire()` to complete is then overwritten by the second without ever being closed, resulting in a resource leak and a potentially orphaned control subject on the server.
+
+A guard such as a simple in-progress flag (or making `doAcquire` idempotent while acquisition is already running) would prevent duplicate acquisitions:
+
+```ts
+private acquireInProgress = false;
+
+private async withRetry(fn: () => Promise<void>): Promise<void> {
+  if (this.writer == null && !this.acquireInProgress) await this.doAcquire();
+  try {
+    await fn();
+  } catch (e) {
+    if (!Controller.isRetryable(e)) throw e;
+    await this.closeWriter();
+    if (!this.acquireInProgress) await this.doAcquire();
+    await fn();
+  }
+}
+```
+
+Note that `doAcquire` itself would need to set/unset `acquireInProgress` around the `openWriter` call.",https://github.com/synnaxlabs/synnax/pull/2066#discussion_r2913826237,,2026-03-10T19:01:33.879000,Concurrent retry operations cause writer resource leak,concurrency,high,8,"This comment identifies a real race condition where concurrent retry operations can both acquire new writers, with one being overwritten and leaked without being closed. This causes resource leaks and orphaned server-side control subjects - a meaningful production bug that wouldn't be caught by static analysis.",2026-03-11T22:16:37.675660+00:00
+nvidia/nvflare,4295,[2.7] Added fix for RCE bug caused by not validating type_name,https://github.com/NVIDIA/NVFlare/pull/4295,"**Whitelist bypassed via `pack()` auto-registration**
+
+When `pack()` auto-registers a type (line 135 or 141), `register_data_classes()` / `register_enum_types()` is called, which adds the type to `_type_name_whitelist`. Because `reset()` never clears `_type_name_whitelist`, any type serialized in the same process session is permanently whitelisted — even if `reset()` is called afterwards.
+
+In a scenario where a **legitimate** server serialization path processes attacker-influenced data (e.g., client-supplied model metadata arriving as a data class before aggregation), the class name of that data class would be added to `_type_name_whitelist`. After a subsequent `reset()`, an adversary could craft a deserialization payload referencing that same type name, pass the whitelist check, and reconstruct that object with fully attacker-controlled attributes via `DataClassDecomposer`.
+
+This doesn't restore full arbitrary-class-loading RCE, but it creates a route for attacker-controlled object injection for any type that passed through `pack()` in the server's lifetime. Consider also adding runtime-registered types to `_type_name_whitelist` only when explicitly called (e.g., via `register_data_classes()`) and *not* via the implicit `pack()` auto-registration path, or clearing auto-registered entries on `reset()`.",https://github.com/NVIDIA/NVFlare/pull/4295#discussion_r2915459306,auto-register is removed.,2026-03-11T02:14:02.121000,Whitelist bypass allows attacker-controlled object injection via auto-registration,security,high,9,"This comment identifies a security vulnerability where the whitelist mechanism meant to prevent RCE can be bypassed through the pack() auto-registration path. Attacker-influenced data classes that pass through serialization become permanently whitelisted, allowing subsequent deserialization attacks even after reset(). This is a meaningful security flaw in code explicitly designed to fix an RCE vulnerability.",2026-03-11T22:16:37.675660+00:00
