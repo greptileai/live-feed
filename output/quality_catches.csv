@@ -11878,3 +11878,20 @@ cpu_offload_context, sync_function = get_cpu_offload_context(
 ```
 
 Also consider adding a note in the ""CPU Offloading and CUDA Graphs"" section of the documentation explaining why this parameter is required.",https://github.com/NVIDIA/TransformerEngine/pull/2520#discussion_r2890735853,,2026-03-05T15:32:48.415000,Missing retain_pinned_cpu_buffers causes memory corruption with CUDA graphs,data_integrity,high,8,"This catch identifies a critical documentation example bug where missing `retain_pinned_cpu_buffers=True` would cause CUDA graph replays to write to stale/wrong memory addresses, leading to silent data corruption or memory corruption. This is a meaningful bug in example code that users would copy.",2026-03-11T18:30:24.091618+00:00
+nvidia/fuser,5963,CollectivePermute based allgather in host for-loop,https://github.com/NVIDIA/Fuser/pull/5963,"**Global device rank compared against relative team indices**
+
+`my_device_index` arrives here as `communicator_->deviceId()` — the device's **global** rank. However, `send_peer_index` and `recv_peer_index` are the **relative** indices within the team (values in `[0, team_size-1]`), as computed by `dispatchSwizzle1D` using `team_index = md_index[pt_axis]`.
+
+For the canonical case where the team is `[0, 1, …, d-1]` the two values coincide, so the local-copy short-circuit works. But for any team that does not start at rank 0 (e.g., `[2, 3, 4, 5]`), `my_device_index` will not equal the relative indices even when the device is communicating with itself, so the local copy is silently skipped and NCCL ends up doing a coalesced send/recv to itself — a deviation from the intended no-op path.
+
+The fix is the same pattern used by the `Communication` overload of `postSingleCommunication`:
+```cpp
+// Convert my_device_index to a relative team index for the comparison
+const Team& team = communication->team();
+int64_t my_relative_index = getRelativeIndex(team, my_device_index);
+if (my_relative_index == send_peer_index &&
+    my_relative_index == recv_peer_index) {
+  doLocalCopy(output_tensor, input_tensor);
+  return nullptr;
+}
+```",https://github.com/NVIDIA/Fuser/pull/5963#discussion_r2915146212,,2026-03-11T00:06:02.057000,Global device rank compared against relative team indices causes incorrect local-copy bypass,logic,high,8,"This catch identifies a subtle but significant logic bug where global device ranks are incorrectly compared against relative team indices. For teams not starting at rank 0, the local-copy optimization is silently skipped, causing unnecessary NCCL send/recv operations to self instead of the intended no-op path. This would cause incorrect behavior in production for multi-device configurations.",2026-03-11T20:18:09.345044+00:00
