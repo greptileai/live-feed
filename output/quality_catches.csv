@@ -11737,3 +11737,144 @@ Consider guarding against this edge case:
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/PostHog/posthog/pull/50534#discussion_r2913392419,,2026-03-10T17:37:22.693000,Empty list causes SQL syntax error in MSSQL/MySQL queries,runtime,high,8,"This catches a real runtime bug where passing an empty list for `names` would generate invalid SQL syntax (`IN ()`) causing database errors in production. The reviewer correctly identifies the edge case, explains the root cause, notes it affects multiple files, and provides a working fix.",2026-03-11T16:28:34.723783+00:00
+infisical/infisical,5648,fix: add DNS config on ACME external CAs and use it on ACME challenge,https://github.com/Infisical/infisical/pull/5648,"**SSRF Risk: Private/Internal IP Addresses Not Blocked**
+
+`validateDnsResolver` returns early for any valid IP address (line 58–60) without checking whether it is a private or loopback address. This means an attacker with permission to create or update ACME Certificate Authorities can supply values such as `127.0.0.1`, `169.254.169.254` (AWS metadata service), `10.0.0.1`, or `192.168.1.1` as the DNS resolver.
+
+When a certificate order is later triggered, the server will send DNS (UDP) queries to the specified address. While DNS queries are not HTTP, in many environments this is still a meaningful internal probe — e.g., it can reach metadata services, internal resolvers, or cause timing-based reconnaissance of the internal network.
+
+Similarly, for the hostname path the resolved IP is never validated against private ranges; a hostname that resolves to `10.x.x.x` would pass validation and then receive DNS queries at runtime.
+
+The existing `blockLocalAndPrivateIpAddresses` utility (already imported in this file on line 14) has this logic and respects the `ALLOW_INTERNAL_IP_CONNECTIONS` config flag. The resolver validation should apply the same private-range check:
+
+```typescript
+// For IPs: check private ranges
+const validateDnsResolver = async (resolver: string): Promise<void> => {
+  if (net.isIP(resolver)) {
+    if (isPrivateIp(resolver) && !getConfig().ALLOW_INTERNAL_IP_CONNECTIONS) {
+      throw new BadRequestError({ message: `Private/internal IP addresses are not allowed as DNS resolvers: ${resolver}` });
+    }
+    return;
+  }
+
+  const HOSTNAME_REGEX = new RE2(""^[a-zA-Z0-9.-]+$"");
+  if (!HOSTNAME_REGEX.test(resolver)) {
+    throw new BadRequestError({ message: `Invalid DNS resolver address: ${resolver}` });
+  }
+
+  try {
+    const resolvedIps = await dns.promises.resolve4(resolver);
+    if (resolvedIps.some((ip) => isPrivateIp(ip)) && !getConfig().ALLOW_INTERNAL_IP_CONNECTIONS) {
+      throw new BadRequestError({ message: `DNS resolver ""${resolver}"" resolves to a private/internal IP address.` });
+    }
+  } catch (e) {
+    if (e instanceof BadRequestError) throw e;
+    throw new BadRequestError({
+      message: `DNS resolver ""${resolver}"" could not be resolved. Please provide a valid IP address or resolvable hostname.`
+    });
+  }
+};
+```",https://github.com/Infisical/infisical/pull/5648#discussion_r2914744689,"Fixed — `validateDnsResolver` now uses `blockLocalAndPrivateIpAddresses` for both IP addresses and hostnames, which handles private/loopback range checks and respects `ALLOW_INTERNAL_IP_CONNECTIONS`.",2026-03-10T22:06:16.996000,SSRF vulnerability allows probing internal network via DNS resolver,security,high,8,"Comment 2 identifies a significant SSRF vulnerability where attackers can specify private/internal IP addresses (127.0.0.1, 169.254.169.254 AWS metadata, 10.x.x.x) as DNS resolvers, enabling internal network reconnaissance. This is a meaningful security bug that bypasses intended SSRF protections.",2026-03-11T18:30:24.091618+00:00
+isaac-sim/isaaclab,4939,Atempts to fix disappearing develop docs,https://github.com/isaac-sim/IsaacLab/pull/4939,"**Double-backslash regex may not match version tags**
+
+GitHub Actions expression string literals (delimited by single quotes) do **not** treat `\\` as an escape sequence for a single backslash — they treat it as two literal backslash characters. The only escape in GHA expression strings is `''` for a literal single quote.
+
+As a result, the env var value will be `^v[1-9]\\d*\\.\\d+\\.\\d+$` at the OS level (with **double** backslashes). When `docs/conf.py` calls `re.compile(os.getenv(""SMV_TAG_WHITELIST""))`, the regex engine receives `\\d` (which matches a *literal* backslash followed by `d`, not a digit) and `\\.` (which matches a *literal* backslash followed by `.`, not a period). This means **no version tag like `v1.2.3` will match**, so tag-based docs will silently be omitted when pushing to `main` or `release/*`.
+
+The default value in `conf.py` uses a raw Python string `r""^v[1-9]\d*\.\d+\.\d+$""` with **single** backslashes — the env var needs to match that at the OS level.
+
+Fix by using single backslashes in the expression string literal (YAML plain scalars and GHA expression single-quoted strings both leave `\d` as-is):
+
+```suggestion
+        SMV_TAG_WHITELIST: ${{ github.ref == 'refs/heads/develop' && '^$' || '^v[1-9]\d*\.\d+\.\d+$' }}
+```
+
+Alternatively, avoid backslash metacharacters entirely with character classes: `'^v[1-9][0-9]*[.][0-9]+[.][0-9]+$'`.",https://github.com/isaac-sim/IsaacLab/pull/4939#discussion_r2916619279,,2026-03-11T08:08:13.256000,Double-backslash in regex breaks version tag matching,logic,high,8,"This is a subtle and non-obvious bug where double backslashes in GitHub Actions expression strings would cause the regex to fail silently, resulting in version-tagged documentation being omitted. The catch demonstrates deep knowledge of GHA string escaping behavior and how it interacts with Python regex, catching an issue that would be hard to debug in production.",2026-03-11T18:30:24.091618+00:00
+nvidia/transformerengine,2676,[PyTorch] Add dtype information to QuantizedTensorStorage class,https://github.com/NVIDIA/TransformerEngine/pull/2676,"**`fake_dtype` in `QuantizedTensor.__new__` is dead code after validation**
+
+The `fake_dtype` parameter is accepted, validated to equal `dtype`, and then completely ignored — `instance._dtype = dtype` is unconditionally set regardless of `fake_dtype`. The parameter therefore has no functional effect other than acting as a runtime assertion.
+
+The intent of `fake_dtype` is clear: storage subclasses (`Float8TensorStorage`, etc.) need to forward it up through the MRO so it reaches the storage-level `_dtype = fake_dtype` assignment. However, for the direct-`QuantizedTensor` path, the field is already set from the existing `dtype` argument.
+
+The real consequence is that `get_metadata()` now always inserts `fake_dtype=self._dtype` into kwargs, and any call to `make_like(tensor, dtype=X)` where `X != tensor._dtype` (including `to_dtype`, `torch.nn.Module.float()`/`bfloat16()`/`half()` via `transformer_engine/pytorch/tensor/__init__.py:63`, and context-parallel call sites) will raise `ValueError` at the `QuantizedTensor.__new__` guard.
+
+Suggested fix: remove the `fake_dtype` parameter from `QuantizedTensor.__new__` entirely and strip it from `kwargs` before the `cls(...)` call inside `make_like`, or change the guard to silently ignore a mismatch by preferring `dtype`:
+
+```python
+# In QuantizedTensor.make_like:
+kwargs = tensor.get_metadata()
+kwargs.pop(""fake_dtype"", None)   # fake_dtype is only meaningful for Storage, not QuantizedTensor
+return cls(shape=shape, dtype=dtype, requires_grad=requires_grad, **kwargs)
+```",https://github.com/NVIDIA/TransformerEngine/pull/2676#discussion_r2908417284,,2026-03-09T23:13:09.020000,fake_dtype parameter breaks dtype conversion operations,logic,high,8,"Comment 0 identifies a genuine logic bug where the new fake_dtype validation will cause ValueError exceptions in production code paths like model.half(), model.bfloat16(), and context-parallel operations whenever dtype conversion is attempted. This is a meaningful bug that would break existing functionality.",2026-03-11T18:30:24.091618+00:00
+nvidia-nemo/guardrails,1714,fix(middleware): handle MODIFIED status in GuardrailsMiddleware instead of silently dropping it,https://github.com/NVIDIA-NeMo/Guardrails/pull/1714,"**`tool_calls` and `usage_metadata` silently dropped on MODIFIED**
+
+When an `AIMessage` has both text content and `tool_calls` (a valid pattern with parallel tool-calling LLMs), the MODIFIED replacement message drops `tool_calls` entirely because it is not forwarded to `create_ai_message`. `usage_metadata` is also not forwarded. This leaves the agent with an orphaned `ToolMessage` (no corresponding `AIMessage.tool_calls` entry to pair with), which can cause the agent to error or behave incorrectly.
+
+`create_ai_message` already accepts both fields — they just need to be passed through:
+
+```python
+modified_msg = create_ai_message(
+    result.content,
+    id=last_ai_message.id,
+    name=last_ai_message.name,
+    tool_calls=last_ai_message.tool_calls or None,
+    additional_kwargs=last_ai_message.additional_kwargs or None,
+    response_metadata=last_ai_message.response_metadata or None,
+    usage_metadata=last_ai_message.usage_metadata or None,
+)
+```
+
+Note: no matching test covers this scenario — adding a case where the original `AIMessage` carries `tool_calls` and verifying they survive the MODIFIED path would catch this.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: nemoguardrails/integrations/langchain/middleware.py
+Line: 200-206
+
+Comment:
+**`tool_calls` and `usage_metadata` silently dropped on MODIFIED**
+
+When an `AIMessage` has both text content and `tool_calls` (a valid pattern with parallel tool-calling LLMs), the MODIFIED replacement message drops `tool_calls` entirely because it is not forwarded to `create_ai_message`. `usage_metadata` is also not forwarded. This leaves the agent with an orphaned `ToolMessage` (no corresponding `AIMessage.tool_calls` entry to pair with), which can cause the agent to error or behave incorrectly.
+
+`create_ai_message` already accepts both fields — they just need to be passed through:
+
+```python
+modified_msg = create_ai_message(
+    result.content,
+    id=last_ai_message.id,
+    name=last_ai_message.name,
+    tool_calls=last_ai_message.tool_calls or None,
+    additional_kwargs=last_ai_message.additional_kwargs or None,
+    response_metadata=last_ai_message.response_metadata or None,
+    usage_metadata=last_ai_message.usage_metadata or None,
+)
+```
+
+Note: no matching test covers this scenario — adding a case where the original `AIMessage` carries `tool_calls` and verifying they survive the MODIFIED path would catch this.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/NVIDIA-NeMo/Guardrails/pull/1714#discussion_r2918326974,,2026-03-11T13:20:11.518000,Tool calls and metadata silently dropped when modifying AI messages,data_integrity,high,8,"This identifies a meaningful bug where tool_calls are dropped when modifying AIMessages, causing orphaned ToolMessages that break agent functionality. This is a real production issue affecting tool-calling LLMs that would cause incorrect agent behavior.",2026-03-11T18:30:24.091618+00:00
+berriai/litellm,23282,feat(mcp): add AWS SigV4 auth support in UI and fix credential merge on edit,https://github.com/BerriAI/litellm/pull/23282,"**Invalid keyword argument crashes credential rotation at runtime**
+
+`decrypt_value_helper` (in `litellm/proxy/common_utils/encrypt_decrypt_utils.py`) does not accept the keyword argument being passed here. Its real signature takes only `value`, `key` (a debug label), `exception_type`, and `return_original_value`. Passing an unrecognised keyword argument raises `TypeError` at runtime, which breaks `rotate_mcp_server_credentials_master_key` for any MCP server with stored AWS SigV4 credentials.
+
+The unit tests pass only because the mock lambdas declare that parameter in their own local signatures, hiding the incompatibility from the real implementation.
+
+Fix: replace the unrecognised keyword with the field name string passed as the `key` debug-label argument, matching every other call-site of this helper throughout the codebase.",https://github.com/BerriAI/litellm/pull/23282#discussion_r2918830676,,2026-03-11T14:41:03.409000,Invalid keyword argument crashes credential decryption at runtime,runtime,high,8,"Comment 0 identifies a genuine runtime TypeError that would crash credential rotation for MCP servers with AWS SigV4 credentials. The bug is non-obvious because unit tests pass due to mocks hiding the signature mismatch, making this a meaningful catch that would cause production failures.",2026-03-11T18:30:24.091618+00:00
+nvidia/transformerengine,2520,Documentation for cpu offloading,https://github.com/NVIDIA/TransformerEngine/pull/2520,"**Missing `retain_pinned_cpu_buffers=True` for CUDA graph compatibility**
+
+The `get_cpu_offload_context` docstring explicitly states that `retain_pinned_cpu_buffers=True` is ""useful for cuda graphs capture."" Without it (default is `False`), a new pinned CPU buffer is allocated on every forward pass. When `make_graphed_callables` captures the CUDA graph, the DMA destination addresses are fixed at graph-record time. On subsequent graph replays the old buffers have been freed and reallocated at different addresses, so the async `cudaMemcpyAsync` calls embedded in the graph write to stale/wrong memory — silently producing incorrect results or corrupting memory.
+
+```suggestion
+cpu_offload_context, sync_function = get_cpu_offload_context(
+    enabled=True,
+    model_layers=num_layers,
+    num_layers=offloaded_layers,
+    retain_pinned_cpu_buffers=True,  # Required for CUDA graphs: keeps CPU buffer addresses stable across graph replays
+)
+```
+
+Also consider adding a note in the ""CPU Offloading and CUDA Graphs"" section of the documentation explaining why this parameter is required.",https://github.com/NVIDIA/TransformerEngine/pull/2520#discussion_r2890735853,,2026-03-05T15:32:48.415000,Missing retain_pinned_cpu_buffers causes memory corruption with CUDA graphs,data_integrity,high,8,"This catch identifies a critical documentation example bug where missing `retain_pinned_cpu_buffers=True` would cause CUDA graph replays to write to stale/wrong memory addresses, leading to silent data corruption or memory corruption. This is a meaningful bug in example code that users would copy.",2026-03-11T18:30:24.091618+00:00
