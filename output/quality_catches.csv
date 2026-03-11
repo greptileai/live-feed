@@ -11273,3 +11273,35 @@ berriai/litellm,23200,feat(ui): OpenAPI MCP server support with popular API quic
 `_load_openapi_registry` catches all exceptions and returns `{""apis"": []}` on failure — but `@functools.lru_cache(maxsize=1)` caches whatever the function returns, including that empty error value. If the first call fails (transient I/O, file not yet deployed, startup timing issue, etc.), every subsequent request will return an empty registry for the lifetime of the process. The only recovery path is a full process restart.
 
 The fix is to move the exception handling to the caller (`get_openapi_registry`), and let `_load_openapi_registry` raise normally on failure. That way `lru_cache` only caches successful parse results, while the router handler returns a graceful `{""apis"": []}` fallback on each individual failing request without poisoning the cache.",https://github.com/BerriAI/litellm/pull/23200#discussion_r2913606485,,2026-03-10T18:17:10.166000,LRU cache permanently caches failure result causing persistent errors,logic,high,8,"This catches a real bug where lru_cache caches the empty error fallback on first failure, making the registry permanently broken until process restart. This is a meaningful production issue that would be hard to debug - transient errors become permanent.",2026-03-10T22:14:54.452803+00:00
+simstudioai/sim,3508,feat(autosave): files and chunk editor autosave with debounce + refetch ,https://github.com/simstudioai/sim/pull/3508,"## Race condition: edits made during an active save are silently dropped
+
+When the user edits content while a save is in-flight, `savingRef.current` blocks the debounce effect from scheduling a new timer. After the save completes, `savingRef.current` is reset inside a plain `setTimeout` (line 60–63) — not as React state — so no re-render is triggered to reschedule the effect.
+
+**Scenario:**
+1. User types `""A""` → debounce timer fires → `savingRef.current = true`
+2. User types `""B""` during the ongoing save → effect exits early, no timer is set
+3. Save finishes → `savingRef.current = false` inside deferred `setTimeout` (no re-render)
+4. Content `""B""` is only persisted on component unmount, never via autosave
+
+**Fix:** Ensure the debounce effect runs after `savingRef.current` becomes `false`. One approach is to track `savingRef.current` as state:
+
+```ts
+const [isSaving, setIsSaving] = useState(false)
+// In save's finally block:
+setTimeout(() => {
+  setSaveStatus(nextStatus)
+  setIsSaving(false)  // triggers re-render so effect can reschedule
+}, remaining)
+// Add isSaving to effect dependencies
+```
+
+Or add `isSaving` as a dependency by using `setSaveStatus` (which is already being called) to trigger the re-render that allows the effect to reschedule.",https://github.com/simstudioai/sim/pull/3508#discussion_r2914747165,,2026-03-10T22:06:50.124000,Race condition in autosave drops edits made during active save,concurrency,high,8,"This identifies a genuine race condition where user edits made during an in-flight save operation are silently dropped until component unmount. The bug causes real data loss for users who continue typing during autosave, which is a common UX pattern. The analysis correctly identifies that using refs without triggering re-renders prevents the debounce effect from rescheduling.",2026-03-11T00:45:24.101121+00:00
+berriai/litellm,23093,fix: preserve thinking block order with multiple web searches,https://github.com/BerriAI/litellm/pull/23093,"**`redacted_thinking` blocks not caught by `_list_has_thinking` check**
+
+The guard introduced to prevent duplicate thinking blocks only checks for `type == ""thinking""`, but `thinking_blocks` can also contain `redacted_thinking` blocks (as confirmed by how `ChatCompletionRedactedThinkingBlock` is accumulated into `thinking_blocks` in `transformation.py`).
+
+When a list-content message has `redacted_thinking` blocks in its inline content AND `thinking_blocks` is also set (containing those same `redacted_thinking` entries), `_list_has_thinking` stays `False` and the `thinking_blocks` are prepended again via `assistant_content.extend(thinking_blocks)` — duplicating the `redacted_thinking` blocks in the final payload, which would again trigger Anthropic's signature verification error.
+
+```suggestion
+                        if isinstance(_item, dict) and _item.get(""type"") in (""thinking"", ""redacted_thinking""):
+```",https://github.com/BerriAI/litellm/pull/23093#discussion_r2912769035,,2026-03-10T15:54:15.134000,Missing redacted_thinking block type causes duplicate blocks and API errors,logic,high,8,"The comment identifies a real logic bug where `redacted_thinking` blocks are not detected by the `_list_has_thinking` check (only checks for `type == ""thinking""`), causing duplicate blocks to be added to the payload and triggering Anthropic's signature verification error in production. This is a meaningful bug that would affect users.",2026-03-11T00:45:24.101121+00:00
