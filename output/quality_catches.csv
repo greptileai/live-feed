@@ -12208,3 +12208,53 @@ Adding a `toolMap.has(id)` check (the tool was already set up) before triggering
 ```
 
 Wait — `toolMap` is set *before* `flush()` via `toolMap.set(id, blocks.length)`, so `toolMap.has(id)` would always be true here. A cleaner approach would be to only trigger execution on the *first* time the tool call is seen (i.e. guard with whether the tool entry was freshly created vs. already existed).",https://github.com/simstudioai/sim/pull/3529#discussion_r2921654187,,2026-03-12T00:34:33.695000,Race condition in duplicate tool call execution causes false errors,concurrency,high,8,"This is a genuine race condition bug where partial tool_call events could trigger duplicate executions, causing the second execution to report failure while the first is still running. This could result in successful tool calls being incorrectly marked as failed, affecting user-facing functionality. The reviewer identified a non-obvious difference between server and client handling and traced through the execution flow to find the issue.",2026-03-12T03:12:07.495511+00:00
+berriai/litellm,23403,feat(ui): group MCP tools by CRUD risk category in allowlist panels,https://github.com/BerriAI/litellm/pull/23403,"**Stale closure causes race condition when multiple servers are fetched**
+
+`fetchToolsForServer` closes over `toolPermissions` at render time. When multiple servers are selected and their tool-fetches complete asynchronously, each callback spreads the same stale snapshot of `toolPermissions`, so the last response to arrive will overwrite all earlier results.
+
+Example with servers A and B both having no stored permissions:
+1. Both callbacks capture `toolPermissions = {}`
+2. Server A resolves → `onChange({ serverA: [...nonDeleteA] })` → state becomes `{ serverA: [...] }`
+3. Server B resolves → `onChange({ serverB: [...nonDeleteB] })` → state becomes `{ serverB: [...] }` — **server A's permissions are lost**
+
+To avoid this, use the functional updater form:
+
+```ts
+// For servers that have no permissions stored yet, block delete tools by default.
+if (!toolPermissions[serverId] && fetchedTools.length > 0) {
+  const nonDeleteTools = fetchedTools
+    .filter((t) => classifyToolOp(t.name, t.description || """") !== ""delete"")
+    .map((t) => t.name);
+  onChange((prev: Record<string, string[]>) => ({ ...prev, [serverId]: nonDeleteTools }));
+}
+```
+
+Note: this requires the parent's `onChange` type to also accept a functional updater, or you can resolve this by reading the current permissions via a `useRef` instead.
+",https://github.com/BerriAI/litellm/pull/23403#discussion_r2921723878,,2026-03-12T01:05:00.942000,Race condition in async tool fetch overwrites sibling server permissions,concurrency,high,8,"This identifies a real race condition where multiple async fetches close over stale state, causing the last response to overwrite all earlier results. This would cause data loss in production when users configure multiple MCP servers simultaneously.",2026-03-12T04:44:41.952104+00:00
+synnaxlabs/synnax,2077,Synnax 52.10,https://github.com/synnaxlabs/synnax/pull/2077,"**`SendUnderContext` uses message context instead of signal context — can block indefinitely on shutdown**
+
+The `OnChange` callback is now registered outside the goroutine. The `ctx` that enters the closure is `msg.ctx` from the async observer (typically `context.Background()`), not the pipeline's signal context.
+
+This creates a shutdown hazard: when the signal context is cancelled and the outlet buffer is full (e.g. the downstream consumer has already stopped draining), `signal.SendUnderContext(ctx, ts.Out.Inlet(), t)` on line 47 will never return because `ctx` (= `context.Background()`) is never cancelled. The async handler goroutine gets stuck, and the `remove()` call in the cleanup goroutine waits for `h.done` which never closes, effectively deadlocking the signal context shutdown.
+
+Previously the signal context was captured by the closure via the goroutine parameter and was passed to `SendUnderContext`, making it shutdown-safe.
+
+Consider capturing the signal context in the closure explicitly:
+
+```go
+remove := ts.OnChange(func(msgCtx context.Context, v V) {
+    t, ok, err := ts.Transform(msgCtx, v)
+    if err != nil {
+        ts.L.Error(fmt.Sprintf(""observable transform publisher: transform error: %s"", err))
+        return
+    }
+    if !ok {
+        return
+    }
+    // Use the pipeline signal context (ctx) so SendUnderContext
+    // returns promptly when the pipeline shuts down.
+    if err = signal.SendUnderContext(ctx, ts.Out.Inlet(), t); err != nil {
+        ts.L.Error(fmt.Sprintf(""observable transform publisher: send error: %s"", err))
+    }
+})
+```",https://github.com/synnaxlabs/synnax/pull/2077#discussion_r2921503831,,2026-03-11T23:31:11.607000,Closure captures wrong context causing potential deadlock on shutdown,concurrency,high,8,"This comment identifies a real concurrency bug where the OnChange callback uses the message context (potentially context.Background()) instead of the signal context, which can cause SendUnderContext to block indefinitely when the outlet buffer is full during shutdown, leading to a deadlock. This is a meaningful bug that would cause problems in production.",2026-03-12T04:44:41.952104+00:00
