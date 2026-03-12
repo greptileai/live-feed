@@ -12306,3 +12306,139 @@ berriai/litellm,23406,"fix(mcp): OAuth2 chat connect - tools fetch, auth, and st
 ```suggestion
                             mcp_tools_with_litellm_proxy.append(rewritten)
 ```",https://github.com/BerriAI/litellm/pull/23406#discussion_r2922280821,,2026-03-12T04:56:32.824000,Copy-paste error causes duplicate MCP tools in list,logic,high,8,"This catches a real copy-paste bug where `mcp_tools_with_litellm_proxy.append(rewritten)` is called twice consecutively, causing every MCP tool matching the regex pattern to be duplicated. This would cause duplicate tool listings and potentially duplicate tool calls in production, affecting users.",2026-03-12T06:29:57.851104+00:00
+gptme/gptme,1586,feat(acp): stream tokens from ACP subprocess to server SSE,https://github.com/gptme/gptme/pull/1586,"**Token data loss when flush future times out or errors**
+
+`batch_buffer.clear()` is called **before** `future.result(timeout=5)`. If the future times out (e.g., the event loop is temporarily overloaded) or the coroutine raises any exception, the accumulated tokens are already erased from the buffer and are permanently lost.
+
+Because the post-processing loop was changed to skip re-sending assistant tokens (assuming they were all streamed via `on_token`), there is no fallback recovery path. The client receives a silently truncated message with no indication that content was dropped.
+
+The fix is to only clear the buffer after a successful send:
+
+```python
+def _flush_batch() -> None:
+    """"""Flush accumulated tokens as a session_update (called from executor thread).""""""
+    if not batch_buffer or not self._conn:
+        return
+    batch_text = """".join(batch_buffer)
+    chunk = update_agent_message(text_block(batch_text))
+    future = asyncio.run_coroutine_threadsafe(
+        self._conn.session_update(
+            session_id=session_id,
+            update=chunk,
+            source=""gptme-stream"",
+        ),
+        loop,
+    )
+    try:
+        future.result(timeout=5)
+        # Only clear after a confirmed successful send
+        batch_buffer.clear()
+        last_flush[0] = time.monotonic()
+    except Exception:
+        logger.debug(""Failed to send streaming token batch"", exc_info=True)
+```
+
+With this order, a failed flush leaves the buffer intact so the tokens can be retried on the next `on_token` call or included in the final flush.",https://github.com/gptme/gptme/pull/1586#discussion_r2882174727,"✅ Fixed in c440cf074 — moved `batch_buffer.clear()` to after `future.result(timeout=5)` succeeds. On flush failure the buffer is now preserved intact, so any unsent tokens reach the final flush block instead of being silently dropped.",2026-03-04T07:04:55.998000,Token data loss when async flush fails before buffer clear,data_integrity,high,8,Comment 3 identifies a real data integrity bug where clearing the buffer before confirming successful async send causes permanent token loss with no recovery path. This would result in silently truncated messages to users in production when network issues or event loop pressure cause timeouts.,2026-03-12T08:23:29.634388+00:00
+gptme/gptme,1657,feat(server): add /api/config endpoint exposing agent URLs from gptme.toml,https://github.com/gptme/gptme/pull/1657,"**Unvalidated URLs bound directly to `href`**
+
+Vue 2's `:href` binding does not strip `javascript:` URLs the way Vue 3 does. If a `gptme.toml` entry contained a `javascript:` scheme value, clicking the generated link would execute arbitrary JavaScript in the browser's origin context.
+
+While the config file is user-controlled today, this creates a latent XSS vector in shared or team-access scenarios where multiple people can read the webui but only an admin edits the config. A simple scheme guard closes it:
+
+```suggestion
+                 :href=""(url.startsWith('https://') || url.startsWith('http://')) ? url : '#'"" target=""_blank"" rel=""noopener noreferrer""
+```
+
+Alternatively, you can filter out non-HTTP(S) entries in `loadAgentConfig()` before assigning to `this.agentUrls`.",https://github.com/gptme/gptme/pull/1657#discussion_r2920255518,Fixed in 19f15098c — added `safeUrl(url)` method in main.js that validates the scheme is http/https before binding to `:href`. Falls back to `'#'` for anything else.,2026-03-11T18:39:49.845000,XSS vulnerability via javascript: URLs in Vue 2 href bindings,security,high,8,This comment identifies a real XSS vulnerability where Vue 2's :href binding doesn't sanitize javascript: URLs like Vue 3 does. An attacker who can modify the config file could inject arbitrary JavaScript that executes when users click the link. This is a genuine security issue with potential for code execution in the browser.,2026-03-12T08:23:29.634388+00:00
+onyx-dot-app/onyx,9300,fix(db): avoid SQLAlchemy sentinel mismatch in batch user insert,https://github.com/onyx-dot-app/onyx/pull/9300,"**`rollback()` discards all previously flushed users**
+
+When `continue_on_error=True`, calling `db_session.rollback()` after a flush-level `IntegrityError` rolls back the **entire open transaction**, not just the offending user. Any users that were successfully `flush()`-ed in earlier loop iterations are silently discarded.
+
+Example:
+1. `email_A` → `add()` + `flush()` ✅ (pending in the transaction)
+2. `email_B` → `add()` + `flush()` → `IntegrityError` → **`rollback()` erases `email_A` too**
+3. Loop continues; `email_A` is never re-added
+4. `db_session.commit()` at the end commits nothing for `email_A`
+
+This is a regression from the original logic, which committed each successful user individually before moving on. The primary caller in `tasks.py:675` passes `continue_on_error=True`, making this a real data-loss path in the external group sync task.
+
+The fix is to use a savepoint (`begin_nested()`) so that only the failing insert is rolled back:
+
+```python
+for email in missing_lower_emails:
+    user = _generate_ext_permissioned_user(email=email)
+    try:
+        savepoint = db_session.begin_nested()
+        db_session.add(user)
+        savepoint.commit()
+    except IntegrityError:
+        savepoint.rollback()
+        if not continue_on_error:
+            raise
+
+db_session.commit()
+```
+
+`begin_nested()` uses a SQL `SAVEPOINT`, which is fully supported by both psycopg2 and SQLAlchemy 2.0 and completely avoids the `insertmanyvalues` path that triggered the original sentinel mismatch.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: backend/onyx/db/users.py
+Line: 361-364
+
+Comment:
+**`rollback()` discards all previously flushed users**
+
+When `continue_on_error=True`, calling `db_session.rollback()` after a flush-level `IntegrityError` rolls back the **entire open transaction**, not just the offending user. Any users that were successfully `flush()`-ed in earlier loop iterations are silently discarded.
+
+Example:
+1. `email_A` → `add()` + `flush()` ✅ (pending in the transaction)
+2. `email_B` → `add()` + `flush()` → `IntegrityError` → **`rollback()` erases `email_A` too**
+3. Loop continues; `email_A` is never re-added
+4. `db_session.commit()` at the end commits nothing for `email_A`
+
+This is a regression from the original logic, which committed each successful user individually before moving on. The primary caller in `tasks.py:675` passes `continue_on_error=True`, making this a real data-loss path in the external group sync task.
+
+The fix is to use a savepoint (`begin_nested()`) so that only the failing insert is rolled back:
+
+```python
+for email in missing_lower_emails:
+    user = _generate_ext_permissioned_user(email=email)
+    try:
+        savepoint = db_session.begin_nested()
+        db_session.add(user)
+        savepoint.commit()
+    except IntegrityError:
+        savepoint.rollback()
+        if not continue_on_error:
+            raise
+
+db_session.commit()
+```
+
+`begin_nested()` uses a SQL `SAVEPOINT`, which is fully supported by both psycopg2 and SQLAlchemy 2.0 and completely avoids the `insertmanyvalues` path that triggered the original sentinel mismatch.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/9300#discussion_r2922377065,,2026-03-12T05:25:27.063000,Transaction rollback silently discards all previously flushed users,data_integrity,high,9,"This is a significant data loss bug where calling rollback() after an IntegrityError discards ALL previously flushed users in the transaction, not just the failing one. The comment correctly identifies this as a regression affecting production code paths (external group sync with continue_on_error=True), provides a clear example of the data loss scenario, and offers a correct fix using savepoints. This is a subtle SQLAlchemy transaction semantics issue that would cause silent data loss in production.",2026-03-12T08:23:29.634388+00:00
+assistant-ui/assistant-ui,3576,feat(react-ink): add ToolApproval component,https://github.com/assistant-ui/assistant-ui/pull/3576,"**`doReject` never calls `resume` in interrupt-based flow**
+
+When `interrupt` is present (the `context.human()` / interrupt-based flow), approval correctly calls `resume({ approved: true })`, but rejection always calls `addResult` instead. In the interrupt-based flow the tool call is suspended waiting for `resume` to be called. If `resume` is never invoked on rejection, the suspended promise will hang indefinitely.
+
+`doReject` should mirror the same `interrupt` branching that `doApprove` uses:
+
+```suggestion
+  const doReject = useCallback(() => {
+    if (state === ""resolved"") return;
+    setState(""resolved"");
+    if (interrupt) {
+      resume({ approved: false });
+    } else {
+      addResult(
+        new ToolResponse({ result: ""User denied tool execution"", isError: true }),
+      );
+    }
+  }, [state, interrupt, resume, addResult]);
+```",https://github.com/assistant-ui/assistant-ui/pull/3576#discussion_r2911002251,,2026-03-10T11:10:41.786000,Rejection never resumes interrupted tool call causing indefinite hang,logic,high,8,"This catches a meaningful logic bug where the interrupt-based flow correctly calls resume() on approval but incorrectly calls addResult() on rejection, leaving the suspended promise hanging indefinitely. This would cause the tool approval flow to break in production when users reject an interrupted tool call.",2026-03-12T08:23:29.634388+00:00
