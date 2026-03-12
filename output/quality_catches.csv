@@ -12802,3 +12802,49 @@ Add a type guard immediately after JSON parsing:
         # but would produce a ""Bearer None"" Authorization header downstream.
         access_token_val = token_response.get(""access_token"")
 ```",https://github.com/BerriAI/litellm/pull/22923#discussion_r2897706187,,2026-03-06T20:25:54.704000,JSON null response causes unhandled AttributeError crash,runtime,high,8,"This catches a real runtime crash where if the token endpoint returns HTTP 200 with JSON `null` body, `response.json()` returns Python `None` without raising, and then `token_response.get('access_token')` raises AttributeError on NoneType. This would cause production SSO login failures with unhelpful error messages.",2026-03-12T20:15:17.514186+00:00
+infisical/infisical,5650,feature(permissions): bypass SSO enforcement action,https://github.com/Infisical/infisical/pull/5650,"**`getProjectPermission` still uses role-based SSO bypass check**
+
+The `getOrgPermission` function was correctly updated to compute `canBypassSso` using both the Admin role and the new `BypassSsoEnforcement` permission, but `getProjectPermission` was left behind — it still passes `hasRole(ProjectMembershipRole.Admin)` as the `isAdmin` argument to `validateOrgSSO`.
+
+This creates a hard inconsistency: a user granted the `BypassSsoEnforcement` custom permission (without the Admin role) can bypass SSO when calling org-level operations (which go through `getOrgPermission`), but the **same user is blocked** when performing any project-level operation (e.g. reading secrets, creating client secrets, etc.) because `getProjectPermission` still only allows the `Admin` project role.
+
+The fix should mirror `getOrgPermission`: build the project permission first, then derive `canBypassSso` from both the role and the `BypassSsoEnforcement` ability before calling `validateOrgSSO`.
+
+```typescript
+// Derive org-level permission to check bypass ability
+const canBypassSso =
+  hasRole(ProjectMembershipRole.Admin) ||
+  permission.can(OrgPermissionSsoActions.BypassSsoEnforcement, OrgPermissionSubjects.Sso);
+
+if (actor === ActorType.USER) {
+  validateOrgSSO(
+    actorAuthMethod,
+    permissionData?.[0].orgAuthEnforced,
+    Boolean(permissionData?.[0].orgGoogleSsoAuthEnforced),
+    Boolean(permissionData?.[0].bypassOrgAuthEnabled),
+    canBypassSso
+  );
+}
+```",https://github.com/Infisical/infisical/pull/5650#discussion_r2914941835,,2026-03-10T22:57:35.987000,SSO bypass permission check missing in project-level operations,security,high,8,"This catches a security inconsistency where the new SSO bypass permission was correctly implemented for org-level operations but not for project-level operations. Users granted the BypassSsoEnforcement permission would be incorrectly blocked on project operations, creating an incomplete feature implementation that could affect user access and potentially security posture.",2026-03-12T22:13:31.922511+00:00
+nvidia/transformerengine,2755,Fused kernel for calculating offsets from first dim splits,https://github.com/NVIDIA/TransformerEngine/pull/2755,"**Race condition on `chunk_prefix` shared memory**
+
+Thread 255 (warp 7) can update the shared `chunk_prefix` variable before other warps have finished reading it for their own `output` writes. There is no `__syncthreads()` barrier between the output write (which reads `chunk_prefix`) and the `chunk_prefix += block_scan[tid]` update.
+
+The CUDA memory model only guarantees shared memory writes from one warp are visible to other warps after a `__syncthreads()`. Without a barrier here, a warp that schedules late could read the already-updated `chunk_prefix` (which already includes the current chunk's sum) instead of the previous chunks' prefix — producing incorrect cumulative offsets for every element that races.
+
+The fix is to add a `__syncthreads()` after all threads finish their output writes and before thread 255 modifies `chunk_prefix`:
+
+```suggestion
+    if (idx < num_tensors) {
+      output[idx + 1] = chunk_prefix + block_scan[tid];
+    }
+    __syncthreads();
+
+    if (tid == kScaleCumsumThreads - 1) {
+      chunk_prefix += block_scan[tid];
+    }
+    __syncthreads();
+```
+
+This guarantees all reads of the old `chunk_prefix` (for the current chunk's outputs) complete before thread 255 writes the new value for the next chunk.
+",https://github.com/NVIDIA/TransformerEngine/pull/2755#discussion_r2922238313,,2026-03-12T04:41:47.275000,Race condition on shared memory chunk_prefix in CUDA kernel,concurrency,high,8,"This identifies a genuine race condition in a CUDA kernel where thread 255 could update chunk_prefix before other warps finish reading it for their output writes. This would cause incorrect cumulative offsets in production, affecting correctness of the fused kernel. The analysis is thorough and the fix is specific.",2026-03-12T22:13:31.922511+00:00
