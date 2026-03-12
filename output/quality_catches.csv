@@ -12505,3 +12505,16 @@ end repeat
 ```
 
 This way the comma is only written once the entry is guaranteed to succeed (or the whole tab is skipped cleanly without mutating `_output`).",https://github.com/raycast/extensions/pull/26210#discussion_r2914429065,,2026-03-10T20:56:28.903000,Dangling comma corrupts JSON when tab iteration fails mid-loop,data_integrity,high,8,"This catches a real bug where the comma is prepended before tab data is fetched, so if any tab throws an error mid-iteration, the comma remains but no entry is added, producing invalid JSON like `[{tab1},,{tab2}]`. This would cause JSON.parse to fail and silently return empty results, losing all tab data for users.",2026-03-12T10:22:47.325618+00:00
+berriai/litellm,22985,fix(proxy): make async_post_call_response_headers_hook consistent across all endpoints,https://github.com/BerriAI/litellm/pull/22985,"**`AttributeError` when metadata key is explicitly `None`**
+
+`data.get(""metadata"", {})` only returns the `{}` fallback when the key is **absent**. If the key exists with a `None` value (e.g. `data = {""metadata"": None}`), Python returns `None`, and the subsequent `.get(""model_info"")` call raises `AttributeError`. This exception is caught by the outer `try/except Exception` in `post_call_response_headers_hook`, which means `litellm_call_info` is never built and **no callbacks are invoked for that request**.
+
+The failure path in `common_request_processing.py` at line 1201 has the same pattern for `proxy_server_request`. The fix is to use `(... or {})` to guard against `None` values:
+
+```suggestion
+        model_info = (
+            (data.get(""metadata"") or {}).get(""model_info"")
+            or (data.get(""litellm_metadata"") or {}).get(""model_info"")
+            or {}
+        )
+```",https://github.com/BerriAI/litellm/pull/22985#discussion_r2896959917,,2026-03-06T17:24:09.667000,AttributeError when metadata is explicitly None silently skips all callbacks,null,high,8,"This catches a real bug where `data.get('metadata', {})` returns None when metadata key exists but is None, causing AttributeError on `.get('model_info')`. The outer try/except silently swallows this, resulting in no callbacks being invoked for requests with null metadata - a significant silent failure in production.",2026-03-12T16:32:53.863953+00:00
