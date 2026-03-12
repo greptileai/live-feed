@@ -12518,3 +12518,213 @@ The failure path in `common_request_processing.py` at line 1201 has the same pat
             or {}
         )
 ```",https://github.com/BerriAI/litellm/pull/22985#discussion_r2896959917,,2026-03-06T17:24:09.667000,AttributeError when metadata is explicitly None silently skips all callbacks,null,high,8,"This catches a real bug where `data.get('metadata', {})` returns None when metadata key exists but is None, causing AttributeError on `.get('model_info')`. The outer try/except silently swallows this, resulting in no callbacks being invoked for requests with null metadata - a significant silent failure in production.",2026-03-12T16:32:53.863953+00:00
+posthog/posthog,50838,fix(toolbar): replaceState bugs,https://github.com/PostHog/posthog/pull/50838,"**`authStatus` stuck at `'authenticating'` after early PKCE failures**
+
+`setAuthStatus('authenticating')` is called at the top of `exchangeCodeForTokens` (line 454), but the early `return false` paths for missing/expired PKCE verifiers exit *before* the `try/finally` block — so `setAuthStatus('idle')` in the `finally` is never reached.
+
+With this PR's new fallback path, `restoreOAuthTokens` can then set real tokens making `isAuthenticated = true`, but `authStatus` stays at `'authenticating'`. This creates an inconsistent state: the toolbar is authenticated but `authStatus` blocks further `authenticate()` calls (that action guards on `values.authStatus === 'authenticating'`), so if the restored tokens subsequently expire the user is silently stuck.
+
+The fix is to reset the status before the early returns:
+
+```suggestion
+    if (!pkceData.verifier) {
+        console.warn('PostHog Toolbar: no PKCE verifier found, cannot exchange code')
+        actions.setAuthStatus('idle')
+        return false
+    }
+    if (pkceData.ts && Date.now() - pkceData.ts > PKCE_TTL_MS) {
+        console.warn('PostHog Toolbar: PKCE verifier expired')
+        actions.setAuthStatus('idle')
+        return false
+    }
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: frontend/src/toolbar/toolbarConfigLogic.ts
+Line: 465-471
+
+Comment:
+**`authStatus` stuck at `'authenticating'` after early PKCE failures**
+
+`setAuthStatus('authenticating')` is called at the top of `exchangeCodeForTokens` (line 454), but the early `return false` paths for missing/expired PKCE verifiers exit *before* the `try/finally` block — so `setAuthStatus('idle')` in the `finally` is never reached.
+
+With this PR's new fallback path, `restoreOAuthTokens` can then set real tokens making `isAuthenticated = true`, but `authStatus` stays at `'authenticating'`. This creates an inconsistent state: the toolbar is authenticated but `authStatus` blocks further `authenticate()` calls (that action guards on `values.authStatus === 'authenticating'`), so if the restored tokens subsequently expire the user is silently stuck.
+
+The fix is to reset the status before the early returns:
+
+```suggestion
+    if (!pkceData.verifier) {
+        console.warn('PostHog Toolbar: no PKCE verifier found, cannot exchange code')
+        actions.setAuthStatus('idle')
+        return false
+    }
+    if (pkceData.ts && Date.now() - pkceData.ts > PKCE_TTL_MS) {
+        console.warn('PostHog Toolbar: PKCE verifier expired')
+        actions.setAuthStatus('idle')
+        return false
+    }
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/50838#discussion_r2925479406,@fercgomes this seems worth addressing,2026-03-12T15:27:55.942000,Auth status stuck in authenticating state after PKCE failure,logic,high,8,"This is a genuine state machine bug where early return paths bypass the finally block that resets authStatus, leaving users permanently stuck in an inconsistent authentication state. The analysis correctly traces the flow through multiple code paths and identifies a real user-impacting issue that would be difficult to debug in production.",2026-03-12T18:28:39.942267+00:00
+simstudioai/sim,3531,feat(fathom): add Fathom AI Notetaker integration,https://github.com/simstudioai/sim/pull/3531,"**Missing `response.ok` check in `transformResponse`**
+
+All five Fathom tools (`list_meetings`, `get_summary`, `get_transcript`, `list_team_members`, `list_teams`) skip the HTTP status check inside `transformResponse`. If the Fathom API returns a 401, 403, 422, or 5xx response, the code will still call `response.json()` on the error body and silently return `success: true` with an empty or malformed `meetings` array.
+
+The established pattern in this codebase (e.g., all Grain tools) is to check `response.ok` first:
+
+```
+transformResponse: async (response: Response) => {
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}))
+    const message = (error as any).message || (error as any).error || response.statusText
+    return {
+      success: false,
+      output: { meetings: [], next_cursor: null },
+      error: `Fathom API error (${response.status}): ${message}`,
+    }
+  }
+  const data = await response.json()
+  // ... rest of mapping
+```
+
+The same fix applies to `get_summary.ts`, `get_transcript.ts`, `list_team_members.ts`, and `list_teams.ts`.",https://github.com/simstudioai/sim/pull/3531#discussion_r2922667762,"Fixed in 851c2c9 — added `response.ok` checks to all 5 Fathom tools, returning `success: false` with the error message from the API response body.",2026-03-12T06:56:02.401000,Missing HTTP error handling causes silent failures with false success,logic,high,8,"This catch identifies a significant bug where all 5 Fathom tools skip checking response.ok, causing API errors (401, 403, 422, 5xx) to be silently treated as successes with malformed data. This would cause production issues where users see 'success' but get empty/wrong data with no error indication.",2026-03-12T18:28:39.942267+00:00
+posthog/posthog,50448,feat(error-tracking): add server-side suppression rules to Cymbal pipeline,https://github.com/PostHog/posthog/pull/50448,"**Cache not invalidated after disabling a broken rule**
+
+When `rule.disable()` is called, the `suppression_rules` cache in `TeamManager` is not invalidated. On every subsequent event for this team, the cache will return the same list containing the broken rule. The rule will fail to match again, `disable()` will be called again, and the database will be updated repeatedly until the TTL expires (default 5 minutes). This also means the `SUPPRESSION_RULES_DISABLED` metric will increment repeatedly for the same rule.
+
+Invalidate the cache entry for this team after disabling a rule:
+
+```suggestion
+Err(err) => {
+    rule.disable(&mut *conn, err.to_string(), props_json.clone())
+        .await
+        .map_err(UnhandledError::from)?;
+    ctx.app_context
+        .team_manager
+        .suppression_rules
+        .invalidate(&input.team_id)
+        .await;
+}
+```
+
+The same problem exists in `evaluate_suppression_rules` in `suppression_rules.rs` (line 188).
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: rust/cymbal/src/stages/linking/rule_suppression.rs
+Line: 53-57
+
+Comment:
+**Cache not invalidated after disabling a broken rule**
+
+When `rule.disable()` is called, the `suppression_rules` cache in `TeamManager` is not invalidated. On every subsequent event for this team, the cache will return the same list containing the broken rule. The rule will fail to match again, `disable()` will be called again, and the database will be updated repeatedly until the TTL expires (default 5 minutes). This also means the `SUPPRESSION_RULES_DISABLED` metric will increment repeatedly for the same rule.
+
+Invalidate the cache entry for this team after disabling a rule:
+
+```suggestion
+Err(err) => {
+    rule.disable(&mut *conn, err.to_string(), props_json.clone())
+        .await
+        .map_err(UnhandledError::from)?;
+    ctx.app_context
+        .team_manager
+        .suppression_rules
+        .invalidate(&input.team_id)
+        .await;
+}
+```
+
+The same problem exists in `evaluate_suppression_rules` in `suppression_rules.rs` (line 188).
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/50448#discussion_r2910644177,,2026-03-10T10:03:46.408000,Cache not invalidated after disabling broken suppression rule,data_integrity,high,8,"This catches a real bug where a broken suppression rule gets repeatedly disabled on every event because the cache isn't invalidated, causing unnecessary database writes and incorrect metric counts for up to 5 minutes per team. This is a meaningful logic bug that would cause production issues including database load and misleading metrics.",2026-03-12T18:28:39.942267+00:00
+posthog/posthog,50853,fix(variables): allow clearing list variable selection,https://github.com/PostHog/posthog/pull/50853,"**Clearing the selection disables the ""Update"" button**
+
+When the user clears the LemonSelect via `allowClear`, `setIsNull(!value)` sets `isNull = true`. However, `isNull = true` also triggers `pointer-events-none` on the parent wrapper div (line 138: `${isNull ? 'opacity-50 pointer-events-none' : ''}`), which contains the ""Update""/""Save"" button. This means the user has no way to confirm the cleared state through the normal flow — the button they'd naturally click to save becomes unclickable the moment they clear the selection.
+
+In contrast, the existing ""Set to null"" LemonSwitch lives *outside* that wrapper and calls `onChange` immediately without needing a confirm button, which is why it works fine. The `allowClear` path doesn't follow the same pattern.
+
+A straightforward fix is to call `onChange` directly from the LemonSelect clear action (mirroring the LemonSwitch behaviour), so no ""Update"" click is needed:
+
+```suggestion
+                {variable.type === 'List' && (
+                    <LemonSelect
+                        className=""grow""
+                        value={localInputValue || null}
+                        onChange={(value) => {
+                            setLocalInputValue(value ? String(value) : '')
+                            setIsNull(!value)
+                            if (!value) {
+                                onChange(variable.id, null, true)
+                                closePopover()
+                            }
+                        }}
+                        options={(variable.values ?? []).map((n) => ({ label: n, value: n }))}
+                        allowClear
+                    />
+                )}
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: frontend/src/queries/nodes/DataVisualization/Components/Variables/Variables.tsx
+Line: 183-193
+
+Comment:
+**Clearing the selection disables the ""Update"" button**
+
+When the user clears the LemonSelect via `allowClear`, `setIsNull(!value)` sets `isNull = true`. However, `isNull = true` also triggers `pointer-events-none` on the parent wrapper div (line 138: `${isNull ? 'opacity-50 pointer-events-none' : ''}`), which contains the ""Update""/""Save"" button. This means the user has no way to confirm the cleared state through the normal flow — the button they'd naturally click to save becomes unclickable the moment they clear the selection.
+
+In contrast, the existing ""Set to null"" LemonSwitch lives *outside* that wrapper and calls `onChange` immediately without needing a confirm button, which is why it works fine. The `allowClear` path doesn't follow the same pattern.
+
+A straightforward fix is to call `onChange` directly from the LemonSelect clear action (mirroring the LemonSwitch behaviour), so no ""Update"" click is needed:
+
+```suggestion
+                {variable.type === 'List' && (
+                    <LemonSelect
+                        className=""grow""
+                        value={localInputValue || null}
+                        onChange={(value) => {
+                            setLocalInputValue(value ? String(value) : '')
+                            setIsNull(!value)
+                            if (!value) {
+                                onChange(variable.id, null, true)
+                                closePopover()
+                            }
+                        }}
+                        options={(variable.values ?? []).map((n) => ({ label: n, value: n }))}
+                        allowClear
+                    />
+                )}
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/50853#discussion_r2925797434,"Good point, thanks. updated now. ",2026-03-12T16:17:28.927000,UI state disables confirm button when clearing selection,logic,medium,8,"This is a meaningful logic bug where clearing a list selection triggers a state change that disables the very button needed to confirm that action, leaving users stuck with no way to save their cleared selection. The reviewer traced through the state flow and identified the exact mechanism causing the UX bug, providing a concrete fix. This would cause real user frustration in production.",2026-03-12T18:28:39.942267+00:00
+berriai/litellm,23446,[Feat] Add WebRTC support,https://github.com/BerriAI/litellm/pull/23446,"**Ephemeral token expiry is never enforced**
+
+The `decoded_payload` contains an `expires_at` field (echoed from the upstream provider's response), but the code never compares it against the current timestamp. A stolen or leaked ephemeral token can be replayed indefinitely after its stated expiry without any rejection.
+
+The `expires_at` should be checked against `time.time()` after decoding the payload:
+
+```
+if decoded_payload is not None:
+    expires_at = decoded_payload.get(""expires_at"")
+    if expires_at is not None and isinstance(expires_at, int):
+        if time.time() > expires_at:
+            return Response(
+                content=json.dumps({""error"": ""Token has expired""}),
+                status_code=http_status.HTTP_401_UNAUTHORIZED,
+                media_type=""application/json"",
+            )
+```",https://github.com/BerriAI/litellm/pull/23446#discussion_r2924352374,,2026-03-12T12:38:27.102000,Ephemeral token expiry never enforced allows indefinite replay,security,critical,9,"This is a security vulnerability where ephemeral tokens with expiration timestamps are never validated against current time, allowing stolen or leaked tokens to be replayed indefinitely after they should have expired. This bypasses the intended security control of time-limited access.",2026-03-12T18:28:39.942267+00:00
