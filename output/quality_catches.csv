@@ -12442,3 +12442,66 @@ When `interrupt` is present (the `context.human()` / interrupt-based flow), appr
     }
   }, [state, interrupt, resume, addResult]);
 ```",https://github.com/assistant-ui/assistant-ui/pull/3576#discussion_r2911002251,,2026-03-10T11:10:41.786000,Rejection never resumes interrupted tool call causing indefinite hang,logic,high,8,"This catches a meaningful logic bug where the interrupt-based flow correctly calls resume() on approval but incorrectly calls addResult() on rejection, leaving the suspended promise hanging indefinitely. This would cause the tool approval flow to break in production when users reject an interrupted tool call.",2026-03-12T08:23:29.634388+00:00
+raycast/extensions,24819,Add leave-time-calculator extension,https://github.com/raycast/extensions/pull/24819,"The overnight condition `now > leave` incorrectly adds +24 hours when the leave time has already passed on the current day. 
+
+For example, with a shift from 22:00 → 06:00, if it's currently 07:30 (next day):
+- `now >= start` evaluates to false (07:30 < 22:00)
+- `now > leave` evaluates to true (07:30 > 06:00)
+- So +24h is added to leave, making it 30:00 (06:00 tomorrow)
+- This is wrong: the leave time was 06:00 *today*, not tomorrow
+
+The `now > leave` condition alone cannot determine which calendar day we're on. Only check `now >= start` (still on start day, so leave is tomorrow):
+
+```suggestion
+      if (now >= start) {
+        // Still on start day -> leave is tomorrow on the calendar
+        leave = new Date(leave.getTime() + 24 * 60 * 60 * 1000);
+      }
+```",https://github.com/raycast/extensions/pull/24819#discussion_r2908732862,fix it,2026-03-10T01:09:26.064000,Incorrect overnight shift calculation shows wrong remaining time,logic,high,8,"Comment 0 identifies a real logic bug in overnight shift time calculation. The condition `now > leave` incorrectly adds 24 hours when the leave time has already passed on the current day, causing wrong remaining time display for users who work night shifts. This would produce incorrect results in production for a key feature.",2026-03-12T10:22:47.325618+00:00
+infisical/infisical,5656,feat: implemented fallback mechanism and no password disabled for unix rotation,https://github.com/Infisical/infisical/pull/5656,"**""password for"" is too broad and may false-match `passwd` prompts**
+
+The condition `lower.includes(""password for"")` is intended to detect sudo's authentication prompt (`[sudo] password for <admin>:`), but it also matches `passwd`'s own ""New password for <username>:"" prompt (emitted on several distros such as RHEL/CentOS/AlmaLinux when run as `sudo passwd <username>`).
+
+When this happens at `step === 0`, the code incorrectly sends `appConnectionPassword` to the ""New password for"" prompt instead of `newPassword`, silently setting the target user's password to the admin's SSH credential. Subsequent rotation attempts will then fail because the stored password won't match.
+
+The `[sudo]` token is already unique enough to detect sudo's prompt on virtually every distro. `""password for""` should be restricted to avoid matching the new-password prompt:
+
+```suggestion
+      if (step === 0 && (lower.includes(""[sudo]"") || (lower.includes(""password for"") && !lower.includes(""new password"")))) {
+```",https://github.com/Infisical/infisical/pull/5656#discussion_r2917160501,Fixed to use [sudo] tag only,2026-03-11T09:48:33.434000,Sudo password sent to passwd prompt causes credential leak to target user,security,critical,9,"This catches a critical security bug where the admin's SSH password (appConnectionPassword) could be incorrectly sent to passwd's 'New password for' prompt instead of the sudo authentication prompt, effectively setting the target user's password to the admin's credential. This is a serious credential exposure issue that would compromise the admin account.",2026-03-12T10:22:47.325618+00:00
+raycast/extensions,26210,"Dia: fix tab fetching and JSON parsing (JXA fallback, escape handling)",https://github.com/raycast/extensions/pull/26210,"**Dangling comma corrupts output when a tab throws mid-iteration**
+
+The comma is now prepended at the start of each loop iteration, *before* the tab's fields are fetched and appended. The window-level `on error` handler (line 329) catches any error thrown by `get id of _tab`, `get isPinned of _tab`, `get isFocused of _tab`, or the final string concatenation. When that happens the comma has already been added to `_output`, but the matching `{…}` entry is never appended.
+
+The next window's first tab then prepends *its own* comma at line 314 (because `_output is not """"`), producing a double-comma:
+```
+[{tab1},,{window2tab1}]
+```
+That string is invalid JSON, so `JSON.parse` throws and the whole call returns `[]`, silently losing all tab data.
+
+The original ""append after, skip last"" pattern is immune to this because the comma is only written *after* a successful entry. Consider moving the append back to after the tab entry, or wrapping the inner body in its own `try`:
+
+```applescript
+repeat with i from 1 to tabsCount
+  set _tab to item i of allTabs
+  try
+    set _title to my escape_value(get title of _tab)
+    set _url to """"
+    try
+      set _url to my escape_value(get URL of _tab)
+    end try
+    set _id to get id of _tab
+    set _isPinned to get isPinned of _tab
+    set _isFocused to get isFocused of _tab
+
+    if _output is not """" then
+      set _output to (_output & "","")
+    end if
+    set _output to (_output & ""{\""windowId\"": \"""" & wId & \"" ..."")
+  on error
+    (* skip this tab *)
+  end try
+end repeat
+```
+
+This way the comma is only written once the entry is guaranteed to succeed (or the whole tab is skipped cleanly without mutating `_output`).",https://github.com/raycast/extensions/pull/26210#discussion_r2914429065,,2026-03-10T20:56:28.903000,Dangling comma corrupts JSON when tab iteration fails mid-loop,data_integrity,high,8,"This catches a real bug where the comma is prepended before tab data is fetched, so if any tab throws an error mid-iteration, the comma remains but no entry is added, producing invalid JSON like `[{tab1},,{tab2}]`. This would cause JSON.parse to fail and silently return empty results, losing all tab data for users.",2026-03-12T10:22:47.325618+00:00
