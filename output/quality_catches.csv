@@ -11931,3 +11931,98 @@ When `pack()` auto-registers a type (line 135 or 141), `register_data_classes()`
 In a scenario where a **legitimate** server serialization path processes attacker-influenced data (e.g., client-supplied model metadata arriving as a data class before aggregation), the class name of that data class would be added to `_type_name_whitelist`. After a subsequent `reset()`, an adversary could craft a deserialization payload referencing that same type name, pass the whitelist check, and reconstruct that object with fully attacker-controlled attributes via `DataClassDecomposer`.
 
 This doesn't restore full arbitrary-class-loading RCE, but it creates a route for attacker-controlled object injection for any type that passed through `pack()` in the server's lifetime. Consider also adding runtime-registered types to `_type_name_whitelist` only when explicitly called (e.g., via `register_data_classes()`) and *not* via the implicit `pack()` auto-registration path, or clearing auto-registered entries on `reset()`.",https://github.com/NVIDIA/NVFlare/pull/4295#discussion_r2915459306,auto-register is removed.,2026-03-11T02:14:02.121000,Whitelist bypass allows attacker-controlled object injection via auto-registration,security,high,9,"This comment identifies a security vulnerability where the whitelist mechanism meant to prevent RCE can be bypassed through the pack() auto-registration path. Attacker-influenced data classes that pass through serialization become permanently whitelisted, allowing subsequent deserialization attacks even after reset(). This is a meaningful security flaw in code explicitly designed to fix an RCE vulnerability.",2026-03-11T22:16:37.675660+00:00
+netflix/metaflow,3002,fix: argo workflows conditional nested static split joins,https://github.com/Netflix/metaflow/pull/3002,"**New block unconditionally resets deps even when `node_groups` is empty**
+
+After the loop on lines 1461–1472, `node_groups` will be empty whenever none of the `in_funcs` has a non-empty `split_branches` list (e.g., a conditional join whose branches are all ""flat"" linear steps with no nested static split). In that situation the `build_ancestor_tree` loop on line 1508 does nothing, yet `conditional_deps` and `required_deps` are already reset to `[]` on lines 1506–1507, so `depends_str` becomes an empty string.
+
+In Argo Workflows an empty `depends` field causes the task to run immediately at DAG start — before any predecessor has completed — which is exactly the premature-execution bug this PR is meant to fix.
+
+This affects the common conditional-join case, for example:
+
+```python
+# switch_step -> branch_a, branch_b  (conditional, no nested static split)
+# branch_a -> shared_join
+# branch_b -> shared_join
+```
+
+Here `branch_a.split_branches` and `branch_b.split_branches` are both `[]`, so `node_groups = {}`, and `shared_join` ends up with an empty `depends_str`.
+
+Consider guarding the reset so that `conditional_deps`/`required_deps` are only replaced when `node_groups` is actually non-empty (i.e., at least one `in_func` contributed a split group).",https://github.com/Netflix/metaflow/pull/3002#discussion_r2921249258,,2026-03-11T22:06:48.142000,Empty depends string causes premature task execution in Argo Workflows,logic,high,8,"Comment 2 identifies a significant logic bug where `node_groups` being empty causes `conditional_deps` and `required_deps` to be reset to empty lists, resulting in an empty `depends_str`. In Argo Workflows, this causes tasks to run immediately at DAG start before predecessors complete - exactly the bug the PR was meant to fix. This is a meaningful production bug affecting workflow execution order.",2026-03-12T00:43:35.643262+00:00
+synnaxlabs/synnax,2069,SY-3905: Stage Transition Bugfixes,https://github.com/synnaxlabs/synnax/pull/2069,"**`time_range` and `alignment` lost on buffer growth for non-variable types**
+
+When the fixed-width backing buffer needs to grow, a new `Series` object is created (`grown`) and the old data is copied in with `grown->write(*dest)`. However, unlike the growth path in `append_fixed_sample` (which explicitly copies `grown->time_range = buf->time_range` and `grown->alignment = buf->alignment`), this path does **not** copy those fields.
+
+After `dest = std::move(grown)`, `dest->time_range` is a zero-initialized `TimeRange()`. The merge block that follows then evaluates `dest->time_range == x::telem::TimeRange()` as `true` and unconditionally sets `dest->time_range = src->time_range`, silently discarding the accumulated time range from all prior writes in the same cycle.
+
+The fix mirrors what `append_fixed_sample` already does:
+
+```cpp
+} else {
+    const auto required_cap = dest->size() + src->size();
+    if (dest->cap() < required_cap) {
+        const auto grown_cap = std::max(required_cap, dest->cap() * 2 + 1);
+        auto grown = x::mem::make_local_shared<x::telem::Series>(
+            dest->data_type(),
+            grown_cap
+        );
+        grown->write(*dest);
+        grown->time_range = dest->time_range;  // preserve accumulated range
+        grown->alignment = dest->alignment;    // preserve alignment
+        dest = std::move(grown);
+    }
+    dest->write(*src);
+}
+```",https://github.com/synnaxlabs/synnax/pull/2069#discussion_r2921127056,,2026-03-11T21:37:19.190000,Buffer growth loses time_range and alignment metadata,data_integrity,high,8,"This catch identifies a real data integrity bug where buffer growth for fixed-width types fails to preserve time_range and alignment metadata, causing accumulated time ranges from prior writes to be silently discarded. The analysis is thorough and correctly identifies the fix pattern already present in similar code.",2026-03-12T00:43:35.643262+00:00
+synnaxlabs/synnax,2074,SY-3910: Add Windows monitor change polling to Drift,https://github.com/synnaxlabs/synnax/pull/2074,"**Minimized windows falsely detected as off-screen**
+
+On Windows, when a window is minimized, `innerPosition()` reports the position as `(-32000, -32000)` — a reserved sentinel value used by the Windows OS for minimized windows. This means `isPositionVisible` will always return `false` for a minimized window, causing `win.center()` to be called every poll interval (every second) while the window is minimized. Depending on Tauri's behavior, this may un-minimize and re-center the window repeatedly, fighting against the user's minimized state.
+
+You should guard against this by checking `isMinimized()` (and optionally `isVisible()` for hidden windows) before querying the position:
+
+```suggestion
+  private async repositionIfOffScreen(): Promise<void> {
+    if (await this.win.isMinimized()) return;
+    const scaleFactor = await this.win.scaleFactor();
+    const position = parsePosition(await this.win.innerPosition(), scaleFactor);
+    const visible = await isPositionVisible(position);
+    if (!visible) await this.win.center();
+  }
+```",https://github.com/synnaxlabs/synnax/pull/2074#discussion_r2920978396,,2026-03-11T21:00:51.641000,Minimized windows incorrectly detected as off-screen causing repeated centering,logic,high,8,"This is a meaningful logic bug with real production impact - minimized windows on Windows would be repeatedly centered every second due to the OS returning sentinel position values (-32000, -32000). This would actively fight against user actions and cause poor UX. The catch required platform-specific Windows knowledge about sentinel values.",2026-03-12T00:43:35.643262+00:00
+synnaxlabs/synnax,2075,SY-3913: Fix Cloggable KV Observable Pipeline,https://github.com/synnaxlabs/synnax/pull/2075,"**`disconnect()` deadlocks if context is already cancelled when `OnChange` is called**
+
+In `runPrelude` (see `routine.go`), when the `signal.Go` context is already cancelled the goroutine function is never started:
+
+```go
+// If the context has already been canceled, don't even start the routine.
+if r.ctx.Err() != nil {
+    r.state.state = RoutineStateFailed
+    r.state.err = r.ctx.Err()
+    return r.ctx, false
+}
+```
+
+Because `f` is never called, `defer doneOnce.Do(func() { close(h.done) })` inside `f` never runs, so `h.done` is never closed. Any subsequent call to the returned `disconnect` closure blocks forever at:
+
+```go
+h.closed.Do(func() {
+    close(h.ch)
+    <-h.done  // ← blocks indefinitely
+})
+```
+
+In the `kv.go` usage the `sCtx` context is only cancelled by `db.Close()`, so calling `db.OnChange(...)` after `db.Close()` would trigger this deadlock. It could also surface in tests that call `cancel()` before a re-registration.
+
+A guard like the following would prevent the hang:
+
+```go
+h.closed.Do(func() {
+    close(h.ch)
+    select {
+    case <-h.done:
+    case <-a.g.(interface{ Done() <-chan struct{} }).Done():
+        // context already cancelled; goroutine never started or will exit via ctx
+    }
+})
+```
+
+Or, more idiomatically, store the `signal.Context` on `async` so you can select on it in the disconnect closure.",https://github.com/synnaxlabs/synnax/pull/2075#discussion_r2921115073,,2026-03-11T21:34:17.696000,Deadlock when registering handler after context cancellation,concurrency,high,8,"This catches a real deadlock scenario where disconnect() blocks forever if OnChange is called after the signal context is cancelled. The goroutine never starts so h.done is never closed, causing the <-h.done in disconnect to hang indefinitely. This is a production-impacting concurrency bug that would be difficult to debug.",2026-03-12T00:43:35.643262+00:00
