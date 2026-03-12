@@ -12728,3 +12728,77 @@ if decoded_payload is not None:
                 media_type=""application/json"",
             )
 ```",https://github.com/BerriAI/litellm/pull/23446#discussion_r2924352374,,2026-03-12T12:38:27.102000,Ephemeral token expiry never enforced allows indefinite replay,security,critical,9,"This is a security vulnerability where ephemeral tokens with expiration timestamps are never validated against current time, allowing stolen or leaked tokens to be replayed indefinitely after they should have expired. This bypasses the intended security control of time-limited access.",2026-03-12T18:28:39.942267+00:00
+reflex-dev/reflex,6169,Gracefully reset the StateProxy internals on error,https://github.com/reflex-dev/reflex/pull/6169,"**Lock may never be released if inner `__aexit__` raises `CancelledError`**
+
+`contextlib.suppress(Exception)` only silences subclasses of `Exception`. In Python 3.8+, `asyncio.CancelledError` is a subclass of `BaseException` — **not** `Exception` — so it is not suppressed.
+
+The `modify_state` async context manager does real async work in its `__aexit__` path (emitting a `StateUpdate` via the socket, etc.). If that work is cancelled, a `CancelledError` escapes the `with contextlib.suppress(Exception):` block, and the four cleanup lines that follow (`_self_actx = None`, `_self_mutable = False`, `_self_actx_lock_holder = None`, `_self_actx_lock.release()`) are **never executed**. The outer `_self_actx_lock` is then permanently held, causing every subsequent `async with state_proxy:` call to deadlock.
+
+The original code guarded cleanup in a `finally` block for exactly this reason. The replacement should do the same:
+
+```suggestion
+        try:
+            if self._self_mutable and self._self_actx is not None:
+                await self._self_actx.__aexit__(*exc_info)
+        except Exception:
+            pass
+        finally:
+            self._self_actx = None
+            self._self_mutable = False
+            self._self_actx_lock_holder = None
+            self._self_actx_lock.release()
+```
+
+This ensures the lock is always released regardless of whether the inner `__aexit__` raises `Exception`, `CancelledError`, or anything else.",https://github.com/reflex-dev/reflex/pull/6169#discussion_r2915419074,,2026-03-11T01:56:42.490000,CancelledError bypasses lock release causing permanent deadlock,concurrency,critical,9,"Excellent catch of a subtle but critical concurrency bug. The comment correctly identifies that asyncio.CancelledError inherits from BaseException (not Exception) in Python 3.8+, meaning contextlib.suppress(Exception) won't catch it, leaving the lock permanently held and causing all subsequent state operations to deadlock. This is a nuanced understanding of Python's exception hierarchy combined with async context manager semantics that would be very difficult to catch in testing but would cause production failures.",2026-03-12T20:15:17.514186+00:00
+simstudioai/sim,3538,Fix/connect stop workflow button,https://github.com/simstudioai/sim/pull/3538,"**Stop button may silently fail if clicked before `execution:started` event arrives**
+
+`handleCancelExecution` (in `use-workflow-execution.ts`) relies on `getCurrentExecutionId(activeWorkflowId)` to look up which server-side execution to cancel. That ID is now set via the new `execution:started` SSE event handler added in this PR:
+
+```typescript
+case 'execution:started': {
+  setCurrentExecutionId(wfId, event.executionId)
+  break
+}
+```
+
+However, there is a window between when `setIsExecuting(targetWorkflowId, true)` is called (which causes the Stop button to render) and when the `execution:started` event is received over the SSE stream. If the user clicks Stop during this window, `getCurrentExecutionId` returns `null`, and the cancellation may be a no-op — the workflow continues running silently.
+
+Consider storing the `executionId` (generated locally via `uuidv4()`) in the store immediately when `setIsExecuting(true)` is called, rather than waiting for the server's `execution:started` SSE event to populate it. This would close the gap entirely.",https://github.com/simstudioai/sim/pull/3538#discussion_r2926474977,,2026-03-12T18:12:16.209000,Race condition allows stop button click before execution ID is set,concurrency,high,8,Comment 1 identifies a real race condition where clicking the Stop button between setIsExecuting(true) and receiving the execution:started SSE event causes silent cancellation failure - the workflow continues running while user thinks it stopped. This is a meaningful UX bug with real user impact.,2026-03-12T20:15:17.514186+00:00
+berriai/litellm,22923,fix(sso): direct PKCE token exchange + Redis wiring for multi-instance SSO,https://github.com/BerriAI/litellm/pull/22923,"**JSON `null` response body causes unhandled `AttributeError`**
+
+If the token endpoint returns HTTP 200 with response body `null` (valid JSON), `response.json()` returns Python `None` without raising an exception. The `try/except` only catches JSON parsing errors, so `token_response` is set to `None`. Then at line 2860, `token_response.get(""access_token"")` raises `AttributeError: 'NoneType' object has no attribute 'get'`, which propagates as an unhandled exception rather than a clean `ProxyException`.
+
+Add a type guard immediately after JSON parsing:
+
+```suggestion
+        try:
+            token_response: dict = response.json()
+        except Exception as json_err:
+            verbose_proxy_logger.error(
+                ""Failed to parse token response as JSON: %s. Body: %s"",
+                json_err,
+                response.text[:500],
+            )
+            raise ProxyException(
+                message=f""Token endpoint returned invalid JSON: {json_err}"",
+                type=ProxyErrorTypes.auth_error,
+                param=""token_exchange"",
+                code=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        if not isinstance(token_response, dict):
+            raise ProxyException(
+                message=(
+                    f""Token endpoint returned unexpected JSON type: ""
+                    f""{type(token_response).__name__} (expected object)""
+                ),
+                type=ProxyErrorTypes.auth_error,
+                param=""token_exchange"",
+                code=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        # Some providers return HTTP 200 with an error body (e.g. expired code, replay attack).
+        # Also guard against JSON `null` for access_token — it passes key-existence checks
+        # but would produce a ""Bearer None"" Authorization header downstream.
+        access_token_val = token_response.get(""access_token"")
+```",https://github.com/BerriAI/litellm/pull/22923#discussion_r2897706187,,2026-03-06T20:25:54.704000,JSON null response causes unhandled AttributeError crash,runtime,high,8,"This catches a real runtime crash where if the token endpoint returns HTTP 200 with JSON `null` body, `response.json()` returns Python `None` without raising, and then `token_response.get('access_token')` raises AttributeError on NoneType. This would cause production SSO login failures with unhelpful error messages.",2026-03-12T20:15:17.514186+00:00
