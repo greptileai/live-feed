@@ -12258,3 +12258,51 @@ remove := ts.OnChange(func(msgCtx context.Context, v V) {
     }
 })
 ```",https://github.com/synnaxlabs/synnax/pull/2077#discussion_r2921503831,,2026-03-11T23:31:11.607000,Closure captures wrong context causing potential deadlock on shutdown,concurrency,high,8,"This comment identifies a real concurrency bug where the OnChange callback uses the message context (potentially context.Background()) instead of the signal context, which can cause SendUnderContext to block indefinitely when the outlet buffer is full during shutdown, leading to a deadlock. This is a meaningful bug that would cause problems in production.",2026-03-12T04:44:41.952104+00:00
+netflix/metaflow,2824,feat: add runs CLI command to list recent local runs,https://github.com/Netflix/metaflow/pull/2824,"Race condition: read-modify-write on `recent_runs` file is not atomic. If two flows run concurrently, one update can be lost. Given that PR #2796 just fixed a similar issue in `LocalStorage.save_bytes()` with atomic writes, this should use the same pattern.
+
+Use `tempfile.mkstemp()` + `os.rename()` like `LocalStorage._atomic_write()`:
+
+```suggestion
+    # Maintain a capped history of recent run IDs (newest first).
+    history_path = os.path.join(path, _RECENT_RUNS_FILE)
+    try:
+        with open(history_path) as f:
+            history = json.load(f)
+    except Exception:
+        history = []
+
+    new_entry = {
+        ""run_id"": str(run_id),
+        ""created_at"": datetime.now().strftime(""%Y-%m-%d %H:%M:%S""),
+    }
+    # Prepend newest entry and keep at most MAX_RECENT_RUNS entries.
+    history = [new_entry] + [e for e in history if e.get(""run_id"") != str(run_id)]
+    history = history[:MAX_RECENT_RUNS]
+
+    # Atomic write using temp file + rename
+    fd, tmp_path = tempfile.mkstemp(dir=path)
+    try:
+        with os.fdopen(fd, 'w') as f:
+            json.dump(history, f)
+        os.rename(tmp_path, history_path)
+    except:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+        raise
+```",https://github.com/Netflix/metaflow/pull/2824#discussion_r2835424152,the race condition has been fixed.,2026-02-20T23:03:55.487000,Race condition in concurrent file updates causes data loss,concurrency,medium,8,"Comment 5 identifies a real race condition where concurrent flow runs can lose updates to the recent_runs file due to non-atomic read-modify-write operations. The reviewer provides a concrete fix using tempfile + rename for atomic writes, and the developer confirmed and fixed the issue.",2026-03-12T06:29:57.851104+00:00
+netflix/metaflow,3000,feat: Resolve N+1 query storm in Client API by pushing status and lim…,https://github.com/Netflix/metaflow/pull/3000,"**O(1) optimisation is a no-op — `_apply_filter` zeroes out results for unknown filter keys**
+
+`_apply_filter` (in `metadata.py`) only handles the keys `any_tags`, `tags`, and `system_tags`. For any key it does not recognise, no elements are appended to `result` during that loop iteration, and then `starting_point = result` assigns the empty list. So calling `MetadataProvider._apply_filter(v, {""status"": ""completed""})` always returns an empty list regardless of what `v` contains.
+
+This means the optimised path always returns `[]`, `if runs:` in `core.py` is always `False`, the method silently falls through to the legacy O(N) loop every time, and the entire performance improvement is bypassed in practice.
+
+To fix this, server-pushed filter keys should be excluded from the `filters` dict before it is handed to `_apply_filter`, so the client-side pass only re-evaluates keys that `_apply_filter` actually understands (`any_tags`, `tags`, `system_tags`).",https://github.com/Netflix/metaflow/pull/3000#discussion_r2906974337,,2026-03-09T17:41:17.977000,O(1) optimization silently bypassed due to unrecognized filter keys,logic,high,8,This is a meaningful logic bug where a performance optimization (O(1) vs O(N)) is silently bypassed because `_apply_filter` returns empty list for unrecognized filter keys like 'status'. The catch requires understanding code flow across multiple files and identifies that the entire PR's performance improvement would be ineffective in practice. This is non-obvious and would cause real performance impact in production.,2026-03-12T06:29:57.851104+00:00
+berriai/litellm,23406,"fix(mcp): OAuth2 chat connect - tools fetch, auth, and status fixes",https://github.com/BerriAI/litellm/pull/23406,"**Duplicate append doubles every rewritten MCP tool**
+
+`mcp_tools_with_litellm_proxy.append(rewritten)` is called twice on consecutive lines (111 and 112). This is a copy-paste error that causes every tool whose `server_url` matches `_PROXY_MCP_PATH_RE` to appear twice in `mcp_tools_with_litellm_proxy`. The duplicated entries are then both forwarded to the MCP gateway, producing duplicate tool listings and potentially causing the tool to be called twice in a single turn.
+
+```suggestion
+                            mcp_tools_with_litellm_proxy.append(rewritten)
+```",https://github.com/BerriAI/litellm/pull/23406#discussion_r2922280821,,2026-03-12T04:56:32.824000,Copy-paste error causes duplicate MCP tools in list,logic,high,8,"This catches a real copy-paste bug where `mcp_tools_with_litellm_proxy.append(rewritten)` is called twice consecutively, causing every MCP tool matching the regex pattern to be duplicated. This would cause duplicate tool listings and potentially duplicate tool calls in production, affecting users.",2026-03-12T06:29:57.851104+00:00
