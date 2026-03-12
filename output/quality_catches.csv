@@ -12026,3 +12026,185 @@ h.closed.Do(func() {
 ```
 
 Or, more idiomatically, store the `signal.Context` on `async` so you can select on it in the disconnect closure.",https://github.com/synnaxlabs/synnax/pull/2075#discussion_r2921115073,,2026-03-11T21:34:17.696000,Deadlock when registering handler after context cancellation,concurrency,high,8,"This catches a real deadlock scenario where disconnect() blocks forever if OnChange is called after the signal context is cancelled. The goroutine never starts so h.done is never closed, causing the <-h.done in disconnect to hang indefinitely. This is a production-impacting concurrency bug that would be difficult to debug.",2026-03-12T00:43:35.643262+00:00
+onyx-dot-app/onyx,9256,fix(slackbot): resolve channel references and filter search by channel tags,https://github.com/onyx-dot-app/onyx/pull/9256,"**Override message silently dropped by `well_answered_postfilter`**
+
+When `channel_tags` is set and no indexed data is found, the code overrides `answer.answer` with a ""No indexed data found"" message. However, this message is never delivered to the user if the channel config has `well_answered_postfilter` (i.e. `only_respond_if_citations` is `True`).
+
+The `only_respond_if_citations` check that follows (lines 353–372) evaluates `not answer.citation_info`, which is still `False` (no citations) even after the override. That block logs an error and calls `return True` without posting any Slack message, silently discarding the ""No indexed data"" reply you constructed here.
+
+To guarantee the override message reaches the user, the channel-tags no-data path needs to bypass this filter. For example:
+
+```python
+# If a channel filter was applied but no results were found, override
+# the LLM response to avoid hallucinated answers about unindexed channels
+if channel_tags and not answer.citation_info and not answer.top_documents:
+    channel_names = "", "".join(f""#{tag.tag_value}"" for tag in channel_tags)
+    answer.answer = (
+        f""No indexed data found for {channel_names}. ""
+        ""This channel may not be indexed, or there may be no messages ""
+        ""matching your query within it.""
+    )
+    # Respond immediately so well_answered_postfilter cannot suppress this message
+    respond_in_thread_or_channel(
+        client=client,
+        channel=channel,
+        receiver_ids=target_receiver_ids,
+        text=answer.answer,
+        thread_ts=target_thread_ts,
+        send_as_ephemeral=send_as_ephemeral,
+    )
+    return False
+```
+
+Alternatively, the `only_respond_if_citations` guard could be amended to skip when `channel_tags` triggered the override:
+
+```python
+if (
+    only_respond_if_citations
+    and not answer.citation_info
+    and not message_info.bypass_filters
+    and not channel_tags   # don't suppress the ""no indexed data"" message
+):
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: backend/onyx/onyxbot/slack/handlers/handle_regular_answer.py
+Line: 293-301
+
+Comment:
+**Override message silently dropped by `well_answered_postfilter`**
+
+When `channel_tags` is set and no indexed data is found, the code overrides `answer.answer` with a ""No indexed data found"" message. However, this message is never delivered to the user if the channel config has `well_answered_postfilter` (i.e. `only_respond_if_citations` is `True`).
+
+The `only_respond_if_citations` check that follows (lines 353–372) evaluates `not answer.citation_info`, which is still `False` (no citations) even after the override. That block logs an error and calls `return True` without posting any Slack message, silently discarding the ""No indexed data"" reply you constructed here.
+
+To guarantee the override message reaches the user, the channel-tags no-data path needs to bypass this filter. For example:
+
+```python
+# If a channel filter was applied but no results were found, override
+# the LLM response to avoid hallucinated answers about unindexed channels
+if channel_tags and not answer.citation_info and not answer.top_documents:
+    channel_names = "", "".join(f""#{tag.tag_value}"" for tag in channel_tags)
+    answer.answer = (
+        f""No indexed data found for {channel_names}. ""
+        ""This channel may not be indexed, or there may be no messages ""
+        ""matching your query within it.""
+    )
+    # Respond immediately so well_answered_postfilter cannot suppress this message
+    respond_in_thread_or_channel(
+        client=client,
+        channel=channel,
+        receiver_ids=target_receiver_ids,
+        text=answer.answer,
+        thread_ts=target_thread_ts,
+        send_as_ephemeral=send_as_ephemeral,
+    )
+    return False
+```
+
+Alternatively, the `only_respond_if_citations` guard could be amended to skip when `channel_tags` triggered the override:
+
+```python
+if (
+    only_respond_if_citations
+    and not answer.citation_info
+    and not message_info.bypass_filters
+    and not channel_tags   # don't suppress the ""no indexed data"" message
+):
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/9256#discussion_r2915126767,Fixed in 1b41b8701 — added `and not channel_tags` to the `well_answered_postfilter` guard so the 'no indexed data' override always reaches the user.,2026-03-10T23:58:34.126000,Override message silently dropped by post-filter check,logic,high,8,"This catches a real logic bug where a user-facing 'No indexed data found' message would be silently discarded when the well_answered_postfilter is enabled. Users would receive no response at all instead of the helpful error message, causing a poor user experience in production.",2026-03-12T03:12:07.495511+00:00
+isaac-sim/isaaclab,4960,Makes Demo Scripts launch with Kit Visualizer by Default,https://github.com/isaac-sim/IsaacLab/pull/4960,"**`set_defaults` bypasses type converter — visualizer never opens**
+
+`argparse.set_defaults()` does **not** pass the value through the `type` function registered on the argument. Because `--visualizer` is declared with `type=_parse_visualizer_csv` (which returns `list[str]`), the downstream code in `AppLauncher` always expects `launcher_args[""visualizer""]` to be a `list`, never a bare string.
+
+With `set_defaults(visualizer=""kit"")`, `args_cli.visualizer` is the string `""kit""`. Inside `AppLauncher._resolve_headless_mode` (line 677):
+
+```python
+requested_visualizers = {str(v).strip().lower() for v in visualizers_arg if str(v).strip()}
+```
+
+Iterating over the string `""kit""` yields individual characters `'k'`, `'i'`, `'t'`, so `requested_visualizers == {'k', 'i', 't'}`. The guard `""kit"" not in {'k', 'i', 't'}` is `True`, which forces `self._headless = True` — the Kit visualiser is never launched, **directly defeating this PR's intent**.
+
+The same string-iteration bug also corrupts `_set_visualizer_settings`: `"" "".join(""kit"")` produces `""k i t""` instead of `""kit""`.
+
+Fix: pass a list that matches the type function's return value:
+
+```suggestion
+parser.set_defaults(visualizer=[""kit""])
+```
+
+This applies to **all 21 changed files**:
+- `scripts/demos/arms.py:27`
+- `scripts/demos/bin_packing.py:35`
+- `scripts/demos/bipeds.py:26`
+- `scripts/demos/deformables.py:26`
+- `scripts/demos/h1_locomotion.py:36`
+- `scripts/demos/hands.py:26`
+- `scripts/demos/haply_teleoperation.py:53`
+- `scripts/demos/markers.py:25`
+- `scripts/demos/multi_asset.py:29`
+- `scripts/demos/pick_and_place.py:17`
+- `scripts/demos/procedural_terrain.py:59`
+- `scripts/demos/quadcopter.py:26`
+- `scripts/demos/quadrupeds.py:26`
+- `scripts/demos/sensors/cameras.py:31`
+- `scripts/demos/sensors/contact_sensor.py:17`
+- `scripts/demos/sensors/frame_transformer_sensor.py:15`
+- `scripts/demos/sensors/imu_sensor.py:17`
+- `scripts/demos/sensors/multi_mesh_raycaster.py:38`
+- `scripts/demos/sensors/multi_mesh_raycaster_camera.py:38`
+- `scripts/demos/sensors/raycaster_sensor.py:15`
+- `scripts/demos/sensors/tacsl_sensor.py:72`",https://github.com/isaac-sim/IsaacLab/pull/4960#discussion_r2921733536,,2026-03-12T01:09:17.527000,String iteration bug defeats PR's core functionality across 21 files,logic,high,9,"This is an excellent catch of a subtle but critical bug. The reviewer correctly identified that argparse.set_defaults() bypasses type converters, causing 'kit' string to be iterated as characters {'k','i','t'} instead of being treated as a list element. This completely defeats the PR's stated purpose (launching with Kit Visualizer) across all 21 modified files. The bug requires deep understanding of argparse internals and the downstream code behavior - not something obvious tooling would catch.",2026-03-12T03:12:07.495511+00:00
+simstudioai/sim,3528,Hide resources that have been deleted,https://github.com/simstudioai/sim/pull/3528,"**`isError` state not guarded — file resources incorrectly removed on query failure**
+
+The `shouldFilterMissingFiles` flag is currently `!isWorkspaceFilesLoading`, but this is `true` in two cases:
+1. ✅ Data loaded successfully — correct to filter
+2. ❌ Query errored — `isLoading` is `false` and `data` is `undefined`, so `workspaceFiles` falls back to `[]`, and `existingWorkspaceFileIds` becomes an empty `Set`. Every file resource then gets filtered out, even though the error is transient and the files still exist.
+
+You should also check `isError` (or prefer `isSuccess`) before enabling filtering:
+
+```suggestion
+      const next = sanitizeResources(prev, existingWorkspaceFileIds, !isWorkspaceFilesLoading && !isWorkspaceFilesError)
+```
+
+And destructure `isError` alongside `isLoading` at line 187:
+```ts
+const {
+  data: workspaceFiles = [],
+  isLoading: isWorkspaceFilesLoading,
+  isError: isWorkspaceFilesError,
+} = useWorkspaceFiles(workspaceId)
+```",https://github.com/simstudioai/sim/pull/3528#discussion_r2921615052,,2026-03-12T00:16:54.717000,Query error state causes incorrect deletion of all file resources,logic,high,8,"This is a meaningful logic bug where a transient API error would cause all file resources to be incorrectly filtered out from the UI, making it appear as if all files were deleted. The analysis correctly identifies the edge case where isLoading=false but data=undefined leads to an empty Set that filters everything. This would cause real user-facing issues and isn't an obvious catch.",2026-03-12T03:12:07.495511+00:00
+berriai/litellm,22711,Fix 404 when fetching config-based MCP servers by ID,https://github.com/BerriAI/litellm/pull/22711,"**Missing IP filtering on `get_mcp_server_by_id` path**
+
+The list endpoint uses `get_filtered_registry(client_ip)` which applies IP-based access control via `_is_server_accessible_from_ip`. Here, `get_mcp_server_by_id` does **not** apply any IP filtering — a server configured with `available_on_public_internet=False` can be resolved by an external caller if they know the `server_id`.
+
+For non-admin users, the downstream `get_allowed_mcp_servers` check may still block access. But for admin users (line 720: `is_admin_view=True`), authorization is skipped entirely, and IP filtering is the only protection. Consider adding an IP accessibility check after the `get_mcp_server_by_id` lookup:
+
+```python
+registry_server = global_mcp_server_manager.get_mcp_server_by_id(server_id)
+if registry_server is not None and not global_mcp_server_manager._is_server_accessible_from_ip(registry_server, client_ip):
+    registry_server = None
+```",https://github.com/BerriAI/litellm/pull/22711#discussion_r2881046414,resolved,2026-03-03T23:41:46.264000,Missing IP access control allows unauthorized server access,security,high,8,"Comment 0 identifies a security vulnerability where IP-based access control is bypassed for config-based MCP servers. Admin users could access servers configured with `available_on_public_internet=False` from external IPs because the `get_mcp_server_by_id` lookup didn't apply IP filtering, unlike the list endpoint.",2026-03-12T03:12:07.495511+00:00
+simstudioai/sim,3529,Run workflows client side in mothership to transmit logs,https://github.com/simstudioai/sim/pull/3529,"**No guard against partial `tool_call` events causing duplicate execution**
+
+The server-side handler in `handlers.ts` explicitly guards against processing partial tool call events with `if (isPartial) return` before firing execution. The client-side code here has no equivalent check.
+
+If the Go backend sends more than one `tool_call` event for the same `toolCallId` (e.g., with argument streaming updates before the final complete event), `executeRunToolOnClient` will be called multiple times for the same tool. On the second call, `doExecuteRunTool` will find `isExecuting === true` and immediately call `reportCompletion(toolCallId, false, 'Workflow is already executing')`. Since `waitForToolCompletion` on the server terminates on any terminal status (including `'error'`), this races against the real execution completing — potentially signalling Go that the tool failed even when it succeeded.
+
+Adding a `toolMap.has(id)` check (the tool was already set up) before triggering execution would prevent the duplicate dispatch:
+
+```suggestion
+              if (parsed.type === 'tool_call' && ui?.clientExecutable && WORKFLOW_TOOLS.has(name) && !toolMap.has(id)) {
+                const args = data?.arguments ?? data?.input ?? {}
+                executeRunToolOnClient(id, name, args as Record<string, unknown>)
+              }
+```
+
+Wait — `toolMap` is set *before* `flush()` via `toolMap.set(id, blocks.length)`, so `toolMap.has(id)` would always be true here. A cleaner approach would be to only trigger execution on the *first* time the tool call is seen (i.e. guard with whether the tool entry was freshly created vs. already existed).",https://github.com/simstudioai/sim/pull/3529#discussion_r2921654187,,2026-03-12T00:34:33.695000,Race condition in duplicate tool call execution causes false errors,concurrency,high,8,"This is a genuine race condition bug where partial tool_call events could trigger duplicate executions, causing the second execution to report failure while the first is still running. This could result in successful tool calls being incorrectly marked as failed, affecting user-facing functionality. The reviewer identified a non-obvious difference between server and client handling and traced through the execution flow to find the issue.",2026-03-12T03:12:07.495511+00:00
