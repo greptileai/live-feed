@@ -12848,3 +12848,130 @@ The fix is to add a `__syncthreads()` after all threads finish their output writ
 
 This guarantees all reads of the old `chunk_prefix` (for the current chunk's outputs) complete before thread 255 writes the new value for the next chunk.
 ",https://github.com/NVIDIA/TransformerEngine/pull/2755#discussion_r2922238313,,2026-03-12T04:41:47.275000,Race condition on shared memory chunk_prefix in CUDA kernel,concurrency,high,8,"This identifies a genuine race condition in a CUDA kernel where thread 255 could update chunk_prefix before other warps finish reading it for their output writes. This would cause incorrect cumulative offsets in production, affecting correctness of the fused kernel. The analysis is thorough and the fix is specific.",2026-03-12T22:13:31.922511+00:00
+onyx-dot-app/onyx,9316,fix(cherry-pick): Improving workflows,https://github.com/onyx-dot-app/onyx/pull/9316,"**`PIPESTATUS` overwritten before `tee_exit` is read**
+
+`exit_code=""${PIPESTATUS[0]}""` is itself a simple command (a variable assignment). In bash, executing any command — including a pure assignment — resets `PIPESTATUS` to a single-element array `(0)`. By the time line 103 runs, `PIPESTATUS[1]` no longer refers to `tee`'s exit code from the pipeline; it is simply empty (the array has only one element at that point), so `tee_exit` is always an empty string.
+
+The subsequent check `[ ""${tee_exit}"" -ne 0 ]` then fails with a `[: : integer expression expected` error. Under `set -e` (restored on line 104), this causes the script to abort before the cherry-pick success/failure logic runs, making every cherry-pick appear to fail.
+
+Capture the full `PIPESTATUS` array atomically before doing anything else:
+
+```suggestion
+          pipe_statuses=(""${PIPESTATUS[@]}"")
+          exit_code=""${pipe_statuses[0]}""
+          tee_exit=""${pipe_statuses[1]}""
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: .github/workflows/post-merge-beta-cherry-pick.yml
+Line: 102-103
+
+Comment:
+**`PIPESTATUS` overwritten before `tee_exit` is read**
+
+`exit_code=""${PIPESTATUS[0]}""` is itself a simple command (a variable assignment). In bash, executing any command — including a pure assignment — resets `PIPESTATUS` to a single-element array `(0)`. By the time line 103 runs, `PIPESTATUS[1]` no longer refers to `tee`'s exit code from the pipeline; it is simply empty (the array has only one element at that point), so `tee_exit` is always an empty string.
+
+The subsequent check `[ ""${tee_exit}"" -ne 0 ]` then fails with a `[: : integer expression expected` error. Under `set -e` (restored on line 104), this causes the script to abort before the cherry-pick success/failure logic runs, making every cherry-pick appear to fail.
+
+Capture the full `PIPESTATUS` array atomically before doing anything else:
+
+```suggestion
+          pipe_statuses=(""${PIPESTATUS[@]}"")
+          exit_code=""${pipe_statuses[0]}""
+          tee_exit=""${pipe_statuses[1]}""
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/9316#discussion_r2927701874,,2026-03-12T22:17:19.302000,PIPESTATUS overwritten causing all cherry-picks to fail,runtime,high,8,"This catches a genuine bash bug where accessing PIPESTATUS[0] resets the array, making PIPESTATUS[1] empty. This causes the subsequent integer comparison to fail with 'integer expression expected', aborting every cherry-pick operation under set -e. This would break the entire workflow in production.",2026-03-13T00:47:15.562396+00:00
+onyx-dot-app/onyx,9128,feat(oidc): Adding PKCE for OIDC,https://github.com/onyx-dot-app/onyx/pull/9128,"**`response.status_code` always overwrites the 302 redirect**
+
+All Starlette `Response` objects unconditionally have a `status_code` attribute, so `hasattr(response, ""status_code"")` is always `True`. `backend.login()` for `CookieTransport` returns a `Response` with `status_code=200` (or 204), which means `redirect_response.status_code` gets silently overwritten from `302` to `200` on every successful login. The browser never follows the redirect.
+
+This logic was present in the original code before this PR and was moved verbatim into `complete_login_flow`. This PR is a good opportunity to remove these three `hasattr` guards entirely, since `response.body` and `response.media_type` also don't belong on the redirect — only the `Set-Cookie` headers from the login response need to be forwarded:
+
+```python
+# Copy headers from auth response to redirect response, with special handling for Set-Cookie
+for header_name, header_value in response.headers.items():
+    # FastAPI can have multiple Set-Cookie headers as a list
+    if header_name.lower() == ""set-cookie"" and isinstance(
+        header_value, list
+    ):
+        for cookie_value in header_value:
+            redirect_response.headers.append(header_name, cookie_value)
+    else:
+        redirect_response.headers[header_name] = header_value
+
+return redirect_response
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: backend/onyx/auth/users.py
+Line: 2077-2081
+
+Comment:
+**`response.status_code` always overwrites the 302 redirect**
+
+All Starlette `Response` objects unconditionally have a `status_code` attribute, so `hasattr(response, ""status_code"")` is always `True`. `backend.login()` for `CookieTransport` returns a `Response` with `status_code=200` (or 204), which means `redirect_response.status_code` gets silently overwritten from `302` to `200` on every successful login. The browser never follows the redirect.
+
+This logic was present in the original code before this PR and was moved verbatim into `complete_login_flow`. This PR is a good opportunity to remove these three `hasattr` guards entirely, since `response.body` and `response.media_type` also don't belong on the redirect — only the `Set-Cookie` headers from the login response need to be forwarded:
+
+```python
+# Copy headers from auth response to redirect response, with special handling for Set-Cookie
+for header_name, header_value in response.headers.items():
+    # FastAPI can have multiple Set-Cookie headers as a list
+    if header_name.lower() == ""set-cookie"" and isinstance(
+        header_value, list
+    ):
+        for cookie_value in header_value:
+            redirect_response.headers.append(header_name, cookie_value)
+    else:
+        redirect_response.headers[header_name] = header_value
+
+return redirect_response
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/9128#discussion_r2927585404,,2026-03-12T21:49:50.181000,Response status code overwritten from 302 to 200 breaking redirects,logic,high,8,"Comment 5 identifies that `hasattr(response, ""status_code"")` is always True for Starlette Response objects, causing the 302 redirect status to be silently overwritten to 200 from the login response. This would prevent browsers from following the redirect after successful OIDC login, breaking the authentication flow in production.",2026-03-13T00:47:15.562396+00:00
+ethyca/fides,7638,ENG-2544: Add DeletedStatus and failed-instance error handling,https://github.com/ethyca/fides/pull/7638,"**Failed-instance check can be silently bypassed**
+
+The failed-instance guard is placed _after_ `_get_submitted_data`. That method (lines 396–404) already iterates over candidate instances and, for any instance whose `incomplete_fields` is empty, unconditionally overwrites the status to `completed`:
+
+```python
+if inst.status != StatusType.completed:
+    inst.status = StatusType.completed
+    inst.save(self.resources.session)
+```
+
+This means that if a `failed` instance happens to have all optional fields already submitted (or if the task config has no required fields), `_get_submitted_data` will:
+1. Silently change its status from `failed` → `completed` and persist the change.
+2. Return the submitted data (not `None`).
+3. Cause `_set_submitted_data_or_raise_awaiting_async_task_callback` to return early before ever reaching the `ValueError` check.
+
+While the current stated scenario (ticket deleted with **no** data submitted) avoids this path, it creates a fragile dependency on that assumption. Consider moving the failed-instance check **before** calling `_get_submitted_data` to ensure a `failed` status is always honored, regardless of submission state:
+
+```python
+# Check for failed instances first, before any status mutations
+failed_instances = [
+    inst
+    for inst in self.resources.request.manual_task_instances
+    if inst.task_id == manual_task.id
+    and inst.config.config_type == action_type
+    and inst.status == StatusType.failed
+]
+if failed_instances:
+    raise ValueError(
+        f""Manual task for {self.connection_key} has failed instances — ""
+        f""cannot proceed without intervention""
+    )
+
+# Check if all manual task instances have submissions for this action type
+submitted_data = self._get_submitted_data(...)
+```",https://github.com/ethyca/fides/pull/7638#discussion_r2926272471,"The ordering is intentional — submitted data is checked first because if the user has already submitted data, the task is complete regardless of instance status. The `failed` status from the poller is only relevant when no data has been submitted and none can arrive (e.g. deleted Jira ticket). Updated the docstring to make this explicit.",2026-03-12T17:36:41.636000,Race condition allows failed task status to be silently overwritten,logic,high,8,"This catches a subtle ordering bug where a failed task instance could have its status silently changed to 'completed' before the failed-instance guard is checked, bypassing error handling. This is a meaningful logic bug that could cause data integrity issues in production by allowing failed tasks to proceed without proper intervention, and it required careful analysis of method execution order and state mutations.",2026-03-13T00:47:15.562396+00:00
