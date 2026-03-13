@@ -12994,3 +12994,99 @@ The migration should backfill `last_seen_at` for existing rows so only genuinely
 ALTER TABLE ""copilot_chats"" ADD COLUMN ""last_seen_at"" timestamp;
 UPDATE ""copilot_chats"" SET ""last_seen_at"" = ""updated_at"" WHERE ""last_seen_at"" IS NULL;
 ```",https://github.com/simstudioai/sim/pull/3549#discussion_r2927958681,"Same issue as above — fixed in 3146adf with a backfill: `UPDATE ""copilot_chats"" SET ""last_seen_at"" = ""updated_at"" WHERE ""last_seen_at"" IS NULL`.",2026-03-12T23:16:24.859000,Missing backfill causes all existing tasks to show as unread,data_integrity,high,8,"This catch identifies a significant data integrity bug where a database migration would leave all pre-existing chats with NULL lastSeenAt, causing the isUnread predicate to mark every historical task as unread for all users after deployment. This would cause immediate user-facing confusion and a poor experience.",2026-03-13T03:09:10.596317+00:00
+browserbase/stagehand,1805,fix: use provided value in fillForm instead of LLM-hallucinated arguments,https://github.com/browserbase/stagehand/pull/1805,"**Index alignment between `observeResults` and `fields` is not guaranteed**
+
+The fix pairs `observeResults[i]` with `fields[i]` by position, but `observe()` may not always return exactly one result per field in the same order. If the LLM inserts intermediate steps (e.g., a `""click""` to focus a field before a `""fill""`), the indices shift and the wrong value gets applied to the wrong field.
+
+Example of a broken case:
+```
+fields = [
+  { action: ""type email"", value: ""user@example.com"" },
+  { action: ""type password"", value: ""secret123"" },
+]
+
+observeResults = [
+  { method: ""click"",  ... },          // i=0 → skipped (correct)
+  { method: ""fill"",   ... email },    // i=1 → fields[1].value = ""secret123"" ← WRONG
+  { method: ""fill"",   ... password }, // i=2 → fields[2]?.value = undefined  ← no override
+]
+```
+
+A more robust approach would be to count only the `fill` results seen so far to determine which `fields` entry to use:
+
+```typescript
+let fillIndex = 0;
+for (let i = 0; i < observeResults.length; i++) {
+  const res = observeResults[i];
+
+  // Override LLM-hallucinated arguments with the actual value
+  // provided by the caller to prevent placeholder values like
+  // ""test@example.com"" from being typed instead of real input.
+  if (res.method === ""fill"") {
+    if (fields[fillIndex]?.value) {
+      res.arguments = [fields[fillIndex].value];
+    }
+    fillIndex++;
+  }
+
+  // ... rest of loop
+}
+```
+
+This way, the first `fill` result always maps to `fields[0]`, the second to `fields[1]`, etc., regardless of any interleaved non-fill actions.",https://github.com/browserbase/stagehand/pull/1805#discussion_r2910145564,,2026-03-10T08:29:15.953000,Index misalignment causes wrong values assigned to form fields,logic,high,8,"This catch identifies a real logic bug where index-based pairing between observeResults and fields can cause values to be assigned to wrong form fields when the LLM inserts intermediate actions like clicks. This would cause incorrect data entry in production, affecting user data integrity.",2026-03-13T04:42:34.380237+00:00
+berriai/litellm,23493,fix(gemini): preserve toolConfig on native generate_content,https://github.com/BerriAI/litellm/pull/23493,"**`system_instruction` silently dropped in `generate_content_stream`**
+
+The PR correctly adds `tool_config` to `generate_content_stream`, but `system_instruction` is never extracted from `kwargs` and never forwarded to `generate_content_handler` in this code path. The sibling functions `generate_content` (line 325+361) and `agenerate_content_stream` (line 418+461) both extract and pass `system_instruction`, making this path inconsistent.
+
+Any caller using `generate_content_stream` with a `systemInstruction` / `system_instruction` kwarg will silently lose their system prompt. The PR is fixing the same class of bug (`toolConfig` preservation), making it natural to fix this in the same change.
+
+```suggestion
+        # Call the handler with streaming enabled (sync version)
+        tool_config = kwargs.get(""toolConfig"") or kwargs.get(""tool_config"")
+        system_instruction = kwargs.get(""systemInstruction"") or kwargs.get(
+            ""system_instruction""
+        )
+        return base_llm_http_handler.generate_content_handler(
+            model=setup_result.model,
+            contents=contents,
+            generate_content_provider_config=setup_result.generate_content_provider_config,
+            generate_content_config_dict=setup_result.generate_content_config_dict,
+            tools=tools,
+            custom_llm_provider=setup_result.custom_llm_provider,
+            litellm_params=setup_result.litellm_params,
+            logging_obj=setup_result.litellm_logging_obj,
+            extra_headers=extra_headers,
+            extra_body=extra_body,
+            timeout=timeout or request_timeout,
+            _is_async=_is_async,
+            client=kwargs.get(""client""),
+            stream=True,
+            litellm_metadata=kwargs.get(""litellm_metadata"", {}),
+            tool_config=tool_config,
+            system_instruction=system_instruction,
+        )
+```",https://github.com/BerriAI/litellm/pull/23493#discussion_r2927842967,,2026-03-12T22:49:33.325000,system_instruction silently dropped in generate_content_stream path,logic,high,8,"Comment 2 identifies a meaningful bug where system_instruction is never extracted or forwarded in the generate_content_stream function, while sibling functions correctly handle it. This would cause users' system prompts to be silently lost, affecting actual behavior in production. The inconsistency across related code paths makes this a genuine bug that wouldn't be caught by IDE/build tools.",2026-03-13T04:42:34.380237+00:00
+simstudioai/sim,3548,feat(ashby): add webhook triggers with automatic lifecycle management,https://github.com/simstudioai/sim/pull/3548,"**Unconsumed response body in `ok` and `404` branches**
+
+The `else` branch correctly calls `.json()` to drain the response body, but the `ok` (200) and `404` branches return without consuming it. With Node.js native `fetch` (backed by `undici`), an unconsumed response body holds the underlying TCP connection open until it is garbage collected, preventing it from being returned to the connection pool. Under moderate load — e.g., many triggers being deleted in a short window — this can exhaust the pool and cause request timeouts.
+
+Consider consuming the body in all branches:
+
+```ts
+if (ashbyResponse.ok) {
+  await ashbyResponse.body?.cancel()
+  ashbyLogger.info(
+    `[${requestId}] Successfully deleted Ashby webhook subscription ${externalId}`
+  )
+} else if (ashbyResponse.status === 404) {
+  await ashbyResponse.body?.cancel()
+  ashbyLogger.info(
+    `[${requestId}] Ashby webhook ${externalId} not found during deletion (already removed)`
+  )
+} else {
+  const responseBody = await ashbyResponse.json().catch(() => ({}))
+  ashbyLogger.warn(...)
+}
+```
+
+Alternatively, you can call `ashbyResponse.json().catch(...)` in every branch and simply ignore the parsed value in the success cases.",https://github.com/simstudioai/sim/pull/3548#discussion_r2927744750,Good catch — fixed in b0bedcb. Added `await ashbyResponse.body?.cancel()` in both the `ok` and `404` branches to release the TCP connection back to the pool.,2026-03-12T22:26:41.777000,Unconsumed HTTP response body causes TCP connection pool exhaustion,resource_leak,high,8,"This catch identifies a real resource leak where unconsumed response bodies in Node.js fetch prevent TCP connections from returning to the pool. Under load with many webhook deletions, this could exhaust the connection pool and cause request timeouts - a meaningful production bug.",2026-03-13T04:42:34.380237+00:00
