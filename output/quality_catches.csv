@@ -13399,3 +13399,81 @@ MANAGED_OBJECT_STALENESS_CUTOFF_DAYS = max(1, int(
     os.getenv(""MANAGED_OBJECT_STALENESS_CUTOFF_DAYS"", 7)
 ))
 ```",https://github.com/BerriAI/litellm/pull/23472#discussion_r2928047870,,2026-03-12T23:37:55.426000,Zero staleness cutoff silently destroys all active batch jobs,data_integrity,high,8,"Setting MANAGED_OBJECT_STALENESS_CUTOFF_DAYS=0 causes the cutoff to equal 'now', marking ALL non-terminal managed objects as stale_expired on the first poll cycle. This silently discards all in-flight batches and responses - a serious data integrity bug that could cause significant production impact.",2026-03-13T18:21:35.117788+00:00
+ethyca/fides,7637,Improve changelog validations,https://github.com/ethyca/fides/pull/7637,"**Missing type check for `labels` field**
+
+If a user writes `labels: high-risk` in their YAML (a scalar string instead of a list), `data.get(""labels"", [])` returns the string `""high-risk""`. The `if labels:` guard is truthy for a non-empty string, and the list comprehension `[label for label in labels ...]` then iterates over individual **characters** of the string. Since none of `'h'`, `'i'`, `'g'`, etc. are keys in `LABEL_URLS`, all characters are reported as invalid, producing a deeply confusing error like:
+
+> `Invalid label(s) in 1234-fix.yaml: h, i, g, h, -, r, i, s, k. Valid labels are: db-migration, high-risk`
+
+A type check should guard against this:
+
+```suggestion
+    # Validate labels are recognized
+    labels = data.get(""labels"", [])
+    if labels and not isinstance(labels, list):
+        return None, (
+            f""'labels' must be a list in {filename} (e.g., [high-risk, db-migration]), ""
+            f""got: {labels!r}""
+        )
+    if labels:
+        invalid_labels = [label for label in labels if label not in LABEL_URLS]
+        if invalid_labels:
+            valid_labels = "", "".join(sorted(LABEL_URLS.keys()))
+            return None, (
+                f""Invalid label(s) in {filename}: {', '.join(invalid_labels)}. ""
+                f""Valid labels are: {valid_labels}""
+            )
+```",https://github.com/ethyca/fides/pull/7637#discussion_r2925984693,,2026-03-12T16:46:52.979000,String labels field causes confusing character-by-character iteration error,type_error,medium,8,"This catches a real bug where a YAML scalar string for labels would be iterated character-by-character, producing a deeply confusing error message listing individual characters as invalid labels. This is a meaningful type validation bug that would cause user confusion in production.",2026-03-13T20:17:40.613419+00:00
+gptme/gptme,1647,feat(eval): add practical eval suite with 3 real-world tests,https://github.com/gptme/gptme/pull/1647,"**Unhandled `HTTPError` in actual test calls loses all partial results**
+
+The startup probe (fixed in a previous commit) now correctly catches `urllib.error.HTTPError` to distinguish a running-but-buggy server from one that hasn't started yet. However, the three actual test `urlopen` calls on lines 198, 209, and 213 of `practical.py` (rendered inside the `test_server.py` string) still have no `HTTPError` handler.
+
+The outer `try` block only has a `finally`, not an `except`. If the server returns any 4xx/5xx response for any of these three requests (e.g., correct GET but a buggy POST returning 500), `HTTPError` propagates unhandled, `test_server.py` crashes with exit code 1, and `print(json.dumps({'results': results}))` is **never reached**. As a result:
+
+- `ctx.stdout` is empty → every JSON-parsing check (`check_api_get_items`, `check_api_post_item`, `check_api_get_after_post`) returns `False`
+- `ctx.exit_code != 0` → `check_api_exit` also returns `False`
+- The only check that can still pass is `check_api_server_file` (which inspects `ctx.files`, not stdout)
+
+This means a server that correctly handles GET `/items` (2 seeded items returned) but returns a 500 on POST `/items` receives exactly the same evaluation result as a server that doesn't start at all. The eval signal is undiagnosable.
+
+A robust fix is to capture partial results as you go, and wrap each test call so an HTTP error on one request doesn't erase evidence of earlier successes:
+
+```python
+        # Test GET /items
+        try:
+            resp = urllib.request.urlopen(f'http://localhost:{port}/items', timeout=5)
+            results['get_items'] = json.loads(resp.read())
+        except (urllib.error.URLError, urllib.error.HTTPError) as e:
+            results['get_items_error'] = str(e)
+
+        # Test POST /items
+        try:
+            data = json.dumps({'name': 'cherry', 'price': 3.0}).encode()
+            req = urllib.request.Request(
+                f'http://localhost:{port}/items',
+                data=data,
+                headers={'Content-Type': 'application/json'},
+                method='POST',
+            )
+            resp = urllib.request.urlopen(req, timeout=5)
+            results['post_item'] = json.loads(resp.read())
+        except (urllib.error.URLError, urllib.error.HTTPError) as e:
+            results['post_item_error'] = str(e)
+
+        # Test GET /items again
+        try:
+            resp = urllib.request.urlopen(f'http://localhost:{port}/items', timeout=5)
+            results['get_after_post'] = json.loads(resp.read())
+        except (urllib.error.URLError, urllib.error.HTTPError) as e:
+            results['get_after_post_error'] = str(e)
+
+        print(json.dumps({'results': results}))
+```
+
+This keeps `print(json.dumps({'results': results}))` reachable in all paths, lets `check_api_exit` pass for a running-but-buggy server, and allows individual checks to give partial credit based on which keys are present.",https://github.com/gptme/gptme/pull/1647#discussion_r2915321746,"Fixed in 901d479 — wrapped each of the three actual test `urlopen` calls (GET /items, POST /items, second GET /items) in individual `try/except urllib.error.HTTPError` blocks. A server returning 4xx/5xx on one endpoint no longer crashes the harness — the remaining endpoints still run, partial results are preserved in `results`, and only the failing endpoint's check returns False.
+---
+Fixed in 901d479f3 — added per-call `except urllib.error.HTTPError: pass` to each of the three test request blocks (GET /items, POST /items, GET /items again). A server that returns a 4xx/5xx response for any of the three calls can no longer cause an unhandled exception that propagates through the `finally` block before `print(json.dumps({...}))` is reached. The later 486a1a0 also added `except json.JSONDecodeError: pass` to each block for completeness.
+---
+Fixed across two commits:
+- Round 10 (486a1a0): added `except json.JSONDecodeError: pass` to each of the three test request blocks — a non-JSON response body no longer propagates through `finally` with empty results.
+- Latest (4f9975b): added `except OSError: pass` to all three blocks (covers `socket.timeout`, which is an `OSError` subclass and was not caught by the HTTPError/JSONDecodeError handlers); also switched `stdout=subprocess.PIPE, stderr=subprocess.PIPE` → `subprocess.DEVNULL` to eliminate the pipe-buffer deadlock risk with verbose servers.",2026-03-11T01:13:57.790000,Unhandled HTTPError crashes harness and loses all test results,runtime,high,8,"This catches a significant bug where any 4xx/5xx HTTP response from the server causes an unhandled exception that skips the results output entirely, making all eval checks fail indiscriminately. This destroys the eval's ability to provide meaningful partial credit and makes debugging impossible.",2026-03-13T20:17:40.613419+00:00
