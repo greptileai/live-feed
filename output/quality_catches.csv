@@ -13319,3 +13319,83 @@ How can I resolve this? If you propose a fix, please make it concise.
 not into the details on access control, but I hope there are checks on the backend as well that prevents this
 ---
 Good catch, will fix",2026-03-13T12:02:52.005000,Missing access control on destructive delete button,security,high,8,"This is a genuine security/authorization issue where a destructive delete action lacks the access control wrapper that exists elsewhere in the codebase for the same operation. Users without editor-level access could trigger experiment deletion. The catch required cross-file awareness (comparing with Experiments.tsx) and understanding of the access control pattern, making it non-trivial.",2026-03-13T16:20:53.818631+00:00
+onyx-dot-app/onyx,9321,fix: sharepoint pages 400 list expand,https://github.com/onyx-dot-app/onyx/pull/9321,"**Wrong URL: double `/microsoft.graph.sitePage` cast**
+
+`site_pages_base` already ends with `/microsoft.graph.sitePage` (it equals `{graph_api_base}/sites/{site_id}/pages/microsoft.graph.sitePage`). Appending `/{page_id}/microsoft.graph.sitePage` to it produces:
+
+```
+…/pages/microsoft.graph.sitePage/{page_id}/microsoft.graph.sitePage
+```
+
+This is an invalid path. The Graph API URL for a single site page is:
+
+```
+GET /sites/{site-id}/pages/{page-id}/microsoft.graph.sitePage
+```
+
+So `microsoft.graph.sitePage` belongs *after* the page ID at the end of the URL, not inserted between the collection and the ID.
+
+The per-page expansion will therefore issue requests to a non-existent path on every single page. Because a 404 is **not** caught in `_try_expand_single_page`, those 404s will propagate up and break the entire fallback path rather than gracefully returning metadata-only pages.
+
+The unit tests do not catch this because they match URLs with `""good-1"" in url` / `""bad-1"" in url` (substring matching), which still matches the malformed path.
+
+Fix by stripping the trailing cast before building the per-page URL:
+
+```python
+pages_collection = site_pages_base.removesuffix(""/microsoft.graph.sitePage"")
+single_url = f""{pages_collection}/{page_id}/microsoft.graph.sitePage""
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: backend/onyx/connectors/sharepoint/connector.py
+Line: 1371
+
+Comment:
+**Wrong URL: double `/microsoft.graph.sitePage` cast**
+
+`site_pages_base` already ends with `/microsoft.graph.sitePage` (it equals `{graph_api_base}/sites/{site_id}/pages/microsoft.graph.sitePage`). Appending `/{page_id}/microsoft.graph.sitePage` to it produces:
+
+```
+…/pages/microsoft.graph.sitePage/{page_id}/microsoft.graph.sitePage
+```
+
+This is an invalid path. The Graph API URL for a single site page is:
+
+```
+GET /sites/{site-id}/pages/{page-id}/microsoft.graph.sitePage
+```
+
+So `microsoft.graph.sitePage` belongs *after* the page ID at the end of the URL, not inserted between the collection and the ID.
+
+The per-page expansion will therefore issue requests to a non-existent path on every single page. Because a 404 is **not** caught in `_try_expand_single_page`, those 404s will propagate up and break the entire fallback path rather than gracefully returning metadata-only pages.
+
+The unit tests do not catch this because they match URLs with `""good-1"" in url` / `""bad-1"" in url` (substring matching), which still matches the malformed path.
+
+Fix by stripping the trailing cast before building the per-page URL:
+
+```python
+pages_collection = site_pages_base.removesuffix(""/microsoft.graph.sitePage"")
+single_url = f""{pages_collection}/{page_id}/microsoft.graph.sitePage""
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/9321#discussion_r2928986573,,2026-03-13T04:39:29.604000,Double URL segment causes all API requests to fail,logic,high,8,"Comment 2 identifies a URL construction bug where `/microsoft.graph.sitePage` is duplicated, creating invalid API paths that would cause all per-page expansion requests to fail with 404 errors. This would break the entire fallback mechanism in production. The analysis is thorough and includes both the root cause and why tests didn't catch it.",2026-03-13T18:21:35.117788+00:00
+berriai/litellm,23472,fix(proxy): prevent OOM/Prisma connection loss from unbounded managed-object poll,https://github.com/BerriAI/litellm/pull/23472,"**Zero or negative env values silently destroy all active jobs**
+
+`MANAGED_OBJECT_STALENESS_CUTOFF_DAYS` and `MAX_OBJECTS_PER_POLL_CYCLE` are parsed with a bare `int()` but have no lower-bound validation.
+
+- If `MANAGED_OBJECT_STALENESS_CUTOFF_DAYS=0` is set, `cutoff = datetime.now(timezone.utc) - timedelta(days=0)` equals *now*. Every row satisfies `created_at < now`, so **all** non-terminal managed objects are immediately bulk-updated to `stale_expired` on the first poll cycle — silently discarding all in-flight batches and responses.
+- If `MAX_OBJECTS_PER_POLL_CYCLE=0` is set, `take=0` is passed to Prisma's `find_many`. Prisma's behaviour with `take=0` is undefined/implementation-dependent (some versions return zero rows, others may error), so the polling loop silently stops processing jobs.
+
+Both values should be clamped to a sensible minimum:
+
+```suggestion
+MAX_OBJECTS_PER_POLL_CYCLE = max(1, int(os.getenv(""MAX_OBJECTS_PER_POLL_CYCLE"", 50)))
+MANAGED_OBJECT_STALENESS_CUTOFF_DAYS = max(1, int(
+    os.getenv(""MANAGED_OBJECT_STALENESS_CUTOFF_DAYS"", 7)
+))
+```",https://github.com/BerriAI/litellm/pull/23472#discussion_r2928047870,,2026-03-12T23:37:55.426000,Zero staleness cutoff silently destroys all active batch jobs,data_integrity,high,8,"Setting MANAGED_OBJECT_STALENESS_CUTOFF_DAYS=0 causes the cutoff to equal 'now', marking ALL non-terminal managed objects as stale_expired on the first poll cycle. This silently discards all in-flight batches and responses - a serious data integrity bug that could cause significant production impact.",2026-03-13T18:21:35.117788+00:00
