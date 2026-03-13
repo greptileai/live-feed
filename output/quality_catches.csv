@@ -13090,3 +13090,99 @@ if (ashbyResponse.ok) {
 ```
 
 Alternatively, you can call `ashbyResponse.json().catch(...)` in every branch and simply ignore the parsed value in the success cases.",https://github.com/simstudioai/sim/pull/3548#discussion_r2927744750,Good catch — fixed in b0bedcb. Added `await ashbyResponse.body?.cancel()` in both the `ok` and `404` branches to release the TCP connection back to the pool.,2026-03-12T22:26:41.777000,Unconsumed HTTP response body causes TCP connection pool exhaustion,resource_leak,high,8,"This catch identifies a real resource leak where unconsumed response bodies in Node.js fetch prevent TCP connections from returning to the pool. Under load with many webhook deletions, this could exhaust the connection pool and cause request timeouts - a meaningful production bug.",2026-03-13T04:42:34.380237+00:00
+simstudioai/sim,3556,fix(grain): update to stable version of API,https://github.com/simstudioai/sim/pull/3556,"**Webhook ID can be `undefined`, silently breaking deletion**
+
+`responseBody.id ?? responseBody.hook?.id` resolves to `undefined` if the stable API returns a response body that doesn't match either format. The caller receives `{ id: undefined, eventTypes }`, which violates the declared return type `{ id: string; eventTypes: string[] }`. TypeScript won't catch this at runtime.
+
+When this `undefined` ID is later stored as the `externalId` and used to build the DELETE URL:
+```ts
+const grainApiUrl = `https://api.grain.com/_/public-api/hooks/${externalId}`
+// → https://api.grain.com/_/public-api/hooks/undefined
+```
+…the deletion silently fails with a 404 from Grain, leaving orphaned webhooks.
+
+Add a guard and throw a descriptive error if neither ID field is present:
+
+```typescript
+const webhookId = responseBody.id ?? responseBody.hook?.id
+if (!webhookId) {
+  throw new Error(
+    'Grain webhook created but no ID was returned in the response. Cannot track for deletion.'
+  )
+}
+return { id: webhookId, eventTypes }
+```",https://github.com/simstudioai/sim/pull/3556#discussion_r2929023212,,2026-03-13T04:52:10.945000,Undefined webhook ID causes silent deletion failures and orphaned webhooks,data_integrity,high,8,"This catch identifies a real bug where the webhook ID can be undefined due to API response format mismatch, leading to silent deletion failures and orphaned webhooks in production. The undefined ID gets stored and later causes DELETE requests to a malformed URL, which silently fails.",2026-03-13T06:29:01.736131+00:00
+nvidia/nvflare,4307,[2.7] increase FilePipe default heartbeat timeout value to 600s,https://github.com/NVIDIA/NVFlare/pull/4307,"**Fix is a no-op via the normal PipeHandler heartbeat path**
+
+The 600-second fallback is never reached when heartbeats are sent through `PipeHandler`, which is the only production path for FilePipe heartbeats.
+
+Here is the full call chain for every heartbeat:
+
+1. `PipeHandler._heartbeat()` calls `send_to_peer(msg)` with no explicit timeout (`timeout=None`).
+2. `send_to_peer()` delegates to `_send_to_pipe(msg, timeout=None)`.
+3. In `_send_to_pipe`, because `FilePipe.can_resend()` returns `False`, the outer condition  
+   `if not timeout or not pipe.can_resend() or not self.resend_interval:` is always `True`.
+4. Inside that block: `if not timeout: timeout = self.default_request_timeout` sets `timeout = 5.0`.
+5. `FilePipe.send(msg, 5.0)` is then called — with `timeout=5.0`.
+6. In `FilePipe.send`, `not 5.0` evaluates to `False`, so the guard  
+   `if not timeout and msg.topic in [...]` is **never entered** and the 600-second value is **never applied**.
+7. `_monitor_file` is called with `5.0`, identical to the previous behaviour.
+
+The heartbeat file is therefore still deleted after 5 seconds when the receiver is slow, and the false `PEER_GONE` triggers described in the PR continue to occur.
+
+To actually move the file-monitoring ceiling to 600 s, the fix needs to be applied where the timeout is actually wired in. The cleanest minimal change is to increase `default_request_timeout` in `PipeHandler` for the heartbeat send, or to have `PipeHandler._heartbeat()` pass an explicit long timeout to `send_to_peer`:
+
+```python
+# In PipeHandler._heartbeat(), pass an explicit long timeout so it is not
+# silently capped to default_request_timeout before reaching FilePipe.send.
+self.send_to_peer(self._make_event_message(Topic.HEARTBEAT, """"), timeout=600.0)
+```
+
+Alternatively, expose `heartbeat_send_timeout` as a `PipeHandler` constructor parameter (as the PR's ""Future Enhancements"" section already anticipates) and thread it through `_send_to_pipe`.",https://github.com/NVIDIA/NVFlare/pull/4307#discussion_r2926880510,,2026-03-12T19:27:01.624000,Fix is completely ineffective due to call chain timeout override,logic,high,8,"Comment 1 identifies a critical logic bug where the PR's intended 600-second timeout fix is completely bypassed in production. The detailed analysis shows the timeout is always overwritten to 5.0 by PipeHandler before reaching FilePipe.send, making the entire PR ineffective at solving the false PEER_GONE problem it was meant to address.",2026-03-13T06:29:01.736131+00:00
+nvidia/nvflare,4309,[2.7] Receiver-side PASS_THROUGH for ext-process CJ forward path,https://github.com/NVIDIA/NVFlare/pull/4309,"**`decode_pass_through` is never reset when the job ends**
+
+`cell.decode_pass_through = True` is set here in `initialize()`, but the `Cell` object belongs to the engine — it is persistent and shared across all jobs that run on the same FL client process. There is no corresponding `cell.decode_pass_through = False` in `finalize()` (or anywhere else).
+
+**Failure scenario:**
+1. Job A runs with `ClientAPILauncherExecutor` + CellPipe → sets `cell.decode_pass_through = True`.
+2. Job A finishes. `finalize()` is called but does not reset the flag.
+3. Job B runs with an **in-process** executor (e.g. `Executor` subclass, or `ClientAPILauncherExecutor` + FilePipe) — `initialize()` never enters the `isinstance(self.pipe, _CellPipe)` branch, so the flag stays `True`.
+4. The server sends a task to Job B. `Cell._send_one_request()` decodes the reply with `PASS_THROUGH=True` → tensors become `LazyDownloadRef` objects instead of real numpy arrays.
+5. The in-process executor receives `LazyDownloadRef` objects where it expects real tensors → `AttributeError` or `TypeError` at the first operation that touches them.
+
+Consider resetting the flag in `finalize()` (if overridden) or unconditionally from the `END_RUN` handler:
+
+```python
+# In initialize(), when not using CellPipe, explicitly ensure the flag is off
+# (handles the cross-job case where a previous job left it True)
+if isinstance(self.pipe, _CellPipe):
+    ...
+    cell.decode_pass_through = True
+else:
+    # Reset in case a prior job left the flag set
+    if cell is not None:
+        cell.decode_pass_through = False
+```
+
+Alternatively, reset in `finalize()` by mirroring the cell-lookup logic used in `initialize()`.",https://github.com/NVIDIA/NVFlare/pull/4309#discussion_r2928890049,,2026-03-13T03:55:54.430000,Persistent flag leak causes tensor decode failures across jobs,data_integrity,high,8,"Comment 4 identifies a real bug where `decode_pass_through` is set on a shared Cell object during job initialization but never reset in finalize(). This causes subsequent jobs using different executor types to incorrectly decode tensors as LazyDownloadRef objects instead of real numpy arrays, leading to runtime failures. This is a meaningful cross-job state leak bug that would cause production problems.",2026-03-13T06:29:01.736131+00:00
+simstudioai/sim,3555,feat(context) pass resource tab as context,https://github.com/simstudioai/sim/pull/3555,"**Missing workspace authorization — IDOR across `resolveTableResource`, `resolveWorkflowResource`, and `resolveKBResource`**
+
+All three of these resolver functions accept a bare `resourceId` and query the database **without verifying that the resource belongs to the authenticated user's workspace**. The `workspaceId` is passed into `resolveActiveResourceContext` but is not forwarded to these helpers.
+
+A malicious user who knows (or guesses) a UUID of a table, workflow, or knowledge base in a _different_ workspace can send it as `activeResource.id` in the request body and receive that resource's data as agent context.
+
+For comparison, `resolveFileResource` correctly calls `listWorkspaceFiles(workspaceId)` which already scopes results to the workspace.
+
+The same pattern applies to `resolveWorkflowResource` (line 552) and `resolveKBResource` (line 656) as well.
+
+Fix for `resolveTableResource` — filter by both `id` and `workspaceId`:
+```suggestion
+async function resolveTableResource(resourceId: string, workspaceId: string): Promise<AgentContext | null> {
+  const [tableDef] = await db
+    .select()
+    .from(userTableDefinitions)
+    .where(and(eq(userTableDefinitions.id, resourceId), eq(userTableDefinitions.workspaceId, workspaceId)))
+    .limit(1)
+```
+
+Similarly, `resolveWorkflowResource` should verify the workflow's `workspaceId` matches the caller's, and `resolveKBResource` should add a `knowledgeBase.workspaceId` check. The `workspaceId` argument must be threaded through to each helper and added to the corresponding SQL `WHERE` clauses.",https://github.com/simstudioai/sim/pull/3555#discussion_r2928753569,,2026-03-13T03:06:23.540000,IDOR vulnerability exposes resources across workspaces,security,critical,10,"This is a critical IDOR (Insecure Direct Object Reference) vulnerability that allows authenticated users to access resources from other workspaces by guessing/knowing UUIDs. The comment correctly identifies that three resolver functions lack workspace authorization checks, enabling cross-tenant data exposure. This is a textbook authorization bypass with real security impact.",2026-03-13T06:29:01.736131+00:00
