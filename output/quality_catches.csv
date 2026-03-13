@@ -13477,3 +13477,70 @@ Fixed in 901d479f3 — added per-call `except urllib.error.HTTPError: pass` to e
 Fixed across two commits:
 - Round 10 (486a1a0): added `except json.JSONDecodeError: pass` to each of the three test request blocks — a non-JSON response body no longer propagates through `finally` with empty results.
 - Latest (4f9975b): added `except OSError: pass` to all three blocks (covers `socket.timeout`, which is an `OSError` subclass and was not caught by the HTTPError/JSONDecodeError handlers); also switched `stdout=subprocess.PIPE, stderr=subprocess.PIPE` → `subprocess.DEVNULL` to eliminate the pipe-buffer deadlock risk with verbose servers.",2026-03-11T01:13:57.790000,Unhandled HTTPError crashes harness and loses all test results,runtime,high,8,"This catches a significant bug where any 4xx/5xx HTTP response from the server causes an unhandled exception that skips the results output entirely, making all eval checks fail indiscriminately. This destroys the eval's ability to provide meaningful partial credit and makes debugging impossible.",2026-03-13T20:17:40.613419+00:00
+simstudioai/sim,3568,Feat/resource deletion,https://github.com/simstudioai/sim/pull/3568,"**`delete` operation lacks workspace ownership verification**
+
+Every other mutation operation in this tool (e.g. `insert_row`, `batch_insert_rows`) calls `getTableById` first to verify the table exists and, critically, requires the caller to have a valid `workspaceId`. The new `delete` case skips both checks and calls `deleteTable(args.tableId, requestId)` directly. `deleteTable` itself only matches on `id` with no workspace scoping, so any valid table ID — even one from a different workspace — would be silently archived.
+
+The fix is to fetch the table first and verify it belongs to the current workspace before deleting:
+
+```typescript
+case 'delete': {
+  if (!args.tableId) {
+    return { success: false, message: 'Table ID is required' }
+  }
+  if (!workspaceId) {
+    return { success: false, message: 'Workspace ID is required' }
+  }
+
+  const table = await getTableById(args.tableId)
+  if (!table) {
+    return { success: false, message: `Table not found: ${args.tableId}` }
+  }
+  if (table.workspaceId !== workspaceId) {
+    return { success: false, message: 'Table not found' }
+  }
+
+  const requestId = crypto.randomUUID().slice(0, 8)
+  await deleteTable(args.tableId, requestId)
+
+  return {
+    success: true,
+    message: `Deleted table ${args.tableId}`,
+  }
+}
+```",https://github.com/simstudioai/sim/pull/3568#discussion_r2933710765,,2026-03-13T20:52:07.528000,Missing workspace ownership check allows cross-workspace table deletion,security,critical,9,"Comment 1 identifies a critical authorization bypass where the delete operation lacks workspace ownership verification, allowing any user to delete tables from other workspaces by providing a valid table ID. This is a serious security vulnerability that could lead to unauthorized data destruction.",2026-03-13T22:16:59.444997+00:00
+assistant-ui/assistant-ui,3626,feat(x-buildutils): rewrite in js,https://github.com/assistant-ui/assistant-ui/pull/3626,"**`export type * as` leaks into JS output**
+
+The guard doesn't check `node.isTypeOnly`. If a source file contains `export type * as Namespace from ""./module""`, this function will convert it to a plain `import * as Namespace from ""...""` + `export { Namespace }` — neither of which carries the `type` modifier. Because TypeScript's own emit pass only strips nodes it identifies as type-only, the synthesized nodes won't be stripped, and what should have been a zero-JS-output type re-export becomes live runtime code.
+
+Add `!node.isTypeOnly` to the guard:
+
+```suggestion
+      if (
+        !rewriteNamespaceExports ||
+        node.isTypeOnly ||
+        !node.moduleSpecifier ||
+        !ts.isStringLiteral(node.moduleSpecifier) ||
+        !node.exportClause ||
+        !ts.isNamespaceExport(node.exportClause)
+      ) {
+        return null;
+      }
+```",https://github.com/assistant-ui/assistant-ui/pull/3626#discussion_r2933115297,,2026-03-13T18:37:16.099000,Type-only exports incorrectly emitted as runtime code,logic,high,8,"This is a meaningful logic bug in a build transformer where type-only exports would be incorrectly converted to runtime code, causing unnecessary JavaScript output and potentially breaking tree-shaking or causing runtime errors if the type-only module doesn't exist at runtime. The catch requires understanding TypeScript's type system and emit behavior, making it non-obvious.",2026-03-13T22:16:59.444997+00:00
+gptme/gptme,1647,feat(eval): add practical eval suite with 3 real-world tests,https://github.com/gptme/gptme/pull/1647,"**Subprocess stdout/stderr pipes are never drained — potential deadlock**
+
+`stdout=subprocess.PIPE` and `stderr=subprocess.PIPE` create OS-level pipes between the test harness and the server process. These pipes have a finite buffer (typically 64 KB on Linux). The harness never reads from either pipe, so if an agent's `server.py` emits enough output (e.g., verbose access logging or a crash traceback), the pipe buffer fills, the `write()` inside the server process blocks, and the server stalls handling requests — effectively a deadlock. The harness would then time out on the next `urlopen`, silently dropping test results.
+
+Two common remedies:
+1. Route the server's output to `/dev/null` so it's discarded immediately: use `stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL`.
+2. Use `subprocess.DEVNULL` only if you don't need the server logs for debugging; alternatively, set `stdout=None, stderr=None` to let the server inherit the harness's streams.
+
+Since the harness never inspects the server's stdout/stderr, option 1 is the cleanest fix and eliminates any possibility of the pipe buffer filling:
+
+```suggestion
+    proc = subprocess.Popen(
+        [sys.executable, 'server.py', str(port)],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+```",https://github.com/gptme/gptme/pull/1647#discussion_r2915608093,,2026-03-11T03:14:08.374000,Subprocess pipe deadlock when server outputs too much,concurrency,high,8,"This catches a real production bug where subprocess stdout/stderr pipes are never drained, causing the server to block when the OS pipe buffer fills (~64KB). This would cause test timeouts and silent failures in production evaluation runs.",2026-03-13T22:16:59.444997+00:00
