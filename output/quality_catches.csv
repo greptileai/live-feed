@@ -12975,3 +12975,22 @@ if failed_instances:
 # Check if all manual task instances have submissions for this action type
 submitted_data = self._get_submitted_data(...)
 ```",https://github.com/ethyca/fides/pull/7638#discussion_r2926272471,"The ordering is intentional — submitted data is checked first because if the user has already submitted data, the task is complete regardless of instance status. The `failed` status from the poller is only relevant when no data has been submitted and none can arrive (e.g. deleted Jira ticket). Updated the docstring to make this explicit.",2026-03-12T17:36:41.636000,Race condition allows failed task status to be silently overwritten,logic,high,8,"This catches a subtle ordering bug where a failed task instance could have its status silently changed to 'completed' before the failed-instance guard is checked, bypassing error handling. This is a meaningful logic bug that could cause data integrity issues in production by allowing failed tasks to proceed without proper intervention, and it required careful analysis of method execution order and state mutations.",2026-03-13T00:47:15.562396+00:00
+simstudioai/sim,3549,feat(mothership): server-persisted unread task indicators via SSE,https://github.com/simstudioai/sim/pull/3549,"**Missing backfill leaves all pre-existing chats as unread**
+
+The migration adds `last_seen_at` as a nullable column with no default, so every row in `copilot_chats` that already exists will have `last_seen_at = NULL` after this migration runs.
+
+The `isUnread` computation in `tasks.ts` reads:
+```ts
+isUnread:
+  chat.conversationId === null &&
+  (chat.lastSeenAt === null || updatedAt > new Date(chat.lastSeenAt)),
+```
+
+For every pre-existing completed chat (`conversationId` is `NULL`, which is the normal resting state), this evaluates to `true`, so every user will immediately see every past task dotted as ""unread"" after deployment.
+
+The migration should backfill `last_seen_at` for existing rows so only genuinely new completions surface the dot:
+
+```sql
+ALTER TABLE ""copilot_chats"" ADD COLUMN ""last_seen_at"" timestamp;
+UPDATE ""copilot_chats"" SET ""last_seen_at"" = ""updated_at"" WHERE ""last_seen_at"" IS NULL;
+```",https://github.com/simstudioai/sim/pull/3549#discussion_r2927958681,"Same issue as above — fixed in 3146adf with a backfill: `UPDATE ""copilot_chats"" SET ""last_seen_at"" = ""updated_at"" WHERE ""last_seen_at"" IS NULL`.",2026-03-12T23:16:24.859000,Missing backfill causes all existing tasks to show as unread,data_integrity,high,8,"This catch identifies a significant data integrity bug where a database migration would leave all pre-existing chats with NULL lastSeenAt, causing the isUnread predicate to mark every historical task as unread for all users after deployment. This would cause immediate user-facing confusion and a poor experience.",2026-03-13T03:09:10.596317+00:00
