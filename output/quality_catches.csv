@@ -13741,3 +13741,144 @@ To keep URL and signing region consistent, the same `s3_region_name` priority us
 if s3_region_name:
     optional_params = {**optional_params, ""aws_region_name"": s3_region_name}
 ```",https://github.com/BerriAI/litellm/pull/23569#discussion_r2932763816,,2026-03-13T17:33:37.677000,Region mismatch causes AWS SignatureDoesNotMatch errors,logic,high,8,"The comment identifies a real bug where s3_region_name and aws_region_name could conflict, causing the SigV4 signature to be computed for a different region than the URL endpoint. This would result in AWS rejecting requests with SignatureDoesNotMatch errors, breaking functionality for users with cross-region configurations.",2026-03-14T03:08:00.665284+00:00
+berriai/litellm,23594,feat(router): tag_regex routing — route by User-Agent regex without per-developer tag config,https://github.com/BerriAI/litellm/pull/23594,"**Backwards-incompatible behavior change for existing tag-filter users**
+
+`has_tag_filter` now becomes `True` whenever `user_agent` is present in the request metadata, even for users who have never configured `tag_regex`. This widens the condition that previously only triggered on `request_tags`.
+
+Consider the following existing setup:
+- `enable_tag_filtering: true`
+- Deployments with **no** `default` tag (relying on the fall-through ""return all deployments"" path for untagged requests)
+- The proxy stores `User-Agent` in `metadata[""user_agent""]` (common proxy behavior)
+
+**Before this PR:** Requests without `request_tags` but with `user_agent` in metadata skip the filter block, fall through to the untagged path, and return `healthy_deployments`.
+
+**After this PR:** Those same requests enter the filter block. Since no deployment matches (no `tag_regex` config, no `default` tag), both `new_healthy_deployments` and `default_deployments` stay empty, and a `ValueError` (`no_deployments_with_tag_routing`) is raised — breaking existing traffic.
+
+Per the backwards-compatibility policy, this new code path should be guarded so it only activates when the operator has explicitly opted in (e.g., when any deployment in the list actually defines `tag_regex` patterns, or via a dedicated flag).
+
+**Rule Used:** What: avoid backwards-incompatible changes without... ([source](https://app.greptile.com/review/custom-context?memory=b48b7341-8eaf-4374-b4b4-c8eeff8fcb9c))",https://github.com/BerriAI/litellm/pull/23594#discussion_r2934377183,,2026-03-14T00:52:01.545000,Backwards-incompatible change breaks existing tag filtering deployments,logic,high,8,This catches a real regression where existing users with tag filtering enabled but no tag_regex configuration would suddenly get ValueError exceptions due to the widened has_tag_filter condition. This would cause production traffic to fail for existing deployments without any configuration changes.,2026-03-14T04:42:06.673511+00:00
+nvidia/earth2studio,743,HealDA,https://github.com/NVIDIA/earth2studio/pull/743,"**Unreachable second `except KeyError` block**
+
+The existing `except KeyError as e:` at line 687 will always fire for any `KeyError` before the new `except KeyError:` at line 690 is reached. Python evaluates `except` clauses in order and stops at the first match, so the new block that was meant to gracefully skip conventional variables is dead code and will never execute.
+
+The result is that the behavior is effectively unchanged: any `KeyError` (including for conventional variables that should now be gracefully skipped) will still hit the old path, log the wrong error message (`""not found in GSI satellite lexicon""` even for conventional vars), and re-raise.
+
+To fix, the original `except KeyError as e` block should be removed and replaced entirely by the new `except KeyError` block:
+
+```suggestion
+            except KeyError:
+                if v in GSIConventionalLexicon:
+                    logger.warning(
+                        f""Variable id {v} is a UFS conventional variable, skipping in satellite fetch""
+                    )
+                    continue
+                logger.error(f""Variable id {v} not found in GSI lexicon"")
+                raise
+```",https://github.com/NVIDIA/earth2studio/pull/743#discussion_r2923025890,Fixed.,2026-03-12T08:27:26.404000,Unreachable except block causes wrong error handling for conventional variables,logic,high,8,"This is a real logic bug where a new except KeyError block is unreachable because the original except KeyError block catches all KeyErrors first. This means conventional variables passed to satellite fetch will never be gracefully skipped as intended - they'll trigger the wrong error message and still raise an exception, defeating the purpose of the new error handling code.",2026-03-14T04:42:06.673511+00:00
+generaltranslation/gt,1108,fix(cli): Fix composite JSON,https://github.com/generaltranslation/gt/pull/1108,"**`targetItems` replaced before string check**
+
+The `!targetItems` guard on line 331–333 replaces a falsy `targetItems` with `{}` before the new string path is reached. An empty-string translation (`""""`) is falsy, so it gets silently overwritten with `{}`, causing `typeof targetItems === 'string'` to be `false` and the code to fall back to `defaultLocaleSourceItem`. This means an empty translated string in the source map (intentional or otherwise) is silently discarded and replaced with the default-locale value.
+
+```ts
+let targetItems = targetJson[sourceObjectPointer];
+if (!targetItems) {
+  targetItems = {};
+}
+```
+
+Consider tightening the guard to only replace `null`/`undefined`, not empty strings:
+
+```suggestion
+        // If the source item is a string, use the translated string directly
+        if (typeof defaultLocaleSourceItem === 'string') {
+          const translatedValue =
+            typeof targetItems === 'string'
+              ? targetItems
+              : defaultLocaleSourceItem;
+          sourceObjectValue[mutateSourceItemKey] = translatedValue;
+          continue;
+        }
+```
+
+The real fix belongs at the `!targetItems` initialisation (line 331):
+```ts
+// Before (replaces """" with {}):
+if (!targetItems) { targetItems = {}; }
+
+// After (only replaces null/undefined):
+if (targetItems == null) { targetItems = {}; }
+```
+This keeps `""""` as a string so the downstream `typeof targetItems === 'string'` check works correctly.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/cli/src/formats/json/mergeJson.ts
+Line: 347-354
+
+Comment:
+**`targetItems` replaced before string check**
+
+The `!targetItems` guard on line 331–333 replaces a falsy `targetItems` with `{}` before the new string path is reached. An empty-string translation (`""""`) is falsy, so it gets silently overwritten with `{}`, causing `typeof targetItems === 'string'` to be `false` and the code to fall back to `defaultLocaleSourceItem`. This means an empty translated string in the source map (intentional or otherwise) is silently discarded and replaced with the default-locale value.
+
+```ts
+let targetItems = targetJson[sourceObjectPointer];
+if (!targetItems) {
+  targetItems = {};
+}
+```
+
+Consider tightening the guard to only replace `null`/`undefined`, not empty strings:
+
+```suggestion
+        // If the source item is a string, use the translated string directly
+        if (typeof defaultLocaleSourceItem === 'string') {
+          const translatedValue =
+            typeof targetItems === 'string'
+              ? targetItems
+              : defaultLocaleSourceItem;
+          sourceObjectValue[mutateSourceItemKey] = translatedValue;
+          continue;
+        }
+```
+
+The real fix belongs at the `!targetItems` initialisation (line 331):
+```ts
+// Before (replaces """" with {}):
+if (!targetItems) { targetItems = {}; }
+
+// After (only replaces null/undefined):
+if (targetItems == null) { targetItems = {}; }
+```
+This keeps `""""` as a string so the downstream `typeof targetItems === 'string'` check works correctly.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/generaltranslation/gt/pull/1108#discussion_r2934366365,,2026-03-14T00:46:30.944000,Falsy check silently discards empty string translations,logic,high,8,"The comment identifies a real bug where using `!targetItems` instead of `targetItems == null` causes empty string translations to be silently replaced with `{}`, breaking the type check and falling back to default locale values. This would cause data corruption in production where intentional empty translations are discarded.",2026-03-14T04:42:06.673511+00:00
+berriai/litellm,23557,[Feature] Allow Setting organization_id on Key Update,https://github.com/BerriAI/litellm/pull/23557,"**Double-counting the updated key's current limits**
+
+When `data.organization_id` is `None` and the key already belongs to an org (i.e. `_org_id_to_check` falls back to `existing_key_row.organization_id`), the `find_many` query in `_check_org_key_limits` fetches **all keys in the org — including the key currently being updated**. Then `_check_key_rpm_tpm_limits` sums those existing limits and adds `data.tpm_limit` / `data.rpm_limit` on top, double-counting the key being updated.
+
+Concrete example:
+- Org `tpm_limit = 20 000`
+- `sk-my-key` currently has `tpm_limit = 15 000` (the only key in the org)
+- User calls `/key/update` with `tpm_limit = 10 000` and `tpm_limit_type = ""guaranteed_throughput""`
+- `find_many` returns `[sk-my-key(15 000)]` → `allocated_tpm = 15 000`
+- Check: `15 000 + 10 000 = 25 000 > 20 000` → **raises 400**, even though the real allocation after the update would be just `10 000`
+
+The generate-key path does not have this problem because the key doesn't exist in the DB yet when the check runs.
+
+The fix is to **exclude the key being updated** from the `find_many` results. The token hash of the key being updated is available (from `data.key` after hashing or by passing the token directly to `_check_org_key_limits`). You could add a `NOT` filter or subtract the existing key's limits before summing.
+
+```python
+# Sketch of the fix inside _check_org_key_limits (or at the call site):
+keys = await prisma_client.db.litellm_verificationtoken.find_many(
+    where={
+        ""organization_id"": org_table.organization_id,
+        ""NOT"": [{""token"": existing_key_token}],  # exclude the key being updated
+    },
+)
+```
+
+The tests `test_check_org_key_limits_on_update_within_bounds` and `test_check_org_key_limits_on_update_overallocation` do not cover this scenario — both mocks either return an empty list or a key that is treated as a *different* key, so the double-count is never exercised.",https://github.com/BerriAI/litellm/pull/23557#discussion_r2932253583,,2026-03-13T16:09:40.178000,Double-counting key limits causes false rejections on key updates,logic,high,8,"Comment 3 identifies a real logic bug where updating a key's TPM/RPM limits incorrectly includes the key's existing limits in the sum, causing legitimate updates to be rejected. This would directly affect users trying to modify their API key limits. Comment 0 was actually addressed in the code shown (hash_token is called), making Comment 3 the best remaining catch.",2026-03-14T04:42:06.673511+00:00
