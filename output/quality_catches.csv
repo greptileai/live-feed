@@ -13899,3 +13899,19 @@ elif isinstance(value, dict):
                 value[dict_key] = resolved_val
 ```
 ",https://github.com/isaac-sim/IsaacLab/pull/5014#discussion_r2934131207,,2026-03-13T23:01:10.248000,Dict-valued PresetCfg return values silently discarded causing inconsistent state,logic,high,8,"This is a meaningful logic bug where the return value of resolve_preset_defaults() is discarded when iterating dict values, causing PresetCfg objects to remain unresolved. The comment demonstrates deep understanding of the code flow, identifies the asymmetry between collect_presets and resolve_preset_defaults, and explains exactly how this leads to inconsistent configuration state before serialization - a non-obvious bug that would cause real problems in production.",2026-03-14T06:27:07.958637+00:00
+nvidia/earth2studio,750,Add the ensemble workflow to the serve examples.,https://github.com/NVIDIA/earth2studio/pull/750,"**IndexError when `nensemble=1` (the minimum allowed value)**
+
+`io[variable][1, 0, step]` hardcodes access to ensemble member index `1`. However, `nensemble` accepts a minimum value of `1` (via `ge=1`), meaning the output will only contain member index `0`. Accessing index `1` on a 1-member array raises an `IndexError`, causing the entire workflow run to fail (the exception is caught and re-raised in the `except` block at line 368).
+
+A guard should be added to skip or reuse the member-1 panel when only one ensemble member was generated:
+
+```python
+if parameters.nensemble >= 2:
+    plot_field(
+        ax2,
+        io[variable][1, 0, step],
+        f""{forecast_time} - Lead: {lead_hrs}hrs - Member 1"",
+    )
+else:
+    ax2.set_visible(False)
+```",https://github.com/NVIDIA/earth2studio/pull/750#discussion_r2933605119,Done.,2026-03-13T20:26:13.485000,IndexError when accessing ensemble member with nensemble=1,runtime,high,8,This catches a real runtime bug where hardcoded index access to ensemble member 1 would fail with IndexError when nensemble=1 (the minimum allowed value). This is a meaningful logic error that would cause production failures for valid user inputs.,2026-03-14T08:18:03.929372+00:00
