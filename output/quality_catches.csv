@@ -13975,3 +13975,49 @@ if (
     silent_kwargs[""metadata""].pop(""litellm_parent_otel_span"", None)
 ```
 ",https://github.com/BerriAI/litellm/pull/23542#discussion_r2934682188,,2026-03-14T04:38:47.754000,OTel span shared across event loops causes race condition,concurrency,high,8,"Comment 2 identifies a real concurrency bug: the shallow copy preserves a reference to the same OTel Span object, which will be used across different event loops (silent experiment runs in a new event loop). This can cause data races or span corruption in production. The fix is concrete and addresses a genuine runtime issue.",2026-03-14T18:17:34.920893+00:00
+berriai/litellm,23140,fix(anthropic): preserve interleaved thinking block order on round-trip (#23047),https://github.com/BerriAI/litellm/pull/23140,"**`assistant_tool_calls` silently dropped when `_original_content` is present**
+
+When `_original_content` is set, the entire `else` branch is skipped — including the `assistant_tool_calls` processing block (moved there in this PR). If an assistant message simultaneously has:
+
+- `_original_content` (from interleaved thinking + `server_tool_use`), AND
+- top-level `tool_calls` entries that are NOT represented in `_original_content` (e.g., tool calls injected or modified after the initial Anthropic response was parsed)
+
+...those tool calls are silently dropped from the reconstructed message. `convert_to_anthropic_tool_invoke` is never called on them.
+
+In the common ""pure round-trip"" scenario this is fine because `_original_content` captures everything. But it becomes a real data-loss hazard when downstream code mutates `tool_calls` (e.g., to add or remove entries) before the message is passed back to `anthropic_messages_pt`. A fallback that appends any `tool_calls` entry whose `id` is not already in `unique_tool_ids` would close this gap.",https://github.com/BerriAI/litellm/pull/23140#discussion_r2907253573,Fixed: Moved `assistant_tool_calls` and `assistant_function_call` processing outside the `if _original_content / else` branches so they execute for both paths. `unique_tool_ids` prevents duplication.,2026-03-09T18:37:56.290000,Tool calls silently dropped when _original_content is present,data_integrity,high,8,This catches a real data loss bug where tool_calls would be silently dropped during message reconstruction when _original_content exists but tool_calls were modified after parsing. This could cause API failures or incorrect behavior in production when downstream code mutates tool_calls.,2026-03-14T20:13:50.981536+00:00
+infisical/infisical,5686,feat: changed audit log pushing to only push to one source,https://github.com/Infisical/infisical/pull/5686,"**`projectName` dropped from Postgres audit log entries**
+
+The refactored `auditLog` object no longer includes `projectName`, but `projectName` is a first-class column in the `audit_logs` Postgres table (confirmed in `audit-logs.ts` schema and previously stored via `projectName: project?.name`). The `project` variable is still fetched when `!orgId` (lines 88–89), but its `name` is no longer used.
+
+For the Postgres path (i.e., when `isClickHouseBatchEnabled` is `false`), every newly created audit log will have a `null` `projectName` in the database. The `TAuditLogServiceFactory[""listAuditLogs""]` return type includes `projectName`, and the Postgres DAL's `find` returns it via `SELECT *`. This will break the audit log UI for users on the Postgres-backed path.
+
+Note: the ClickHouse path handles `projectName` by doing a separate lookup at query time in `clickhouseAuditLogDALFactory.find()`, so the omission is intentional there. For Postgres it is a regression.
+
+```suggestion
+      const auditLog = {
+        id,
+        actor: actor.type,
+        actorMetadata,
+        ipAddress: nullable(ipAddress, isClickHouseBatchEnabled),
+        eventType: event.type,
+        eventMetadata,
+        userAgent: nullable(userAgent, isClickHouseBatchEnabled),
+        userAgentType: nullable(userAgentType, isClickHouseBatchEnabled),
+        projectId: nullable(projectId, isClickHouseBatchEnabled),
+        projectName: isClickHouseBatchEnabled ? undefined : (project?.name ?? null),
+        orgId,
+        expiresAt: new Date(createdAt.getTime() + ttl),
+        createdAt,
+        updatedAt: createdAt
+      };
+```
+",https://github.com/Infisical/infisical/pull/5686#discussion_r2930290416,Fixed it,2026-03-13T10:18:13.570000,Missing projectName field causes null values in Postgres audit logs,data_integrity,high,8,"This is a meaningful data integrity bug where the refactored code drops the projectName field from Postgres audit log entries, causing null values in a first-class database column. The comment demonstrates deep understanding of the codebase by noting the ClickHouse path intentionally handles this differently. This would break the audit log UI for Postgres users and is not an obvious catch since it requires understanding the dual-database architecture.",2026-03-14T20:13:50.981536+00:00
+raycast/extensions,26321,Update github-copilot extension,https://github.com/raycast/extensions/pull/26321,"**Task icons will all show as default circle**
+
+The `status` → `state` rename in this PR is incomplete. In `src/utils.tsx:11`, `getTaskIconPath` still reads `task.status` (which is now `""""`) to determine icons. Since `status` no longer holds values like `""in_progress""` or `""completed""` (those are now in `state`), every task icon will fall through to the default `""circle.svg""`.
+
+`utils.tsx` needs to be updated to read `task.state` instead of `task.status`:
+
+```
+const status = taskWithPullRequest.task.state;
+```",https://github.com/raycast/extensions/pull/26321#discussion_r2934995126,,2026-03-14T08:56:26.028000,Incomplete rename causes all task icons to show wrong default,logic,medium,8,"This is a meaningful logic bug where a property rename (status → state) was incomplete across files, causing all task icons to display incorrectly as the default circle instead of their proper status-based icons. The catch requires understanding the cross-file data flow and would affect all users visually. Not immediately obvious from looking at a single file.",2026-03-14T20:13:50.981536+00:00
