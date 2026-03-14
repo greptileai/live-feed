@@ -13544,3 +13544,81 @@ Since the harness never inspects the server's stdout/stderr, option 1 is the cle
         stderr=subprocess.DEVNULL,
     )
 ```",https://github.com/gptme/gptme/pull/1647#discussion_r2915608093,,2026-03-11T03:14:08.374000,Subprocess pipe deadlock when server outputs too much,concurrency,high,8,"This catches a real production bug where subprocess stdout/stderr pipes are never drained, causing the server to block when the OS pipe buffer fills (~64KB). This would cause test timeouts and silent failures in production evaluation runs.",2026-03-13T22:16:59.444997+00:00
+nvidia/earth2studio,751,UFS tolerance update,https://github.com/NVIDIA/earth2studio/pull/751,"**`UFSObsSat.__init__` parameter not renamed to `time_tolerance`**
+
+The `tolerance` parameter in `UFSObsSat.__init__` was **not** renamed to `time_tolerance` — only its type hint was updated. The docstring was updated to say `time_tolerance`, and the base class call was updated to pass `time_tolerance=tolerance`, but the public signature still exposes `tolerance`.
+
+All tests in `test/data/test_ufs.py` that were updated now call `UFSObsSat(time_tolerance=tol, ...)`, which will raise a `TypeError` at runtime because `UFSObsSat.__init__` doesn't accept a `time_tolerance` keyword argument:
+
+```
+TypeError: __init__() got an unexpected keyword argument 'time_tolerance'
+```
+
+```suggestion
+        time_tolerance: TimeTolerance = np.timedelta64(0),
+```",https://github.com/NVIDIA/earth2studio/pull/751#discussion_r2933985196,fixed,2026-03-13T22:08:33.714000,Parameter rename missed causing TypeError at runtime,runtime,high,8,"This catch identifies a genuine runtime bug where the `tolerance` parameter in `UFSObsSat.__init__` wasn't renamed to `time_tolerance`, causing a TypeError when tests (and any code) try to use the new parameter name. This would cause immediate failures in production and tests.",2026-03-14T00:46:57.017190+00:00
+berriai/litellm,23557,[Feature] Allow Setting organization_id on Key Update,https://github.com/BerriAI/litellm/pull/23557,"**Token hash vs raw key comparison always evaluates True**
+
+`key.token` in `litellm_verificationtoken` stores the **SHA-256 hash** of the key, confirmed by `_hash_token_if_needed` called inside `update_data` at `utils.py:3178`. `data.key` is the raw string from the request (e.g. `sk-…`). These two values will **never be equal**, so the list comprehension never removes any entry — the intended double-counting fix is a no-op for all real keys.
+
+The same problem exists at line 1067 in `_check_org_key_limits`.
+
+To fix, compare against the already-hashed token (e.g. pass `existing_key_row.token` into these helpers), or hash `data.key` before comparing:
+
+```python
+from litellm.proxy.utils import hash_token as _hash_token
+
+if isinstance(data, UpdateKeyRequest):
+    key_hash = _hash_token(data.key) if data.key else None
+    if key_hash:
+        keys = [k for k in keys if k.token != key_hash]
+```
+
+Because of this, the unit test `test_check_org_key_limits_on_update_excludes_self` passes only because the mock sets `self_key.token` to the same raw string used in `data.key`. It does not reflect real DB behaviour where the token column holds a hex digest.",https://github.com/BerriAI/litellm/pull/23557#discussion_r2934081754,,2026-03-13T22:43:28.071000,Token hash vs raw key comparison makes exclusion logic a no-op,logic,high,8,"Comment 0 identifies a critical logic bug where comparing a SHA-256 hashed token against a raw key string will never match, making the double-counting fix completely ineffective. This would cause key updates to fail incorrectly when they shouldn't, affecting production functionality. The comment also correctly identifies that the unit test passes only due to incorrect mocking that doesn't reflect real DB behavior.",2026-03-14T00:46:57.017190+00:00
+nvidia/nvflare,4310,[2.7] Fix TaskExchanger PipeHandler replacement race in CCWF Swarm,https://github.com/NVIDIA/NVFlare/pull/4310,"**`_executing` guard is set too late for `LauncherExecutor` subclass**
+
+`LauncherExecutor.execute()` overrides this method and calls `super().execute()` only **after** `_initialize_external_execution()` completes:
+
+```python
+# LauncherExecutor.execute():
+if not self._initialize_external_execution(...):   # _executing is still False here
+    return make_reply(...)
+result = super().execute(...)                       # _executing becomes True here
+```
+
+If a concurrent `BEFORE_TASK_EXECUTION` arrives (e.g., another `swarm_report_learn_result` task on the CellNet thread) during `_initialize_external_execution()` — which can block for up to `external_pre_init_timeout` (default 60 s) waiting for the subprocess to call `flare.init()` — the guard won't protect the handler and it will be replaced mid-setup.
+
+For `LauncherExecutor` the window is longer than for the base `TaskExchanger` class. Consider setting `_executing = True` at the very start of `LauncherExecutor.execute()` (before `_initialize_external_execution`), or move the guard up into a shared `execute()` wrapper that covers the entire lifecycle.",https://github.com/NVIDIA/NVFlare/pull/4310#discussion_r2932309779,,2026-03-13T16:18:39.736000,Race condition in task executor guard timing allows handler replacement,concurrency,high,8,"This is a genuine concurrency bug where the `_executing` guard is set too late in the subclass, creating a 60-second window where a race condition could cause handler replacement during initialization. The reviewer demonstrates deep understanding of the inheritance hierarchy and identifies a real production issue that could cause task corruption in a distributed learning framework.",2026-03-14T00:46:57.017190+00:00
+nvidia/nvflare,4314,[2.7] Fix Swarm deadlock: _executing guard prevents pipe handler replacement mid-transaction,https://github.com/NVIDIA/NVFlare/pull/4314,"**Non-atomic check-and-set leaves a race window**
+
+The `acquired` pattern performs a read-then-write on `_executing` without holding a lock:
+
+```python
+acquired = not self._executing.is_set()  # (1) read
+if acquired:
+    self._executing.set()               # (2) write
+```
+
+If `handle_event(BEFORE_TASK_EXECUTION)` is dispatched on another thread between steps (1) and (2), it will see `_executing` as unset and will proceed to stop and recreate the `pipe_handler` — exactly the race this PR is meant to prevent.
+
+For `LauncherExecutor` the window is effectively zero because `_executing.set()` is the very first statement in its `execute()` override, and `super().execute()` is only called after that. However, for any direct `TaskExchanger` caller (e.g., `HubExecutor`), the window is real. A small `threading.Lock` around the check-and-set (and the matching check in `handle_event`) would close it completely:
+
+```python
+# In __init__:
+self._executing = threading.Event()
+self._executing_lock = threading.Lock()
+
+# In execute():
+with self._executing_lock:
+    acquired = not self._executing.is_set()
+    if acquired:
+        self._executing.set()
+
+# In handle_event BEFORE_TASK_EXECUTION:
+with self._executing_lock:
+    if self._executing.is_set():
+        ...
+        return
+```
+
+Without this, the fix is probabilistically correct but not guaranteed for non-`LauncherExecutor` subclasses.",https://github.com/NVIDIA/NVFlare/pull/4314#discussion_r2933068395,,2026-03-13T18:26:15.351000,Race condition in check-and-set allows pipe handler replacement mid-execution,concurrency,high,8,"Comment 6 identifies a real race condition where the non-atomic check-and-set pattern on `_executing` allows a concurrent `handle_event(BEFORE_TASK_EXECUTION)` to slip through and replace the pipe handler mid-transaction - the exact deadlock bug this PR aims to fix. The reviewer correctly identifies that without proper locking, the fix is incomplete for direct TaskExchanger callers.",2026-03-14T00:46:57.017190+00:00
