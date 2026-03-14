@@ -13882,3 +13882,20 @@ keys = await prisma_client.db.litellm_verificationtoken.find_many(
 ```
 
 The tests `test_check_org_key_limits_on_update_within_bounds` and `test_check_org_key_limits_on_update_overallocation` do not cover this scenario — both mocks either return an empty list or a key that is treated as a *different* key, so the double-count is never exercised.",https://github.com/BerriAI/litellm/pull/23557#discussion_r2932253583,,2026-03-13T16:09:40.178000,Double-counting key limits causes false rejections on key updates,logic,high,8,"Comment 3 identifies a real logic bug where updating a key's TPM/RPM limits incorrectly includes the key's existing limits in the sum, causing legitimate updates to be rejected. This would directly affect users trying to modify their API key limits. Comment 0 was actually addressed in the code shown (hash_token is called), making Comment 3 the best remaining catch.",2026-03-14T04:42:06.673511+00:00
+isaac-sim/isaaclab,5014,Supports hydra presetting scalar values,https://github.com/isaac-sim/IsaacLab/pull/5014,"**Dict-valued `PresetCfg` return value discarded**
+
+When iterating over dict values, `resolve_preset_defaults(dict_val)` is called but its return value is thrown away. For the common case where `dict_val` is a regular configclass (not a `PresetCfg`) this is fine — the function resolves fields in-place. But if `dict_val` itself is a `PresetCfg` instance, `resolve_preset_defaults` returns its resolved default (a potentially different object) and enters the early-return branch at line 257–261 **without** modifying `dict_val` in place. The resolved value is silently lost and the dict entry remains a `PresetCfg`.
+
+`collect_presets` already handles this case correctly (line 149–152 recurses into dict values and the root-level `isinstance(cfg, PresetCfg)` guard at line 117 collects them). The asymmetry means `collect_presets` finds the preset path but `resolve_preset_defaults` will never replace the raw `PresetCfg` object in the dict, leaving the config in an inconsistent state before serialization.
+
+Suggested fix:
+
+```python
+elif isinstance(value, dict):
+    for dict_key, dict_val in value.items():
+        if hasattr(dict_val, ""__dataclass_fields__""):
+            resolved_val = resolve_preset_defaults(dict_val)
+            if resolved_val is not dict_val:
+                value[dict_key] = resolved_val
+```
+",https://github.com/isaac-sim/IsaacLab/pull/5014#discussion_r2934131207,,2026-03-13T23:01:10.248000,Dict-valued PresetCfg return values silently discarded causing inconsistent state,logic,high,8,"This is a meaningful logic bug where the return value of resolve_preset_defaults() is discarded when iterating dict values, causing PresetCfg objects to remain unresolved. The comment demonstrates deep understanding of the code flow, identifies the asymmetry between collect_presets and resolve_preset_defaults, and explains exactly how this leads to inconsistent configuration state before serialization - a non-obvious bug that would cause real problems in production.",2026-03-14T06:27:07.958637+00:00
