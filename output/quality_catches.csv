@@ -13622,3 +13622,122 @@ with self._executing_lock:
 ```
 
 Without this, the fix is probabilistically correct but not guaranteed for non-`LauncherExecutor` subclasses.",https://github.com/NVIDIA/NVFlare/pull/4314#discussion_r2933068395,,2026-03-13T18:26:15.351000,Race condition in check-and-set allows pipe handler replacement mid-execution,concurrency,high,8,"Comment 6 identifies a real race condition where the non-atomic check-and-set pattern on `_executing` allows a concurrent `handle_event(BEFORE_TASK_EXECUTION)` to slip through and replace the pipe handler mid-transaction - the exact deadlock bug this PR aims to fix. The reviewer correctly identifies that without proper locking, the fix is incomplete for direct TaskExchanger callers.",2026-03-14T00:46:57.017190+00:00
+nvidia/earth2studio,743,HealDA,https://github.com/NVIDIA/earth2studio/pull/743,"**Missing guard for unknown conv variable names before `astype(np.int32)`**
+
+`pd.Series.map()` returns `NaN` (float) for any value absent from `CONV_VAR_CHANNEL`. The subsequent `.astype(np.int32)` then raises:
+
+```
+ValueError: Cannot convert non-finite values (NA or inf) to integer
+```
+
+This is the same class of bug that was already fixed for satellite platforms via an explicit guard in `prep_sat_sensor`. The same pattern should be applied here:
+
+```python
+unknown_vars = set(df[""variable""].unique()) - set(CONV_VAR_CHANNEL.keys())
+if unknown_vars:
+    raise ValueError(f""Unknown conventional variable(s): {unknown_vars}"")
+```
+
+Without this check, users passing variables not in `CONV_VAR_CHANNEL` (e.g., legacy names like `""t2m""` that were recently removed from `GSIConventionalLexicon`) will get a cryptic NumPy error instead of a descriptive message.
+",https://github.com/NVIDIA/earth2studio/pull/743#discussion_r2928707232,Fixed.,2026-03-13T02:51:31.658000,Missing guard for unknown variable names causes cryptic ValueError,runtime,high,8,"This catches a real runtime bug where pd.Series.map() returns NaN for unknown variables, and the subsequent astype(np.int32) raises a cryptic 'Cannot convert non-finite values' error instead of a descriptive message. This would cause production crashes with confusing error messages when users pass unsupported variable names.",2026-03-14T03:08:00.665284+00:00
+onyx-dot-app/onyx,9347,fix(litellm): filter embedding models,https://github.com/onyx-dot-app/onyx/pull/9347,"**`get_model_info` raises for unknown models, silently drops valid LiteLLM proxy models**
+
+`litellm.get_model_info()` raises a `NotFoundError` (`""This model isn't mapped yet""`) for any model not present in litellm's static model database. This is a well-documented litellm issue (see [#23054](https://github.com/BerriAI/litellm/issues/23054), [#6703](https://github.com/BerriAI/litellm/issues/6703)). The primary use-case of this endpoint is a **LiteLLM proxy** whose users configure custom/local models (e.g. vLLM, Ollama, LM Studio backends) — those models will never be in litellm's static map.
+
+Because `is_embedding_model` has no exception handling, when `get_model_info` throws the exception propagates up into the `try/except Exception` block in `api.py`:
+
+```python
+# api.py – the exception is caught here:
+except Exception as e:
+    logger.warning(
+        ""Failed to parse Litellm model entry"",
+        extra={""error"": str(e), ""item"": str(model)[:1000]},
+    )
+```
+
+The model is **silently skipped** (with a misleading ""Failed to parse"" warning) instead of being included. For a LiteLLM proxy endpoint with entirely custom models, this means the call returns an `OnyxError` (""No compatible models found from Litellm"") even though there are valid, working chat models available.
+
+The fix is to catch the exception inside `is_embedding_model` and return `False` (treat unknown models as non-embedding):
+
+```python
+def is_embedding_model(model_name: str) -> bool:
+    """"""
+    Check if a model is an embedding model using litellm's model info.
+    Returns False for models not found in litellm's model database.
+    """"""
+    from litellm import get_model_info
+
+    try:
+        model_info = get_model_info(model_name)
+    except Exception:
+        return False
+
+    is_embedding_mode: bool = model_info.get(""mode"") == ""embedding""
+    return is_embedding_mode
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: backend/onyx/server/manage/llm/utils.py
+Line: 371-381
+
+Comment:
+**`get_model_info` raises for unknown models, silently drops valid LiteLLM proxy models**
+
+`litellm.get_model_info()` raises a `NotFoundError` (`""This model isn't mapped yet""`) for any model not present in litellm's static model database. This is a well-documented litellm issue (see [#23054](https://github.com/BerriAI/litellm/issues/23054), [#6703](https://github.com/BerriAI/litellm/issues/6703)). The primary use-case of this endpoint is a **LiteLLM proxy** whose users configure custom/local models (e.g. vLLM, Ollama, LM Studio backends) — those models will never be in litellm's static map.
+
+Because `is_embedding_model` has no exception handling, when `get_model_info` throws the exception propagates up into the `try/except Exception` block in `api.py`:
+
+```python
+# api.py – the exception is caught here:
+except Exception as e:
+    logger.warning(
+        ""Failed to parse Litellm model entry"",
+        extra={""error"": str(e), ""item"": str(model)[:1000]},
+    )
+```
+
+The model is **silently skipped** (with a misleading ""Failed to parse"" warning) instead of being included. For a LiteLLM proxy endpoint with entirely custom models, this means the call returns an `OnyxError` (""No compatible models found from Litellm"") even though there are valid, working chat models available.
+
+The fix is to catch the exception inside `is_embedding_model` and return `False` (treat unknown models as non-embedding):
+
+```python
+def is_embedding_model(model_name: str) -> bool:
+    """"""
+    Check if a model is an embedding model using litellm's model info.
+    Returns False for models not found in litellm's model database.
+    """"""
+    from litellm import get_model_info
+
+    try:
+        model_info = get_model_info(model_name)
+    except Exception:
+        return False
+
+    is_embedding_mode: bool = model_info.get(""mode"") == ""embedding""
+    return is_embedding_mode
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/9347#discussion_r2934408989,,2026-03-14T01:10:00.094000,Unhandled exception silently drops valid LiteLLM proxy models,runtime,high,8,"This catch identifies a real production bug where `get_model_info()` throws exceptions for custom/local models not in litellm's static database, causing valid models to be silently dropped with misleading warnings. For LiteLLM proxy deployments with custom models, this would result in 'No compatible models found' errors even when valid chat models exist.",2026-03-14T03:08:00.665284+00:00
+berriai/litellm,23569,fix(bedrock): respect s3_region_name for batch file uploads,https://github.com/BerriAI/litellm/pull/23569,"**Region mismatch when both `s3_region_name` and `aws_region_name` are set**
+
+`get_complete_file_url` prioritises `s3_region_name` unconditionally when building the S3 URL (line 179), but `transform_create_file_request` only injects `s3_region_name → aws_region_name` when `aws_region_name` is absent:
+
+```python
+if s3_region_name and not optional_params.get(""aws_region_name""):
+    optional_params = {**optional_params, ""aws_region_name"": s3_region_name}
+```
+
+If a caller supplies **both** `s3_region_name` in `litellm_params` and `aws_region_name` in `optional_params` (with different values), the SigV4 signature will be computed against `aws_region_name` while the URL endpoint contains `s3_region_name`. AWS will reject the request with a `SignatureDoesNotMatch` error because the signed region does not match the URL host region.
+
+To keep URL and signing region consistent, the same `s3_region_name` priority used in `get_complete_file_url` should be applied here:
+
+```python
+# Always let s3_region_name win (same priority as get_complete_file_url)
+if s3_region_name:
+    optional_params = {**optional_params, ""aws_region_name"": s3_region_name}
+```",https://github.com/BerriAI/litellm/pull/23569#discussion_r2932763816,,2026-03-13T17:33:37.677000,Region mismatch causes AWS SignatureDoesNotMatch errors,logic,high,8,"The comment identifies a real bug where s3_region_name and aws_region_name could conflict, causing the SigV4 signature to be computed for a different region than the URL endpoint. This would result in AWS rejecting requests with SignatureDoesNotMatch errors, breaking functionality for users with cross-region configurations.",2026-03-14T03:08:00.665284+00:00
