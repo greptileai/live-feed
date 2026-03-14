@@ -13915,3 +13915,20 @@ if parameters.nensemble >= 2:
 else:
     ax2.set_visible(False)
 ```",https://github.com/NVIDIA/earth2studio/pull/750#discussion_r2933605119,Done.,2026-03-13T20:26:13.485000,IndexError when accessing ensemble member with nensemble=1,runtime,high,8,This catches a real runtime bug where hardcoded index access to ensemble member 1 would fail with IndexError when nensemble=1 (the minimum allowed value). This is a meaningful logic error that would cause production failures for valid user inputs.,2026-03-14T08:18:03.929372+00:00
+simstudioai/sim,3576,improvement(mothership): message queueing for home chat,https://github.com/simstudioai/sim/pull/3576,"**Side effect (callback) called during render**
+
+`onEditValueConsumed?.()` is invoked during the render phase (not inside a `useEffect`). This callback calls `setEditingInputValue('')` in the parent `Home` component, meaning a parent's state setter is being triggered while `UserInput` is still rendering. React will fire a **""Cannot update a component (`Home`) while rendering a different component (`UserInput`)""** warning and the behavior in concurrent/strict mode is undefined.
+
+The standard React pattern for this is to keep the `setState` calls in render for the component's own derived state (which React permits), but external side-effect calls like parent callbacks must be deferred to a `useEffect`. Consider moving the consumed signal to an effect:
+
+```
+  useEffect(() => {
+    if (editValue && editValue !== prevEditValue) {
+      onEditValueConsumed?.()
+    }
+  // only fire when editValue changes
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editValue])
+```
+
+Or restructure using a separate `useEffect` that watches `editValue` and calls `setValue` + `onEditValueConsumed` together, while keeping `prevEditValue` tracking inline only for the state update.",https://github.com/simstudioai/sim/pull/3576#discussion_r2935162859,"Fixed — moved `onEditValueConsumed?.()` out of the render phase into a `useEffect` that fires when `editValue` changes. The component's own state updates (`setPrevEditValue`, `setValue`) remain in the render-time adjustment since React permits that for the component's own state.",2026-03-14T11:37:41.027000,State update callback invoked during render causes React warning,runtime,high,8,"This catches a genuine React anti-pattern where calling a parent's state setter during render violates React's concurrent rendering model, causing warnings and undefined behavior in strict/concurrent mode. This is a real bug that would manifest in production.",2026-03-14T16:15:28.183806+00:00
