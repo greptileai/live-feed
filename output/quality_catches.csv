@@ -13932,3 +13932,46 @@ The standard React pattern for this is to keep the `setState` calls in render fo
 ```
 
 Or restructure using a separate `useEffect` that watches `editValue` and calls `setValue` + `onEditValueConsumed` together, while keeping `prevEditValue` tracking inline only for the state update.",https://github.com/simstudioai/sim/pull/3576#discussion_r2935162859,"Fixed — moved `onEditValueConsumed?.()` out of the render phase into a `useEffect` that fires when `editValue` changes. The component's own state updates (`setPrevEditValue`, `setValue`) remain in the render-time adjustment since React permits that for the component's own state.",2026-03-14T11:37:41.027000,State update callback invoked during render causes React warning,runtime,high,8,"This catches a genuine React anti-pattern where calling a parent's state setter during render violates React's concurrent rendering model, causing warnings and undefined behavior in strict/concurrent mode. This is a real bug that would manifest in production.",2026-03-14T16:15:28.183806+00:00
+ever-co/ever-gauzy,9608,Fix/desktop timer stopped offline,https://github.com/ever-co/ever-gauzy/pull/9608,"**`timer.timelogId` may be undefined here**
+
+When the code reaches this branch via the `addTimeLog` path (line 65–72), `timer.timelogId` is falsy (the condition at line 65 requires `!timer.timelogId`). After `addTimeLog` succeeds, `latest` holds the newly created time log with a valid `latest.id`. However, this line still uses `timer.timelogId` — which is `undefined` — as the first argument to `updateTimeLog`. This produces a malformed API URL (`/timesheet/time-log/undefined`).
+
+Since `latest.id` is guaranteed to hold the correct server-side time log ID at this point, it should be used instead:
+
+```suggestion
+						latest = await this._timeTrackerService.updateTimeLog(latest.id, {
+```",https://github.com/ever-co/ever-gauzy/pull/9608#discussion_r2935368504,,2026-03-14T14:47:41.041000,Undefined timelogId causes malformed API URL in update call,logic,high,8,"This is a genuine logic bug where `timer.timelogId` is used after a branch that explicitly requires it to be falsy, resulting in API calls to `/timesheet/time-log/undefined`. This would cause failed API requests and broken offline sync functionality in production. The fix correctly identifies that `latest.id` should be used instead.",2026-03-14T18:17:34.920893+00:00
+berriai/litellm,23333,Add Vantage integration for FOCUS CSV export,https://github.com/BerriAI/litellm/pull/23333,"**`normalized_sample` may contain non-JSON-serializable `decimal.Decimal` values**
+
+`FocusTransformer.transform()` produces a Polars DataFrame with `pl.Decimal(18,6)` columns (`BilledCost`, `EffectiveCost`, `ContractedCost`, etc.). When `.to_dicts()` is called on that frame, Polars returns Python `decimal.Decimal` objects for those columns. These objects end up inside `normalized_sample` → `dry_run_data` → `VantageExportResponse.dry_run_data` (typed as `Dict[str, Any]`).
+
+FastAPI's `jsonable_encoder` delegates nested dict values to `json.dumps`, which raises `TypeError: Object of type Decimal is not JSON serializable` for any response that contains at least one normalized row. Concretely, any call to `/vantage/dry-run` with data in the database will return a 500 error instead of the expected preview.
+
+```python
+# Before returning normalized_sample, cast Decimal fields to float:
+normalized_sample = [
+    {
+        k: float(v) if isinstance(v, __import__(""decimal"").Decimal) else v
+        for k, v in row.items()
+    }
+    for row in normalized.head(min(50, len(normalized))).to_dicts()
+] if not normalized.is_empty() else []
+```
+
+Alternatively, serialize via the `FocusCsvSerializer` and return the CSV string rather than raw dicts, which already handles the Decimal → float cast.",https://github.com/BerriAI/litellm/pull/23333#discussion_r2918607483,,2026-03-11T14:07:59.841000,Decimal values cause JSON serialization crash in dry-run endpoint,runtime,high,8,"This catches a real runtime bug where Polars DataFrame with Decimal columns produces Python decimal.Decimal objects that FastAPI's JSON encoder cannot serialize, causing any /vantage/dry-run request with actual data to return a 500 error instead of the preview. This is a genuine production bug that would break the feature.",2026-03-14T18:17:34.920893+00:00
+berriai/litellm,23542,fix: silent metrics race condition,https://github.com/BerriAI/litellm/pull/23542,"**Shallow copy also copies `litellm_parent_otel_span` into silent kwargs**
+
+`dict(original_metadata)` is a shallow copy, so `silent_kwargs[""metadata""][""litellm_parent_otel_span""]` ends up pointing to the exact same live OTel `Span` object as the primary call. The silent experiment runs in a freshly-created event loop (`asyncio.new_event_loop()`). OTel `Span` objects are not safe to use across event loops — calling `span.end()` or recording events on the same span from two different loops can produce data races or corrupt the trace.
+
+Consider explicitly nullifying the span in the silent copy after the shallow copy is taken:
+
+```python
+if (
+    original_metadata is not None
+    and silent_kwargs.get(""metadata"") is original_metadata
+):
+    silent_kwargs[""metadata""] = dict(original_metadata)
+    # Span is not safe to use across event loops; clear it from the silent copy
+    silent_kwargs[""metadata""].pop(""litellm_parent_otel_span"", None)
+```
+",https://github.com/BerriAI/litellm/pull/23542#discussion_r2934682188,,2026-03-14T04:38:47.754000,OTel span shared across event loops causes race condition,concurrency,high,8,"Comment 2 identifies a real concurrency bug: the shallow copy preserves a reference to the same OTel Span object, which will be used across different event loops (silent experiment runs in a new event loop). This can cause data races or span corruption in production. The fix is concrete and addresses a genuine runtime issue.",2026-03-14T18:17:34.920893+00:00
