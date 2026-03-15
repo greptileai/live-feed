@@ -14075,3 +14075,30 @@ Add the `open` case to `onOpenChange` so that a direct interaction can also reve
         }}
 ```
 ",https://github.com/simstudioai/sim/pull/3588#discussion_r2935889443,Good catch — touch and keyboard users couldn't open the menu since `onOpenChange(true)` was being ignored. Fixed by handling both open and close cases. Also exported `open` from the `useHoverMenu` hook.,2026-03-14T22:05:10.126000,Dropdown menu inaccessible on touch devices and keyboard navigation,logic,high,8,"This catches a real accessibility and usability bug where touch device users and keyboard users cannot open the dropdown menu because the `onOpenChange(true)` case was being ignored. The menu was only controllable via mouse hover, making it completely inaccessible to a significant portion of users.",2026-03-15T00:54:22.777821+00:00
+berriai/litellm,23667,Litellm fix redaction filter logging v2,https://github.com/BerriAI/litellm/pull/23667,"**`record.args` not cleared in fallback redaction path**
+
+When `record.getMessage()` raises an exception (e.g., format string/args mismatch), the `except` branch redacts `record.msg` but **does not null out `record.args`**. The formatter will later call `getMessage()` again, which executes `str(record.msg) % record.args`. If `record.args` contains a secret, it can leak through that second invocation.
+
+```suggestion
+        except Exception:
+            if isinstance(record.msg, str):
+                record.msg = _redact_string(record.msg)
+            record.args = None  # prevent secret leakage via subsequent getMessage() calls
+```",https://github.com/BerriAI/litellm/pull/23667#discussion_r2935951883,,2026-03-14T23:05:05.487000,Secret leakage through uncleared record.args in exception path,security,high,9,"This is a genuine security vulnerability in a redaction filter - the fallback exception path fails to clear record.args, allowing secrets to leak when getMessage() is called again by the formatter. This is a subtle security bug in credential/secret protection code that could expose sensitive data in logs, and the catch demonstrates deep understanding of Python logging internals.",2026-03-15T03:15:36.213937+00:00
+berriai/litellm,22252,feat: add BlockRun as OpenAI-compatible provider,https://github.com/BerriAI/litellm/pull/22252,"**Missing `LlmProviders` enum entry will break Router/Proxy usage**
+
+Adding `blockrun` to `providers.json` alone is insufficient — a corresponding `BLOCKRUN = ""blockrun""` entry must also be added to the `LlmProviders` enum in `litellm/types/utils.py`. Without it:
+
+1. **Router/Proxy will reject the provider** with an ""Unsupported provider"" error. The router checks `custom_llm_provider not in litellm.provider_list and not JSONProviderRegistry.exists(...)`, but `litellm.provider_list` is built from the `LlmProviders` enum and the `JSONProviderRegistry.exists()` check only acts as a fallback. Several code paths rely on `LlmProviders(custom_llm_provider)` which will raise `ValueError`.
+
+2. **Parameter mapping (`max_completion_tokens` → `max_tokens`) won't be applied** in `get_optional_params` because `get_supported_openai_params` checks `LlmProvidersSet` first and falls through to `provider_config = None` when the provider isn't in the enum.
+
+This was the exact same issue fixed in commit `2ef8bbdf6` for `xiaomi_mimo`: *""The provider was already configured in providers.json but was missing from the enum, causing 'Unsupported provider' errors when using it in Router/Proxy configurations.""*
+
+Every other JSON-configured provider (chutes, apertis, nano-gpt, poe, scaleway, synthetic, xiaomi_mimo) has a corresponding `LlmProviders` enum entry. Please add:
+
+```
+BLOCKRUN = ""blockrun""
+```
+
+to the `LlmProviders` enum in `litellm/types/utils.py`.",https://github.com/BerriAI/litellm/pull/22252#discussion_r2862408729,,2026-02-27T04:12:00.294000,Missing enum entry breaks Router/Proxy provider support,logic,high,8,This is a meaningful catch that would cause production failures - the new provider would fail with 'Unsupported provider' errors and parameter mapping wouldn't work. The comment demonstrates deep understanding of the codebase by citing a previous identical bug fix and explaining multiple code paths affected. This isn't immediately obvious from just looking at the JSON file being modified.,2026-03-15T03:15:36.213937+00:00
