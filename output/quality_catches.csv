@@ -14115,3 +14115,55 @@ The guard correctly uses `Buffer.byteLength(text, 'utf8')` to catch multi-byte U
   }
   return text
 ```",https://github.com/simstudioai/sim/pull/3603#discussion_r2936671895,"Valid — switched to `Buffer.from(text, 'utf8').subarray(0, MAX_FILE_SIZE).toString('utf8')` for byte-accurate truncation. Fixed in 441d2a685.",2026-03-15T12:21:54.164000,Byte-limit check with character-count truncation allows oversized content,logic,high,8,"This catches a real logic bug where UTF-8 multi-byte characters (CJK text) could result in content 4x larger than the intended MAX_FILE_SIZE limit being returned. The check uses bytes but truncation uses characters, a non-obvious mismatch that would cause production issues with international content.",2026-03-15T14:18:33.268732+00:00
+raycast/extensions,26346,Update dropover extension,https://github.com/raycast/extensions/pull/26346,"**PNG fallback saves to wrong path**
+
+When the primary format extraction fails and the PNG fallback succeeds, `saveClipboardImage` returns `true` but the file is saved to `pngPath` (line 188), not `outputPath`. Back in `main()` (line 239), `addToDropover(imagePath)` is called with the original path (e.g., `.heic` extension), which doesn't exist — the actual file was written to the `.png` path.
+
+This means the PNG fallback path will always fail to add the image to Dropover. Consider returning the actual saved path instead of a boolean, so the caller knows which file to open:
+
+```suggestion
+async function saveClipboardImage(outputPath: string, format: ImageFormat): Promise<string | null> {
+  try {
+    // Use osascript to write clipboard image data to file
+    const script = `
+      set thePath to POSIX file ""${outputPath}""
+      set imageData to the clipboard as ${format.clipboardClass}
+      set fileRef to open for access thePath with write permission
+      set eof of fileRef to 0
+      write imageData to fileRef
+      close access fileRef
+      return ""success""
+    `;
+    await spawnPromise(""osascript"", [""-e"", script]);
+    return fs.existsSync(outputPath) ? outputPath : null;
+  } catch {
+    // If the specific format fails, try PNG as fallback
+    if (format.extension !== "".png"") {
+      try {
+        const pngPath = outputPath.replace(format.extension, "".png"");
+        const pngScript = `
+          set thePath to POSIX file ""${pngPath}""
+          set imageData to the clipboard as «class PNGf»
+          set fileRef to open for access thePath with write permission
+          set eof of fileRef to 0
+          write imageData to fileRef
+          close access fileRef
+          return ""success""
+        `;
+        await spawnPromise(""osascript"", [""-e"", pngScript]);
+        return fs.existsSync(pngPath) ? pngPath : null;
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  }
+}
+```
+
+Then update the caller to use the returned path:
+```ts
+const savedPath = await saveClipboardImage(imagePath, imageFormat);
+if (savedPath) {
+  await addToDropover(savedPath);
+```",https://github.com/raycast/extensions/pull/26346#discussion_r2936812955,,2026-03-15T14:32:35.426000,"PNG fallback saves to wrong path, breaking image addition",logic,high,8,"This catches a genuine logic bug where the PNG fallback saves to a different path than what's passed to addToDropover, causing the feature to silently fail. The caller uses the original path (.heic) while the actual file was written to .png path, meaning the file won't be found.",2026-03-15T20:15:03.242906+00:00
