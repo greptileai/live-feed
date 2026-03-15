@@ -14021,3 +14021,57 @@ The `status` → `state` rename in this PR is incomplete. In `src/utils.tsx:11`,
 ```
 const status = taskWithPullRequest.task.state;
 ```",https://github.com/raycast/extensions/pull/26321#discussion_r2934995126,,2026-03-14T08:56:26.028000,Incomplete rename causes all task icons to show wrong default,logic,medium,8,"This is a meaningful logic bug where a property rename (status → state) was incomplete across files, causing all task icons to display incorrectly as the default circle instead of their proper status-based icons. The catch requires understanding the cross-file data flow and would affect all users visually. Not immediately obvious from looking at a single file.",2026-03-14T20:13:50.981536+00:00
+berriai/litellm,23655,fix: prisma migrate deploy failures on pre-existing instances,https://github.com/BerriAI/litellm/pull/23655,"**`return True` skips remaining pending migrations**
+
+After resolving a single idempotent migration, the code returns `True` immediately. But `_resolve_specific_migration` only marks **that one** migration as applied — it does not apply any other pending migrations. If there are N migrations pending, resolving one and returning `True` causes the proxy to start up thinking the schema is fully up-to-date, when migrations 2…N have never actually run.
+
+`continue` would be the correct replacement: it lets the `for attempt in range(3)` loop execute another `prisma migrate deploy`, which will now skip the resolved migration and proceed with the remaining ones:
+
+```suggestion
+                                        return True
+```
+
+should instead be:
+
+```python
+                                        logger.info(""✅ Migration resolved, retrying migrate deploy for remaining migrations."")
+                                        # break inner error-handling and retry the outer migrate deploy loop
+                                        break  # or continue the outer loop
+```
+
+More concretely, replacing `return True` with `continue` (if the outer `for attempt in range(3)` loop is accessible) or restructuring so the outer loop retries would ensure all pending migrations are applied before the function signals success.",https://github.com/BerriAI/litellm/pull/23655#discussion_r2935904922,,2026-03-14T22:21:01.490000,Early return skips remaining pending database migrations,logic,high,8,"Comment 2 identifies a significant logic bug where `return True` after resolving a single migration causes the function to exit early, skipping all remaining pending migrations. This leaves the database schema incomplete while the proxy starts up thinking everything is applied, causing runtime failures for requests hitting missing schema objects.",2026-03-15T00:54:22.777821+00:00
+berriai/litellm,23132,fix: handle unknown local models gracefully in get_model_info and routing,https://github.com/BerriAI/litellm/pull/23132,"Narrowed exception handler may let `BadRequestError` propagate to callers
+
+`litellm.get_llm_provider()` (line 2544) always raises `BadRequestError` — either directly (line 489 in `get_llm_provider_logic.py`) or wrapped (line 484). It does **not** raise `ValueError` or `KeyError`, so the narrowed `except (ValueError, KeyError)` will fail to catch it.
+
+Since `supports_function_calling()`, `supports_tool_choice()`, and related functions are used throughout the routing and capability-detection paths, an unexpected `BadRequestError` here could surface as a 500 error in production for requests that previously silently defaulted to `False`.
+
+Consider broadening the catch to include `BadRequestError`:
+
+```python
+except (ValueError, KeyError, litellm.exceptions.BadRequestError) as e:
+    # Handle known ""model not in map"" errors and bad provider inputs
+```
+
+Or rely on the already-implemented fallback logic (`_unknown_model_default_capability`) to degrade gracefully without needing to catch the exception at all.",https://github.com/BerriAI/litellm/pull/23132#discussion_r2908440187,"Good catch — I widened the internal fallback catches to include `BadRequestError` in both `_supports_factory()` and `_get_model_info_helper(..., fallback_on_unmapped=True)`, then added regressions for both paths. Validated in the repo `.venv` with `ruff` plus `tests/litellm_utils_tests/test_local_model_support.py` (`23 passed`).",2026-03-09T23:19:28.916000,Narrowed exception handler lets BadRequestError propagate to callers,runtime,high,8,"The comment correctly identifies that get_llm_provider() raises BadRequestError, not ValueError or KeyError, so the narrowed exception handler will fail to catch it. This could cause 500 errors in production for requests that previously worked, affecting routing and capability-detection paths.",2026-03-15T00:54:22.777821+00:00
+simstudioai/sim,3588,fix(sidebar): collapsed sidebar shows single icons with hover dropdown menus,https://github.com/simstudioai/sim/pull/3588,"**Dropdown unopenable on touch / keyboard-click**
+
+Because the `DropdownMenu` is fully controlled (`open={hover.isOpen}`), clicking the trigger causes Radix to fire `onOpenChange(true)` — but the current handler only acts on `false`, so it silently ignores the open attempt:
+
+```tsx
+onOpenChange={(open) => {
+  if (!open) hover.close()
+}}
+```
+
+On touch devices `onMouseEnter` never fires, so `hover.open()` is never called. And clicking also cannot open the menu since the `true` case is dropped. The net result is that the dropdown is permanently inaccessible to touch-device users (and to keyboard users who tab to the button and press Enter/Space without first hovering).
+
+Add the `open` case to `onOpenChange` so that a direct interaction can also reveal the menu:
+
+```suggestion
+        onOpenChange={(open) => {
+          if (open) hover.open()
+          else hover.close()
+        }}
+```
+",https://github.com/simstudioai/sim/pull/3588#discussion_r2935889443,Good catch — touch and keyboard users couldn't open the menu since `onOpenChange(true)` was being ignored. Fixed by handling both open and close cases. Also exported `open` from the `useHoverMenu` hook.,2026-03-14T22:05:10.126000,Dropdown menu inaccessible on touch devices and keyboard navigation,logic,high,8,"This catches a real accessibility and usability bug where touch device users and keyboard users cannot open the dropdown menu because the `onOpenChange(true)` case was being ignored. The menu was only controllable via mouse hover, making it completely inaccessible to a significant portion of users.",2026-03-15T00:54:22.777821+00:00
