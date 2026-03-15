@@ -14102,3 +14102,16 @@ BLOCKRUN = ""blockrun""
 ```
 
 to the `LlmProviders` enum in `litellm/types/utils.py`.",https://github.com/BerriAI/litellm/pull/22252#discussion_r2862408729,,2026-02-27T04:12:00.294000,Missing enum entry breaks Router/Proxy provider support,logic,high,8,This is a meaningful catch that would cause production failures - the new provider would fail with 'Unsupported provider' errors and parameter mapping wouldn't work. The comment demonstrates deep understanding of the codebase by citing a previous identical bug fix and explaining multiple code paths affected. This isn't immediately obvious from just looking at the JSON file being modified.,2026-03-15T03:15:36.213937+00:00
+simstudioai/sim,3603,improvement(connectors): audit and harden all 30 knowledge base connectors,https://github.com/simstudioai/sim/pull/3603,"**Byte-accurate check but character-count truncation**
+
+The guard correctly uses `Buffer.byteLength(text, 'utf8')` to catch multi-byte UTF-8 files that exceed `MAX_FILE_SIZE` bytes, but the truncation immediately below uses `text.slice(0, MAX_FILE_SIZE)`, which is a character-count slice. For content with multi-byte characters (e.g. CJK text), `MAX_FILE_SIZE` characters can be up to 4× `MAX_FILE_SIZE` bytes, so the returned content can still well exceed the intended 10 MB byte limit.
+
+```suggestion
+  const text = await response.text()
+  if (Buffer.byteLength(text, 'utf8') > MAX_FILE_SIZE) {
+    // Truncate to the exact byte limit to avoid returning more than MAX_FILE_SIZE bytes
+    const buf = Buffer.from(text, 'utf8').slice(0, MAX_FILE_SIZE)
+    return buf.toString('utf8')
+  }
+  return text
+```",https://github.com/simstudioai/sim/pull/3603#discussion_r2936671895,"Valid — switched to `Buffer.from(text, 'utf8').subarray(0, MAX_FILE_SIZE).toString('utf8')` for byte-accurate truncation. Fixed in 441d2a685.",2026-03-15T12:21:54.164000,Byte-limit check with character-count truncation allows oversized content,logic,high,8,"This catches a real logic bug where UTF-8 multi-byte characters (CJK text) could result in content 4x larger than the intended MAX_FILE_SIZE limit being returned. The check uses bytes but truncation uses characters, a non-obvious mismatch that would cause production issues with international content.",2026-03-15T14:18:33.268732+00:00
