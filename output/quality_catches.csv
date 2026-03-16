@@ -14283,3 +14283,47 @@ The second option removes the burden from callers entirely and makes the call si
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/PostHog/posthog/pull/50978#discussion_r2932960331,,2026-03-13T18:06:18.776000,Silent discard of should_drop flag in merge function,logic,high,8,"The merge function silently hard-codes should_drop: false, which could cause events that should be dropped to be ingested if a future caller doesn't follow the undocumented contract. This is a real logic bug that could lead to data integrity issues in production - events bypassing restrictions they should be subject to.",2026-03-16T12:31:49.498741+00:00
+onyx-dot-app/onyx,9366,fix(admin): users page UI/UX polish,https://github.com/onyx-dot-app/onyx/pull/9366,"**RESET_PASSWORD modal closeable during in-flight request — one-time password lost**
+
+The `onClose` callback on the Reset Password modal does not guard against `isSubmitting`. If the user dismisses the modal (ESC, backdrop click) after clicking ""Reset Password"" but before the API response arrives, the modal unmounts and `newPassword` is reset to `null`. When the network call then completes, `setNewPassword(result.new_password)` fires — but because `modal !== Modal.RESET_PASSWORD`, the password-reveal UI is never rendered. The user's old password has already been invalidated server-side at this point, effectively locking them out with no way to recover the new password without a second reset.
+
+Compare with the DEACTIVATE (line 285) and DELETE (line 348) modals, which both use `onClose={isSubmitting ? undefined : () => setModal(null)}` to prevent dismissal while in-flight.
+
+```suggestion
+          onClose={isSubmitting ? undefined : () => {
+            setModal(null);
+            setNewPassword(null);
+          }}
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: web/src/refresh-pages/admin/UsersPage/UserRowActions.tsx
+Line: 375-383
+
+Comment:
+**RESET_PASSWORD modal closeable during in-flight request — one-time password lost**
+
+The `onClose` callback on the Reset Password modal does not guard against `isSubmitting`. If the user dismisses the modal (ESC, backdrop click) after clicking ""Reset Password"" but before the API response arrives, the modal unmounts and `newPassword` is reset to `null`. When the network call then completes, `setNewPassword(result.new_password)` fires — but because `modal !== Modal.RESET_PASSWORD`, the password-reveal UI is never rendered. The user's old password has already been invalidated server-side at this point, effectively locking them out with no way to recover the new password without a second reset.
+
+Compare with the DEACTIVATE (line 285) and DELETE (line 348) modals, which both use `onClose={isSubmitting ? undefined : () => setModal(null)}` to prevent dismissal while in-flight.
+
+```suggestion
+          onClose={isSubmitting ? undefined : () => {
+            setModal(null);
+            setNewPassword(null);
+          }}
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/9366#discussion_r2937441130,,2026-03-15T22:22:50.721000,Reset password modal dismissal causes user lockout,logic,high,8,"This catch identifies a real user-facing bug where dismissing the reset password modal during an in-flight request causes the new password to be lost while the old password is already invalidated server-side, effectively locking out the user. This has significant impact on user experience and administrative workflows.",2026-03-16T16:34:28.148560+00:00
+sqlfluff/sqlfluff,7617,Fix `ignore = templating` disabling all lint rules with Python templater,https://github.com/sqlfluff/sqlfluff/pull/7617,"**Unhandled `KeyError` for partial dot-notation context**
+
+When a user provides a `sqlfluff` dict in their context with some dot-notation keys but not all, the `_FallbackDict` finds the real `sqlfluff` dict (not a `_FallbackValue`), so `format_map` calls `__getitem__` on that real dict. A missing key like `foo.bar` in the real dict will raise an unhandled `KeyError`, bypassing the fallback mechanism.
+
+For example, with `live_context = {""sqlfluff"": {""existing.key"": ""val""}}` and template `{foo.bar}` (rewritten to `{sqlfluff[foo.bar]}`): `_FallbackDict` resolves `sqlfluff` to the real dict, then `dict.__getitem__(""foo.bar"")` raises `KeyError`.
+
+Consider wrapping the `format_map` call in a `try/except KeyError` that falls back gracefully, or replacing the inner `sqlfluff` dict with a similar fallback-aware dict.",https://github.com/sqlfluff/sqlfluff/pull/7617#discussion_r2939279645,,2026-03-16T09:54:10.998000,Unhandled KeyError in fallback dict with partial context,runtime,high,8,"This catches a subtle runtime bug where partial dot-notation context causes KeyError to bypass the intended fallback mechanism. The scenario is non-obvious - requires understanding the interaction between _FallbackDict, format_map, and nested real dicts. This would cause unexpected crashes for users with certain valid configurations.",2026-03-16T16:34:28.148560+00:00
