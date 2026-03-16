@@ -14401,3 +14401,215 @@ active: z.union([z.boolean(), z.string().transform((v) => v.toLowerCase() === ""
 ```
 
 Without this, the string value also propagates to the SCIM-event log (`active: scimUser.active` at line 725 of `scim-service.ts`), making event records inconsistent.",https://github.com/Infisical/infisical/pull/5681#discussion_r2928604347,,2026-03-13T02:20:50.124000,String 'false' truthy coercion prevents user deactivation,logic,high,8,"This is a meaningful logic bug where the string ""false"" being truthy in JavaScript would prevent SCIM user deactivation from working correctly. The comment correctly identifies that accepting string values without proper boolean conversion causes data integrity issues in production, affecting user access management. The analysis is thorough with concrete code references and provides actionable solutions.",2026-03-16T18:33:04.570291+00:00
+posthog/posthog,50994,fix(ci): remove redundant OpenAPI type generation in check-migrations,https://github.com/PostHog/posthog/pull/50994,"**Fork PR checkout will fail**
+
+`github.event.pull_request.head.ref` is the branch name that lives in the contributor's fork repo, not in `posthog/posthog`. Since the `repository` parameter here defaults to `${{ github.repository }}` (`posthog/posthog`), `actions/checkout` will try to find a branch with that name in the base repo — and fail if it doesn't exist there.
+
+The `check-migrations` job has no fork-exclusion `if:` condition, so this is a regression for external contributor PRs.
+
+The `get app token` step at line 541 is already guarded with `if: … && github.event.pull_request.head.repo.full_name == 'PostHog/posthog'`, meaning the auto-commit behaviour is intentionally fork-safe. This checkout needs the same treatment.
+
+A safe conditional keeps the original merge-commit checkout for forks (the auto-commit path already bails out for forks at the `HEAD_REPO` check):
+
+```suggestion
+                  ref: ${{ (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == 'PostHog/posthog') && github.event.pull_request.head.ref || github.ref }}
+```
+
+Alternatively, wrap the entire `ref:` line in a condition so fork PRs fall through to the default merge-commit checkout.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: .github/workflows/ci-backend.yml
+Line: 554
+
+Comment:
+**Fork PR checkout will fail**
+
+`github.event.pull_request.head.ref` is the branch name that lives in the contributor's fork repo, not in `posthog/posthog`. Since the `repository` parameter here defaults to `${{ github.repository }}` (`posthog/posthog`), `actions/checkout` will try to find a branch with that name in the base repo — and fail if it doesn't exist there.
+
+The `check-migrations` job has no fork-exclusion `if:` condition, so this is a regression for external contributor PRs.
+
+The `get app token` step at line 541 is already guarded with `if: … && github.event.pull_request.head.repo.full_name == 'PostHog/posthog'`, meaning the auto-commit behaviour is intentionally fork-safe. This checkout needs the same treatment.
+
+A safe conditional keeps the original merge-commit checkout for forks (the auto-commit path already bails out for forks at the `HEAD_REPO` check):
+
+```suggestion
+                  ref: ${{ (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == 'PostHog/posthog') && github.event.pull_request.head.ref || github.ref }}
+```
+
+Alternatively, wrap the entire `ref:` line in a condition so fork PRs fall through to the default merge-commit checkout.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/50994#discussion_r2933476463,,2026-03-13T20:01:18.036000,CI checkout fails for external contributor fork PRs,logic,high,8,"This is a meaningful logic bug that would cause CI to fail for all external contributor PRs - a real regression affecting the open source contribution workflow. The reviewer identified a subtle GitHub Actions context issue where the branch ref from a fork doesn't exist in the base repo, provided concrete evidence by referencing the existing fork-safe pattern elsewhere in the file, and offered a working fix. This is non-obvious CI infrastructure knowledge that would break production CI for community contributions.",2026-03-16T20:22:27.385247+00:00
+posthog/posthog,51088,"fix(early-access): persist ""Registered"" state for concept-stage features",https://github.com/PostHog/posthog/pull/51088,"**Unenrollment within same session silently ignored**
+
+When a user *unenrolls* from a concept feature during the same session, `conceptEnrollments[flagKey]` is set to `false` by the reducer. Because `!!false` is falsy, the `||` falls through to `storedPersonProps`, which likely still says `'true'` — the kea listener that calls `posthog.updateEarlyAccessFeatureEnrollment` runs *asynchronously* (after the reducer), so `$stored_person_properties` in localStorage hasn't been refreshed yet when the selector re-evaluates. The result is that `isConceptEnrolled` stays `true` even though the user just unenrolled.
+
+The fix is to use `in` to distinguish ""never touched this session"" (`undefined`, fall back to localStorage) from ""explicitly set this session"" (`true`/`false`, use as-is):
+
+```suggestion
+                        const isConceptEnrolled =
+                            feature.stage === 'concept' &&
+                            (flagKey in conceptEnrollments
+                                ? !!conceptEnrollments[flagKey]
+                                : storedPersonProps[`$feature_enrollment/${flagKey}`] === 'true')
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: frontend/src/layout/FeaturePreviews/featurePreviewsLogic.tsx
+Line: 157-160
+
+Comment:
+**Unenrollment within same session silently ignored**
+
+When a user *unenrolls* from a concept feature during the same session, `conceptEnrollments[flagKey]` is set to `false` by the reducer. Because `!!false` is falsy, the `||` falls through to `storedPersonProps`, which likely still says `'true'` — the kea listener that calls `posthog.updateEarlyAccessFeatureEnrollment` runs *asynchronously* (after the reducer), so `$stored_person_properties` in localStorage hasn't been refreshed yet when the selector re-evaluates. The result is that `isConceptEnrolled` stays `true` even though the user just unenrolled.
+
+The fix is to use `in` to distinguish ""never touched this session"" (`undefined`, fall back to localStorage) from ""explicitly set this session"" (`true`/`false`, use as-is):
+
+```suggestion
+                        const isConceptEnrolled =
+                            feature.stage === 'concept' &&
+                            (flagKey in conceptEnrollments
+                                ? !!conceptEnrollments[flagKey]
+                                : storedPersonProps[`$feature_enrollment/${flagKey}`] === 'true')
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/51088#discussion_r2937613748,,2026-03-16T00:23:22.921000,Race condition causes unenrollment state to be ignored,concurrency,medium,8,"This comment identifies a subtle race condition where unenrolling from a concept feature within the same session would be silently ignored due to async localStorage updates. The `||` fallback to stale `storedPersonProps` means the UI would incorrectly show 'Registered' even after user unenrolls, causing confusing UX. The fix using `in` operator to distinguish undefined from false is correct and non-obvious.",2026-03-16T20:22:27.385247+00:00
+posthog/posthog,51042,feat(early-access): add option to ignore opt-outs when promoting to GA,https://github.com/PostHog/posthog/pull/51042,"**`rollout_to_all` fires without requiring a stage transition**
+
+The condition `if stage in EarlyAccessFeature.ActiveStage and rollout_to_all:` has two problems:
+
+1. **No transition guard**: unlike the `elif` below it (which checks `instance.stage not in EarlyAccessFeature.ActiveStage`), this branch fires even when the feature is already in an active stage. A PATCH request sent against a feature that is already in `beta` with `{""stage"": ""beta"", ""rollout_to_all"": true}` would silently wipe `super_groups` and force 100% rollout — with no stage change occurring.
+
+2. **Applies to ALPHA/BETA too**: `ActiveStage = {ALPHA, BETA, GENERAL_AVAILABILITY}`, so the UI-only intent of ""this is a GA-promotion option"" is not enforced at the API layer. `rollout_to_all=True` on any active-stage transition (or non-transition) currently triggers the destructive clear.
+
+Restricting to the actual transition case, and ideally to GA specifically, would make the API match the documented intent:
+
+```python
+if (
+    instance.stage not in EarlyAccessFeature.ActiveStage
+    and stage == EarlyAccessFeature.Stage.GENERAL_AVAILABILITY
+    and rollout_to_all
+):
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: products/early_access_features/backend/api.py
+Line: 95-114
+
+Comment:
+**`rollout_to_all` fires without requiring a stage transition**
+
+The condition `if stage in EarlyAccessFeature.ActiveStage and rollout_to_all:` has two problems:
+
+1. **No transition guard**: unlike the `elif` below it (which checks `instance.stage not in EarlyAccessFeature.ActiveStage`), this branch fires even when the feature is already in an active stage. A PATCH request sent against a feature that is already in `beta` with `{""stage"": ""beta"", ""rollout_to_all"": true}` would silently wipe `super_groups` and force 100% rollout — with no stage change occurring.
+
+2. **Applies to ALPHA/BETA too**: `ActiveStage = {ALPHA, BETA, GENERAL_AVAILABILITY}`, so the UI-only intent of ""this is a GA-promotion option"" is not enforced at the API layer. `rollout_to_all=True` on any active-stage transition (or non-transition) currently triggers the destructive clear.
+
+Restricting to the actual transition case, and ideally to GA specifically, would make the API match the documented intent:
+
+```python
+if (
+    instance.stage not in EarlyAccessFeature.ActiveStage
+    and stage == EarlyAccessFeature.Stage.GENERAL_AVAILABILITY
+    and rollout_to_all
+):
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/51042#discussion_r2934026183,,2026-03-13T22:22:27.801000,Missing stage transition guard causes unintended feature flag rollout,logic,high,8,"This catches a significant logic bug where the `rollout_to_all` flag could be triggered without an actual stage transition, or on non-GA stage transitions, silently wiping super_groups and forcing 100% rollout. This is a meaningful business logic error that could cause unintended feature exposure to all users.",2026-03-16T20:22:27.385247+00:00
+posthog/posthog,48524,chore(messaging): deduplicate person property filters in backfill workflow,https://github.com/PostHog/posthog/pull/48524,"**Deduplication doesn't propagate to the workflow**
+
+The management command builds a `condition_map` to deduplicate shared conditions, then immediately reconstructs `cohort_filters_list` with each cohort holding its own per-cohort filters (lines 194–212). This means the data structure passed to the workflow is structurally identical to what the original code produced — every cohort still carries its own copy of any shared condition hash.
+
+The worker workflow (`backfill_precalculated_person_properties_workflow.py`) is unchanged and still iterates:
+```python
+for cohort_filters in inputs.cohort_filters:
+    cohort_id = cohort_filters.cohort_id
+    for filter_info in cohort_filters.filters:
+        # execute_bytecode called here...
+```
+
+So a condition hash shared by N cohorts is still evaluated N times per person, not once. The PR description's claim — _""Each unique condition is evaluated once per person, with results applied to all cohorts using that filter""_ — is not borne out by the code.
+
+The deduplication only has a real effect in the narrow case where the same `condition_hash` appears more than once **within the same cohort's** filter tree (intra-cohort duplicates). Inter-cohort deduplication, which is the stated goal, requires passing the flat `condition_map` structure to the workflow and changing the evaluation loop there.
+
+The printed metrics are also misleading as a result:
+```
+""reduced {total_original_filters} filters to {len(deduplicated_filters)} unique conditions""
+```
+`total_original_filters` counts each occurrence per cohort, while `len(deduplicated_filters)` counts globally unique hashes — but the workflow still receives and evaluates `total_original_filters` filter executions.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: posthog/management/commands/backfill_precalculated_person_properties.py
+Line: 194-221
+
+Comment:
+**Deduplication doesn't propagate to the workflow**
+
+The management command builds a `condition_map` to deduplicate shared conditions, then immediately reconstructs `cohort_filters_list` with each cohort holding its own per-cohort filters (lines 194–212). This means the data structure passed to the workflow is structurally identical to what the original code produced — every cohort still carries its own copy of any shared condition hash.
+
+The worker workflow (`backfill_precalculated_person_properties_workflow.py`) is unchanged and still iterates:
+```python
+for cohort_filters in inputs.cohort_filters:
+    cohort_id = cohort_filters.cohort_id
+    for filter_info in cohort_filters.filters:
+        # execute_bytecode called here...
+```
+
+So a condition hash shared by N cohorts is still evaluated N times per person, not once. The PR description's claim — _""Each unique condition is evaluated once per person, with results applied to all cohorts using that filter""_ — is not borne out by the code.
+
+The deduplication only has a real effect in the narrow case where the same `condition_hash` appears more than once **within the same cohort's** filter tree (intra-cohort duplicates). Inter-cohort deduplication, which is the stated goal, requires passing the flat `condition_map` structure to the workflow and changing the evaluation loop there.
+
+The printed metrics are also misleading as a result:
+```
+""reduced {total_original_filters} filters to {len(deduplicated_filters)} unique conditions""
+```
+`total_original_filters` counts each occurrence per cohort, while `len(deduplicated_filters)` counts globally unique hashes — but the workflow still receives and evaluates `total_original_filters` filter executions.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/48524#discussion_r2927493578,,2026-03-12T21:26:34.320000,Deduplication logic doesn't actually reduce workflow evaluations,logic,high,8,"Comment 1 identifies a significant logic bug where the PR claims to deduplicate filter evaluations across cohorts, but the deduplication only happens in the management command and isn't propagated to the actual workflow. This means the stated optimization goal of evaluating shared conditions once per person instead of N times is not achieved - the workflow still processes duplicate conditions, making the 'deduplication' cosmetic only.",2026-03-16T20:22:27.385247+00:00
+berriai/litellm,23737,[Feat] Add create character endpoints and other new videos Endpoints,https://github.com/BerriAI/litellm/pull/23737,"**No HTTP error check before parsing response body**
+
+All four new sync/async handler pairs (`video_create_character_handler`, `video_get_character_handler`, `video_edit_handler`, `video_extension_handler`) call `transform_*_response(raw_response=response, ...)` immediately after the HTTP call, without first checking whether the response was successful.
+
+Because httpx does **not** raise on 4xx/5xx by default, a provider error response (e.g., `{""error"": ""unauthorized""}`) will be passed directly to `CharacterObject(**raw_response.json())` or `VideoObject(**raw_response.json())`, causing a Pydantic `ValidationError` rather than a meaningful HTTP error. The subsequent `except Exception as e` handler may not translate this into an actionable error message for callers.
+
+Add `response.raise_for_status()` before the transform call in all four new handler implementations (both sync and async variants). Example for `video_create_character_handler`:
+
+```python
+response = sync_httpx_client.post(
+    url=url,
+    headers=headers,
+    files=files_list,
+    timeout=timeout,
+)
+response.raise_for_status()  # raises httpx.HTTPStatusError on 4xx/5xx
+return video_provider_config.transform_video_create_character_response(
+    raw_response=response,
+    logging_obj=logging_obj,
+)
+```
+
+This same fix applies to:
+- `async_video_create_character_handler`
+- `video_get_character_handler` / `async_video_get_character_handler`
+- `video_edit_handler` / `async_video_edit_handler`
+- `video_extension_handler` / `async_video_extension_handler`
+",https://github.com/BerriAI/litellm/pull/23737#discussion_r2940170052,,2026-03-16T12:48:46.029000,Missing HTTP error check causes cryptic Pydantic errors on API failures,runtime,high,8,"This catches a real runtime bug where 4xx/5xx HTTP responses are passed directly to Pydantic models instead of being properly handled, causing confusing ValidationError exceptions instead of meaningful HTTP error messages. This affects all 8 new handler methods and would cause production issues when provider APIs return errors.",2026-03-16T20:22:27.385247+00:00
