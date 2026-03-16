@@ -14207,3 +14207,33 @@ def _format_config_value(v) -> str:
 
 run_config_args = "" "".join([f""{k}={_format_config_value(v)}"" for k, v in self.run_config.items()])
 ```",https://github.com/NVIDIA/NVFlare/pull/4311#discussion_r2932696369,,2026-03-13T17:21:52.733000,Python boolean formatting incompatible with TOML config parser,logic,high,8,"This catches a real bug where Python's `True`/`False` string representation would be passed to Flower's TOML-based config parser which expects lowercase `true`/`false`. This would cause silent config parsing failures or values being treated as strings instead of booleans, affecting production behavior.",2026-03-16T06:46:13.497478+00:00
+raycast/extensions,25282,Add instants extension,https://github.com/raycast/extensions/pull/25282,"**Shell injection on Windows**
+
+`playSound()` / `playSoundInBackground()` build a `cmd.exe` command string (`start """" ""${quoted}""`) from a path/URL where `escapePath()` only escapes `""`. On Windows, characters like `&`, `|`, `^`, `%` are interpreted by `cmd.exe` even inside quotes in some contexts, so a crafted local path (or a downloaded temp filename if it ever includes such characters) can execute arbitrary commands when playback is triggered. Use `execFile`/`spawn` with argument arrays (or otherwise avoid `cmd.exe` string construction) to prevent command injection.
+",https://github.com/raycast/extensions/pull/25282#discussion_r2784081287,,2026-02-09T18:47:45.420000,Command injection vulnerability via unescaped shell metacharacters on Windows,security,high,8,"This catches a legitimate shell injection vulnerability where the escapePath() function only escapes double quotes but cmd.exe interprets other metacharacters (&, |, ^, %) even inside quotes. Since the path can come from scraped remote content, this could allow arbitrary command execution on Windows systems.",2026-03-16T10:34:07.433897+00:00
+openreplay/openreplay,4456,ui: support input value resolving for auto tests,https://github.com/openreplay/openreplay/pull/4456,"**Player left frozen on early return**
+
+If `selectorInputs` is empty, the function returns at line 172 without calling `player.unfreeze()`. Since `player.freeze()` was already awaited at line 168, the player will be permanently stuck in a frozen state — the user won't be able to play/interact with the session replay until they reload.
+
+```suggestion
+    await player.freeze();
+    const selectorInputs = events.filter((ev): ev is InputEvent =>
+      isInputEvent(ev),
+    );
+    if (!selectorInputs.length) {
+      player.unfreeze(false);
+      return;
+    }
+```",https://github.com/openreplay/openreplay/pull/4456#discussion_r2939292434,,2026-03-16T09:56:30.025000,Player left permanently frozen on early return path,resource_leak,high,8,"This catches a real bug where the player.freeze() is called but player.unfreeze() is never called on the early return path when selectorInputs is empty. This would leave the session replay permanently frozen, requiring a page reload to recover - a significant UX bug affecting users.",2026-03-16T10:34:07.433897+00:00
+nvidia/transformerengine,2721,Fix for async dcp checkpointing with Float8Tensors,https://github.com/NVIDIA/TransformerEngine/pull/2721,"**`get_metadata()` raises when tensor is in cleared state**
+
+Adding `""device"": self.device` is correct for the normal lifecycle, but `Float8TensorStorage.device` raises `RuntimeError(""Float8TensorStorage has no data!"")` when both `_data` and `_transpose` are `None` — exactly the state left by `prepare_for_saving()` or `clear()`.
+
+Before this PR, `get_metadata()` returned `None` for `data` and `data_transpose` without raising. Now any call to `get_metadata()` (e.g., via `make_like()`) on a cleared tensor would raise instead of propagating gracefully.
+
+A safe guard:
+
+```python
+""device"": self._data.device if self._data is not None
+          else (self._transpose.device if self._transpose is not None else None),
+```",https://github.com/NVIDIA/TransformerEngine/pull/2721#discussion_r2920046205,"Fixed — the `device` field now uses explicit `_data`/`_transpose` checks with a `None` fallback, matching the pattern used elsewhere.",2026-03-11T18:01:26.402000,get_metadata() raises RuntimeError on cleared tensor state,runtime,high,8,"This is a meaningful logic bug where adding the new 'device' field to get_metadata() would cause runtime errors specifically in the async checkpointing workflow this PR aims to fix. The catch identifies a non-obvious interaction where the device property throws an exception on cleared tensors (after prepare_for_saving()), which would break the checkpointing pipeline. This requires understanding the tensor lifecycle and state machine.",2026-03-16T10:34:07.433897+00:00
