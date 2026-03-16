@@ -14327,3 +14327,77 @@ When a user provides a `sqlfluff` dict in their context with some dot-notation k
 For example, with `live_context = {""sqlfluff"": {""existing.key"": ""val""}}` and template `{foo.bar}` (rewritten to `{sqlfluff[foo.bar]}`): `_FallbackDict` resolves `sqlfluff` to the real dict, then `dict.__getitem__(""foo.bar"")` raises `KeyError`.
 
 Consider wrapping the `format_map` call in a `try/except KeyError` that falls back gracefully, or replacing the inner `sqlfluff` dict with a similar fallback-aware dict.",https://github.com/sqlfluff/sqlfluff/pull/7617#discussion_r2939279645,,2026-03-16T09:54:10.998000,Unhandled KeyError in fallback dict with partial context,runtime,high,8,"This catches a subtle runtime bug where partial dot-notation context causes KeyError to bypass the intended fallback mechanism. The scenario is non-obvious - requires understanding the interaction between _FallbackDict, format_map, and nested real dicts. This would cause unexpected crashes for users with certain valid configurations.",2026-03-16T16:34:28.148560+00:00
+gptme/gptme,1685,fix(llm): handle reasoning content in openai-subscription stream,https://github.com/gptme/gptme/pull/1685,"**`response.output_text.done` may duplicate the entire response**
+
+The `response.output_text.done` event contains a `text` field with the **full accumulated text** of the content part (not a delta). By handling it in the same branch as `response.output_text.delta`, and falling back via `data.get(""delta"", """") or data.get(""text"", """")`, the `.done` event will re-emit all the text that was already yielded by the preceding `.delta` events.
+
+This will cause the full response content to appear twice in the output.
+
+Consider handling only `response.output_text.delta` here (as the original code did), or explicitly skipping the content for `.done`:
+
+```suggestion
+        elif event_type == ""response.output_text.delta"":
+```
+
+If the `.done` event is needed to flush the `pending` buffer, you could handle it separately without yielding its `text`:
+
+```python
+elif event_type == ""response.output_text.done"":
+    if in_reasoning_block:
+        yield ""\n</think>\n""
+        in_reasoning_block = False
+    if pending:
+        yield pending.replace(""<thinking>"", ""<think>"").replace(
+            ""</thinking>"", ""</think>""
+        )
+        pending = """"
+```",https://github.com/gptme/gptme/pull/1685#discussion_r2941600742,"Fixed in 9449702 — removed the `or data.get(""text"", """")` fallback. Since this branch is guarded by `event_type == ""response.output_text.delta""`, `.done` events never reach it, but the fallback was still misleading. Cleaned up.",2026-03-16T16:42:49.211000,Response text duplicated due to handling both delta and done events,logic,high,8,"This catches a real bug where the `.done` event's full accumulated text would be re-emitted after all `.delta` events, causing the entire response content to appear twice in the output. This is a meaningful logic bug that would cause visible corruption in production.",2026-03-16T18:33:04.570291+00:00
+solana-foundation/explorer,879,Fix out of data feature gate schedule ,https://github.com/solana-foundation/explorer/pull/879,"**On-chain value overwritten by wiki fallback on failure**
+
+When `fetch_activation_epoch` fails (all retries exhausted), it returns `backup_epoch` which is `new_feature.devnet_activation_epoch` / `new_feature.testnet_activation_epoch` — the value scraped from the Agave wiki markdown. However, `existing.devnet_activation_epoch` / `existing.testnet_activation_epoch` already holds the previously-stored, on-chain–verified epoch from a prior successful run. Overwriting it with the wiki value on failure means a transient RPC outage can silently regress accurate on-chain data to the less-authoritative wiki value.
+
+The backup should be the existing stored value, not the wiki value:
+
+```python
+if 'devnet' in cluster_url:
+    existing.devnet_activation_epoch = await fetch_activation_epoch(
+        connection, epoch_schedule, existing.key, existing.devnet_activation_epoch
+    )
+elif 'testnet' in cluster_url:
+    existing.testnet_activation_epoch = await fetch_activation_epoch(
+        connection, epoch_schedule, existing.key, existing.testnet_activation_epoch
+    )
+```
+
+Note that `fetch_mainnet_activations.py` correctly handles this with `if account is None: continue`, preserving the stored value on failure. The same pattern should be applied here.",https://github.com/solana-foundation/explorer/pull/879#discussion_r2941366285,,2026-03-16T16:03:27.462000,Transient RPC failure silently regresses on-chain data to wiki fallback,data_integrity,high,8,"This catch identifies a meaningful data integrity bug where a transient RPC outage would cause previously-verified on-chain activation epochs to be overwritten with less-authoritative wiki-scraped values. The comment provides a clear fix and correctly notes that the mainnet script handles this properly, making this a non-obvious logic error with real production impact.",2026-03-16T18:33:04.570291+00:00
+infisical/infisical,5681,fix: allow string for scim user response active property,https://github.com/Infisical/infisical/pull/5681,"**String `""false""` is truthy — DB update may set `isActive = true` incorrectly**
+
+Allowing `z.string()` fixes the Zod response-validation error, but the underlying string value from `scimPatch` flows directly into the database update in `scim-service.ts` at line 701:
+
+```typescript
+await membershipUserDAL.updateById(
+  membership.id,
+  { isActive: scimUser.active },  // scimUser.active may be the string ""false""
+  tx
+);
+```
+
+In JavaScript, the string `""false""` is **truthy**. If any ORM/in-process logic evaluates this as a boolean condition, users will *never* be deactivated because `Boolean(""false"") === true`. Even if PostgreSQL happens to coerce `""false""` → `false` at the wire level, this is relying on implicit DB-level coercion rather than an explicit, safe conversion.
+
+The safer fix is to normalise the value to a proper boolean in the service, immediately after the `scimPatch` call:
+
+```typescript
+scimPatch(scimUser, operations);
+// Azure can send the active field as a string; normalise to boolean
+if (typeof scimUser.active === ""string"") {
+  scimUser.active = (scimUser.active as string).toLowerCase() === ""true"";
+}
+```
+
+Alternatively, add a `.transform()` to the Zod schema so the coercion is explicit and the TypeScript type remains `boolean` throughout:
+
+```typescript
+active: z.union([z.boolean(), z.string().transform((v) => v.toLowerCase() === ""true"")])
+```
+
+Without this, the string value also propagates to the SCIM-event log (`active: scimUser.active` at line 725 of `scim-service.ts`), making event records inconsistent.",https://github.com/Infisical/infisical/pull/5681#discussion_r2928604347,,2026-03-13T02:20:50.124000,String 'false' truthy coercion prevents user deactivation,logic,high,8,"This is a meaningful logic bug where the string ""false"" being truthy in JavaScript would prevent SCIM user deactivation from working correctly. The comment correctly identifies that accepting string values without proper boolean conversion causes data integrity issues in production, affecting user access management. The analysis is thorough with concrete code references and provides actionable solutions.",2026-03-16T18:33:04.570291+00:00
