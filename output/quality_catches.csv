@@ -14613,3 +14613,116 @@ This same fix applies to:
 - `video_edit_handler` / `async_video_edit_handler`
 - `video_extension_handler` / `async_video_extension_handler`
 ",https://github.com/BerriAI/litellm/pull/23737#discussion_r2940170052,,2026-03-16T12:48:46.029000,Missing HTTP error check causes cryptic Pydantic errors on API failures,runtime,high,8,"This catches a real runtime bug where 4xx/5xx HTTP responses are passed directly to Pydantic models instead of being properly handled, causing confusing ValidationError exceptions instead of meaningful HTTP error messages. This affects all 8 new handler methods and would cause production issues when provider APIs return errors.",2026-03-16T20:22:27.385247+00:00
+synnaxlabs/synnax,2094,SY-3920: Upgrade Fiber to v3,https://github.com/synnaxlabs/synnax/pull/2094,"**`SendFile` won't use embedded FS**
+
+`c.SendFile(rootHTMLFile)` looks for the file on the OS filesystem (working directory), not in the embedded `s.fs`. In production, the console assets are embedded into the binary and `index.html` won't exist on disk, so this SPA fallback will return a file-not-found error instead of serving the HTML shell.
+
+In Fiber v2 the `filesystem.Config.NotFoundFile` field handled this automatically from the same FS root. In v3 `SendFile` defaults to the OS filesystem unless you explicitly pass the FS via the config struct. You likely need:
+
+```suggestion
+		NotFoundHandler: func(c fiber.Ctx) error {
+			return c.SendFile(rootHTMLFile, fiber.SendFile{FS: s.fs})
+		}, // Serve index.html for SPA routing
+```",https://github.com/synnaxlabs/synnax/pull/2094#discussion_r2937565453,,2026-03-15T23:58:17.338000,SendFile uses OS filesystem instead of embedded FS breaking SPA in production,runtime,high,8,"This is a meaningful catch of a Fiber v3 API change that would cause production failures. The SPA fallback would fail to serve index.html because it looks on disk instead of the embedded filesystem, breaking the entire web console in production builds. This requires framework migration knowledge and wouldn't be caught by static analysis.",2026-03-16T22:20:58.839189+00:00
+onyx-dot-app/onyx,9068,chore: update install script,https://github.com/onyx-dot-app/onyx/pull/9068,"**`--dry-run` does not prevent Docker/Compose auto-installation**
+
+The Docker auto-installation block (lines 377–417) and the group re-exec block (lines 422–438) both execute unconditionally before the `DRY_RUN` early-exit at line 479. This means that on a Linux host without Docker, running `./install.sh --dry-run` will:
+
+1. Download `https://get.docker.com` to `/tmp/get-docker.sh` and run it via `sudo sh`
+2. Download and install the Docker Compose CLI plugin with `sudo`
+3. Potentially add the current user to the `docker` group and re-exec the script
+
+— all of which are real, irreversible changes, directly contradicting the flag's stated semantics (""shows what would be done without making changes"").
+
+The fix is to move the `DRY_RUN` guard before the Docker auto-install blocks:
+
+```bash
+# Dry-run: show plan and exit
+if [[ ""$DRY_RUN"" = true ]]; then
+    ...
+    exit 0
+fi
+
+# --- Auto-install Docker (Linux only) ---
+if ! command -v docker &> /dev/null; then
+    ...
+fi
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: deployment/docker_compose/install.sh
+Line: 377-488
+
+Comment:
+**`--dry-run` does not prevent Docker/Compose auto-installation**
+
+The Docker auto-installation block (lines 377–417) and the group re-exec block (lines 422–438) both execute unconditionally before the `DRY_RUN` early-exit at line 479. This means that on a Linux host without Docker, running `./install.sh --dry-run` will:
+
+1. Download `https://get.docker.com` to `/tmp/get-docker.sh` and run it via `sudo sh`
+2. Download and install the Docker Compose CLI plugin with `sudo`
+3. Potentially add the current user to the `docker` group and re-exec the script
+
+— all of which are real, irreversible changes, directly contradicting the flag's stated semantics (""shows what would be done without making changes"").
+
+The fix is to move the `DRY_RUN` guard before the Docker auto-install blocks:
+
+```bash
+# Dry-run: show plan and exit
+if [[ ""$DRY_RUN"" = true ]]; then
+    ...
+    exit 0
+fi
+
+# --- Auto-install Docker (Linux only) ---
+if ! command -v docker &> /dev/null; then
+    ...
+fi
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/9068#discussion_r2921871140,,2026-03-12T02:14:23.772000,Dry-run flag fails to prevent Docker auto-installation side effects,logic,high,8,"This catches a meaningful logic bug where the --dry-run flag, documented as 'show what would be done without making changes', actually executes irreversible system modifications including downloading and running Docker installation scripts with sudo. This directly contradicts the flag's semantics and could cause unexpected system changes.",2026-03-16T22:20:58.839189+00:00
+posthog/posthog,51064,fix: move agentic provisioning state from cache to database,https://github.com/PostHog/posthog/pull/51064,"**Race condition: `agentic_authorize` not protected with `select_for_update()`**
+
+The pending-auth state is read with a plain `filter().first()`, then deleted only after the email check passes. Two concurrent requests with the same `state` parameter (e.g. a user double-clicking the authorize link) could both read a non-`None` `pending`, pass the email check, and both proceed to delete + create an auth code — issuing two valid auth codes for a single authorization.
+
+`_exchange_authorization_code` correctly wraps its consume step in `transaction.atomic()` + `select_for_update()`. The same pattern should be applied here: wrap the filter, email check, and `pending.delete()` in a single `transaction.atomic()` block with `select_for_update()` on the queryset, matching the approach used for auth-code exchange.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: ee/api/agentic_provisioning/views.py
+Line: 369-381
+
+Comment:
+**Race condition: `agentic_authorize` not protected with `select_for_update()`**
+
+The pending-auth state is read with a plain `filter().first()`, then deleted only after the email check passes. Two concurrent requests with the same `state` parameter (e.g. a user double-clicking the authorize link) could both read a non-`None` `pending`, pass the email check, and both proceed to delete + create an auth code — issuing two valid auth codes for a single authorization.
+
+`_exchange_authorization_code` correctly wraps its consume step in `transaction.atomic()` + `select_for_update()`. The same pattern should be applied here: wrap the filter, email check, and `pending.delete()` in a single `transaction.atomic()` block with `select_for_update()` on the queryset, matching the approach used for auth-code exchange.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/51064#discussion_r2935413905,,2026-03-14T15:34:11.694000,Race condition allows duplicate auth codes from single authorization,concurrency,high,8,"This is a legitimate race condition in authentication code that could result in issuing two valid auth codes for a single authorization attempt. The reviewer correctly identified the missing select_for_update() pattern that was already used elsewhere in the codebase, and the security implications of duplicate auth code issuance make this a meaningful catch with real impact.",2026-03-16T22:20:58.839189+00:00
+ever-co/ever-gauzy,9614,[Fix] Direct local installation,https://github.com/ever-co/ever-gauzy/pull/9614,"**Unconstrained UPDATE will modify all rows**
+
+When `marketplaceId` is `null` (local installations), `updateData` only contains `{ installationId }`. The underlying `PluginMetadataService.update()` delegates to `buildQuery()`, which only adds WHERE clauses for `id`, `name`, or `marketplaceId`. Since none of those keys are present in `updateData`, the generated query has **no WHERE clause**, causing it to update the `installationId` on **every** plugin record in the database.
+
+To fix this, include a unique identifier (e.g., the plugin `name`) in the update payload so that `buildQuery` can scope the UPDATE correctly:
+
+```suggestion
+	public async completeInstallation(marketplaceId: string | null, installationId: string, name?: string): Promise<void> {
+		const updateData: any = { installationId };
+		if (marketplaceId) {
+			updateData.marketplaceId = marketplaceId;
+		}
+		if (name) {
+			updateData.name = name;
+		}
+		await this.pluginMetadataService.update(updateData);
+	}
+```",https://github.com/ever-co/ever-gauzy/pull/9614#discussion_r2939705925,,2026-03-16T11:15:25.692000,Missing WHERE clause causes UPDATE to modify all database rows,data_integrity,critical,9,"This is a severe data corruption bug where local plugin installations would update ALL plugin records in the database due to an unconstrained UPDATE query. When marketplaceId is null, the update payload lacks any identifying field that buildQuery uses for WHERE clauses, resulting in every plugin's installationId being overwritten.",2026-03-16T22:20:58.839189+00:00
