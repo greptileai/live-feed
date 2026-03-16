@@ -14237,3 +14237,49 @@ A safe guard:
 ""device"": self._data.device if self._data is not None
           else (self._transpose.device if self._transpose is not None else None),
 ```",https://github.com/NVIDIA/TransformerEngine/pull/2721#discussion_r2920046205,"Fixed — the `device` field now uses explicit `_data`/`_transpose` checks with a `None` fallback, matching the pattern used elsewhere.",2026-03-11T18:01:26.402000,get_metadata() raises RuntimeError on cleared tensor state,runtime,high,8,"This is a meaningful logic bug where adding the new 'device' field to get_metadata() would cause runtime errors specifically in the async checkpointing workflow this PR aims to fix. The catch identifies a non-obvious interaction where the device property throws an exception on cleared tensors (after prepare_for_saving()), which would break the checkpointing pipeline. This requires understanding the tensor lifecycle and state machine.",2026-03-16T10:34:07.433897+00:00
+raycast/extensions,25499,"Renaming: v2.0 rewrite — fix batch failures, security vulnerability, add undo history",https://github.com/raycast/extensions/pull/25499,"**Shell injection in `mv` command via unescaped filename**
+
+`qlOutputPath` is derived from `basename(filePath)` which can contain single quotes (e.g., a file named `my'photo.jpg`). This path is then interpolated directly into a shell command on line 99 without escaping. A crafted filename could break the quoting and inject shell commands.
+
+The `filePath` is properly escaped on line 85, but the `qlOutputPath` derived from it is not. Consider escaping `qlOutputPath` the same way, or better yet, use `fs.rename()` to move the file instead of shelling out to `mv`:
+
+```suggestion
+    const qlOutputPath = join(THUMBNAIL_CACHE_DIR, `${basename(filePath)}.png`);
+
+    try {
+      await access(qlOutputPath, constants.F_OK);
+      // Rename to our cache key using fs instead of shell
+      const { rename: fsRename } = await import(""fs/promises"");
+      await fsRename(qlOutputPath, outputPath);
+```",https://github.com/raycast/extensions/pull/25499#discussion_r2811829828,"Addressed — replaced `execAsync` (shell string) with `execFile` (arg array), eliminating shell injection entirely. The `rename` from `fs/promises` is already used for file moves (no `mv` shell command).",2026-02-16T10:57:56.895000,Shell injection vulnerability via unescaped filename in mv command,security,high,8,"This identifies a genuine shell injection vulnerability where filenames containing single quotes could break shell quoting and execute arbitrary commands. While the fix involves using execFile instead of shell strings, this is a real security issue that could lead to code execution with crafted filenames.",2026-03-16T12:31:49.498741+00:00
+posthog/posthog,50978,feat(llma): add quota limiting and event restrictions to OTel endpoint,https://github.com/PostHog/posthog/pull/50978,"**`merge` silently discards `should_drop` — potential footgun**
+
+The method hard-codes `should_drop: false` and its doc says ""Callers must handle `should_drop()` before calling this."" The current call site in `check_restrictions` does obey this contract, but the method itself offers no enforcement. If any future caller invokes `merge` on an `AppliedRestrictions` that has `should_drop: true` (e.g. the accumulated `merged` value, if the guard were accidentally removed), the drop flag would be silently reset to `false` and the span would be ingested when it should have been rejected.
+
+A safer contract would be to either:
+- `debug_assert!(!self.should_drop && !other.should_drop)` at the top, or
+- propagate the flag: `should_drop: self.should_drop || other.should_drop` (and update the doc).
+
+The second option removes the burden from callers entirely and makes the call site in `check_restrictions` simpler — it could just check `merged.should_drop()` once at the end instead of per-span.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: rust/capture/src/event_restrictions/types.rs
+Line: 192-200
+
+Comment:
+**`merge` silently discards `should_drop` — potential footgun**
+
+The method hard-codes `should_drop: false` and its doc says ""Callers must handle `should_drop()` before calling this."" The current call site in `check_restrictions` does obey this contract, but the method itself offers no enforcement. If any future caller invokes `merge` on an `AppliedRestrictions` that has `should_drop: true` (e.g. the accumulated `merged` value, if the guard were accidentally removed), the drop flag would be silently reset to `false` and the span would be ingested when it should have been rejected.
+
+A safer contract would be to either:
+- `debug_assert!(!self.should_drop && !other.should_drop)` at the top, or
+- propagate the flag: `should_drop: self.should_drop || other.should_drop` (and update the doc).
+
+The second option removes the burden from callers entirely and makes the call site in `check_restrictions` simpler — it could just check `merged.should_drop()` once at the end instead of per-span.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/50978#discussion_r2932960331,,2026-03-13T18:06:18.776000,Silent discard of should_drop flag in merge function,logic,high,8,"The merge function silently hard-codes should_drop: false, which could cause events that should be dropped to be ingested if a future caller doesn't follow the undocumented contract. This is a real logic bug that could lead to data integrity issues in production - events bypassing restrictions they should be subject to.",2026-03-16T12:31:49.498741+00:00
