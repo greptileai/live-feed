@@ -14167,3 +14167,27 @@ const savedPath = await saveClipboardImage(imagePath, imageFormat);
 if (savedPath) {
   await addToDropover(savedPath);
 ```",https://github.com/raycast/extensions/pull/26346#discussion_r2936812955,,2026-03-15T14:32:35.426000,"PNG fallback saves to wrong path, breaking image addition",logic,high,8,"This catches a genuine logic bug where the PNG fallback saves to a different path than what's passed to addToDropover, causing the feature to silently fail. The caller uses the original path (.heic) while the actual file was written to .png path, meaning the file won't be found.",2026-03-15T20:15:03.242906+00:00
+nvidia/transformerengine,2669,Pytorch binding for cublas grouped gemm + Grouped Bias Support + Grouped Tensor Swizzling,https://github.com/NVIDIA/TransformerEngine/pull/2669,"**A/B consistency checks silently removed from validation**
+
+The refactoring of `validate_grouped_gemm_inputs` dropped three important cross-operand checks that existed in the original function:
+
+1. **A and B must both be FP8 or both non-FP8** — removed
+2. **A and B must use the same scaling mode** (MXFP8 vs tensor-scaling) — removed
+3. **MXFP8 inputs must have swizzled scales before the GEMM** — removed
+
+Before the refactor, the function explicitly enforced:
+```cpp
+NVTE_CHECK(is_fp8_dtype(inputA->dtype()) == is_fp8_dtype(inputB->dtype()),
+           ""Grouped GEMM: A and B must both be FP8 or both be non-FP8."");
+NVTE_CHECK(transformer_engine::is_mxfp_scaling(inputA->scaling_mode) ==
+               transformer_engine::is_mxfp_scaling(inputB->scaling_mode),
+           ""Grouped GEMM: A and B must both use MXFP8 scaling or both use tensor scaling ..."");
+if (is_mxfp8) {
+    NVTE_CHECK(inputA->with_gemm_swizzled_scales, ""MXFP8 grouped GEMM: A scales must be swizzled..."");
+    NVTE_CHECK(inputB->with_gemm_swizzled_scales, ""MXFP8 grouped GEMM: B scales must be swizzled..."");
+}
+```
+
+The new `validate_grouped_gemm_input_list` and the updated `validate_grouped_gemm_inputs` only verify that each operand's dtype is individually in the allowed set, but not that A and B are compatible with each other. As a result, a caller can now pass `A` as FP8 and `B` as BF16 (or A with MXFP8 scaling and B with tensor scaling) without triggering an error — instead they will get a cryptic cuBLAS failure deep in the GEMM stack.
+
+These three checks should be reinstated in `validate_grouped_gemm_inputs` (or at the call sites in the new `nvte_grouped_gemm_with_discrete_*` functions).",https://github.com/NVIDIA/TransformerEngine/pull/2669#discussion_r2926485783,Fixed,2026-03-12T18:14:11.851000,Critical A/B compatibility validation checks removed in refactor,data_integrity,high,8,"The refactoring silently removed three essential cross-operand validation checks (FP8/non-FP8 consistency, scaling mode compatibility, MXFP8 swizzle requirements) that prevent invalid input combinations. Without these checks, passing mismatched A/B operands would cause cryptic cuBLAS failures deep in the GEMM stack rather than clear error messages, potentially leading to silent data corruption or crashes in production.",2026-03-16T05:03:24.107626+00:00
