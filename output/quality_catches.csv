@@ -14191,3 +14191,19 @@ if (is_mxfp8) {
 The new `validate_grouped_gemm_input_list` and the updated `validate_grouped_gemm_inputs` only verify that each operand's dtype is individually in the allowed set, but not that A and B are compatible with each other. As a result, a caller can now pass `A` as FP8 and `B` as BF16 (or A with MXFP8 scaling and B with tensor scaling) without triggering an error — instead they will get a cryptic cuBLAS failure deep in the GEMM stack.
 
 These three checks should be reinstated in `validate_grouped_gemm_inputs` (or at the call sites in the new `nvte_grouped_gemm_with_discrete_*` functions).",https://github.com/NVIDIA/TransformerEngine/pull/2669#discussion_r2926485783,Fixed,2026-03-12T18:14:11.851000,Critical A/B compatibility validation checks removed in refactor,data_integrity,high,8,"The refactoring silently removed three essential cross-operand validation checks (FP8/non-FP8 consistency, scaling mode compatibility, MXFP8 swizzle requirements) that prevent invalid input combinations. Without these checks, passing mismatched A/B operands would cause cryptic cuBLAS failures deep in the GEMM stack rather than clear error messages, potentially leading to silent data corruption or crashes in production.",2026-03-16T05:03:24.107626+00:00
+nvidia/nvflare,4311,Passing run-config to Flower to override pyproject.toml hyperparameters,https://github.com/NVIDIA/NVFlare/pull/4311,"**Python boolean values silently mis-formatted for Flower's config parser**
+
+The f-string `f""{k}={v}""` uses Python's default string representation for values. For Python booleans, `f""{True}""` produces `'True'` and `f""{False}""` produces `'False'` (capital first letter). However, Flower's config system is TOML-based and expects lowercase `true` / `false` for booleans. A user who passes `run_config={""use-bn"": True}` would silently produce `--run-config ""use-bn=True""`, which Flower may fail to parse correctly or treat as the string `""True""` rather than a boolean.
+
+The same issue applies to very small floats where Python uses scientific notation (`1e-05`), though TOML parsers typically handle that correctly.
+
+To be safe, consider normalising boolean values explicitly before formatting:
+
+```python
+def _format_config_value(v) -> str:
+    if isinstance(v, bool):
+        return str(v).lower()  # True -> ""true"", False -> ""false""
+    return str(v)
+
+run_config_args = "" "".join([f""{k}={_format_config_value(v)}"" for k, v in self.run_config.items()])
+```",https://github.com/NVIDIA/NVFlare/pull/4311#discussion_r2932696369,,2026-03-13T17:21:52.733000,Python boolean formatting incompatible with TOML config parser,logic,high,8,"This catches a real bug where Python's `True`/`False` string representation would be passed to Flower's TOML-based config parser which expects lowercase `true`/`false`. This would cause silent config parsing failures or values being treated as strings instead of booleans, affecting production behavior.",2026-03-16T06:46:13.497478+00:00
