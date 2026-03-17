@@ -14995,3 +14995,78 @@ self.test_definitions.extend(new_defs)
 ```
 Or expose a setter on `ReportClient` that `load()` can call to update the reference.
 ",https://github.com/synnaxlabs/synnax/pull/2099#discussion_r2944574529,,2026-03-17T05:58:27.971000,Stale reference causes ReportClient to always see zero test definitions,logic,high,8,"This catches a subtle but significant bug where ReportClient is initialized with a reference to an empty list, and when load() later rebinds self.test_definitions to a new list, ReportClient still holds the old empty reference. This causes monitoring to permanently show '0/0 tests completed' regardless of actual test count - a meaningful production bug affecting observability.",2026-03-17T10:26:28.655564+00:00
+posthog/posthog,51294,feat(llma): auto-pause evaluations after repeated failures,https://github.com/PostHog/posthog/pull/51294,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Race condition: non-atomic increment-then-pause**
+
+The pause logic uses a two-step update-then-read pattern: the `UPDATE` to increment `consecutive_failures` is atomic, but the subsequent `.get()` + conditional `.save()` is not. Two concurrent workflow executions for the same evaluation could both observe `consecutive_failures >= threshold` and `status == ACTIVE` between each other's saves, resulting in `paused_reason` and `paused_at` being silently overwritten by the second writer.
+
+Replace the final `.get()` + `.save()` with a single conditional `UPDATE` that checks `status=ACTIVE` atomically:
+
+```python
+def _record() -> dict:
+    threshold = AUTO_PAUSE_THRESHOLDS.get(inputs.error_type, DEFAULT_AUTO_PAUSE_THRESHOLD)
+    Evaluation.objects.filter(
+        id=inputs.evaluation_id,
+        team_id=inputs.team_id,
+    ).update(consecutive_failures=F(""consecutive_failures"") + 1)
+
+    evaluation = Evaluation.objects.get(id=inputs.evaluation_id, team_id=inputs.team_id)
+    if evaluation.consecutive_failures >= threshold and evaluation.status == Evaluation.Status.ACTIVE:
+        rows_paused = Evaluation.objects.filter(
+            id=inputs.evaluation_id,
+            team_id=inputs.team_id,
+            status=Evaluation.Status.ACTIVE,  # guard: only one writer wins
+        ).update(
+            status=Evaluation.Status.PAUSED,
+            paused_reason=inputs.error_message,
+            paused_at=datetime.now(tz=UTC),
+        )
+        return {""paused"": bool(rows_paused), ""consecutive_failures"": evaluation.consecutive_failures}
+
+    return {""paused"": False, ""consecutive_failures"": evaluation.consecutive_failures}
+```
+
+This ensures only the first concurrent caller actually sets the PAUSED state; subsequent callers see `rows_paused == 0` and return `paused=False`, preventing duplicate notification emails as a bonus.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: posthog/temporal/llm_analytics/run_evaluation.py
+Line: 268-281
+
+Comment:
+**Race condition: non-atomic increment-then-pause**
+
+The pause logic uses a two-step update-then-read pattern: the `UPDATE` to increment `consecutive_failures` is atomic, but the subsequent `.get()` + conditional `.save()` is not. Two concurrent workflow executions for the same evaluation could both observe `consecutive_failures >= threshold` and `status == ACTIVE` between each other's saves, resulting in `paused_reason` and `paused_at` being silently overwritten by the second writer.
+
+Replace the final `.get()` + `.save()` with a single conditional `UPDATE` that checks `status=ACTIVE` atomically:
+
+```python
+def _record() -> dict:
+    threshold = AUTO_PAUSE_THRESHOLDS.get(inputs.error_type, DEFAULT_AUTO_PAUSE_THRESHOLD)
+    Evaluation.objects.filter(
+        id=inputs.evaluation_id,
+        team_id=inputs.team_id,
+    ).update(consecutive_failures=F(""consecutive_failures"") + 1)
+
+    evaluation = Evaluation.objects.get(id=inputs.evaluation_id, team_id=inputs.team_id)
+    if evaluation.consecutive_failures >= threshold and evaluation.status == Evaluation.Status.ACTIVE:
+        rows_paused = Evaluation.objects.filter(
+            id=inputs.evaluation_id,
+            team_id=inputs.team_id,
+            status=Evaluation.Status.ACTIVE,  # guard: only one writer wins
+        ).update(
+            status=Evaluation.Status.PAUSED,
+            paused_reason=inputs.error_message,
+            paused_at=datetime.now(tz=UTC),
+        )
+        return {""paused"": bool(rows_paused), ""consecutive_failures"": evaluation.consecutive_failures}
+
+    return {""paused"": False, ""consecutive_failures"": evaluation.consecutive_failures}
+```
+
+This ensures only the first concurrent caller actually sets the PAUSED state; subsequent callers see `rows_paused == 0` and return `paused=False`, preventing duplicate notification emails as a bonus.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/51294#discussion_r2946489957,,2026-03-17T12:39:50.358000,Race condition in evaluation pause logic causes duplicate notifications,concurrency,medium,8,"This identifies a real race condition where concurrent workflow executions could both read the same state and attempt to pause the evaluation, potentially causing duplicate notification emails and overwriting pause metadata. The comment correctly identifies the non-atomic read-then-write pattern and provides a proper fix using conditional UPDATE.",2026-03-17T14:36:05.461518+00:00
