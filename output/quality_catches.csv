@@ -15070,3 +15070,128 @@ This ensures only the first concurrent caller actually sets the PAUSED state; su
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/PostHog/posthog/pull/51294#discussion_r2946489957,,2026-03-17T12:39:50.358000,Race condition in evaluation pause logic causes duplicate notifications,concurrency,medium,8,"This identifies a real race condition where concurrent workflow executions could both read the same state and attempt to pause the evaluation, potentially causing duplicate notification emails and overwriting pause metadata. The comment correctly identifies the non-atomic read-then-write pattern and provides a proper fix using conditional UPDATE.",2026-03-17T14:36:05.461518+00:00
+elizaos/eliza,6609,feat: add plugin-openttt — Proof-of-Time temporal attestation,https://github.com/elizaOS/eliza/pull/6609,"<a href=""#""><img alt=""P2"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p2.svg?v=7"" align=""top""></a> **VERIFY_POT will always fail — wrong message ID used for cache lookup**
+
+The PoT token is stored in `generatePot.ts` using `message.id` from the *generate* request:
+```ts
+potCacheSet(`openttt:pot:${message.id}`, JSON.stringify(pot), 300);
+```
+
+But in `verifyPot.ts`, the lookup uses `message.id` from the *verify* request (a completely different message with a different ID):
+```ts
+const targetId = (options?.message_id as string) ?? message.id;
+const cached = potCacheGet(`openttt:pot:${targetId}`);
+```
+
+Since the verify message arrives as a separate conversation turn, its `message.id` will never match the generate message's `message.id`. This means `VERIFY_POT` will always return ""No PoT token found for this transaction"" unless the caller manually passes `options.message_id`, which nothing in the codebase does. The feature is broken by default.",https://github.com/elizaOS/eliza/pull/6609#discussion_r2945740579,,2026-03-17T10:19:08.434000,Cache lookup uses wrong message ID causing verify to always fail,logic,high,8,"This catches a fundamental logic bug where VERIFY_POT uses the current message's ID for cache lookup, but the token was stored under the original GENERATE_POT message's ID. This means the core verification feature is completely broken by default and would fail in production.",2026-03-17T18:31:11.272184+00:00
+elizaos/eliza,6610,fix: implement component storage in InMemoryDatabaseAdapter,https://github.com/elizaOS/eliza/pull/6610,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **In-place mutation of Map-stored entity objects**
+
+`entity` here is a direct reference to the object stored in `this.entities`. Assigning `entity.components = ...` permanently mutates the Map-stored entity. Subsequent calls to `getEntitiesForRoom` with `includeComponents=false` (or `getEntitiesByIds`, etc.) will return the same entity object, now carrying a potentially stale `components` array from the time of this earlier query. Components added or removed after the first `includeComponents=true` call will not be reflected, and callers that never requested components will silently receive them.
+
+A shallow copy should be created to avoid polluting the stored state:
+
+```suggestion
+    if (includeComponents) {
+      for (let i = 0; i < entities.length; i++) {
+        const components = await this.getComponents(entities[i].id!);
+        entities[i] = { ...entities[i], components };
+      }
+    }
+```",https://github.com/elizaOS/eliza/pull/6610#discussion_r2945896390,,2026-03-17T10:46:45.324000,In-place mutation causes stale component data across queries,data_integrity,high,8,"This catches a subtle but significant bug where mutating Map-stored entity objects causes data integrity issues. Subsequent queries would return stale components or expose components to callers who didn't request them, leading to incorrect application behavior that would be hard to debug in production.",2026-03-17T18:31:11.272184+00:00
+nvidia/nvflare,3876,Feature Election contribution,https://github.com/NVIDIA/NVFlare/pull/3876,"**Silent sample loss in `random` and sequential fallback splits**
+
+Both the `random` strategy (lines 210–214) and the sequential fallback (lines 244–248) compute each client's slice as:
+
+```python
+end = start + int(len(indices) * ratio)
+```
+
+Because of integer truncation this does **not** guarantee all samples are distributed. For example, with 200 samples and `split_ratios=[0.333, 0.333, 0.334]`:
+- Client 1: `int(200 * 0.333) = 66`
+- Client 2: `int(200 * 0.333) = 66`
+- Client 3: `int(200 * 0.334) = 66` → `start=198`, `end=198+66=264` but slice is only `indices[198:264]` which maps to `indices[198:200]` (2 samples)
+
+Actual total assigned: `66+66+2 = 134` — **66 samples silently lost**.
+
+Fix: assign the remainder to the last client instead of re-computing its slice:
+
+```python
+elif split_strategy == ""random"":
+    np.random.seed(random_state)
+    np.random.shuffle(indices)
+    start = 0
+    for i, ratio in enumerate(split_ratios):
+        if i == len(split_ratios) - 1:
+            c_idx = indices[start:]          # last client gets all remaining
+        else:
+            end = start + int(len(indices) * ratio)
+            c_idx = indices[start:end]
+            start = end
+        client_data.append((X.iloc[c_idx], y.iloc[c_idx]))
+```
+
+Apply the same fix to the sequential fallback `else` block.",https://github.com/NVIDIA/NVFlare/pull/3876#discussion_r2932814190,,2026-03-13T17:41:59.308000,Silent data loss in random split due to integer truncation,data_integrity,high,8,"This catch identifies a significant data integrity bug where integer truncation in the sample distribution logic causes 33% of samples to be silently lost in certain configurations. The detailed mathematical example demonstrates how 66 out of 200 samples can be dropped without any warning, which would corrupt ML training results.",2026-03-17T18:31:11.272184+00:00
+simstudioai/sim,3623,fix(mothership): stream management,https://github.com/simstudioai/sim/pull/3623,"<a href=""#""><img alt=""P2"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p2.svg?v=7"" align=""top""></a> **Timeout race leaves a dangling in-flight stream**
+
+When `waitForPendingChatStream` loses the `Promise.race` against the timeout, `abortActiveStream` has already been called on the previous stream, but the stream's `finally` block (which calls `resolvePendingChatStream`) may not have run yet. The subsequent `createSSEStream` then calls `registerPendingChatStream`, overwriting the stale entry. When the original stream eventually reaches its `finally` block, it calls `resolvePendingChatStream(chatId)` and resolves — and deletes — the **new** stream's entry, creating the same cross-resolution bug described in the overwrite comment above.
+
+One option is to keep the timed-out entry in `pendingChatStreams` and let the original stream's `finally` clean it up by checking that the stored `streamId` still matches before resolving:
+
+```typescript
+function resolvePendingChatStream(chatId: string, streamId: string): void {
+  const entry = pendingChatStreams.get(chatId)
+  if (entry && entry.streamId === streamId) {
+    entry.resolve()
+    pendingChatStreams.delete(chatId)
+  }
+}
+```
+
+`createSSEStream`'s `finally` would then pass its own `streamId`, so a superseded stream can never resolve a newer stream's promise.",https://github.com/simstudioai/sim/pull/3623#discussion_r2944816956,,2026-03-17T07:11:03.588000,Race condition in stream cleanup causes premature promise resolution,concurrency,high,8,"Comment 1 identifies a real race condition where a timed-out stream's delayed cleanup can resolve a newer stream's promise prematurely, causing requests to proceed before previous streams have actually settled. This is a meaningful concurrency bug that could cause data integrity issues in production.",2026-03-17T18:31:11.272184+00:00
+simstudioai/sim,3631,"improvement(mothership): tool display titles, html sanitization, and ui fixes",https://github.com/simstudioai/sim/pull/3631,"<a href=""#""><img alt=""P2"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p2.svg?v=7"" align=""top""></a> **Entity decoding can re-introduce `<`/`>` after tag stripping**
+
+`decodeHtmlEntities` runs after all HTML tags have been stripped. This means source HTML containing entity-encoded tags — e.g. `&lt;script&gt;alert(1)&lt;/script&gt;` — will survive the tag-stripping passes and then be decoded into literal `<script>alert(1)</script>` in the returned plain text.
+
+For the current callers this is safe because React escapes content by default and `stripRawHtml` in `response.ts` handles the markdown-to-HTML path. However, it's a subtle ordering dependency: any future caller that embeds this text into an HTML context without escaping would introduce XSS.
+
+Consider documenting this assumption in the function's JSDoc, or call `decodeHtmlEntities` *before* the tag-stripping passes (so entity-encoded tags are resolved and then stripped along with real tags).",https://github.com/simstudioai/sim/pull/3631#discussion_r2948326344,"Fixed — moved `decodeHtmlEntities` before the tag-stripping passes so entity-encoded tags like `&lt;script&gt;` get decoded into real tags first, then stripped.",2026-03-17T17:13:14.585000,HTML entity decoding order allows XSS bypass of sanitization,security,high,8,This is a genuine security issue where entity-encoded HTML tags like `&lt;script&gt;` could bypass tag stripping and become executable script tags after decoding. The ordering bug in sanitization logic is a real XSS vulnerability vector that could affect any future caller embedding this text in HTML context.,2026-03-17T18:31:11.272184+00:00
+berriai/litellm,22935,Add Rubrik plugin for tool call blocking and request logging,https://github.com/BerriAI/litellm/pull/22935,"**Anthropic thinking/citation content silently dropped during tool-blocking round-trip**
+
+`_anthropic_response_to_openai_dict` calls `extract_response_content` and discards all return values except `text_content` and `tool_calls` — the variables `_citations`, `_thinking_blocks`, `_reasoning_content`, `_web_search_results`, `_tool_results`, and `_compaction_blocks` are silently thrown away. The reconstructed OpenAI dict therefore contains only `content: text` and `tool_calls`.
+
+When the response is translated back in `_openai_dict_to_anthropic_response`, the Anthropic `content` array is replaced with this stripped version, permanently removing thinking blocks, citations, etc.
+
+This will silently corrupt responses from models that emit extended-thinking blocks alongside tool calls (e.g. Claude Sonnet 3.7 with extended thinking). The client receives a response with the thinking content stripped out whenever even one tool call is present and the non-streaming hook fires.
+
+A minimal fix is to preserve the non-tool content blocks from the original response when writing back, rather than letting `translate_openai_response_to_anthropic` reconstruct the content from scratch:
+
+```python
+def _openai_dict_to_anthropic_response(self, openai_dict, original_response):
+    openai_dict.setdefault(""usage"", {...})
+    anthropic_response = self.anthropic_adapter.translate_openai_response_to_anthropic(
+        response=ModelResponse(**openai_dict),
+    )
+    # Only replace tool_use blocks; preserve thinking/citation/other blocks
+    non_tool_blocks = [
+        b for b in original_response.get(""content"", [])
+        if (b.get(""type"") if isinstance(b, dict) else getattr(b, ""type"", None)) != ""tool_use""
+    ]
+    new_tool_blocks = [
+        b for b in anthropic_response.get(""content"", [])
+        if (b.get(""type"") if isinstance(b, dict) else getattr(b, ""type"", None)) == ""tool_use""
+    ]
+    original_response[""content""] = non_tool_blocks + new_tool_blocks
+    original_response[""stop_reason""] = anthropic_response.get(""stop_reason"", ""end_turn"")
+```
+",https://github.com/BerriAI/litellm/pull/22935#discussion_r2898623877,"Addressed. Rewrote `_openai_dict_to_anthropic_response` to preserve non-tool content blocks (thinking, citations, etc.) from the original response. Only tool_use blocks are filtered based on the blocking service result; all other block types pass through untouched. Added test `test_thinking_content_preserved_during_round_trip`.
+---
+Addressed",2026-03-07T01:25:48.801000,Anthropic thinking/citation content silently dropped during tool-blocking round-trip,data_integrity,high,8,"This catch identifies a significant data loss bug where extended thinking blocks, citations, and other content types from Claude responses are silently stripped when tool calls are present. This affects users of Claude Sonnet 3.7 with extended thinking enabled, causing silent corruption of model responses in production.",2026-03-17T18:31:11.272184+00:00
+simstudioai/sim,3613,fix(mothership): thinking and subagent text,https://github.com/simstudioai/sim/pull/3613,"<a href=""#""><img alt=""P2"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p2.svg?v=7"" align=""top""></a> **Subagent text appended to wrong group when active group belongs to a different subagent**
+
+The new branch checks `block.subagent && group` but does not verify that `group.agentName === block.subagent`. If a text block tagged `subagent: 'deploy'` arrives while `group.agentName === 'build'` is still open (e.g., due to interleaved events), the deploy text gets silently appended to the build agent group.
+
+Consider tightening the guard:
+
+```suggestion
+      if (block.subagent && group && group.agentName === block.subagent) {
+```",https://github.com/simstudioai/sim/pull/3613#discussion_r2947328871,,2026-03-17T14:48:21.988000,Subagent text blocks appended to wrong agent group,logic,medium,8,"This is a meaningful logic bug where interleaved subagent events would cause text to be attributed to the wrong agent group, leading to incorrect UI display and potentially confusing users. The catch requires understanding the event flow and data model, not something an IDE or linter would flag automatically.",2026-03-17T18:31:11.272184+00:00
