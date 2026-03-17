@@ -15210,3 +15210,113 @@ The result is an inconsistent UX: an admin who grants `Create` scoped to a speci
 - Documenting the limitation clearly, and passing `identityId` in `onCreateMembershipIdentityGuard` for the membership-creation path.
 
 This same inconsistency exists in the frontend's `ACTION_ALLOWED_CONDITIONS` at `frontend/src/pages/project/RoleDetailsBySlugPage/components/ProjectRoleModifySection.utils.tsx:464`.",https://github.com/Infisical/infisical/pull/5739#discussion_r2948342467,,2026-03-17T17:15:52.349000,Permission condition semantically unsatisfiable for identity creation paths,logic,high,8,"This is a meaningful logic bug in a permission/access control system where adding an `identityId` condition to the `Create` action would always deny creation for brand-new identities (no ID exists yet) and for membership creation (ID not passed). This would cause silent permission denials in production, affecting admin users' ability to configure access control correctly. The analysis is thorough, identifies multiple affected code paths, and provides concrete remediation options.",2026-03-17T20:20:00.087826+00:00
+simstudioai/sim,3612,feat(auth): migrate to better-auth admin plugin with unified Admin tab,https://github.com/simstudioai/sim/pull/3612,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **`BLOCKED_SIGNUP_DOMAINS` bypass via OAuth providers**
+
+The domain-block check only fires when `ctx.path.startsWith('/sign-up')`, which covers email/password sign-up. OAuth-based account creation (Google, GitHub, Microsoft, etc.) goes through `/sign-in/social/*` and `/callback` paths, so it bypasses this guard entirely.
+
+A user from `@blocked-domain.com` can create an account by clicking ""Sign in with Google"" (using their Google account tied to that domain) — the `blockedSignupDomains` set is never consulted.
+
+To close the gap, you need to also intercept the social sign-in callback. In better-auth you can hook into `user.create` (or the equivalent `before` hook on the callback path) to inspect the email before the record is inserted:
+
+```ts
+// Example: also check in the social callback path
+if (
+  (ctx.path.startsWith('/sign-up') || ctx.path.startsWith('/callback')) &&
+  blockedSignupDomains
+) {
+  const requestEmail = (ctx.body?.email ?? ctx.body?.user?.email)?.toLowerCase()
+  if (requestEmail) {
+    const emailDomain = requestEmail.split('@')[1]
+    if (emailDomain && blockedSignupDomains.has(emailDomain)) {
+      throw new Error('Sign-ups from this email domain are not allowed.')
+    }
+  }
+}
+```
+
+Alternatively, use better-auth's `user.create` database hook to reject the insert at the model level — that is path-agnostic and covers every sign-up vector.",https://github.com/simstudioai/sim/pull/3612#discussion_r2949765444,"Fixed — added databaseHooks.user.create.before to enforce BLOCKED_SIGNUP_DOMAINS at the model level. This fires regardless of signup path (email/password, Google, GitHub, Microsoft, etc.), closing the OAuth bypass entirely. The before hook is still kept for fail-fast on email/password signup, but the database hook is now the authoritative check.",2026-03-17T21:58:00.091000,OAuth signup bypasses blocked email domain validation,security,critical,9,"This is a significant security bypass where the BLOCKED_SIGNUP_DOMAINS check only fires for email/password signup paths but OAuth providers (Google, GitHub, Microsoft) go through different paths, allowing users from blocked domains to create accounts via social login. This completely defeats the purpose of domain blocking.",2026-03-17T22:18:38.391285+00:00
+berriai/litellm,23250,Add Akto Guardrails to LiteLLM,https://github.com/BerriAI/litellm/pull/23250,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **`AttributeError` when Akto returns `{""data"": null}`**
+
+`result.get(""data"", {})` returns `None` when the key is present but its value is `None` (the default `{}` is only used when the key is **absent**). Calling `.get(...)` on `None` raises `AttributeError`.
+
+This exception is **not** caught by the `except (httpx.RequestError, httpx.HTTPStatusError)` block in `apply_guardrail`, so it escapes as an unhandled 500, completely bypassing the configured `fail_open`/`fail_closed` policy.
+
+```suggestion
+        if not isinstance(result, dict):
+            return True, """"
+        data = result.get(""data"") or {}
+        guardrails_result = data.get(""guardrailsResult"") or {}
+```
+",https://github.com/BerriAI/litellm/pull/23250#discussion_r2948680273,,2026-03-17T18:13:27.980000,AttributeError when Akto returns null data field,runtime,high,8,"This catches a real runtime bug where `result.get(""data"", {})` returns `None` (not `{}`) when the key exists but has a null value, causing an AttributeError on the subsequent `.get()` call. This bypasses the fail_open/fail_closed policy and returns an unhandled 500 error to users.",2026-03-17T22:18:38.391285+00:00
+ethyca/fides,7632,"ENG-181: Delete shared Chakra modal wrappers, migrate consumers to Ant Design",https://github.com/ethyca/fides/pull/7632,"**Modal content not reactive to async `fetchDeletionImpact`**
+
+The `content` passed to `modal.confirm()` is a static snapshot evaluated at call time. When `handleOpenDeleteModal` fires:
+1. `fetchDeletionImpact()` is called – triggering an async RTK Query fetch.
+2. `modal.confirm()` is called **immediately**, passing the *current* `deletionImpact` (likely `undefined`) and `isLoadingImpact` (`false`) into the JSX snapshot.
+
+Unlike the previous `<ConfirmationModal isOpen={...}>` pattern (which was a React component in the tree and would re-render as RTK state changed), Ant Design's imperative `modal.confirm()` renders a static snapshot and does **not** react to parent state updates.
+
+Result: users will never see the `<Spin />` loading indicator or the actual impact data – `DeleteMonitorMessage` will always render with `isLoadingImpact=false` and `deletionImpact=undefined`, showing only the generic ""Are you sure?"" text.
+
+**Possible fix:** use the `update()` handle returned by `modal.confirm()` to push new content as the fetch resolves, or await the fetch before opening the modal:
+
+```ts
+const handleOpenDeleteModal = useCallback(async () => {
+  if (!monitorId) return;
+  const { data } = await fetchDeletionImpact({ monitor_config_id: monitorId });
+  modal.confirm({
+    title: ""Delete monitor"",
+    content: (
+      <DeleteMonitorMessage deletionImpact={data} isLoadingImpact={false} />
+    ),
+    okText: ""Delete"",
+    centered: true,
+    icon: null,
+    onOk: async () => {
+      const result = await deleteMonitor({ monitor_config_id: monitorId });
+      toastDeleteResult(result);
+    },
+  });
+}, [monitorId, modal, fetchDeletionImpact, deleteMonitor, toastDeleteResult]);
+```
+
+Or use the `update()` approach to show a spinner while loading:
+
+```ts
+const handleOpenDeleteModal = useCallback(() => {
+  if (!monitorId) return;
+  const instance = modal.confirm({
+    title: ""Delete monitor"",
+    content: <Spin />,
+    okText: ""Delete"",
+    centered: true,
+    icon: null,
+    onOk: async () => {
+      const result = await deleteMonitor({ monitor_config_id: monitorId });
+      toastDeleteResult(result);
+    },
+  });
+  fetchDeletionImpact({ monitor_config_id: monitorId }).then(({ data }) => {
+    instance.update({
+      content: <DeleteMonitorMessage deletionImpact={data} isLoadingImpact={false} />,
+    });
+  });
+}, [monitorId, modal, fetchDeletionImpact, deleteMonitor, toastDeleteResult]);
+```
+",https://github.com/ethyca/fides/pull/7632#discussion_r2926853378,"Good catch! Fixed by awaiting `fetchDeletionImpact` before opening the modal, so the data is available when the static snapshot is created.",2026-03-12T19:22:10.451000,Async state not reactive in imperative modal API,logic,high,8,"This is a meaningful logic bug where the migration from React component-based modal to Ant Design's imperative modal.confirm() breaks reactivity. Users would never see loading states or actual deletion impact data, always getting undefined values. The catch requires understanding both the old and new patterns and how RTK Query state updates work with imperative APIs - not an obvious catch that tooling would flag.",2026-03-17T22:18:38.391285+00:00
+simstudioai/sim,3635,fix(mothership): fix tool call scheduling,https://github.com/simstudioai/sim/pull/3635,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **`else` branch is unreachable dead code**
+
+The `else` branch (lines 404–413) can never execute. The guard at line 299–301 already returns early for any tool where `isToolAvailableOnSimSide(toolName)` is `false`, regardless of whether `clientExecutable` is `true`. As a result, by the time execution reaches line 402, `isToolAvailableOnSimSide(toolName)` is guaranteed to be `true`, making the `else` path permanently dead.
+
+If there are client-executable tools that are *not* available on the sim side and should be delegated back to the React UI, those tools will silently exit at line 299 without any client-side handling or error reporting.
+
+To actually allow the `else` branch to fire, the guard at line 299 would need to exempt `clientExecutable` tools:
+
+```typescript
+// clientExecutable is already extracted above at line 293
+if (!isToolAvailableOnSimSide(toolName) && !clientExecutable) {
+  return
+}
+```
+
+The same issue applies to the identical pattern in `subAgentHandlers.tool_call` at lines 650–664 (guarded by the corresponding early return at lines 556–558).",https://github.com/simstudioai/sim/pull/3635#discussion_r2949356184,,2026-03-17T20:19:59.041000,Unreachable else branch prevents client-side tool delegation,logic,high,8,"This is a meaningful logic bug where an early return guard makes an else branch permanently unreachable, causing client-executable tools that aren't sim-side available to silently fail instead of being delegated to the React UI. The comment correctly identifies the root cause and provides a concrete fix, demonstrating good code flow analysis across distant lines (299 and 402).",2026-03-17T22:18:38.391285+00:00
