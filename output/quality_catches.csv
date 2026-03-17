@@ -14770,3 +14770,15 @@ fn filter_scan_tasks_by_file(
 }
 ```
 ",https://github.com/Eventual-Inc/Daft/pull/6397#discussion_r2942126107,,2026-03-16T18:19:06.828000,Unchecked array index causes panic in release builds,runtime,high,8,"This is a meaningful runtime bug - debug_assert is stripped in release builds, so production code could panic when accessing paths[0] on empty arrays from non-file data sources. The catch identifies a real difference between debug and release behavior that could cause production crashes.",2026-03-17T00:47:47.506471+00:00
+berriai/litellm,23790,Fix: PassThrough endpoints with auth: false still require Authorization header,https://github.com/BerriAI/litellm/pull/23790,"**Auth bypass condition inconsistent with registration condition**
+
+The early-exit guard uses `ep.get(""auth"") is not True`, which only returns `False` (i.e., does NOT bypass) when `auth` is the Python boolean `True`. However, the endpoint registration code at line 2373 of `pass_through_endpoints.py` treats string values such as `""true""`, `""True""`, and `""TRUE""` as requiring auth (`str(_auth).lower() == ""true""`).
+
+This means a pass-through endpoint configured with `auth: ""true""` (quoted string) will have `[Depends(user_api_key_auth)]` added to its route and pass the premium-user check during registration — yet when `_user_api_key_auth_builder` is invoked for that route, the condition `""true"" is not True` evaluates to `True`, causing an immediate early return of an unauthenticated `UserAPIKeyAuth()`. Authentication is silently bypassed for an endpoint that was explicitly marked as requiring it.
+
+To match the registration logic exactly, the guard should be:
+
+```suggestion
+                if route_matches and not (ep.get(""auth"") is True or (isinstance(ep.get(""auth""), str) and ep.get(""auth"").lower() == ""true"")):
+                    return UserAPIKeyAuth()
+```",https://github.com/BerriAI/litellm/pull/23790#discussion_r2943499367,,2026-03-16T23:12:19.231000,Auth bypass due to inconsistent boolean vs string comparison,security,high,8,"Comment 8 identifies a security vulnerability where endpoints configured with `auth: ""true""` (string) will have authentication silently bypassed because the early-exit guard uses `is True` which fails for string values, while registration code accepts string ""true"". This creates an authentication bypass for explicitly protected endpoints.",2026-03-17T03:11:53.936040+00:00
