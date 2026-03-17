@@ -14901,3 +14901,37 @@ await execFileAsync(""code"", [session.projectPath]);
 ```
 
 Either approach eliminates the shell injection surface entirely.",https://github.com/raycast/extensions/pull/26015#discussion_r2883225614,,2026-03-04T11:18:06.257000,Incomplete shell escaping enables command injection vulnerability,security,high,8,"This comment identifies a real command injection vulnerability where incomplete shell escaping allows malicious characters like `;`, `|`, `&` to be executed when opening projects in VS Code. A crafted project path could execute arbitrary commands, making this a legitimate security issue.",2026-03-17T06:35:04.352967+00:00
+raycast/extensions,26026,Add noteman extension,https://github.com/raycast/extensions/pull/26026,"**TOCTOU race condition when creating daily note**
+
+The pattern of checking file existence with `access` and then writing with `writeFileUtf8` (which uses the non-exclusive `w` flag) is susceptible to a check-then-act race: if two commands (e.g. `openToday` and `browseNotes`) both execute `createDailyIfMissing` simultaneously, both may observe that the file does not exist, and the second `writeFileUtf8` call will silently overwrite any content written by the first call.
+
+Using the exclusive open flag avoids this by failing atomically if the file already exists:
+
+```typescript
+try {
+  await writeFileUtf8Exclusive(dailyPath, `# ${formatDateYYYYMMDD(date)}\n\n`);
+} catch (error) {
+  if ((error as NodeJS.ErrnoException).code !== ""EEXIST"") {
+    throw error;
+  }
+  // File already exists — that's fine
+}
+```",https://github.com/raycast/extensions/pull/26026#discussion_r2884404800,,2026-03-04T15:21:20.097000,TOCTOU race condition when creating daily note causes data loss,concurrency,high,8,"This identifies a real race condition where simultaneous calls to createDailyIfMissing could cause one write to silently overwrite another, resulting in data loss. The comment correctly identifies the check-then-act pattern vulnerability and provides a proper fix using exclusive file creation.",2026-03-17T08:25:51.532608+00:00
+synnaxlabs/synnax,2099,SY-3690: Refactor Integration Test Infrastructure,https://github.com/synnaxlabs/synnax/pull/2099,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **`kill_active_tests` stores wrong `test_name`, breaking double-recording prevention**
+
+`kill_active_tests` creates its `Test` objects using `test_instance.name` as `test_name` (e.g. `""arc_lifecycle""`), but `_execute_single_test` creates its `Test` objects using `test_def.case` (e.g. `""arc/arc_lifecycle""`). Because `Test.__str__()` and `TestDefinition.__str__()` both key off `test_name` / `case`, the `already_recorded` guard in `_collect_result` compares:
+
+- killed entry: `str(r)` → `""arc_lifecycle""` (just the sanitized display name)
+- test definition: `str(test_def)` → `""arc/arc_lifecycle""` (full case path)
+
+These never match, so `already_recorded` is always `False` for killed tests. This means a test that is stopped mid-run gets **two** entries in `self._tests`: one `KILLED` from `kill_active_tests` and one `TIMEOUT` (from the ""future not done"" branch of `_collect_result`) once the thread dies.
+
+The fix requires storing the original `TestDefinition` (or at least its `case` and `name` fields) alongside the instance in `_active_tests`, so that `kill_active_tests` can construct a `Test` with the same key that `_collect_result` expects:
+
+```python
+# Change _active_tests to: list[tuple[TestDefinition, TestCase, sy.Range, threading.Thread]]
+# and update kill_active_tests to use test_def.case / test_def.display_name
+```
+
+Alternatively, store `test_def` on the `test_instance` during `_execute_single_test`.",https://github.com/synnaxlabs/synnax/pull/2099#discussion_r2944206141,"Fixed. `_active_tests` now stores the `TestDefinition` alongside the instance, and `kill_active_tests` uses `test_def.case` / `test_def.display_name` to construct `Test` objects with matching keys.
+",2026-03-17T03:52:20.704000,Wrong test_name key causes duplicate test result entries,data_integrity,,8,"This catches a subtle but significant bug where `kill_active_tests` uses `test_instance.name` (e.g., 'arc_lifecycle') while `_execute_single_test` uses `test_def.case` (e.g., 'arc/arc_lifecycle') for the same test. This mismatch causes the `already_recorded` guard to always fail, resulting in duplicate entries in `self._tests` for every killed test - one KILLED and one TIMEOUT record.",2026-03-17T08:25:51.532608+00:00
