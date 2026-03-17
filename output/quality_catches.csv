@@ -14782,3 +14782,48 @@ To match the registration logic exactly, the guard should be:
                 if route_matches and not (ep.get(""auth"") is True or (isinstance(ep.get(""auth""), str) and ep.get(""auth"").lower() == ""true"")):
                     return UserAPIKeyAuth()
 ```",https://github.com/BerriAI/litellm/pull/23790#discussion_r2943499367,,2026-03-16T23:12:19.231000,Auth bypass due to inconsistent boolean vs string comparison,security,high,8,"Comment 8 identifies a security vulnerability where endpoints configured with `auth: ""true""` (string) will have authentication silently bypassed because the early-exit guard uses `is True` which fails for string values, while registration code accepts string ""true"". This creates an authentication bypass for explicitly protected endpoints.",2026-03-17T03:11:53.936040+00:00
+generaltranslation/gt,1113,feat(react): add t syntax,https://github.com/generaltranslation/gt/pull/1113,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **`locale` parameter ignored in translation loading**
+
+The `locale` parameter is validated on line 155 but then completely ignored on line 158, where `this.getLocale()` is used instead. This means any caller that explicitly passes a locale (e.g., to preload or load translations for a non-current locale) will silently receive translations for the current locale rather than the requested one.
+
+This is a regression from the old `getTranslation(locale)` method, which correctly passed the parameter through to `this.translationsManager.getTranslations(locale)`. The current callers (e.g., `tanstack-start/getTranslations.ts`) happen to avoid the bug because their `getLocale()` and the passed `locale` converge on the same value, but the API contract is broken.
+
+```suggestion
+  async getTranslations(
+    locale: string = this.getLocale()
+  ): Promise<Translations> {
+    if (!this.config.locales.includes(locale)) {
+      throw new Error(`Locale ${locale} not found in config`);
+    }
+    return this.translationsManager.getTranslations(locale);
+  }
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/i18n/src/i18n-manager/I18nManager.ts
+Line: 152-159
+
+Comment:
+**`locale` parameter ignored in translation loading**
+
+The `locale` parameter is validated on line 155 but then completely ignored on line 158, where `this.getLocale()` is used instead. This means any caller that explicitly passes a locale (e.g., to preload or load translations for a non-current locale) will silently receive translations for the current locale rather than the requested one.
+
+This is a regression from the old `getTranslation(locale)` method, which correctly passed the parameter through to `this.translationsManager.getTranslations(locale)`. The current callers (e.g., `tanstack-start/getTranslations.ts`) happen to avoid the bug because their `getLocale()` and the passed `locale` converge on the same value, but the API contract is broken.
+
+```suggestion
+  async getTranslations(
+    locale: string = this.getLocale()
+  ): Promise<Translations> {
+    if (!this.config.locales.includes(locale)) {
+      throw new Error(`Locale ${locale} not found in config`);
+    }
+    return this.translationsManager.getTranslations(locale);
+  }
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/generaltranslation/gt/pull/1113#discussion_r2943959056,,2026-03-17T02:07:03.657000,Locale parameter ignored causing wrong translations to be returned,logic,high,8,"The function validates the locale parameter but then ignores it entirely, using this.getLocale() instead. This means callers requesting translations for a specific locale will silently receive translations for a different locale - a significant data integrity bug that would cause wrong translations in production.",2026-03-17T04:45:59.209287+00:00
