@@ -15195,3 +15195,18 @@ Consider tightening the guard:
 ```suggestion
       if (block.subagent && group && group.agentName === block.subagent) {
 ```",https://github.com/simstudioai/sim/pull/3613#discussion_r2947328871,,2026-03-17T14:48:21.988000,Subagent text blocks appended to wrong agent group,logic,medium,8,"This is a meaningful logic bug where interleaved subagent events would cause text to be attributed to the wrong agent group, leading to incorrect UI display and potentially confusing users. The catch requires understanding the event flow and data model, not something an IDE or linter would flag automatically.",2026-03-17T18:31:11.272184+00:00
+infisical/infisical,5739,feat: enhance identity permissions and update UI for access control l…,https://github.com/Infisical/infisical/pull/5739,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **`Create` + `identityId` condition is unsatisfiable for brand-new identities**
+
+Adding `identityId` as an allowed condition for the `Create` action is semantically inconsistent. There are two distinct code paths that use `ProjectPermissionIdentityActions.Create`:
+
+1. **Creating a brand-new project-scoped identity** (`project-identity-factory.ts` `onCreateIdentityGuard`): No `identityId` exists yet, so the permission check is called without a subject. Any role that has a `Create` + `identityId` condition will **always deny** creation here — the admin would have no way to allow new-identity creation with this role.
+
+2. **Adding an existing identity to a project** (`project-membership-identity-factory.ts` `onCreateMembershipIdentityGuard`): The `identityId` (`dto.data.identityId`) is known at call time but is **not passed** to the permission check, producing the same ""always deny"" behavior.
+
+3. **Attaching an auth method to a project-scoped identity** (e.g., `identity-ua-service.ts`): The `identityId` IS correctly passed via `subject(...)`, so this path works as expected.
+
+The result is an inconsistent UX: an admin who grants `Create` scoped to a specific `identityId` will find it works for auth-attachment but silently blocks all other creates. Consider either:
+- Removing `identityId` from the `Create` action's allowed conditions (the condition can't be used safely for all Create paths), or
+- Documenting the limitation clearly, and passing `identityId` in `onCreateMembershipIdentityGuard` for the membership-creation path.
+
+This same inconsistency exists in the frontend's `ACTION_ALLOWED_CONDITIONS` at `frontend/src/pages/project/RoleDetailsBySlugPage/components/ProjectRoleModifySection.utils.tsx:464`.",https://github.com/Infisical/infisical/pull/5739#discussion_r2948342467,,2026-03-17T17:15:52.349000,Permission condition semantically unsatisfiable for identity creation paths,logic,high,8,"This is a meaningful logic bug in a permission/access control system where adding an `identityId` condition to the `Create` action would always deny creation for brand-new identities (no ID exists yet) and for membership creation (ID not passed). This would cause silent permission denials in production, affecting admin users' ability to configure access control correctly. The analysis is thorough, identifies multiple affected code paths, and provides concrete remediation options.",2026-03-17T20:20:00.087826+00:00
