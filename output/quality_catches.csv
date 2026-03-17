@@ -14726,3 +14726,47 @@ To fix this, include a unique identifier (e.g., the plugin `name`) in the update
 		await this.pluginMetadataService.update(updateData);
 	}
 ```",https://github.com/ever-co/ever-gauzy/pull/9614#discussion_r2939705925,,2026-03-16T11:15:25.692000,Missing WHERE clause causes UPDATE to modify all database rows,data_integrity,critical,9,"This is a severe data corruption bug where local plugin installations would update ALL plugin records in the database due to an unconstrained UPDATE query. When marketplaceId is null, the update payload lacks any identifying field that buildQuery uses for WHERE clauses, resulting in every plugin's installationId being overwritten.",2026-03-16T22:20:58.839189+00:00
+simstudioai/sim,3607,feat(tables): upload csvs,https://github.com/simstudioai/sim/pull/3607,"**Orphaned table left on partial row insertion failure**
+
+`createTable` succeeds and the table is persisted before `batchInsertRows` is called. If any batch throws — e.g. because the workspace row-limit is hit mid-import, or a transient DB error occurs — the outer `catch` returns an error response to the client, but the empty (or partially-filled) table remains in the database. From the user's perspective, the import ""failed"", yet they now have a ghost table in their list (visible because `onSettled` always invalidates the table list query on the client).
+
+Consider wrapping the entire operation in a transaction, or deleting the newly-created table inside the `catch` block before returning the error response:
+
+```typescript
+let table: Awaited<ReturnType<typeof createTable>> | null = null
+try {
+  // ...
+  table = await createTable(...)
+  // ...batch inserts...
+} catch (error) {
+  if (table) {
+    await deleteTable(table.id, requestId).catch(() => {}) // best-effort cleanup
+  }
+  // ...return error response
+}
+```",https://github.com/simstudioai/sim/pull/3607#discussion_r2943386308,,2026-03-16T22:44:57.381000,Orphaned table left in database on partial import failure,data_integrity,high,8,"This catches a real data integrity bug where a table is created and persisted, but if the subsequent batch insert fails (due to row limits, DB errors, etc.), the table remains as an orphan in the database. Users see a ghost table that appears but has no data, creating confusion and data clutter. The fix requires transactional handling or cleanup logic.",2026-03-17T00:47:47.506471+00:00
+eventual-inc/daft,6397,chore: simplify data source implementation,https://github.com/Eventual-Inc/Daft/pull/6397,"**Unchecked index access will panic in release builds**
+
+`paths[0]` panics if a scan task returns zero file paths (e.g. a `DataSource::Database` or any non-`File` variant). The `debug_assert` in `shard_scan_tasks_by_file` that guards this precondition is stripped in release builds, so a task with no file paths will cause an unrecoverable panic at runtime.
+
+The same issue exists in `sort_scan_tasks_by_file` at lines 126–127.
+
+Consider using `first()` with an appropriate fallback or surfacing the error through `DaftResult`:
+
+```rust
+fn filter_scan_tasks_by_file(
+    sharder: &Sharder,
+    scan_tasks: &[ScanTaskRef],
+) -> DaftResult<Vec<ScanTaskRef>> {
+    let tasks: Vec<_> = scan_tasks
+        .iter()
+        .filter(|scan_task| {
+            let paths = scan_task.get_file_paths();
+            paths.first().is_some_and(|p| sharder.should_handle_item(p))
+        })
+        .cloned()
+        .collect();
+    Ok(tasks)
+}
+```
+",https://github.com/Eventual-Inc/Daft/pull/6397#discussion_r2942126107,,2026-03-16T18:19:06.828000,Unchecked array index causes panic in release builds,runtime,high,8,"This is a meaningful runtime bug - debug_assert is stripped in release builds, so production code could panic when accessing paths[0] on empty arrays from non-file data sources. The catch identifies a real difference between debug and release behavior that could cause production crashes.",2026-03-17T00:47:47.506471+00:00
