@@ -14935,3 +14935,63 @@ The fix requires storing the original `TestDefinition` (or at least its `case` a
 
 Alternatively, store `test_def` on the `test_instance` during `_execute_single_test`.",https://github.com/synnaxlabs/synnax/pull/2099#discussion_r2944206141,"Fixed. `_active_tests` now stores the `TestDefinition` alongside the instance, and `kill_active_tests` uses `test_def.case` / `test_def.display_name` to construct `Test` objects with matching keys.
 ",2026-03-17T03:52:20.704000,Wrong test_name key causes duplicate test result entries,data_integrity,,8,"This catches a subtle but significant bug where `kill_active_tests` uses `test_instance.name` (e.g., 'arc_lifecycle') while `_execute_single_test` uses `test_def.case` (e.g., 'arc/arc_lifecycle') for the same test. This mismatch causes the `already_recorded` guard to always fail, resulting in duplicate entries in `self._tests` for every killed test - one KILLED and one TIMEOUT record.",2026-03-17T08:25:51.532608+00:00
+posthog/posthog,51164,feat: Continous commit metadata.json,https://github.com/PostHog/posthog/pull/51164,"**Slash-in-topic breaks both cleanup functions**
+
+`base_path.join(topic)` passes `/` characters through directly, so a topic named `org/events` creates the path `<base>/org/events/<partition>` — a 3-level structure. Both `cleanup_unowned_partition_directories` and `cleanup_orphaned_directories` assume exactly 2 levels (`<base>/<topic>/<partition>/`): they scan one level for ""topic dirs"", then one level for ""partition dirs"".
+
+For topic `org/events` partition 0, the scanner would:
+1. Enter `<base>/org/` (treating it as the ""topic dir"")
+2. See `events/` as a ""partition dir"" entry
+3. Find `<base>/org/events` is **not** in `owned_paths` (the owned path is `<base>/org/events/0`)
+4. Call `remove_dir_all(<base>/org/events)` — recursively deleting the active store at `<base>/org/events/0`
+
+The previous implementation escaped `/` to `_` via `format_partition_dir`, avoiding this ambiguity. The new implementation intentionally removes the escaping (confirmed by the `test_format_store_path_with_slashes` test), but neither cleanup function was updated to handle multi-level topic paths.
+
+If Kafka topic names with `/` are used in production, this is a data-loss bug. Even if they aren't currently used, the mismatch between `format_store_path` (which accepts slashes) and the cleanup scan depth (which assumes exactly one topic component) is a latent hazard worth closing.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: rust/kafka-deduplicator/src/utils/mod.rs
+Line: 7-9
+
+Comment:
+**Slash-in-topic breaks both cleanup functions**
+
+`base_path.join(topic)` passes `/` characters through directly, so a topic named `org/events` creates the path `<base>/org/events/<partition>` — a 3-level structure. Both `cleanup_unowned_partition_directories` and `cleanup_orphaned_directories` assume exactly 2 levels (`<base>/<topic>/<partition>/`): they scan one level for ""topic dirs"", then one level for ""partition dirs"".
+
+For topic `org/events` partition 0, the scanner would:
+1. Enter `<base>/org/` (treating it as the ""topic dir"")
+2. See `events/` as a ""partition dir"" entry
+3. Find `<base>/org/events` is **not** in `owned_paths` (the owned path is `<base>/org/events/0`)
+4. Call `remove_dir_all(<base>/org/events)` — recursively deleting the active store at `<base>/org/events/0`
+
+The previous implementation escaped `/` to `_` via `format_partition_dir`, avoiding this ambiguity. The new implementation intentionally removes the escaping (confirmed by the `test_format_store_path_with_slashes` test), but neither cleanup function was updated to handle multi-level topic paths.
+
+If Kafka topic names with `/` are used in production, this is a data-loss bug. Even if they aren't currently used, the mismatch between `format_store_path` (which accepts slashes) and the cleanup scan depth (which assumes exactly one topic component) is a latent hazard worth closing.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/51164#discussion_r2941104523,"this is legit. There should be tests for this so I assume there may be context handling the new pathing that greptile missed, but worth a second pass to be sure. I'll call out in review if i see it",2026-03-16T15:26:23.511000,Slash-in-topic causes data loss via incorrect directory cleanup,data_integrity,high,8,"This comment identifies a genuine data-loss bug where Kafka topics containing '/' characters would create a 3-level directory structure that the cleanup functions misinterpret, potentially deleting active stores. The analysis is thorough, tracing through the exact failure path and explaining why the previous implementation was safer.",2026-03-17T10:26:28.655564+00:00
+synnaxlabs/synnax,2099,SY-3690: Refactor Integration Test Infrastructure,https://github.com/synnaxlabs/synnax/pull/2099,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Stale `test_definitions` reference — `ReportClient` always sees 0 test definitions**
+
+`ReportClient` is constructed at line 132 with `test_definitions=self.test_definitions`, storing a reference to the empty list created on line 100.
+
+Later, `load()` at line 157 does:
+```python
+self.sequences, self.test_definitions = self.config_client.load(target_filter)
+```
+
+This **rebinds** `self.test_definitions` to a brand-new list object. The `ReportClient` still holds a reference to the original empty list, so `self._test_definitions` inside `ReportClient` is always empty.
+
+The immediate effect is that `get_current_status()` at line 107 always returns `""total_tests"": 0`, making the `monitor_test_execution` function always log `""0/0 tests completed""` regardless of how many tests were loaded.
+
+Fix: either mutate the list in-place in `load()` instead of rebinding it:
+```python
+self.sequences, new_defs = self.config_client.load(target_filter)
+self.test_definitions.clear()
+self.test_definitions.extend(new_defs)
+```
+Or expose a setter on `ReportClient` that `load()` can call to update the reference.
+",https://github.com/synnaxlabs/synnax/pull/2099#discussion_r2944574529,,2026-03-17T05:58:27.971000,Stale reference causes ReportClient to always see zero test definitions,logic,high,8,"This catches a subtle but significant bug where ReportClient is initialized with a reference to an empty list, and when load() later rebinds self.test_definitions to a new list, ReportClient still holds the old empty reference. This causes monitoring to permanently show '0/0 tests completed' regardless of actual test count - a meaningful production bug affecting observability.",2026-03-17T10:26:28.655564+00:00
