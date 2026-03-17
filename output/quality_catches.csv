@@ -14827,3 +14827,77 @@ This is a regression from the old `getTranslation(locale)` method, which correct
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/generaltranslation/gt/pull/1113#discussion_r2943959056,,2026-03-17T02:07:03.657000,Locale parameter ignored causing wrong translations to be returned,logic,high,8,"The function validates the locale parameter but then ignores it entirely, using this.getLocale() instead. This means callers requesting translations for a specific locale will silently receive translations for a different locale - a significant data integrity bug that would cause wrong translations in production.",2026-03-17T04:45:59.209287+00:00
+raycast/extensions,26248,Add boring-quicklinks extension,https://github.com/raycast/extensions/pull/26248,"**Item silently dropped if target container disappears mid-operation**
+
+`moveItemTo` splices the item out of its source list on line 95 before verifying the target is reachable. If `targetContainerId` is non-null but `findItemById` returns `undefined` (e.g., the target was concurrently deleted), the item is removed from source and never inserted into a destination — then that state is persisted. The item is permanently lost with no error or toast.
+
+A minimal guard before persisting would prevent silent data loss:
+
+```typescript
+if (targetContainerId === null) {
+  newData.items.push(item);
+} else {
+  const target = findItemById(newData.items, targetContainerId);
+  if (!target?.isContainer) {
+    // Target gone — abort without persisting
+    return;
+  }
+  if (!target.children) target.children = [];
+  target.children.push(item);
+}
+```",https://github.com/raycast/extensions/pull/26248#discussion_r2922703773,,2026-03-12T07:06:05.937000,Data loss when moving item to deleted target container,data_integrity,high,8,"This catch identifies a genuine data integrity bug where an item is permanently lost if the target container is deleted mid-operation. The item gets spliced from source, but if target doesn't exist, it's never inserted anywhere yet the state is persisted - causing silent permanent data loss.",2026-03-17T06:35:04.352967+00:00
+berriai/litellm,23727,fix(langsmith): avoid no running event loop during sync init,https://github.com/BerriAI/litellm/pull/23727,"**Periodic flush silently dropped for sync-init + async-use pattern**
+
+When `LangsmithLogger` is initialised in a sync context (no running event loop), `_start_periodic_flush_task()` returns `None` and the `periodic_flush` coroutine is never scheduled. This is the common production scenario where LiteLLM callbacks are configured at application startup (sync) and then invoked inside an async request handler.
+
+In that pattern, once the event loop is running and `async_log_success_event` starts queuing items, the only flush trigger is `batch_size` being reached (line 305-306). If the queue never fills to `batch_size` — e.g. low-traffic periods or a process shutdown after partial activity — the queued runs will be silently dropped. This is a regression compared to the intended periodic-flush behaviour.
+
+A safer fix would lazily start the flush task on the first async log call if it has not already been started, e.g. by checking a `_flush_task` attribute in `async_log_success_event`/`async_log_failure_event`:
+
+```python
+# In __init__
+self._flush_task: Optional[asyncio.Task[Any]] = None
+
+# Replace the conditional block with:
+self._flush_task = self._start_periodic_flush_task()
+```
+
+```python
+# At the start of async_log_success_event / async_log_failure_event
+if self._flush_task is None or self._flush_task.done():
+    self._flush_task = self._start_periodic_flush_task()
+```
+
+This guarantees that the periodic flush is always running once async usage begins, regardless of how the object was constructed.",https://github.com/BerriAI/litellm/pull/23727#discussion_r2939371395,"Good catch - I updated the implementation to cover the sync-init + async-use case.
+
+Latest change:
+- track `_flush_task` on the logger
+- keep the safe init-time guard for sync construction
+- lazily start the periodic flush task in `async_log_success_event` and `async_log_failure_event` when no task is running yet
+
+That preserves the crash fix without leaving partial queues stranded after async usage begins.",2026-03-16T10:10:23.876000,Periodic flush silently dropped causing data loss in sync-init pattern,data_integrity,high,8,"This comment identifies a significant regression where log data would be silently dropped in the common sync-init + async-use pattern. When the logger is initialized synchronously (no event loop), the periodic flush task never starts, and queued log entries are lost if they don't reach batch_size before shutdown. This is a real production bug affecting data integrity.",2026-03-17T06:35:04.352967+00:00
+raycast/extensions,26015,feat: add gemini-cli extension with session management,https://github.com/raycast/extensions/pull/26015,"**Incomplete shell escaping enables command injection**
+
+The `escapedPath` regex only escapes `""`, whitespace, `'`, `$`, backtick, and `\`. Characters like `;`, `|`, `&`, `(`, `)`, `<`, `>`, `!`, `*`, `?`, `{`, `}`, and `~` are left unescaped. Because `exec` passes the string to `/bin/sh -c`, a project path containing any of those characters (e.g., `/Users/me/project; open -a Calculator`) would be executed verbatim by the shell.
+
+The safest fix is to bypass the shell entirely by using Raycast's `open` API with the VS Code bundle identifier, or to use `execFile` instead of `exec`:
+
+```typescript
+async function handleOpenInVSCode() {
+  try {
+    await open(session.projectPath, ""com.microsoft.VSCode"");
+    await showToast({ style: Toast.Style.Success, title: ""Opened project in VS Code"" });
+  } catch {
+    await showToast({ style: Toast.Style.Failure, title: ""VS Code not found"" });
+  }
+}
+```
+
+Alternatively, with `execFile`:
+```typescript
+import { execFile } from ""child_process"";
+const execFileAsync = promisify(execFile);
+await execFileAsync(""code"", [session.projectPath]);
+```
+
+Either approach eliminates the shell injection surface entirely.",https://github.com/raycast/extensions/pull/26015#discussion_r2883225614,,2026-03-04T11:18:06.257000,Incomplete shell escaping enables command injection vulnerability,security,high,8,"This comment identifies a real command injection vulnerability where incomplete shell escaping allows malicious characters like `;`, `|`, `&` to be executed when opening projects in VS Code. A crafted project path could execute arbitrary commands, making this a legitimate security issue.",2026-03-17T06:35:04.352967+00:00
