@@ -16108,3 +16108,88 @@ if (response.status === 429) {
   return fetchFn(url, init);
 }
 ```",https://github.com/raycast/extensions/pull/26207#discussion_r2914816693,,2026-03-10T22:22:40.861000,Rate limit retry logic removed causing requests to fail,logic,high,8,"This catches a meaningful behavioral regression where rate-limited requests now fail instead of retrying after the wait period. This would cause user-visible errors in production when Spotify returns 429 responses, instead of transparently recovering.",2026-03-18T16:35:50.634887+00:00
+simstudioai/sim,3651,fix(knowledge): infer MIME type from file extension in create/upsert tools,https://github.com/simstudioai/sim/pull/3651,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **`application/pdf` content mismatch will break downstream parsing**
+
+`application/pdf` is included in `TEXT_COMPATIBLE_MIME_TYPES`, so a document named `report.pdf` will produce a data URI of `data:application/pdf;base64,<plain-text-encoded>`. The knowledge base API almost certainly tries to parse that content as a binary PDF (to extract text chunks for semantic search). Because the base64 payload is just UTF-8 plain text — not a valid PDF binary — the parser will fail or produce garbage chunks.
+
+The same concern applies to `'application/rtf'` on line 14: RTF has a specific syntax (e.g. `{\rtf1\ansi...}`) that plain text content won't satisfy.
+
+PDF and RTF support requires the caller to provide actual binary content in those formats, which isn't possible here since `params.content` is always a plain-text string. Both types should be removed from the allowlist so they fall back to `text/plain`:
+
+```suggestion
+const TEXT_COMPATIBLE_MIME_TYPES = new Set([
+  'text/plain',
+  'text/html',
+  'text/markdown',
+  'text/csv',
+  'application/json',
+  'application/xml',
+  'application/x-yaml',
+])
+```",https://github.com/simstudioai/sim/pull/3651#discussion_r2952699154,"Fixed — removed `application/pdf` and `application/rtf` from the allowlist. These tools always pass plain text content, so labeling it as PDF/RTF would break downstream parsers.",2026-03-18T11:23:25.046000,PDF/RTF MIME types cause downstream parser failures with text content,data_integrity,high,8,This catches a meaningful bug where labeling plain text content as application/pdf or application/rtf would cause downstream PDF/RTF parsers to fail or produce garbage when trying to parse the text as binary format. This is a real production issue that would corrupt knowledge base document processing.,2026-03-18T18:31:16.695114+00:00
+cline/cline,9836,feat: add file read deduplication cache to prevent repeated reads,https://github.com/cline/cline/pull/9836,"**Cache serves stale content after `execute_command` modifies files**
+
+The cache is correctly invalidated by `write_to_file`, `replace_in_file`, and `apply_patch`. However, `execute_command` (bash) can also modify files (e.g., `sed`, `npm install`, `git checkout`, `mv`, etc.) and does **not** invalidate the file read cache. This means if the model runs a bash command that modifies a file, then reads that file again, it will receive stale cached content instead of the updated file.
+
+This is a meaningful gap since models frequently use bash commands to modify files. Consider either:
+1. Invalidating the entire cache after any `execute_command` completes (simplest, since it's impossible to know which files were changed), or
+2. Documenting this as a known limitation in the code comments.",https://github.com/cline/cline/pull/9836#discussion_r2942997524,Resolved in: https://github.com/cline/cline/pull/9836/changes/22c4336f543266cc834931112e773397356eea0a,2026-03-16T21:10:56.565000,Cache serves stale content after bash commands modify files,data_integrity,high,8,"This catch identifies a meaningful data integrity bug where the file read cache isn't invalidated after execute_command operations that could modify files (sed, npm install, git checkout, etc.), causing the model to receive stale cached content. This is a genuine logic bug that would cause incorrect behavior in production.",2026-03-18T18:31:16.695114+00:00
+gptme/gptme,1692,fix(xml): handle Gemini tool_code codeblock format in XML mode,https://github.com/gptme/gptme/pull/1692,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **`elem.text` silently truncates content with `<` or `>` characters**
+
+`etree.HTMLParser` interprets `<` and `>` inside tag text as child HTML elements. Since Python code very commonly contains these characters (comparisons like `a < b`, type annotations like `List[str]`, string formatting, etc.), the content will be silently truncated at the first `<` character.
+
+For example, with:
+```xml
+<save args=""compare.py"">
+def compare(a, b):
+    return a < b
+</save>
+```
+`elem.text` would only contain `""def compare(a, b):\n    return a ""` — everything from `<` onwards is lost, since the HTML parser interprets `b` as the start of a child tag.
+
+A safer approach is to collect all text content using `itertext()`:
+
+```suggestion
+                    tool_content = """".join(elem.itertext()).strip()
+```
+
+Note: the same truncation issue exists in the existing gptme (`child.text`) and Haiku (`invoke.text`) format handlers, but this PR's Gemini format is specifically designed to save multi-line code files where `<` is especially common.",https://github.com/gptme/gptme/pull/1692#discussion_r2949636291,"Fixed in 3099b4a: replaced `elem.text` with `"""".join(elem.itertext())` so content containing `<`/`>` characters (comparison operators, type annotations, etc.) is fully preserved rather than silently truncated.",2026-03-17T21:22:29.589000,HTML parser silently truncates code content at < characters,data_integrity,high,8,"This catches a significant data corruption bug where Python code containing comparison operators or type annotations would be silently truncated by the HTML parser interpreting < as tag delimiters. This would cause saved code files to be incomplete without any error indication, affecting real user workflows.",2026-03-18T18:31:16.695114+00:00
+nvidia/dali,6229,Torchvision API infrastructure,https://github.com/NVIDIA/DALI/pull/6229,"Both `fn.resize` call sites in `_kernel` omit `interp_type` and `antialias` parameters, even though `self.interpolation` and `self.antialias` are stored during `__init__`. This causes every resize to silently use DALI's default interpolation and never apply antialiasing, completely ignoring the user's choices.
+
+```suggestion
+        # Shorter edge limited by max size
+        if self.mode == ""resize_shorter"":
+            return fn.resize(
+                data_input,
+                device=self.device,
+                resize_shorter=target_h,
+                max_size=self.max_size,
+                interp_type=self.interpolation,
+                antialias=self.antialias,
+            )
+
+        return fn.resize(
+            data_input,
+            device=self.device,
+            size=fn.stack(
+                fn.cast(target_h, dtype=dali.types.FLOAT),
+                fn.cast(target_w, dtype=dali.types.FLOAT),
+            ),
+            mode=self.mode,
+            interp_type=self.interpolation,
+            antialias=self.antialias,
+        )
+```",https://github.com/NVIDIA/DALI/pull/6229#discussion_r2883799145,,2026-03-04T13:27:52.782000,Resize ignores user interpolation and antialias settings,logic,high,8,"The fn.resize calls in _kernel omit interp_type and antialias parameters, causing every resize to silently use DALI's defaults and completely ignore user-specified interpolation mode and antialiasing settings. This is a significant functional bug that would cause incorrect image processing results in production.",2026-03-18T18:31:16.695114+00:00
+nvidia/spark-rapids,14382,Add support for multi-threaded reader for Delta using cuDF deletion vector APIs,https://github.com/NVIDIA/spark-rapids/pull/14382,"**`ClassCastException` when combining empty and non-empty file metadata**
+
+`combinedMeta.toCombine` is of type `Array[HostMemoryBuffersWithMetaDataBase]` and is populated by `computeCombineHMBMeta`, which adds **both** `DeltaParquetHostMemoryEmptyMetaData` (for files with no blocks, missing files with `ignoreMissingFiles=true`, etc.) **and** `DeltaParquetHostMemoryBuffersWithMetaData` entries. Casting every element to `DeltaParquetHostMemoryBuffersWithMetaData` will throw a `ClassCastException` at runtime whenever an empty-metadata entry appears in the same batch as a non-empty one.
+
+The regular parquet reader avoids this entirely by never iterating `toCombine` in `newCombinedHMBWithMetaData`. The Delta version must iterate to combine DV metadata, so it needs to skip empty entries explicitly:
+
+```suggestion
+      val toCombine = combinedMeta.toCombine
+        .collect { case hmb: DeltaParquetHostMemoryBuffersWithMetaData => hmb }
+      val combinedDVMeta = DeletionVectorMetadata.combine(toCombine.flatMap(_.dvMetadata))
+```
+
+Empty entries represent files with no rows, so there is no DV metadata to merge — filtering them out is both safe and semantically correct.",https://github.com/NVIDIA/spark-rapids/pull/14382#discussion_r2921465488,,2026-03-11T23:17:06.962000,ClassCastException when combining empty and non-empty file metadata,type_error,high,8,"This catches a real runtime ClassCastException bug that would crash production when processing Delta tables with a mix of empty files (missing files with ignoreMissingFiles=true, files with no blocks) and non-empty files in the same batch. The comment correctly identifies that the code attempts to cast all elements in an array to a specific subtype, but the array contains mixed types.",2026-03-18T18:31:16.695114+00:00
