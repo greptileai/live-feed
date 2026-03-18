@@ -15562,3 +15562,145 @@ if signer is not None:
         headers={""Cache-Control"": f""public, max-age={cache_ttl}""},
     )
 ```",https://github.com/BerriAI/litellm/pull/23897#discussion_r2949575896,,2026-03-17T21:07:15.237000,JWKS caching causes auth failures after server restart with ephemeral keys,security,high,8,"This catches a real production bug where auto-generated ephemeral signing keys are cached for 1 hour, but server restarts regenerate new keys. This causes all JWT verifications to fail for up to an hour after any restart, effectively breaking authentication for the zero-trust MCP system. This is a non-obvious security/availability issue.",2026-03-18T04:49:21.743014+00:00
+berriai/litellm,23938,"[Feature] /v2/team/list: Add org admin access control, members_count, and indexes",https://github.com/BerriAI/litellm/pull/23938,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Org scope is silently dropped when org admin provides `user_id` + no `organization_id`**
+
+When an org admin calls the endpoint with `?user_id=<anyone>` but no `organization_id`, the condition:
+
+```python
+elif org_admin_org_ids is not None and not user_id:
+    where_conditions[""organization_id""] = {""in"": org_admin_org_ids}
+```
+
+evaluates to `False` (because `user_id` is truthy), so **no organisation filter is injected**. The resulting query then returns all teams of the specified user — from any organisation on the platform — without validating that those teams belong to the org admin's organisations.
+
+The legacy `_authorize_and_filter_teams` is also permissive here (it returns org-teams ∪ user's-member-teams), so this isn't a regression relative to the legacy endpoint. However, the endpoint docstring and the PR's stated invariant (""Org admins can query teams within their organizations"") both imply a narrower scope than what is actually enforced.
+
+If the intention is to allow an org admin to look up teams for an arbitrary user, this should be explicitly documented in the docstring. If the intention is strict org-scoping, consider applying both filters simultaneously:
+
+```python
+elif org_admin_org_ids is not None:
+    conditions = {""organization_id"": {""in"": org_admin_org_ids}}
+    if not user_id:
+        where_conditions.update(conditions)
+    # user_id path will further intersect via team_id IN user_team_ids
+```",https://github.com/BerriAI/litellm/pull/23938#discussion_r2950798727,,2026-03-18T04:26:00.934000,Org admin scope silently bypassed when filtering by user_id,security,high,8,"This is a security vulnerability where org admins can access teams from any organization when they provide a user_id filter without an organization_id. The org scope filter is not applied, allowing data exposure beyond the admin's authorized organizations.",2026-03-18T06:36:12.626893+00:00
+berriai/litellm,23840,feat(file_search): align emulated Responses behavior with native output,https://github.com/BerriAI/litellm/pull/23840,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **First provider call's cost not included in final `_hidden_params`**
+
+`_synthesize_responses_api_response` is called with `original_response=final_response` (the second/follow-up call). The `_hidden_params` that are copied therefore only reflect the second call's `response_cost`, `completion_tokens`, and other billing metadata. The first provider call's cost (which triggered the file-search tool) is silently discarded:
+
+```python
+# Only the second call's cost is visible externally
+if hasattr(original_response, ""_hidden_params""):
+    synthesized._hidden_params = getattr(original_response, ""_hidden_params"")
+```
+
+Every emulated file-search request actually incurs **two** provider API calls plus the vector search round-trip, but external billing callbacks will only see one call's cost. This undercharges and produces inaccurate usage metrics.
+
+Consider accumulating `response_cost` and `prompt_tokens`/`completion_tokens` from `first_response._hidden_params` as well, or at minimum logging a warning that the emulated path's total cost is split across two logging events.",https://github.com/BerriAI/litellm/pull/23840#discussion_r2946579811,,2026-03-17T12:55:35.447000,First API call cost silently dropped in billing/logging,data_integrity,high,8,This catch identifies that emulated file-search makes two provider API calls but only the second call's cost/token metadata is preserved in _hidden_params. This causes systematic under-billing and inaccurate usage metrics for all emulated file-search requests - a real production impact on billing accuracy.,2026-03-18T06:36:12.626893+00:00
+generaltranslation/gt,1118,feat(react): t macro,https://github.com/generaltranslation/gt/pull/1118,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Local variable binding bypasses guard**
+
+The binding check only skips transformation when `t` is an `ImportSpecifier` from a non-GT source. When `t` is a locally declared variable (e.g., `const { t } = useTranslation()` from react-i18next, or `const t = myFn`), `binding.path.isImportSpecifier()` is `false`, so the guard is skipped entirely and the tagged template is incorrectly rewritten.
+
+Example that would be wrongly transformed:
+```ts
+const { t } = useTranslation(); // binding is VariableDeclarator, not ImportSpecifier
+const x = t`Hello ${name}`;    // incorrectly becomes t(""Hello {0}"", { ""0"": name })
+```
+
+The guard should also return early for any non-import binding:
+
+```suggestion
+    // If bound to a non-GT import, skip transformation
+    const binding = path.scope.getBinding(symbol);
+    if (binding) {
+      // Local variable / destructured binding — never a GT macro
+      if (!binding.path.isImportSpecifier()) return;
+      const importDecl = binding.path.parentPath;
+      if (
+        importDecl?.isImportDeclaration() &&
+        !isGTImportSource(importDecl.node.source.value)
+      ) {
+        return;
+      }
+    }
+```
+
+The same pattern exists in `packages/compiler/src/processing/macro-expansion/processCallExpression.ts` lines 25–34 and should be fixed there as well.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/compiler/src/processing/macro-expansion/processTaggedTemplateExpression.ts
+Line: 27-36
+
+Comment:
+**Local variable binding bypasses guard**
+
+The binding check only skips transformation when `t` is an `ImportSpecifier` from a non-GT source. When `t` is a locally declared variable (e.g., `const { t } = useTranslation()` from react-i18next, or `const t = myFn`), `binding.path.isImportSpecifier()` is `false`, so the guard is skipped entirely and the tagged template is incorrectly rewritten.
+
+Example that would be wrongly transformed:
+```ts
+const { t } = useTranslation(); // binding is VariableDeclarator, not ImportSpecifier
+const x = t`Hello ${name}`;    // incorrectly becomes t(""Hello {0}"", { ""0"": name })
+```
+
+The guard should also return early for any non-import binding:
+
+```suggestion
+    // If bound to a non-GT import, skip transformation
+    const binding = path.scope.getBinding(symbol);
+    if (binding) {
+      // Local variable / destructured binding — never a GT macro
+      if (!binding.path.isImportSpecifier()) return;
+      const importDecl = binding.path.parentPath;
+      if (
+        importDecl?.isImportDeclaration() &&
+        !isGTImportSource(importDecl.node.source.value)
+      ) {
+        return;
+      }
+    }
+```
+
+The same pattern exists in `packages/compiler/src/processing/macro-expansion/processCallExpression.ts` lines 25–34 and should be fixed there as well.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/generaltranslation/gt/pull/1118#discussion_r2950909857,,2026-03-18T05:05:20.951000,Local variable binding bypasses macro transformation guard,logic,high,8,"This comment identifies a real logic bug where locally declared variables (e.g., `const { t } = useTranslation()`) would bypass the import guard and incorrectly trigger macro transformation. This would cause silent code corruption for users of other i18n libraries like react-i18next, breaking their translation calls.",2026-03-18T06:36:12.626893+00:00
+berriai/litellm,23808,fix: auto-recover shared aiohttp session when closed,https://github.com/BerriAI/litellm/pull/23808,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Race condition causes session/connector leak under concurrent load**
+
+When many requests arrive simultaneously and all detect `session.closed == True`, every one of them will independently call `await proxy_server._initialize_shared_aiohttp_session()`. Each call creates a brand-new `aiohttp.ClientSession` **and** a `TCPConnector`. The last coroutine to execute `proxy_server.shared_aiohttp_session = new_session` wins, but all intermediate sessions (and their connectors) are orphaned — they are never closed and will leak file descriptors and memory for the pod's lifetime.
+
+There is no `asyncio.Lock` or similar guard around this path, and `_initialize_shared_aiohttp_session` also has no internal deduplication.
+
+A simple fix is to protect this block with a module-level lock:
+
+```python
+# In proxy_server.py, add once at module level:
+_shared_session_lock: asyncio.Lock = asyncio.Lock()
+```
+
+Then in `add_shared_session_to_data`:
+```python
+elif session is not None and session.closed:
+    async with proxy_server._shared_session_lock:
+        # Re-check under the lock — another coroutine may have already recreated it
+        session = proxy_server.shared_aiohttp_session
+        if session is not None and not session.closed:
+            data[""shared_session""] = session
+            return
+        verbose_proxy_logger.warning(
+            f""SESSION REUSE: Shared aiohttp session is closed (ID: {id(session)}), recreating...""
+        )
+        new_session = await proxy_server._initialize_shared_aiohttp_session()
+        if new_session is not None:
+            proxy_server.shared_aiohttp_session = new_session
+            data[""shared_session""] = new_session
+        else:
+            verbose_proxy_logger.info(
+                ""SESSION REUSE: Failed to recreate shared session, continuing without session reuse""
+            )
+```",https://github.com/BerriAI/litellm/pull/23808#discussion_r2944120458,"Valid concern. Under concurrent load, multiple coroutines hitting the closed-session branch simultaneously would each create a new session, leaking the intermediate ones.
+
+Will add an `asyncio.Lock` with double-checked locking pattern as you suggested. Pushing fix now.",2026-03-17T03:14:31.240000,Race condition causes session/connector resource leak under concurrent load,concurrency,high,8,"This comment identifies a real race condition where multiple concurrent requests detecting a closed session would each create new aiohttp sessions, leaking all but the last one. This causes file descriptor and memory leaks in production under load - a meaningful bug that would accumulate over time and could cause resource exhaustion.",2026-03-18T06:36:12.626893+00:00
