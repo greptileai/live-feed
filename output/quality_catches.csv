@@ -16216,3 +16216,175 @@ A straightforward fix is to guard `track()` on whether the notice has actually b
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/PostHog/posthog/pull/51184#discussion_r2941807541,,2026-03-16T17:19:09.750000,Telemetry fires before user sees consent notice,logic,high,8,"Comment 2 identifies a genuine consent gap where telemetry can fire silently without the user ever seeing the first-run notice, which is a meaningful privacy/consent bug. The analysis traces through the code flow showing how git hooks or meta:check invocations can create the config file via get_anonymous_id() before the notice is shown, permanently suppressing the notice.",2026-03-18T20:20:58.792747+00:00
+berriai/litellm,24052,fix(redis): use per-connection IAM token for async Redis cluster (GCP),https://github.com/BerriAI/litellm/pull/24052,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Synchronous IO blocks the event loop**
+
+`_generate_gcp_iam_access_token` is a synchronous function that makes a blocking network call to the GCP IAM API (via `iam_credentials_v1.IAMCredentialsClient().generate_access_token(...)`). Calling it directly inside an `async def` function without offloading to a thread pool will block the entire asyncio event loop for the duration of the HTTP round-trip on **every new Redis cluster connection**.
+
+This defeats the purpose of the async path and can cause cascading delays or timeouts for all concurrent requests while a cluster node reconnects.
+
+The fix is to run the synchronous call in a thread pool executor:
+
+```suggestion
+        token = await asyncio.to_thread(_generate_gcp_iam_access_token, service_account)
+        auth_args = (token,)
+```
+
+You'll also need to add `import asyncio` at the top of the module (it's already imported in the test file, but not in `_redis.py` itself). Alternatively, `loop.run_in_executor(None, _generate_gcp_iam_access_token, service_account)` works on Python < 3.9.",https://github.com/BerriAI/litellm/pull/24052#discussion_r2956366117,,2026-03-18T21:31:32.566000,Synchronous blocking call in async function blocks event loop,concurrency,high,8,"The comment correctly identifies that calling a synchronous GCP IAM token generation function (which makes blocking network calls) directly in an async function will block the entire asyncio event loop, causing cascading delays for all concurrent requests. This is a meaningful concurrency bug that would cause real performance problems in production.",2026-03-18T22:18:23.936378+00:00
+berriai/litellm,23660,Added compaction for non-native Responses API providers. Implements c…,https://github.com/BerriAI/litellm/pull/23660,"**Compaction triggered before threshold is exceeded**
+
+`trim_messages` is called with `max_tokens = compact_threshold * 0.25` unconditionally, regardless of whether the conversation actually exceeds `compact_threshold`. Reviewing `litellm.utils.trim_messages` confirms it only skips trimming when `current_tokens < max_tokens` — where `max_tokens` is the *target* (25% of threshold), not the threshold itself.
+
+This means any conversation whose token count falls **between** `compact_threshold * 0.25` and `compact_threshold` gets aggressively trimmed even though compaction should not yet have triggered. For example, with `compact_threshold=4000` and a 2000-token conversation: `target_tokens = 1000`, so 2000 > 1000 and the conversation is trimmed to 1000 tokens — even though 2000 < 4000 (threshold not exceeded).
+
+The fix is to count current tokens first and only compact when they actually exceed the threshold before calling `trim_messages` with the target.",https://github.com/BerriAI/litellm/pull/23660#discussion_r2935898313,,2026-03-14T22:14:05.166000,Compaction triggers prematurely before threshold is exceeded,logic,high,8,"Comment 3 identifies a significant logic bug where trim_messages is called unconditionally with max_tokens set to 25% of threshold, causing conversations between 25%-100% of the threshold to be incorrectly trimmed. This would cause unexpected data loss in production for users who haven't exceeded their compaction threshold.",2026-03-18T22:18:23.936378+00:00
+gptme/gptme,1672,fix(shell): preserve output when last line lacks trailing newline,https://github.com/gptme/gptme/pull/1672,"**`index` finds first `ReturnCode:`, not the delimiter's marker**
+
+`line.index(""ReturnCode:"")` returns the position of the **first** occurrence of `""ReturnCode:""` in the line. If the command's own output contains `""ReturnCode:""` and was printed without a trailing newline, the first occurrence belongs to the command output rather than to the actual delimiter marker (`ReturnCode:<exit> END_OF_COMMAND_OUTPUT`).
+
+Example:
+- Command: `printf ""error: ReturnCode:1 ""`
+- Combined line: `error: ReturnCode:1 ReturnCode:0 END_OF_COMMAND_OUTPUT`
+- With `index`:  `rc_pos = 7`  → `prefix = ""error: ""` (**truncated**)
+- With `rfind`:  `rc_pos = 20` → `prefix = ""error: ReturnCode:1 ""` (**correct**)
+
+Using `rfind` instead of `index` finds the last occurrence, which is always the actual shell-injected marker, and correctly captures the entire command output as the prefix:
+
+```suggestion
+                            rc_pos = line.rfind(""ReturnCode:"")
+                            if rc_pos > 0:
+                                prefix = line[:rc_pos]
+```
+
+The same issue exists in `_read_output_unix` at line 1033.",https://github.com/gptme/gptme/pull/1672#discussion_r2934567450,"Fixed in f273338d3 — changed both occurrences (unix + windows paths) from `line.index(""ReturnCode:"")` to `line.rfind(""ReturnCode:"")`. Good catch!",2026-03-14T03:08:08.647000,Output truncation when command output contains ReturnCode marker,logic,medium,8,"This is a meaningful logic bug where using `index` instead of `rfind` would truncate command output if it contained 'ReturnCode:' - a realistic edge case in shell output handling. The fix is non-obvious, requires understanding the delimiter parsing logic, and would cause data loss in production. The reviewer provided a clear example demonstrating the issue and identified the same bug in another location.",2026-03-18T22:18:23.936378+00:00
+gptme/gptme,1679,"feat(eval): add practical7 suite — ini-to-json, json-diff, changelog-gen",https://github.com/gptme/gptme/pull/1679,"**`configparser` interpolation will crash the most natural implementation**
+
+The `[logging]` section in `_CONFIG_INI` contains:
+
+```ini
+format = %(asctime)s - %(levelname)s - %(message)s
+```
+
+Python's `configparser.ConfigParser()` (the default class, using `BasicInterpolation`) treats `%(name)s` syntax as interpolation references — exactly the same syntax as Python's `logging.Formatter`. When a model writes a typical implementation and iterates over `config['logging']` to build the JSON dict, it will raise:
+
+```
+configparser.InterpolationMissingOptionError: Bad value substitution: option 'format' in section 'logging' contains an interpolation key 'asctime' which is not a valid option name.
+```
+
+This will cause the script to exit with a non-zero code, producing no valid JSON on stdout. As a result, 4 of the 5 `ini-to-json` checks will silently fail (`check_ini_exit`, `check_ini_sections`, `check_ini_values`, and `check_ini_nested`).
+
+The correct fix is to use `configparser.RawConfigParser()` or pass `interpolation=None`, but the prompt gives no hint of this. If this is an intentional difficulty spike, it should be documented. If not, either the prompt should mention it, or the fixture value should be changed to avoid `%(...)s` syntax (e.g. `format = timestamp - level - message`).",https://github.com/gptme/gptme/pull/1679#discussion_r2936832403,"Fixed in f8d3df7 — updated the ini-to-json prompt to explicitly instruct the model to use `RawConfigParser` (or `ConfigParser(interpolation=None)`), so percent-sign sequences in values like the logging format string are preserved as-is.",2026-03-15T14:42:45.687000,ConfigParser interpolation crashes INI parsing with percent-sign syntax,runtime,high,8,"This catches a subtle but guaranteed runtime crash: Python's default ConfigParser treats %(name)s as interpolation syntax, which will throw InterpolationMissingOptionError when parsing the logging format string, causing 4 of 5 eval checks to fail silently. This requires Python-specific knowledge about configparser behavior.",2026-03-18T22:18:23.936378+00:00
+onyx-dot-app/onyx,9433,chore(hooks): Add Celery task to remove hook running records older than 30 days,https://github.com/onyx-dot-app/onyx/pull/9433,"<a href=""#""><img alt=""P2"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p2.svg?v=7"" align=""top""></a> **Missing `db_session.commit()` — deletions are silently rolled back**
+
+The function calls `cleanup_old_execution_logs__no_commit`, whose `__no_commit` suffix is an explicit codebase convention indicating that *the caller is responsible for committing the transaction*. The function body executes a `DELETE` statement but never commits it (see `onyx/db/hook.py` lines 219–233). Because `get_session_with_tenant`'s `Session` context manager closes the session on exit without auto-committing, the pending transaction is rolled back. As a result, the task will log ""Deleted N hook execution log(s)…"" but the database will be left unchanged.
+
+Compare with `delete_task_with_id` in `onyx/db/tasks.py` (which calls `db_session.commit()` internally) and the `delete_orphan_tags__no_commit` callers in `connector_deletion/tasks.py` (where an explicit `db_session.commit()` follows on line 515).
+
+```suggestion
+    try:
+        with get_session_with_current_tenant() as db_session:
+            deleted = cleanup_old_execution_logs__no_commit(
+                db_session=db_session,
+                max_age_days=_HOOK_EXECUTION_LOG_RETENTION_DAYS,
+            )
+            db_session.commit()
+            if deleted:
+                logger.info(
+                    f""Deleted {deleted} hook execution log(s) older than ""
+                    f""{_HOOK_EXECUTION_LOG_RETENTION_DAYS} days.""
+                )
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: backend/onyx/background/celery/tasks/hooks/tasks.py
+Line: 21-31
+
+Comment:
+**Missing `db_session.commit()` — deletions are silently rolled back**
+
+The function calls `cleanup_old_execution_logs__no_commit`, whose `__no_commit` suffix is an explicit codebase convention indicating that *the caller is responsible for committing the transaction*. The function body executes a `DELETE` statement but never commits it (see `onyx/db/hook.py` lines 219–233). Because `get_session_with_tenant`'s `Session` context manager closes the session on exit without auto-committing, the pending transaction is rolled back. As a result, the task will log ""Deleted N hook execution log(s)…"" but the database will be left unchanged.
+
+Compare with `delete_task_with_id` in `onyx/db/tasks.py` (which calls `db_session.commit()` internally) and the `delete_orphan_tags__no_commit` callers in `connector_deletion/tasks.py` (where an explicit `db_session.commit()` follows on line 515).
+
+```suggestion
+    try:
+        with get_session_with_current_tenant() as db_session:
+            deleted = cleanup_old_execution_logs__no_commit(
+                db_session=db_session,
+                max_age_days=_HOOK_EXECUTION_LOG_RETENTION_DAYS,
+            )
+            db_session.commit()
+            if deleted:
+                logger.info(
+                    f""Deleted {deleted} hook execution log(s) older than ""
+                    f""{_HOOK_EXECUTION_LOG_RETENTION_DAYS} days.""
+                )
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/9433#discussion_r2949976663,,2026-03-17T23:02:17.678000,Missing commit causes database deletions to silently roll back,data_integrity,high,8,"This catches a significant bug where the cleanup task would appear to succeed (logging deletions) but actually do nothing because the transaction is never committed. The `__no_commit` suffix convention requires the caller to commit, and without it, all deletions are silently rolled back when the session closes.",2026-03-18T22:18:23.936378+00:00
+gptme/gptme,1675,fix(tokens): graceful fallback when tiktoken unavailable or offline,https://github.com/gptme/gptme/pull/1675,"**Token truncation silently skipped when tokenizer unavailable**
+
+When `tokenizer is None` (offline/airgapped), `will_truncate_by_tokens` stays `False` and the `tokens` list remains empty. This means the entire token-based truncation path (lines 2138–2155) is bypassed — the output is returned untruncated regardless of how large it is.
+
+This is the silent degradation path that's inconsistent with the `len_tokens` fix in `tokens.py`: `len_tokens` gracefully falls back to a `len(content) // 4` approximation, but `_shorten_stdout` simply skips truncation. In an offline environment with a large shell output, this could cause context window overflow.
+
+A character-based fallback for truncation (similar to what `len_tokens` does) should be applied here too, e.g.:
+
+```python
+if pre_tokens is not None and post_tokens is not None:
+    from ..llm.models import get_default_model  # fmt: skip
+
+    model = get_default_model()
+    tokenizer = get_tokenizer(model.model if model else ""gpt-4"")
+    if tokenizer is not None:
+        tokens = tokenizer.encode(stdout)
+        will_truncate_by_tokens = len(tokens) > pre_tokens + post_tokens
+    else:
+        # Approximate: ~4 characters per token for English text
+        approx_token_count = len(stdout) // 4
+        will_truncate_by_tokens = approx_token_count > pre_tokens + post_tokens
+```
+",https://github.com/gptme/gptme/pull/1675#discussion_r2936025176,"Fixed in aaebbe2b2. Added char-based fallback truncation in `_shorten_stdout` when tokenizer is None: `will_truncate_by_tokens` is now set to `True` when `len(stdout) > (pre_tokens + post_tokens) * 4`, and a new `elif tokenizer is None and will_truncate_by_tokens:` branch slices by `pre_tokens * 4` chars head/tail. Large outputs are now properly truncated (and saved to logdir) even in offline environments.",2026-03-15T00:13:44.502000,Token truncation silently skipped causing potential context overflow,logic,high,8,"Comment 1 identifies a meaningful logic bug where large shell outputs would completely bypass token-based truncation in offline environments, potentially causing context window overflow. This is a real production issue that could affect users in airgapped environments, with actual impact on system behavior.",2026-03-18T22:18:23.936378+00:00
+onyx-dot-app/onyx,9430,fix(opensearch): Exclude retrieving vectors during hybrid and random search,https://github.com/onyx-dot-app/onyx/pull/9430,"<a href=""#""><img alt=""P0"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p0.svg?v=7"" align=""top""></a> **Excluding required fields breaks `DocumentChunk` deserialization**
+
+`content_vector: list[float]` in `DocumentChunk` (schema.py:129) is a **required** Pydantic field with no default. Excluding it from `_source` means `document_chunk_source` won't contain the key, and `DocumentChunk.model_validate(document_chunk_source)` in `client.py:897` will raise a `ValidationError` for every search hit — breaking hybrid search entirely.
+
+Similarly, `title_vector` has a default of `None`, but excluding it will cause the `check_title_and_title_vector_are_consistent` model validator (schema.py:184–189) to raise a `ValueError` for every document that has a non-None `title`, because `title` will still be present in the source while `title_vector` will be defaulted to `None`:
+```python
+if self.title is not None and self.title_vector is None:
+    raise ValueError(""Bug: Title vector must not be None if title is not None."")
+```
+
+To exclude these fields from retrieval without breaking deserialization, the `DocumentChunk` model needs to be updated to make `content_vector` optional (`content_vector: list[float] | None = None`) and the `check_title_and_title_vector_are_consistent` validator needs to be made aware that `title_vector` may be legitimately absent in read paths. Alternatively, a separate, read-optimised model (without the vector fields) should be used for deserialising search hits.
+
+The same issue applies to the identical block in `get_random_search_query` (lines 456–458).
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: backend/onyx/document_index/opensearch/search.py
+Line: 392-394
+
+Comment:
+**Excluding required fields breaks `DocumentChunk` deserialization**
+
+`content_vector: list[float]` in `DocumentChunk` (schema.py:129) is a **required** Pydantic field with no default. Excluding it from `_source` means `document_chunk_source` won't contain the key, and `DocumentChunk.model_validate(document_chunk_source)` in `client.py:897` will raise a `ValidationError` for every search hit — breaking hybrid search entirely.
+
+Similarly, `title_vector` has a default of `None`, but excluding it will cause the `check_title_and_title_vector_are_consistent` model validator (schema.py:184–189) to raise a `ValueError` for every document that has a non-None `title`, because `title` will still be present in the source while `title_vector` will be defaulted to `None`:
+```python
+if self.title is not None and self.title_vector is None:
+    raise ValueError(""Bug: Title vector must not be None if title is not None."")
+```
+
+To exclude these fields from retrieval without breaking deserialization, the `DocumentChunk` model needs to be updated to make `content_vector` optional (`content_vector: list[float] | None = None`) and the `check_title_and_title_vector_are_consistent` validator needs to be made aware that `title_vector` may be legitimately absent in read paths. Alternatively, a separate, read-optimised model (without the vector fields) should be used for deserialising search hits.
+
+The same issue applies to the identical block in `get_random_search_query` (lines 456–458).
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/9430#discussion_r2949895686,,2026-03-17T22:36:11.436000,Excluding required Pydantic fields breaks search deserialization,runtime,critical,8,"Comment 1 identifies a critical bug where excluding `content_vector` (a required Pydantic field) from OpenSearch `_source` will cause `ValidationError` on every search hit, completely breaking hybrid and random search functionality. The analysis is thorough, identifying both the required field issue and the validator consistency check that would fail.",2026-03-18T22:18:23.936378+00:00
