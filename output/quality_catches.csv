@@ -15755,3 +15755,135 @@ try {
   throw err;
 }
 ```",https://github.com/raycast/extensions/pull/26304#discussion_r2933973051,changed sync to use a temporary directory and replace cache only after successful download,2026-03-13T22:03:55.168000,Partial sync failure leaves cache in corrupted unrecoverable state,data_integrity,high,8,"This catches a real data integrity bug where a network failure during sync leaves the cache in a corrupted state that persists across restarts, with no automatic recovery. The suggested fix using atomic directory swap is a proper solution to ensure all-or-nothing updates.",2026-03-18T10:28:41.089603+00:00
+raycast/extensions,25691,[Clean Keyboard] Add Windows Support,https://github.com/raycast/extensions/pull/25691,"**`stop_handler` silently succeeds if `SendInput` fails**
+
+`inject_ctrl_u()` calls `SendInput`, which returns the number of events successfully inserted into the input stream. If it returns 0 (e.g., due to UIPI restrictions or the target desktop being different), no Ctrl+U is sent, `IS_LOCKED` remains `true`, and the keyboard stays locked — yet `stop_handler` returns `Ok(())`, so the TypeScript side shows ""Keyboard unlocked"" to the user while the keyboard is actually still locked.
+
+Consider checking the `SendInput` return value and returning an error if no events were injected, so the UI can reflect the failure:
+
+```
+fn inject_ctrl_u() -> Result<(), String> {
+    unsafe {
+        // ... (same inputs array) ...
+        let sent = SendInput(&inputs, mem::size_of::<INPUT>() as i32);
+        if sent == 0 {
+            return Err(""Failed to inject Ctrl+U: SendInput returned 0"".to_string());
+        }
+        Ok(())
+    }
+}
+```",https://github.com/raycast/extensions/pull/25691#discussion_r2837412666,,2026-02-22T09:09:35.391000,Silent SendInput failure leaves keyboard permanently locked,logic,high,8,"This catch identifies a significant bug where the keyboard unlock function reports success to the user while the keyboard remains locked. If SendInput fails due to UIPI restrictions or desktop isolation, users see 'Keyboard unlocked' but cannot actually use their keyboard - a serious UX and functionality issue.",2026-03-18T12:31:35.865124+00:00
+posthog/posthog-js,3246,fix: pipe to cli stdin,https://github.com/PostHog/posthog-js/pull/3246,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Unhandled EPIPE error on `child.stdin`**
+
+If the child process exits early (e.g., due to an invalid argument or a CLI startup error), any `write` to `child.stdin` after it has closed will emit an `'error'` event on the stream. Since there is no error listener attached to `child.stdin`, Node.js will treat it as an uncaught exception and crash the build process.
+
+`child.on('error', reject)` only catches spawn-level errors (e.g., `ENOENT` for a missing binary) — it does **not** catch errors on the `stdin` stream.
+
+```suggestion
+  if (options.stdin !== undefined && child.stdin) {
+    child.stdin.on('error', () => {
+      // Swallow EPIPE: child may exit before consuming all stdin
+    })
+    child.stdin.write(options.stdin)
+    child.stdin.end()
+  }
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/core/src/process/spawn-local.ts
+Line: 21-24
+
+Comment:
+**Unhandled EPIPE error on `child.stdin`**
+
+If the child process exits early (e.g., due to an invalid argument or a CLI startup error), any `write` to `child.stdin` after it has closed will emit an `'error'` event on the stream. Since there is no error listener attached to `child.stdin`, Node.js will treat it as an uncaught exception and crash the build process.
+
+`child.on('error', reject)` only catches spawn-level errors (e.g., `ENOENT` for a missing binary) — it does **not** catch errors on the `stdin` stream.
+
+```suggestion
+  if (options.stdin !== undefined && child.stdin) {
+    child.stdin.on('error', () => {
+      // Swallow EPIPE: child may exit before consuming all stdin
+    })
+    child.stdin.write(options.stdin)
+    child.stdin.end()
+  }
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog-js/pull/3246#discussion_r2949623486,,2026-03-17T21:19:03.836000,Unhandled EPIPE error crashes process on early child exit,runtime,high,8,"This is a genuine runtime bug that would cause uncaught exceptions and crash the build process when child processes exit early. The catch correctly identifies that child.on('error') doesn't cover stdin stream errors, which is a non-obvious Node.js behavior that requires specific knowledge to identify.",2026-03-18T12:31:35.865124+00:00
+berriai/litellm,23997,Add support for prompt management for responses,https://github.com/BerriAI/litellm/pull/23997,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Double prompt management execution in async path**
+
+When `aresponses()` is called, the async block (lines 488–505) runs `async_get_chat_completion_prompt`, sets `input = merged_input` (template messages prepended to user messages), and then calls `partial(responses, input=input, ..., **kwargs)` — where `kwargs` still contains `prompt_id`.
+
+Inside `responses()`, the sync prompt management block independently calls `should_run_prompt_management_hooks(prompt_id=prompt_id, non_default_params=kwargs)`. Because `prompt_id` is still present in `kwargs`, it returns `True` again, and `get_chat_completion_prompt` is invoked a second time — this time with `client_input` extracted from the already-merged `input`. The template messages are therefore prepended **twice** in production.
+
+For example, if the template is `[{system: ""Be helpful""}]` and the user sends `""Hello""`:
+- After async block: `input = [{system: ""Be helpful""}, {user: ""Hello""}]`
+- After sync block in `responses()`: template prepended again → `[{system: ""Be helpful""}, {system: ""Be helpful""}, {user: ""Hello""}]`
+
+The tests in `TestAsyncResponsesAPIPromptManagement` do not catch this because both `async_get_chat_completion_prompt` and `get_chat_completion_prompt` are mocked to return the same hardcoded `merged_messages` regardless of the `messages` argument passed to them — the idempotent mock hides the double-merge.
+
+A fix would be to either (a) remove the sync prompt management block from `responses()` when invoked from `aresponses()` (e.g. pop `prompt_id` from `kwargs` after the async block runs), or (b) skip the sync block when `aresponses` flag is set.",https://github.com/BerriAI/litellm/pull/23997#discussion_r2952716363,,2026-03-18T11:26:00.548000,Double execution of prompt management causes duplicate template messages,logic,high,8,"Comment 2 identifies a real production bug where the async path runs prompt management, then the sync path runs it again because prompt_id is still in kwargs, causing template messages to be prepended twice. This would corrupt all async API responses with duplicated system prompts.",2026-03-18T12:31:35.865124+00:00
+openreplay/openreplay,4463,Breakdown UI,https://github.com/openreplay/openreplay/pull/4463,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Non-null assertion crashes when stored breakdown label is unrecognised**
+
+`allFilterOptions.find(...)` can return `undefined` if a breakdown label stored in `metric.breakdowns` no longer exists in the current filter options (e.g. project type change, or the option was removed from `supportedOptions`). The non-null assertion `found!` does **not** prevent `undefined` from being returned; `breakdownFilters` will then contain `undefined` entries, and the very next line `breakdownFilters.map((f: any) => f.name)` will throw `Cannot read properties of undefined (reading 'name')`, crashing the entire widget form.
+
+```suggestion
+  const breakdownFilters: Filter[] = breakdownLabels
+    .map((label: string) => allFilterOptions.find((f) => f.name === label))
+    .filter((f): f is Filter => f !== undefined);
+```",https://github.com/openreplay/openreplay/pull/4463#discussion_r2952247074,,2026-03-18T10:01:09.505000,Non-null assertion crashes when breakdown label is unrecognized,runtime,high,8,"This comment identifies a real runtime crash scenario where accessing `.name` on an undefined value will throw an exception. When a stored breakdown label no longer exists in filter options, the find() returns undefined, and the subsequent map call will crash with 'Cannot read properties of undefined'. This is a meaningful production bug that would break the widget form.",2026-03-18T12:31:35.865124+00:00
+berriai/litellm,23985,Add support for prompt management for responses,https://github.com/BerriAI/litellm/pull/23985,"<a href=""#""><img alt=""P0"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p0.svg?v=7"" align=""top""></a> **`TypeError` when template defines named response params**
+
+`kwargs.update(merged_optional_params)` on line 521 can write standard named parameters like `temperature` or `top_p` into `kwargs`. The `partial()` call immediately below (line 525) also passes these same parameters *explicitly* (e.g., `temperature=temperature` on line 540). When Python evaluates `partial(responses, ..., temperature=None, ..., **kwargs)` and `kwargs` already contains `temperature`, it raises:
+
+```
+TypeError: partial() got multiple values for keyword argument 'temperature'
+```
+
+This is a critical regression for any user whose prompt template sets `temperature` (or other named `responses()` params) in the async path. The sync path avoids this because it later calls `local_vars.update(kwargs)` and reads from `local_vars`.
+
+**Fix**: Before calling `kwargs.update(merged_optional_params)`, strip keys from `merged_optional_params` that are already explicit named parameters of `responses()` and update the local variable directly. Or, better, mirror what the sync path does — store them in a separate dict and apply them only to `local_vars` inside `responses()`.
+
+The test `test_aresponses_uses_async_prompt_hook` does not catch this because it patches out `responses` with a `MagicMock` that accepts any kwargs silently.",https://github.com/BerriAI/litellm/pull/23985#discussion_r2952452452,,2026-03-18T10:38:26.891000,Duplicate kwargs in partial() causes TypeError for templated params,runtime,high,8,"This catches a real runtime bug where template parameters merged into kwargs conflict with explicit named parameters in partial(), causing a TypeError. The analysis is thorough, identifies the root cause, explains why tests missed it, and notes the sync path doesn't have this issue. This would crash in production for any user with prompt templates setting common parameters.",2026-03-18T12:31:35.865124+00:00
+berriai/litellm,23982,Fix ensure_alternating_roles for correct order,https://github.com/BerriAI/litellm/pull/23982,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Double-increment skips messages for 3+ consecutive assistants**
+
+The loop uses `i += 2` when inserting a continue message, but then unconditionally falls through to `if i < len(result_messages): i += 1`. This means every successful insertion advances `i` by **3** instead of 2, causing any message immediately after the inserted pair to be skipped.
+
+**Concrete trace** with `[user_c, assistant1, assistant2, assistant3]` (after the initial-prefix fix):
+- At `i=2` (assistant2): previous counted is assistant1 → insert at 2 → list is `[user_c, assistant1, user_c2, assistant2, assistant3]`, `i += 2` → `i=4`
+- Then `4 < 5` → `i += 1` → `i=5`
+- Loop exits — `assistant3` is **never processed**
+
+The final-message guard then appends one `user_continue` after `assistant3`, but the expected intermediate `user_continue` between `assistant2` and `assistant3` is missing.
+
+The original pre-PR code avoided this with a strict `if ... i+=2 / else i+=1`. The fix is to not increment again after an insertion — use a flag or restructure:
+
+```python
+        i = 1
+        while i < len(result_messages):
+            curr_message = result_messages[i]
+            incremented = False
+            if (
+                curr_message[""role""] == ""assistant""
+                and _counts_for_alternation(curr_message)
+            ):
+                j = i - 1
+                while j >= 0:
+                    previous_message = result_messages[j]
+                    if _counts_for_alternation(previous_message):
+                        if previous_message[""role""] == ""assistant"":
+                            result_messages.insert(i, continue_message)
+                            i += 2
+                            incremented = True
+                        break
+                    j -= 1
+            if not incremented:
+                i += 1
+```
+",https://github.com/BerriAI/litellm/pull/23982#discussion_r2952244637,,2026-03-18T10:00:41.565000,Double-increment bug skips messages in consecutive assistant handling,logic,high,8,"This comment identifies a real logic bug where the loop increments by 3 instead of 2 after inserting a continue message, causing messages to be skipped when there are 3+ consecutive assistant messages. The concrete trace demonstrates the bug clearly, and this would cause incorrect message alternation in production.",2026-03-18T12:31:35.865124+00:00
