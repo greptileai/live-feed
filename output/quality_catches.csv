@@ -15704,3 +15704,54 @@ elif session is not None and session.closed:
 ```",https://github.com/BerriAI/litellm/pull/23808#discussion_r2944120458,"Valid concern. Under concurrent load, multiple coroutines hitting the closed-session branch simultaneously would each create a new session, leaking the intermediate ones.
 
 Will add an `asyncio.Lock` with double-checked locking pattern as you suggested. Pushing fix now.",2026-03-17T03:14:31.240000,Race condition causes session/connector resource leak under concurrent load,concurrency,high,8,"This comment identifies a real race condition where multiple concurrent requests detecting a closed session would each create new aiohttp sessions, leaking all but the last one. This causes file descriptor and memory leaks in production under load - a meaningful bug that would accumulate over time and could cause resource exhaustion.",2026-03-18T06:36:12.626893+00:00
+simstudioai/sim,3648,feat(home): resizable chat/resource panel divider,https://github.com/simstudioai/sim/pull/3648,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Idle-reset timer not stored — can corrupt 'saving' indicator on rapid saves**
+
+`setTimeout(() => setSaveStatus('idle'), 2000)` is scheduled but never stored in a ref, so it cannot be cancelled. This causes a concrete bug in the rapid-save path:
+
+1. Save #1 finishes → schedules a 2-second idle-reset timer, then immediately triggers Save #2 (because content changed during save #1).
+2. Save #2 starts → status correctly shows `'saving'`.
+3. The 2-second timer from Save #1 fires and calls `setSaveStatus('idle')` — replacing `'saving'` with `'idle'` while the network request is still in flight.
+4. Save #2 eventually finishes and (correctly) shows `'saved'`, then schedules its own idle timer.
+
+This is especially likely because `save()` calls itself at the end of `finally` when `contentRef.current !== savedContentRef.current`, creating a chained-save pattern.
+
+The previous `useEffect`-based approach avoided this by storing the timeout handle and cleaning it up via the effect's return value whenever `saveStatus` changed (e.g. back to `'saving'`).
+
+```typescript
+// Store a ref at the top of the hook alongside timerRef:
+const idleTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
+
+// In the finally block, replace the bare setTimeout with:
+clearTimeout(idleTimerRef.current)
+idleTimerRef.current = setTimeout(() => setSaveStatus('idle'), 2000)
+```
+
+Also add `clearTimeout(idleTimerRef.current)` to the unmount cleanup effect on line 79.",https://github.com/simstudioai/sim/pull/3648#discussion_r2951854476,"Fixed — added idleTimerRef alongside timerRef. Now calls clearTimeout(idleTimerRef.current) before scheduling each new idle-reset, so a Save #1 timer can never fire while Save #2 is still in-flight. Also added clearTimeout(idleTimerRef.current) to the unmount cleanup.",2026-03-18T08:53:34.631000,Uncancellable timer corrupts save status during rapid saves,concurrency,high,8,"This catches a real race condition where a timer from Save #1 can fire during Save #2, incorrectly showing 'idle' while a save is in progress. This would mislead users about save status and could cause data loss if they navigate away thinking their work is saved.",2026-03-18T10:28:41.089603+00:00
+raycast/extensions,26304,Add ai-agency extension,https://github.com/raycast/extensions/pull/26304,"**Partial sync leaves cache in a corrupted, unrecoverable state**
+
+`resetAgentsDirectory()` wipes the local cache _before_ any files are downloaded. If a network error occurs mid-loop (e.g. after writing 10 of 50 files), the process throws and the `writeSyncState` call is never reached. At that point:
+
+1. The agents directory exists but only contains the files written before the failure.
+2. Because the directory is non-empty, `ensureAgentsAvailable()` will see `entries.length > 0` and return `false` without attempting a re-sync — so the corrupted state persists across restarts until the user manually triggers ""Refresh AI Agency Agents"".
+
+A safer pattern is to download all files to a temporary directory first, then atomically swap it in place, so the existing cache is only replaced on full success:
+
+```typescript
+const tmpDir = `${AGENTS_DIR}_tmp_${Date.now()}`;
+await fs.mkdir(tmpDir, { recursive: true });
+
+try {
+  for (const entry of filesToSync) {
+    const content = await fetchText(getRawFileUrl(entry.path));
+    const destination = path.join(tmpDir, entry.path);
+    await fs.mkdir(path.dirname(destination), { recursive: true });
+    await fs.writeFile(destination, content, ""utf8"");
+  }
+  // Atomically replace the old directory only after all downloads succeed
+  await fs.rm(AGENTS_DIR, { recursive: true, force: true });
+  await fs.rename(tmpDir, AGENTS_DIR);
+} catch (err) {
+  await fs.rm(tmpDir, { recursive: true, force: true });
+  throw err;
+}
+```",https://github.com/raycast/extensions/pull/26304#discussion_r2933973051,changed sync to use a temporary directory and replace cache only after successful download,2026-03-13T22:03:55.168000,Partial sync failure leaves cache in corrupted unrecoverable state,data_integrity,high,8,"This catches a real data integrity bug where a network failure during sync leaves the cache in a corrupted state that persists across restarts, with no automatic recovery. The suggested fix using atomic directory swap is a proper solution to ensure all-or-nothing updates.",2026-03-18T10:28:41.089603+00:00
