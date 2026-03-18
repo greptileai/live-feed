@@ -15514,3 +15514,51 @@ if (existingDocumentId) {
 ```
 
 This way, a failure in `createDocumentRecords` leaves the original document intact.",https://github.com/simstudioai/sim/pull/3644#discussion_r2950156754,"Fixed — reordered to create-then-delete so the new document record is created first, and the old one is only deleted after successful creation. This prevents data loss if createDocumentRecords fails.",2026-03-18T00:06:44.141000,Data loss from delete-before-create in non-atomic upsert operation,data_integrity,high,8,This catches a real data integrity bug where deleting the old document before creating the new one means any failure in createDocumentRecords results in permanent data loss with no recovery. This is a meaningful architectural flaw that would affect users in production.,2026-03-18T03:15:00.342588+00:00
+berriai/litellm,23839, fix(proxy): preserve pre-call 429 behavior without fallbacks,https://github.com/BerriAI/litellm/pull/23839,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **`_has_fallback_for_model` silently skips non-standard fallback formats**
+
+`_has_fallback_for_model` only recognises the standard `[{""model-group"": [""fallback-group""]}]` format. The router also supports two non-standard formats that this helper never matches:
+
+1. **Flat string list** – `fallbacks = [""claude-3-haiku"", ""gpt-4""]`  
+2. **LiteLLMParams dict list** – `fallbacks = [{""model"": ""claude-3-haiku"", ...}]`
+
+For both of these, every item either isn't a dict or has no model-group key, so `_has_fallback_for_model` returns `False`. `_should_defer_to_router_fallback` then returns `False`, the hook raises `HTTPException` immediately (fail-fast), and the router never gets a chance to try the fallback — even though `_check_non_standard_fallback_format` in the router treats these lists as valid fallback configurations.
+
+**Impact:** Users with non-standard fallback lists who add `dynamic_rate_limiter_v3` will start receiving 429s instead of successful fallbacks, a silent regression compared to the router's own behaviour.
+
+The fix should mirror the router's detection logic:
+
+```python
+from litellm.router_utils.fallback_event_handlers import _check_non_standard_fallback_format
+
+def _has_fallback_for_model(_fallbacks: Optional[list], _model: str) -> bool:
+    if not _fallbacks:
+        return False
+    # Non-standard format (flat string list or LiteLLMParams dict list):
+    # the router will try whatever is in the list regardless of model group,
+    # so treat any non-empty non-standard fallback list as ""has a fallback"".
+    if _check_non_standard_fallback_format(_fallbacks):
+        return True
+    for item in _fallbacks:
+        if isinstance(item, dict):
+            if _model in item or ""*"" in item:
+                return True
+    return False
+```",https://github.com/BerriAI/litellm/pull/23839#discussion_r2945560895,,2026-03-17T09:48:00.044000,Fallback detection silently fails for non-standard fallback formats,logic,high,8,This catch identifies a significant logic bug where `_has_fallback_for_model` only recognizes standard fallback formats but the router supports two additional formats (flat string lists and LiteLLMParams dict lists). Users with these valid fallback configurations would receive 429 errors instead of successful fallbacks - a silent regression that breaks existing functionality.,2026-03-18T04:49:21.743014+00:00
+berriai/litellm,23897,feat(guardrails): MCPJWTSigner - built-in guardrail for zero trust MCP auth,https://github.com/BerriAI/litellm/pull/23897,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **JWKS cache duration too long for auto-generated ephemeral keys**
+
+The endpoint returns `Cache-Control: public, max-age=3600` regardless of whether the key is a user-supplied persistent key or an auto-generated ephemeral keypair. When the server restarts (which regenerates the keypair), downstream MCP servers and gateways will continue using the old cached JWKS for up to one hour, causing all JWT verifications to fail during that window.
+
+For auto-generated keys, either:
+- Reduce the cache TTL significantly (e.g., `max-age=60`), or
+- Use `Cache-Control: no-store` (or `private, no-cache`) for ephemeral keys and only apply long-lived caching when a persistent key from `MCP_JWT_SIGNING_KEY` env var is used.
+
+```python
+signer = get_mcp_jwt_signer()
+if signer is not None:
+    key_is_ephemeral = not os.environ.get(signer.SIGNING_KEY_ENV)
+    cache_ttl = 60 if key_is_ephemeral else 3600
+    return JSONResponse(
+        content=signer.get_jwks(),
+        headers={""Cache-Control"": f""public, max-age={cache_ttl}""},
+    )
+```",https://github.com/BerriAI/litellm/pull/23897#discussion_r2949575896,,2026-03-17T21:07:15.237000,JWKS caching causes auth failures after server restart with ephemeral keys,security,high,8,"This catches a real production bug where auto-generated ephemeral signing keys are cached for 1 hour, but server restarts regenerate new keys. This causes all JWT verifications to fail for up to an hour after any restart, effectively breaking authentication for the zero-trust MCP system. This is a non-obvious security/availability issue.",2026-03-18T04:49:21.743014+00:00
