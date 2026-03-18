@@ -16193,3 +16193,26 @@ The regular parquet reader avoids this entirely by never iterating `toCombine` i
 ```
 
 Empty entries represent files with no rows, so there is no DV metadata to merge — filtering them out is both safe and semantically correct.",https://github.com/NVIDIA/spark-rapids/pull/14382#discussion_r2921465488,,2026-03-11T23:17:06.962000,ClassCastException when combining empty and non-empty file metadata,type_error,high,8,"This catches a real runtime ClassCastException bug that would crash production when processing Delta tables with a mix of empty files (missing files with ignoreMissingFiles=true, files with no blocks) and non-empty files in the same batch. The comment correctly identifies that the code attempts to cast all elements in an array to a specific subtype, but the array contains mixed types.",2026-03-18T18:31:16.695114+00:00
+posthog/posthog,51184,feat(hogli): add anonymous opt-out telemetry,https://github.com/PostHog/posthog/pull/51184,"**Telemetry can fire before first-run notice is shown**
+
+There's a consent gap: `show_first_run_notice_if_needed()` is deliberately skipped when in a git hook or running `meta:check`, but `_fire_telemetry()` is called unconditionally in `main()`'s `finally` block regardless. When `_fire_telemetry()` calls `telemetry.track()` → `get_anonymous_id()`, and no config file exists yet, `get_anonymous_id()` creates the config file with just `{""anonymous_id"": ""...""}`. On the next non-hook invocation, `show_first_run_notice_if_needed()` checks `get_config_path().exists()` → `True` → returns early. The result: **telemetry fires silently without the user ever seeing the first-run notice**, if their first `hogli` invocation happens to be inside a git hook or via `meta:check`.
+
+A straightforward fix is to guard `track()` on whether the notice has actually been shown (e.g., check `first_run_notice_shown` key in the config instead of just `exists()`), or ensure the notice is shown (or at minimum the config is created) before any `track()` call.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: common/hogli/core/cli.py
+Line: 328-336
+
+Comment:
+**Telemetry can fire before first-run notice is shown**
+
+There's a consent gap: `show_first_run_notice_if_needed()` is deliberately skipped when in a git hook or running `meta:check`, but `_fire_telemetry()` is called unconditionally in `main()`'s `finally` block regardless. When `_fire_telemetry()` calls `telemetry.track()` → `get_anonymous_id()`, and no config file exists yet, `get_anonymous_id()` creates the config file with just `{""anonymous_id"": ""...""}`. On the next non-hook invocation, `show_first_run_notice_if_needed()` checks `get_config_path().exists()` → `True` → returns early. The result: **telemetry fires silently without the user ever seeing the first-run notice**, if their first `hogli` invocation happens to be inside a git hook or via `meta:check`.
+
+A straightforward fix is to guard `track()` on whether the notice has actually been shown (e.g., check `first_run_notice_shown` key in the config instead of just `exists()`), or ensure the notice is shown (or at minimum the config is created) before any `track()` call.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/51184#discussion_r2941807541,,2026-03-16T17:19:09.750000,Telemetry fires before user sees consent notice,logic,high,8,"Comment 2 identifies a genuine consent gap where telemetry can fire silently without the user ever seeing the first-run notice, which is a meaningful privacy/consent bug. The analysis traces through the code flow showing how git hooks or meta:check invocations can create the config file via get_anonymous_id() before the notice is shown, permanently suppressing the notice.",2026-03-18T20:20:58.792747+00:00
