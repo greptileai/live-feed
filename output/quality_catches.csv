@@ -16013,3 +16013,98 @@ if not _chunk_has_content and (
 ```
 
 With the new code, a custom provider that returns a content chunk after the finish-reason chunk (which is valid) will have that content silently dropped, since `""provider_specific_fields"" not in chunk` is True for a plain `GenericStreamingChunk` with text content. This is a regression for all custom providers.",https://github.com/BerriAI/litellm/pull/24002#discussion_r2953011931,,2026-03-18T12:10:04.376000,Regression silently drops content chunks from custom providers,logic,high,8,"This is a meaningful logic bug catch - the reviewer identified that the new code's overly aggressive StopIteration check would silently drop valid content chunks from custom providers that don't include provider_specific_fields. This is a regression affecting production streaming functionality for custom providers, causing data loss. The analysis compares original vs new logic and correctly identifies the semantic difference.",2026-03-18T14:40:52.274037+00:00
+eventual-inc/daft,5970,feat: kafka bounded datasource,https://github.com/Eventual-Inc/Daft/pull/5970,"Duplicate topics produce duplicate tasks and duplicate rows
+
+`self._topics` is never deduplicated before this loop. If a caller passes `topics=[""topic-a"", ""topic-a""]` (e.g., when building the list programmatically), `get_tasks` will iterate over `""topic-a""` twice and yield two identical sets of `KafkaSourceTask` objects — one set per occurrence. Each task independently reads the full partition range, so the resulting DataFrame will contain every message twice.
+
+Note that `_normalize_bound` uses `set(topics)` for its own topic-key validation (line 120), which masks the duplicates at planning time, making the double-read invisible to validation.
+
+Fix in `read_kafka` before constructing `KafkaSource`:
+```python
+topics = list(dict.fromkeys(topics))  # deduplicate while preserving order
+```",https://github.com/Eventual-Inc/Daft/pull/5970#discussion_r2889093077,,2026-03-05T10:27:00.551000,Duplicate topics silently produce duplicate rows in DataFrame,data_integrity,high,8,"This catches a real data integrity bug where passing duplicate topic names (e.g., from programmatic list construction) causes the same messages to be read twice, resulting in a DataFrame with duplicate rows. This is silent corruption of query results that would be difficult to debug in production.",2026-03-18T16:35:50.634887+00:00
+nvidia/nvflare,4282,Design document for Job Launcher and Job Handle (TA: NVFlare developers),https://github.com/NVIDIA/NVFlare/pull/4282,"<a href=""#""><img alt=""P0"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p0.svg?v=7"" align=""top""></a> **`wait()` loops forever after `terminate()` is called**
+
+After `terminate()` deletes the pod, `read_namespaced_pod` raises a 404 `ApiException`, and `_query_state()` returns `JobState.UNKNOWN`. However, `wait()` calls `enter_states([SUCCEEDED, TERMINATED])` with no timeout, and `UNKNOWN` is never in that list. Since `wait()` has no escape path for `UNKNOWN`, it will spin indefinitely on a background thread once the pod is deleted — the intended concurrent-abort scenario shown in the sequence diagram (Section 7) will deadlock.
+
+`terminate()` sets `self.terminal_state`, but `wait()` never checks it. The fix is to make `wait()` aware of the `terminal_state`, for example:
+
+```python
+def wait(self):
+    while True:
+        if self.terminal_state is not None:
+            return
+        job_state = self._query_state()
+        if job_state in (JobState.SUCCEEDED, JobState.TERMINATED):
+            return
+        time.sleep(1)
+```
+
+Or alternatively, add a check for `terminal_state` inside `enter_states()` so all callers benefit.",https://github.com/NVIDIA/NVFlare/pull/4282#discussion_r2948299367,,2026-03-17T17:09:03.945000,Infinite loop deadlock when pod is terminated externally,concurrency,high,8,"This catches a real concurrency bug where wait() will spin forever after terminate() is called because the UNKNOWN state from a deleted pod is never in the exit conditions, causing a deadlock. This is a meaningful logic bug affecting the concurrent abort scenario documented in the design.",2026-03-18T16:35:50.634887+00:00
+berriai/litellm,23775,fix: reserve estimated tokens at pre-call to prevent concurrent TPM bypass,https://github.com/BerriAI/litellm/pull/23775,"**First-request path never validates against the TPM cap**
+
+This branch handles the case when no cache entry exists yet for the current minute.
+It allows the request and stores the estimated token count without checking whether that estimate already exceeds the configured tpm limit. A request whose max_tokens exceeds the tpm_limit would pass through on its very first invocation, immediately breaching the cap.
+
+The elif branch at line 105 correctly guards with `current[""current_tpm""] + estimated_tokens <= tpm_limit`. The same check needs to be applied here, before constructing `new_val`.",https://github.com/BerriAI/litellm/pull/23775#discussion_r2942688157,,2026-03-16T20:04:50.724000,First-request path bypasses TPM limit validation entirely,logic,high,8,"This catch identifies a meaningful logic bug where the first request in a rate-limiting window could exceed the TPM limit without being validated. The fix was specifically addressing a TOCTOU race condition, and this comment correctly identifies that the new code still has a gap where the initial request path doesn't validate against the TPM cap, allowing limit breaches on first invocation.",2026-03-18T16:35:50.634887+00:00
+solana-foundation/kora,382,feat(fee): deduct operator ATA rent from client fee via dynamic_ata_deduction config,https://github.com/solana-foundation/kora/pull/382,"**`all_instructions` may contain cross-bundle instructions**
+
+When `bundle_instructions` is provided (non-`None`), the variable `all_instructions` is set to the **full bundle's** instructions (possibly spanning multiple separate transactions), not just the current transaction's instructions.
+
+The new `dynamic_ata_deduction` block then looks for an ATA creation instruction in `all_instructions` to match against a `SystemCreateAccount` from the **current** transaction only. This creates a cross-transaction match: a `SystemCreateAccount` in Tx2 could be paired with an ATA creation instruction from Tx1 (a different transaction in the bundle).
+
+On-chain this combination is invalid — if Tx1 creates the account via the ATA program, Tx2's explicit `SystemCreateAccount` targeting the same address will fail (the account already exists). This means Kora could credit the rent as payment and sign Tx2, which will then fail on-chain, wasting Kora's transaction base fee.
+
+To fix, use the current transaction's own instructions when looking for the matching ATA creation, rather than relying on the bundle-wide `all_instructions`:
+
+```rust
+// Inside the dynamic_ata_deduction block, use the current tx's instructions only
+let current_tx_instructions = &transaction_resolved.all_instructions;
+if let Some((wallet_owner, mint)) =
+    Self::find_ata_creation_for_destination(current_tx_instructions, new_account)
+```
+",https://github.com/solana-foundation/kora/pull/382#discussion_r2922315732,,2026-03-12T05:08:27.448000,Cross-transaction instruction matching causes invalid on-chain transactions,logic,high,8,"This catch identifies a meaningful logic bug where bundle-wide instruction matching could pair a SystemCreateAccount from one transaction with an ATA creation from a different transaction, leading to on-chain failures and wasted transaction fees. The analysis correctly identifies that this cross-transaction match is invalid on-chain and would cause real operational issues.",2026-03-18T16:35:50.634887+00:00
+raycast/extensions,26156,Add multi-url extension,https://github.com/raycast/extensions/pull/26156,"**Stale `savedSets` state in `togglePinned`, `mergeIntoSet`, and `deleteSet`**
+
+`togglePinned` builds `nextSavedSets` from the in-memory `savedSets` component state and then writes the entire array back to storage. If a QuickURL slot command ran since the dashboard was mounted — updating `totalOpenedCount`, `totalFailedCount`, `useCount`, or `updatedAt` for a set — those stat changes will be silently overwritten by this write.
+
+The same problem exists in:
+- `mergeIntoSet` (line 956): `savedSets.map(...)` → `persistSavedSets(...)`
+- `deleteSet` (line 1106): `savedSets.filter(...)` → `saveSavedSets(...)` — this is especially risky because if a new set was concurrently added by `create-set-from-source-form.tsx`, the filter result would not include it, causing permanent data loss.
+
+`updateSet` and `createSet` were already updated to call `await loadSavedSets()` first — applying the same pattern here would close the remaining gaps:
+
+```typescript
+async function togglePinned(setId: string) {
+  const freshSavedSets = await loadSavedSets(); // load fresh data
+  const now = new Date().toISOString();
+  let isPinned = false;
+  const nextSavedSets = freshSavedSets.map((item) => {
+    if (item.id !== setId) return item;
+    isPinned = !item.pinned;
+    return { ...item, pinned: !item.pinned, updatedAt: now };
+  });
+  await persistSavedSets(nextSavedSets);
+  // ...
+}
+```
+",https://github.com/raycast/extensions/pull/26156#discussion_r2908720250,,2026-03-10T01:04:26.420000,Race condition causes silent data loss when concurrent processes modify saved sets,concurrency,high,8,"Comment 9 identifies a significant race condition where stale component state is used for togglePinned, mergeIntoSet, and deleteSet operations. If concurrent QuickURL commands modify storage while the dashboard is open, those changes get silently overwritten, potentially causing permanent data loss (especially in deleteSet where newly added sets would be lost).",2026-03-18T16:35:50.634887+00:00
+raycast/extensions,26207,Spotify Player: Reduce API rate limiting with tiered caching and fewer redundant calls,https://github.com/raycast/extensions/pull/26207,"**Rate-limited requests now fail instead of retrying**
+
+The previous implementation used `async-retry` to automatically retry the request after waiting the `Retry-After` duration. The new implementation sets the global `rateLimitedUntil` (so future requests are delayed) but then throws an error — the current request is abandoned rather than retried.
+
+In practice this means whenever a 429 is hit, the calling command will surface an error to the user instead of transparently succeeding after a brief wait. The global back-pressure is valuable, but dropping the retry for the request that actually triggered the 429 is a behavioral regression. Consider at least retrying once after the wait period:
+
+```typescript
+if (response.status === 429) {
+  const retryAfter = response.headers.get(""Retry-After"");
+  const waitSeconds = retryAfter ? parseInt(retryAfter, 10) : 1;
+  const waitMs = (isNaN(waitSeconds) ? 1 : waitSeconds) * 1000;
+
+  rateLimitedUntil = Date.now() + waitMs;
+  await new Promise((resolve) => setTimeout(resolve, waitMs));
+
+  // Retry once after honouring the Retry-After window
+  return fetchFn(url, init);
+}
+```",https://github.com/raycast/extensions/pull/26207#discussion_r2914816693,,2026-03-10T22:22:40.861000,Rate limit retry logic removed causing requests to fail,logic,high,8,"This catches a meaningful behavioral regression where rate-limited requests now fail instead of retrying after the wait period. This would cause user-visible errors in production when Spotify returns 429 responses, instead of transparently recovering.",2026-03-18T16:35:50.634887+00:00
