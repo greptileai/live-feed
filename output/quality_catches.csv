@@ -15887,3 +15887,129 @@ The original pre-PR code avoided this with a strict `if ... i+=2 / else i+=1`. T
                 i += 1
 ```
 ",https://github.com/BerriAI/litellm/pull/23982#discussion_r2952244637,,2026-03-18T10:00:41.565000,Double-increment bug skips messages in consecutive assistant handling,logic,high,8,"This comment identifies a real logic bug where the loop increments by 3 instead of 2 after inserting a continue message, causing messages to be skipped when there are 3+ consecutive assistant messages. The concrete trace demonstrates the bug clearly, and this would cause incorrect message alternation in production.",2026-03-18T12:31:35.865124+00:00
+berriai/litellm,23996,Litellm fix ensure alternating roles,https://github.com/BerriAI/litellm/pull/23996,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Regression: `[assistant(no-tc), assistant(tc)]` adjacent pair is never separated**
+
+Because `_counts_for_alternation(assistant(tc))` returns `False`, the outer `if` block at line 300 is **never entered** when `curr_message` is `assistant(tc)`. This means the adjacent-assistant check at line 303 and the backward-lookback are both completely skipped for tool-call assistants in the forward direction.
+
+Trace for `[user, assistant(no-tc), assistant(tc), tool, user]` with the new code:
+- `i=1`: `assistant(no-tc)` — counted, backward lookback finds `user` → no insert. `i=2`.
+- `i=2`: `assistant(tc)` — `_counts_for_alternation` = `False` → **entire `if` block skipped**. `i=3`.
+- Result: `[user, assistant(no-tc), assistant(tc), tool, user]` — two consecutive assistants, no separator.
+
+The **old code** (cec3e9e7) for the same input:
+- `i=2`: `assistant(tc)` vs `assistant(no-tc)` → both `role==""assistant""` → **inserts `user_continue`**.
+- Result: `[user, assistant(no-tc), user_continue, assistant(tc), tool, user]`.
+
+While `[assistant(no-tc), assistant(tc)]` is a malformed input, the previous implementation guaranteed it would always be separated; the new code silently leaves the pair adjacent. Strict chat templates that do not special-case `tool_calls` assistants will reject this output.
+
+The test suite covers the **reversed** order `[assistant(tc), assistant(no-tc)]` (via `test_ensure_alternating_roles_assistant_tool_call_then_assistant`) but has no test for `[assistant(no-tc), assistant(tc)]`, so this regression goes undetected.
+
+A simple guard on the forward path would restore the old behaviour for this case:
+
+```python
+# In the while loop, before the _counts_for_alternation block:
+# Also separate any non-tc assistant that is directly preceded by any assistant
+if (
+    curr_message.get(""role"") == ""assistant""
+    and not _counts_for_alternation(curr_message)  # i.e. has tool_calls
+    and i > 0
+    and result_messages[i - 1].get(""role"") == ""assistant""
+):
+    result_messages.insert(i, continue_message)
+    i += 2
+    inserted_continue_message = True
+```
+
+Or alternatively add the missing case to `_counts_for_alternation`'s callers so `assistant(tc)` is also examined when it appears immediately after a non-tc assistant.",https://github.com/BerriAI/litellm/pull/23996#discussion_r2952893476,,2026-03-18T11:53:00.982000,Regression: Adjacent assistant messages not separated due to logic flaw,logic,high,8,"Comment 3 identifies a concrete regression where the new code fails to insert a separator between [assistant(no-tc), assistant(tc)] sequences that the old code would have separated. This causes strict chat templates to reject the output, breaking production functionality for users relying on ensure_alternating_roles.",2026-03-18T14:40:52.274037+00:00
+posthog/posthog,51418,fix: add error logging to agentic provisioning endpoints,https://github.com/PostHog/posthog/pull/51418,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **`account_requests` now has no authentication**
+
+After this PR, `account_requests` is the only provisioning endpoint with zero authentication. All other endpoints still call `verify_stripe_signature` as their auth layer, but `account_requests` never had it — it only had `verify_api_version`. Removing `verify_api_version` here leaves the endpoint completely open.
+
+An unauthenticated caller can now:
+- Trigger account creation for arbitrary email addresses
+- Force existing users through an OAuth consent redirect
+
+The PR description says ""The HMAC signature is the real authentication layer"", which is correct for the other endpoints — but `account_requests` does not call `verify_stripe_signature`. Should it be added here, or is there a specific reason this endpoint is intentionally unauthenticated? A comment explaining the decision would help clarify intent.
+
+**Rule Used:** Add inline comments to clarify the purpose of sign... ([source](https://app.greptile.com/review/custom-context?memory=4d5b48c5-045d-4693-9cd9-4081bb19508b))
+
+**Learnt From**
+[PostHog/posthog#32083](https://github.com/PostHog/posthog/pull/32083)
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: ee/api/agentic_provisioning/views.py
+Line: 164-165
+
+Comment:
+**`account_requests` now has no authentication**
+
+After this PR, `account_requests` is the only provisioning endpoint with zero authentication. All other endpoints still call `verify_stripe_signature` as their auth layer, but `account_requests` never had it — it only had `verify_api_version`. Removing `verify_api_version` here leaves the endpoint completely open.
+
+An unauthenticated caller can now:
+- Trigger account creation for arbitrary email addresses
+- Force existing users through an OAuth consent redirect
+
+The PR description says ""The HMAC signature is the real authentication layer"", which is correct for the other endpoints — but `account_requests` does not call `verify_stripe_signature`. Should it be added here, or is there a specific reason this endpoint is intentionally unauthenticated? A comment explaining the decision would help clarify intent.
+
+**Rule Used:** Add inline comments to clarify the purpose of sign... ([source](https://app.greptile.com/review/custom-context?memory=4d5b48c5-045d-4693-9cd9-4081bb19508b))
+
+**Learnt From**
+[PostHog/posthog#32083](https://github.com/PostHog/posthog/pull/32083)
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/51418#discussion_r2950313564,,2026-03-18T01:10:19.146000,Missing authentication on endpoint allows arbitrary account creation,security,critical,9,"This is a significant security vulnerability catch. The AI correctly identified that removing verify_api_version from the account_requests endpoint leaves it completely unauthenticated, unlike other endpoints that use verify_stripe_signature. This could allow attackers to trigger account creation for arbitrary emails or force OAuth redirects. The analysis is thorough and connects the PR changes to the security implications.",2026-03-18T14:40:52.274037+00:00
+raycast/extensions,26156,Add multi-url extension,https://github.com/raycast/extensions/pull/26156,"`deleteSet` loads fresh `savedSets` but still reads stale `slots` and `trash` from component state before persisting both to storage. This creates a race condition:
+
+**Problem:** If a QuickURL slot command runs between when the dashboard renders and when the user deletes a set:
+- Line 1098: `getAssignedSlots(slots, savedSet.id)` captures which slots the deleted set occupied, but `slots` is the stale component state, not the current storage value
+- Line 1108: `nextSlots` is built from stale `slots`, so `saveShortcutSlots()` overwrites any concurrent slot assignment changes
+- The trash entry's `previousSlots` will be incorrect, breaking the undo-restore flow when `restoreTrashedSet` tries to restore
+
+**Pattern:** `restoreTrashedSet` (line 974) handles this correctly by loading all three values in parallel:
+```typescript
+const [currentSavedSets, currentSlots, currentTrash] = await Promise.all([
+  loadSavedSets(),
+  loadShortcutSlots(),
+  loadTrash(),
+]);
+```
+
+**Fix:** Apply the same pattern to `deleteSet`:
+```typescript
+const [freshSavedSets, freshSlots, freshTrash] = await Promise.all([
+  loadSavedSets(),
+  loadShortcutSlots(),
+  loadTrash(),
+]);
+
+const previousSlots = getAssignedSlots(freshSlots, savedSet.id);
+// ...
+const nextSlots: ShortcutSlots = { ...freshSlots };
+// ...
+const nextTrash = sortTrash([trashEntry, ...freshTrash]).slice(0, MAX_TRASH_ITEMS);
+
+// After persisting, update component state with fresh values:
+setSlots(nextSlots);
+setTrash(nextTrash);
+```",https://github.com/raycast/extensions/pull/26156#discussion_r2908792054,,2026-03-10T01:34:02.865000,Race condition in deleteSet causes data loss from stale state,concurrency,high,8,"This comment identifies a race condition where deleteSet uses stale component state for slots and trash, which can cause permanent data loss when concurrent QuickURL slot commands modify storage between dashboard render and delete operation. The comment is well-written with clear explanation and fix.",2026-03-18T14:40:52.274037+00:00
+berriai/litellm,24002,Fix dropped reasoning_content in stream responses for WatsonX and OpenAILike providers,https://github.com/BerriAI/litellm/pull/24002,"<a href=""#""><img alt=""P0"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p0.svg?v=7"" align=""top""></a> **Custom provider StopIteration logic is overly aggressive**
+
+The original check allowed chunks to pass through when they contained text content or tool_use — even after `received_finish_reason` was set. The new check raises `StopIteration` for **any** chunk missing `provider_specific_fields`, regardless of whether the chunk has actual content.
+
+```python
+# Original (before this PR):
+_chunk_has_content = isinstance(chunk, dict) and (
+    bool(chunk.get(""text"", """")) or chunk.get(""tool_use"") is not None
+)
+if not _chunk_has_content and (
+    not isinstance(chunk, dict)
+    or ""provider_specific_fields"" not in chunk
+):
+    raise StopIteration
+```
+
+With the new code, a custom provider that returns a content chunk after the finish-reason chunk (which is valid) will have that content silently dropped, since `""provider_specific_fields"" not in chunk` is True for a plain `GenericStreamingChunk` with text content. This is a regression for all custom providers.",https://github.com/BerriAI/litellm/pull/24002#discussion_r2953011931,,2026-03-18T12:10:04.376000,Regression silently drops content chunks from custom providers,logic,high,8,"This is a meaningful logic bug catch - the reviewer identified that the new code's overly aggressive StopIteration check would silently drop valid content chunks from custom providers that don't include provider_specific_fields. This is a regression affecting production streaming functionality for custom providers, causing data loss. The analysis compares original vs new logic and correctly identifies the semantic difference.",2026-03-18T14:40:52.274037+00:00
