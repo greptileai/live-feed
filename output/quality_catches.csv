@@ -15320,3 +15320,149 @@ if (!isToolAvailableOnSimSide(toolName) && !clientExecutable) {
 ```
 
 The same issue applies to the identical pattern in `subAgentHandlers.tool_call` at lines 650–664 (guarded by the corresponding early return at lines 556–558).",https://github.com/simstudioai/sim/pull/3635#discussion_r2949356184,,2026-03-17T20:19:59.041000,Unreachable else branch prevents client-side tool delegation,logic,high,8,"This is a meaningful logic bug where an early return guard makes an else branch permanently unreachable, causing client-executable tools that aren't sim-side available to silently fail instead of being delegated to the React UI. The comment correctly identifies the root cause and provides a concrete fix, demonstrating good code flow analysis across distant lines (299 and 402).",2026-03-17T22:18:38.391285+00:00
+generaltranslation/gt,1116,F/lockfile v2,https://github.com/generaltranslation/gt/pull/1116,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Empty extraction returns truthy `""{}""`, bypassing null guard**
+
+`flattenJsonWithStringFilter` returns `{}` when no include-path matches yield string values (e.g. all matched leaf values are booleans or numbers, or the YAML structure has changed since the file was downloaded). `JSON.stringify({})` produces the string `""{}""`, which is truthy. Downstream in `downloadFileBatch.ts` the check `if (extracted)` passes, so `mergeWithSource(""{}"", locale, inputPath, options)` is called. `mergeYaml` then treats this as ""no translations"" and rebuilds the file from the source document alone — silently overwriting the existing translated output with untranslated source content.
+
+The fix is to return `null` when the extracted map is empty:
+
+```suggestion
+  const extracted = flattenJsonWithStringFilter(yaml, yamlSchema.include);
+  if (!Object.keys(extracted).length) return null;
+  return JSON.stringify(extracted);
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/cli/src/formats/yaml/extractYaml.ts
+Line: 36-37
+
+Comment:
+**Empty extraction returns truthy `""{}""`, bypassing null guard**
+
+`flattenJsonWithStringFilter` returns `{}` when no include-path matches yield string values (e.g. all matched leaf values are booleans or numbers, or the YAML structure has changed since the file was downloaded). `JSON.stringify({})` produces the string `""{}""`, which is truthy. Downstream in `downloadFileBatch.ts` the check `if (extracted)` passes, so `mergeWithSource(""{}"", locale, inputPath, options)` is called. `mergeYaml` then treats this as ""no translations"" and rebuilds the file from the source document alone — silently overwriting the existing translated output with untranslated source content.
+
+The fix is to return `null` when the extracted map is empty:
+
+```suggestion
+  const extracted = flattenJsonWithStringFilter(yaml, yamlSchema.include);
+  if (!Object.keys(extracted).length) return null;
+  return JSON.stringify(extracted);
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/generaltranslation/gt/pull/1116#discussion_r2950084649,,2026-03-17T23:38:53.260000,"Empty extraction returns truthy string, causing silent data overwrite",data_integrity,high,8,"This catch identifies a real data corruption bug where an empty extraction result ('{}') bypasses the null guard, causing mergeYaml to silently overwrite translated files with untranslated source content. The analysis correctly traces the data flow through downstream functions.",2026-03-18T00:49:58.599654+00:00
+berriai/litellm,23897,feat(guardrails): MCPJWTSigner - built-in guardrail for zero trust MCP auth,https://github.com/BerriAI/litellm/pull/23897,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **No validation of `ttl_seconds` — zero or negative produces instantly-expired JWTs**
+
+`ttl_seconds` is cast to `int` directly from config/env without bounds checking. A value of `0` or any negative integer will produce JWTs where `exp <= iat`, meaning every signed token will be immediately expired on receipt. This would silently break all MCP authentication without any startup warning.
+
+Add a validation guard:
+
+```python
+self.ttl_seconds: int = int(
+    ttl_seconds
+    if ttl_seconds is not None
+    else os.environ.get(""MCP_JWT_TTL_SECONDS"", str(self.DEFAULT_TTL))
+)
+if self.ttl_seconds <= 0:
+    raise ValueError(
+        f""MCPJWTSigner: ttl_seconds must be a positive integer, got {self.ttl_seconds}""
+    )
+```",https://github.com/BerriAI/litellm/pull/23897#discussion_r2949575942,,2026-03-17T21:07:15.260000,Zero or negative TTL produces instantly-expired JWTs,logic,high,8,"Missing validation of ttl_seconds allows zero or negative values to produce JWTs that are immediately expired (exp <= iat), silently breaking all MCP authentication without any startup warning. This is a meaningful production bug that would cause authentication failures.",2026-03-18T00:49:58.599654+00:00
+onyx-dot-app/onyx,9411,chore(hooks): Add db CRUD,https://github.com/onyx-dot-app/onyx/pull/9411,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **`rollback()` silently destroys the outer transaction**
+
+`db_session.rollback()` rolls back the *entire* session transaction, not just the failed flush. If `create_hook` is ever called within a larger unit of work (e.g., a request that writes other rows before calling this function), those earlier writes are silently wiped out.
+
+The codebase already has the correct pattern in `backend/onyx/db/users.py:356-368`, which uses savepoints (`begin_nested()`) precisely to avoid this:
+
+```python
+# Use savepoints (begin_nested) so that a failed insert only rolls back
+# that single user, not the entire transaction. A plain rollback() would
+# discard all previously flushed users in the same transaction.
+savepoint = db_session.begin_nested()
+try:
+    db_session.add(user)
+    savepoint.commit()
+except IntegrityError:
+    savepoint.rollback()
+    raise ...
+```
+
+Apply the same pattern here:
+
+```suggestion
+    savepoint = db_session.begin_nested()
+    try:
+        db_session.add(hook)
+        savepoint.commit()
+    except IntegrityError:
+        savepoint.rollback()
+        raise OnyxError(
+            OnyxErrorCode.CONFLICT,
+            f""A hook for '{hook_point.value}' already exists."",
+        )
+    return hook
+```
+
+This way only the hook insert is unwound on a race, and any other writes already in the session remain intact.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: backend/onyx/db/hook.py
+Line: 96-103
+
+Comment:
+**`rollback()` silently destroys the outer transaction**
+
+`db_session.rollback()` rolls back the *entire* session transaction, not just the failed flush. If `create_hook` is ever called within a larger unit of work (e.g., a request that writes other rows before calling this function), those earlier writes are silently wiped out.
+
+The codebase already has the correct pattern in `backend/onyx/db/users.py:356-368`, which uses savepoints (`begin_nested()`) precisely to avoid this:
+
+```python
+# Use savepoints (begin_nested) so that a failed insert only rolls back
+# that single user, not the entire transaction. A plain rollback() would
+# discard all previously flushed users in the same transaction.
+savepoint = db_session.begin_nested()
+try:
+    db_session.add(user)
+    savepoint.commit()
+except IntegrityError:
+    savepoint.rollback()
+    raise ...
+```
+
+Apply the same pattern here:
+
+```suggestion
+    savepoint = db_session.begin_nested()
+    try:
+        db_session.add(hook)
+        savepoint.commit()
+    except IntegrityError:
+        savepoint.rollback()
+        raise OnyxError(
+            OnyxErrorCode.CONFLICT,
+            f""A hook for '{hook_point.value}' already exists."",
+        )
+    return hook
+```
+
+This way only the hook insert is unwound on a race, and any other writes already in the session remain intact.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/9411#discussion_r2949143390,,2026-03-17T19:36:39.136000,Full transaction rollback destroys unrelated writes in larger units of work,data_integrity,high,8,"This catches a real bug where calling db_session.rollback() on IntegrityError would silently destroy all previous writes in the same transaction, not just the failed hook insert. This could cause silent data loss in production when create_hook is called within a larger unit of work.",2026-03-18T00:49:58.599654+00:00
+infisical/infisical,5740,fix(memberships): collapse existing and prevent duplicate memberships,https://github.com/Infisical/infisical/pull/5740,"<a href=""#""><img alt=""P2"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p2.svg?v=7"" align=""top""></a> **Temporary roles with matching `role`+`customRoleId` may be silently dropped**
+
+The deduplication key `${r.role}:${r.customRoleId ?? """"}` does not include `isTemporary`, `temporaryRange`, `temporaryAccessStartTime`, or `temporaryAccessEndTime`. This means if the keeper membership already has a permanent `admin` role, and a duplicate membership holds a *temporary* `admin` role (granting time-limited elevated access), the temporary role will be filtered out of `rolesToReparent` and then deleted via CASCADE when the duplicate is removed — silently discarding the temporary grant.
+
+Consider including `isTemporary` in the deduplication key to preserve distinct temporary grants:
+```typescript
+const keeperRoleKeys = new Set(keeperRoles.map((r) => `${r.role}:${r.customRoleId ?? """"}:${r.isTemporary}`));
+```
+and selecting `isTemporary` in both keeper and duplicate role queries.",https://github.com/Infisical/infisical/pull/5740#discussion_r2949294308,,2026-03-17T20:06:59.946000,Temporary role grants silently dropped during deduplication,data_integrity,high,8,"The comment identifies a meaningful data integrity bug where temporary roles (time-limited elevated access) would be silently discarded during deduplication because the deduplication key doesn't account for `isTemporary` flag. This could result in users unexpectedly losing legitimate temporary access grants, affecting production behavior.",2026-03-18T00:49:58.599654+00:00
