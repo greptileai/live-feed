@@ -15466,3 +15466,51 @@ Consider including `isTemporary` in the deduplication key to preserve distinct t
 const keeperRoleKeys = new Set(keeperRoles.map((r) => `${r.role}:${r.customRoleId ?? """"}:${r.isTemporary}`));
 ```
 and selecting `isTemporary` in both keeper and duplicate role queries.",https://github.com/Infisical/infisical/pull/5740#discussion_r2949294308,,2026-03-17T20:06:59.946000,Temporary role grants silently dropped during deduplication,data_integrity,high,8,"The comment identifies a meaningful data integrity bug where temporary roles (time-limited elevated access) would be silently discarded during deduplication because the deduplication key doesn't account for `isTemporary` flag. This could result in users unexpectedly losing legitimate temporary access grants, affecting production behavior.",2026-03-18T00:49:58.599654+00:00
+berriai/litellm,23927,feat(gemini): add OAuth login + Google Code Assist provider,https://github.com/BerriAI/litellm/pull/23927,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **OAuth token file written with world-readable permissions**
+
+The `oauth_creds.json` file is written using the standard `open()` built-in, which creates the file with the process's default umask — typically `0644` on Linux/macOS, meaning any other local user can read the OAuth access and refresh tokens. The directory is also created without restrictive permissions (`os.makedirs` without `mode`).
+
+Sensitive credential files should be written with `0o600` permissions so only the owning user can read them. The same issue exists in `_refresh_token` at line 119–120.
+
+```python
+# In _login() and _refresh_token(), replace:
+with open(self.oauth_creds_file, ""w"") as f:
+    json.dump(creds, f)
+
+# With:
+import stat
+fd = os.open(
+    self.oauth_creds_file,
+    os.O_WRONLY | os.O_CREAT | os.O_TRUNC,
+    0o600,
+)
+with os.fdopen(fd, ""w"") as f:
+    json.dump(creds, f)
+```
+
+Also update `_ensure_token_dir` to restrict the directory permissions:
+
+```python
+def _ensure_token_dir(self) -> None:
+    os.makedirs(self.token_dir, mode=0o700, exist_ok=True)
+```
+
+The refresh path at line 119–120 has the same issue and needs the same fix.",https://github.com/BerriAI/litellm/pull/23927#discussion_r2950488608,,2026-03-18T02:23:23.844000,OAuth token file written with world-readable permissions exposes credentials,security,critical,9,"This is a significant security vulnerability where OAuth tokens (access and refresh tokens) are written to disk with default permissions (typically 0644), allowing any local user to read sensitive credentials. This could lead to token theft and unauthorized access to user accounts.",2026-03-18T03:15:00.342588+00:00
+simstudioai/sim,3644,feat(knowledge): add upsert document operation,https://github.com/simstudioai/sim/pull/3644,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Data loss if creation fails after deletion**
+
+The delete-then-create sequence is not atomic. If `deleteDocument` succeeds but `createDocumentRecords` subsequently throws (e.g. because the storage limit is exceeded, which is a checked error path starting at line 226), the old document is permanently gone and no replacement exists — the user loses their data with no recovery path.
+
+Consider wrapping both operations in a transaction, or only deleting after successful creation of the new document record:
+
+```ts
+// 1. Create new records first
+const createdDocuments = await createDocumentRecords([...], knowledgeBaseId, requestId)
+
+// 2. Only then delete the old document
+if (existingDocumentId) {
+  isUpdate = true
+  await deleteDocument(existingDocumentId, requestId)
+}
+```
+
+This way, a failure in `createDocumentRecords` leaves the original document intact.",https://github.com/simstudioai/sim/pull/3644#discussion_r2950156754,"Fixed — reordered to create-then-delete so the new document record is created first, and the old one is only deleted after successful creation. This prevents data loss if createDocumentRecords fails.",2026-03-18T00:06:44.141000,Data loss from delete-before-create in non-atomic upsert operation,data_integrity,high,8,This catches a real data integrity bug where deleting the old document before creating the new one means any failure in createDocumentRecords results in permanent data loss with no recovery. This is a meaningful architectural flaw that would affect users in production.,2026-03-18T03:15:00.342588+00:00
