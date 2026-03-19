@@ -16822,3 +16822,88 @@ def complete_hook(messages, **kwargs):
         if tool_use.tool == ""complete"":
             raise SessionCompleteException(""Session completed via complete tool"")
 ```",https://github.com/gptme/gptme/pull/1707#discussion_r2958399169,"Fixed in c13d94af4. `complete_hook` now scopes its search to messages AFTER the most recent user message (the current turn), so a `complete` call from a prior turn doesn't re-trigger when the next chained prompt is processed.",2026-03-19T07:52:44.828000,Complete hook re-fires on subsequent prompts causing silent failure,logic,high,8,"This comment identifies a subtle but significant logic bug where the complete_hook would incorrectly re-trigger on subsequent chained prompts because it scans the entire conversation history rather than just the current turn. This would cause the second prompt to be appended but never answered, a real user-facing bug that the initial fix failed to address.",2026-03-19T12:25:34.942715+00:00
+gptme/gptme,1702,autoresearch(gptme): improve practical5 pass rate 0.556 → 1.000,https://github.com/gptme/gptme/pull/1702,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **`<think>` concatenation handler is unreachable for the described scenario**
+
+The early thinking-block stripping at lines 108–112 processes the entire markdown string with `markdown.find(""</think>"")` *before* any line-by-line iteration. For an input like:
+
+```
+```shell
+pwd
+```<think>
+brief reasoning
+</think>
+```save pipeline.py
+...
+```
+
+the preprocessing finds `</think>` and replaces `markdown` with everything after it, discarding the `shell` block. By the time the inner loop runs, there is no `<think>` tag remaining on any fence line, so this branch is never evaluated.
+
+This code would only be reached in a scenario where `<think>` appears in the content but no **standalone** `</think>` exists anywhere in the full string *before* this point — a very unlikely combination in practice. The corresponding test (`test_thinking_tag_concatenated_to_closing_fence`) documents exactly the case this is supposed to fix, yet that test will fail due to the early stripping (see comment on the test).",https://github.com/gptme/gptme/pull/1702#discussion_r2957086719,Addressed in commit 1497416dc. The inner-loop handler IS reachable because the preprocessing is now conditional — it skips stripping when `<think>` only appears concatenated to a fence. Your summary correctly identified the real remaining bug: the `for...else` early-exit could still fire when a concatenated `</think>` was found (not stripped) and a properly-closed standalone `<think>` block appeared later in the same message. Fixed by tracking `_concatenated_end_found` and skipping the early-exit when set. Regression test added.,2026-03-19T00:53:58.298000,Unreachable code branch due to early think-tag stripping,logic,high,8,"This is a meaningful logic bug catch - the reviewer identified that the think-tag concatenation handler would never be reached because earlier preprocessing strips the tags first, making the new code ineffective. This requires understanding the control flow across multiple code sections and explains why the corresponding test would fail. Non-obvious issue with real functional impact.",2026-03-19T14:27:46.632214+00:00
+ethyca/fides,7691,ENG-3006 Add request_id metadata to all logs,https://github.com/ethyca/fides/pull/7691,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **`request_id` leaks between sequential tasks in the same worker process**
+
+`_restore_request_id` sets the `request_id` ContextVar before a task runs, but there is no corresponding cleanup after the task finishes. Celery's prefork (and other pooling) workers reuse the same OS process for multiple tasks. Because Python's `ContextVar` values are **not** automatically reset between tasks, a `request_id` set for Task A will still be present when Task B runs — even if Task B was dispatched without a `request_id` header.
+
+Concrete scenario:
+1. Task A is published with `request_id = ""abc""` → `_restore_request_id` stores `""abc""` in the ContextVar.
+2. Task B is published without a request ID → `_restore_request_id`'s `getattr` returns `None`, so `set_request_id` is never called, and `""abc""` is still in the ContextVar.
+3. Every log from Task B incorrectly carries `request_id = ""abc""`.
+
+Add a `task_postrun` handler to clear the value:
+
+```python
+from celery.signals import before_task_publish, task_postrun, task_prerun
+from fides.api.request_context import get_request_id, reset_request_context, set_request_id
+
+@task_postrun.connect
+def _clear_request_id(**kwargs: Any) -> None:
+    """"""Clear request_id from the worker's ContextVar after task completion.""""""
+    reset_request_context()
+```",https://github.com/ethyca/fides/pull/7691#discussion_r2954660758,,2026-03-18T16:20:16.699000,Request ID leaks between Celery tasks in worker process pool,data_integrity,high,8,"This identifies a real bug where ContextVar values persist across tasks in Celery's process pool, causing incorrect request_id attribution in logs. Task B would inherit Task A's request_id, corrupting log traceability - a meaningful data integrity issue affecting production observability.",2026-03-19T14:27:46.632214+00:00
+nvidia/dali,6254,Use NewThreadPool in dynamic mode. By default use only one instance of ThreadPool per device.,https://github.com/NVIDIA/DALI/pull/6254,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **`get()` can return stale/`None` pool when second thread races inside the lock**
+
+The double-checked locking pattern here has a subtle gap. When two threads concurrently call `get()` for the first time (both observe `tp = None` before entering the lock), the sequence is:
+
+1. Thread A: `tp = None` → acquires lock → creates pool → `tp = new_pool` → releases lock → returns `new_pool` ✓
+2. Thread B: `tp = None` → acquires lock (after A) → inner check passes (pool already exists, correct `num_threads`) → **skips creation without updating `tp`** → releases lock → `return tp` returns `None` ✗
+
+The same race applies when a stale pool (wrong `num_threads`) was observed by Thread B outside the lock but was replaced by Thread A inside the lock before B acquired it — Thread B returns the stale pool instead of the newly created one.
+
+The fix is to always re-read `self._thread_pool` from inside the lock before returning:
+
+```python
+def get(self, num_threads):
+    tp = self._thread_pool
+    if tp is None or tp.num_threads != num_threads:
+        with self._mutex:
+            if self._thread_pool is None or self._thread_pool.num_threads != num_threads:
+                self._thread_pool = ThreadPool(num_threads, device_id=self._device_id)
+            tp = self._thread_pool  # always capture from inside the lock
+    return tp
+```
+
+Downstream, `ctx.thread_pool._create_facade()` in `_ops.py` will raise `AttributeError: 'NoneType' object has no attribute '_create_facade'` if `None` is returned.",https://github.com/NVIDIA/DALI/pull/6254#discussion_r2945272432,Fixed.,2026-03-17T08:56:15.936000,Race condition in double-checked locking returns None/stale pool,concurrency,high,8,Comment 1 identifies a genuine race condition in the double-checked locking pattern where Thread B can return None or a stale pool because the local variable 'tp' is not updated after acquiring the lock. This would cause AttributeError crashes in production when accessing _create_facade() on None.,2026-03-19T14:27:46.632214+00:00
+berriai/litellm,23830,fix(responses): restore deepseek codex bridge,https://github.com/BerriAI/litellm/pull/23830,"<a href=""#""><img alt=""P2"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p2.svg?v=7"" align=""top""></a> **Reasoning delta `item_id` doesn't match the `OutputItemAdded` event ID**
+
+The `item_id` for `ReasoningSummaryTextDeltaEvent` is constructed as:
+```python
+item_id=f""rs_{hash(str(reasoning_content))}"",
+```
+
+But `_ensure_output_item_for_chunk` assigns the matching `OutputItemAdded` event a stable UUID:
+```python
+self._cached_reasoning_item_id = f""rs_{uuid.uuid4()}""
+```
+
+A Codex/OpenAI SDK client correlates delta events to their parent item via `item_id`. With hash-based IDs on the delta and UUID-based IDs on the `output_item.added` event, these two will never match, breaking event correlation for all reasoning chunks.
+
+The delta event should use `self._cached_reasoning_item_id` (or `self._reasoning_item_id`) instead:
+```suggestion
+            generated_events.append(
+                ReasoningSummaryTextDeltaEvent(
+                    type=ResponsesAPIStreamEvents.REASONING_SUMMARY_TEXT_DELTA,
+                    item_id=self._cached_reasoning_item_id or f""rs_{uuid.uuid4()}"",
+                    output_index=0,
+                    delta=reasoning_content,
+                )
+            )
+```",https://github.com/BerriAI/litellm/pull/23830#discussion_r2944959832,,2026-03-17T07:46:58.008000,Mismatched item IDs break reasoning event correlation,logic,high,8,"The comment identifies a real bug where reasoning delta events use hash-based IDs while OutputItemAdded events use UUID-based IDs, causing event correlation to fail for all reasoning chunks. This would break client-side processing of reasoning content in production.",2026-03-19T14:27:46.632214+00:00
