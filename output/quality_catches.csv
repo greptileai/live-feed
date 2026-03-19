@@ -16993,3 +16993,26 @@ function hasAnyFiltersInGroup(group: PropertyGroupFilterValue): boolean {
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/PostHog/posthog/pull/51564#discussion_r2959292350,,2026-03-19T11:02:32.941000,TypeError crash on deeply nested property group structures,runtime,high,8,"This is a genuine runtime bug where the recursive type discrimination fails at depth 4+, causing a TypeError when accessing `.some()` on undefined. The analysis is thorough, identifies the exact crash path, explains why existing tests don't catch it, and provides a concrete fix. This is a non-obvious bug that requires understanding the recursive type structure and wouldn't be caught by static analysis.",2026-03-19T16:29:56.013873+00:00
+posthog/posthog,51545,fix(messaging): use Redis storage for large filter payloads to avoid Temporal blob size limit,https://github.com/PostHog/posthog/pull/51545,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **24-hour TTL can be exceeded by activity retries**
+
+The coordinator spawns child workflows with `start_to_close_timeout=12h` and `maximum_attempts=3`, plus `batch_delay_minutes` between batches. In a worst-case failure scenario (e.g. three full-length retries spread across time), the total elapsed time from when the key is stored to when the last activity reads it could exceed the 24-hour TTL, causing `get_filters` to return `None` and raise a `ValueError`.
+
+Consider increasing the TTL (e.g. `72 * 60 * 60` for 3 days) to give retried activities a safety margin, or refresh the TTL in `get_filters` using `EXPIRE` after a successful read.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: posthog/temporal/messaging/filter_storage.py
+Line: 23
+
+Comment:
+**24-hour TTL can be exceeded by activity retries**
+
+The coordinator spawns child workflows with `start_to_close_timeout=12h` and `maximum_attempts=3`, plus `batch_delay_minutes` between batches. In a worst-case failure scenario (e.g. three full-length retries spread across time), the total elapsed time from when the key is stored to when the last activity reads it could exceed the 24-hour TTL, causing `get_filters` to return `None` and raise a `ValueError`.
+
+Consider increasing the TTL (e.g. `72 * 60 * 60` for 3 days) to give retried activities a safety margin, or refresh the TTL in `get_filters` using `EXPIRE` after a successful read.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/51545#discussion_r2956672673,,2026-03-18T22:52:48.868000,TTL expiration causes workflow failures during retries,logic,high,8,"The comment correctly identifies that a 24-hour TTL is insufficient for workflows that can take up to 48 hours in worst-case retry scenarios (3 retries × 12h + delays). This would cause get_filters to return None and raise ValueError, breaking production workflows. The fix was addressed by changing TTL to 72 hours.",2026-03-19T18:29:33.250713+00:00
