@@ -16388,3 +16388,163 @@ The same issue applies to the identical block in `get_random_search_query` (line
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/onyx-dot-app/onyx/pull/9430#discussion_r2949895686,,2026-03-17T22:36:11.436000,Excluding required Pydantic fields breaks search deserialization,runtime,critical,8,"Comment 1 identifies a critical bug where excluding `content_vector` (a required Pydantic field) from OpenSearch `_source` will cause `ValidationError` on every search hit, completely breaking hybrid and random search functionality. The analysis is thorough, identifying both the required field issue and the validator consistency check that would fail.",2026-03-18T22:18:23.936378+00:00
+onyx-dot-app/onyx,9391,chore(hooks): Define Hook Point in the backend,https://github.com/onyx-dot-app/onyx/pull/9391,"<a href=""#""><img alt=""P0"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p0.svg?v=7"" align=""top""></a> **`validate_registry()` will crash the app at startup**
+
+The skipped unit tests in `test_registry.py` explicitly reveal that `HookPoint.DOCUMENT_INGESTION` already exists in the `HookPoint` enum (from the dependent PR #9337) but has **no registered spec** in `REGISTRY`:
+
+```python
+# TODO(@Bo-Onyx): remove skip once DocumentIngestionSpec is implemented and registered
+@pytest.mark.skip(reason=""DOCUMENT_INGESTION spec not yet implemented"")
+def test_validate_registry_passes() -> None:
+    validate_registry()  # should not raise with the real registry
+```
+
+This test is skipped precisely because `validate_registry()` would currently raise a `RuntimeError`. Since that same function is now called unconditionally during the FastAPI lifespan, **the application will fail to start** as soon as this PR is rebased on top of the dependent PR.
+
+The fix is to defer the `validate_registry()` lifespan call until all `HookPoint` enum values have a corresponding spec registered, or temporarily guard it:
+
+```python
+# Option A: remove from lifespan until DocumentIngestionSpec is added
+# validate_registry()
+
+# Option B: only validate once the registry is known-complete (add in the
+# same PR that registers DocumentIngestionSpec)
+```
+
+Keeping the line here will block the app from starting in any environment where the dependent PR's enum (with `DOCUMENT_INGESTION`) is present.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: backend/onyx/main.py
+Line: 312
+
+Comment:
+**`validate_registry()` will crash the app at startup**
+
+The skipped unit tests in `test_registry.py` explicitly reveal that `HookPoint.DOCUMENT_INGESTION` already exists in the `HookPoint` enum (from the dependent PR #9337) but has **no registered spec** in `REGISTRY`:
+
+```python
+# TODO(@Bo-Onyx): remove skip once DocumentIngestionSpec is implemented and registered
+@pytest.mark.skip(reason=""DOCUMENT_INGESTION spec not yet implemented"")
+def test_validate_registry_passes() -> None:
+    validate_registry()  # should not raise with the real registry
+```
+
+This test is skipped precisely because `validate_registry()` would currently raise a `RuntimeError`. Since that same function is now called unconditionally during the FastAPI lifespan, **the application will fail to start** as soon as this PR is rebased on top of the dependent PR.
+
+The fix is to defer the `validate_registry()` lifespan call until all `HookPoint` enum values have a corresponding spec registered, or temporarily guard it:
+
+```python
+# Option A: remove from lifespan until DocumentIngestionSpec is added
+# validate_registry()
+
+# Option B: only validate once the registry is known-complete (add in the
+# same PR that registers DocumentIngestionSpec)
+```
+
+Keeping the line here will block the app from starting in any environment where the dependent PR's enum (with `DOCUMENT_INGESTION`) is present.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/9391#discussion_r2943937102,"valid point, I added a place holder with todos",2026-03-17T01:57:46.629000,validate_registry() call will crash app at startup due to missing spec,runtime,critical,8,This comment correctly identifies that calling validate_registry() in the FastAPI lifespan will cause a guaranteed startup crash because HookPoint.DOCUMENT_INGESTION has no registered spec yet. This is a production-blocking bug that would prevent the application from starting.,2026-03-19T00:51:00.797088+00:00
+synnaxlabs/synnax,2105,SY-3937: Synnax 0.53.2,https://github.com/synnaxlabs/synnax/pull/2105,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **`LocalKey = 1` can silently collide with a real channel**
+
+When `ch.Key() == 0` the code sets `nd.LocalKey = 1` so the node has a non-zero key. However, `upsertNode` (called immediately after `inspectNode` in `handleChanges`) will call `removeNode(1)` followed by inserting this synthetic node under key 1 — potentially evicting and losing the real dependency edges of the channel whose actual key is `1`.
+
+Even if channels with `Key() == 0` are rare in observable events, the silent state corruption is severe. If a zero-key channel ever reaches this path, the node for channel key `1` will be deleted from the graph without logging, and its dependents will never be re-queued.
+
+Consider returning an error or skipping the node when `ch.Key() == 0` instead:
+
+```go
+if ch.Key() == 0 {
+    return node{}, errors.New(""channel has no key; cannot inspect"")
+}
+```
+",https://github.com/synnaxlabs/synnax/pull/2105#discussion_r2956638439,,2026-03-18T22:45:18.868000,Silent key collision causes loss of real channel's dependency edges,data_integrity,high,8,"This is a meaningful logic bug where using a hardcoded LocalKey=1 for zero-key channels could silently evict and corrupt the state of a legitimate channel with key 1, losing its dependency edges without any logging or error. The catch demonstrates understanding of the graph data structure and the subtle collision issue that could cause silent data corruption in production.",2026-03-19T00:51:00.797088+00:00
+berriai/litellm,23871,[Feature] Add new model pricing details for volcengine `Doubao-Seed-2.0` series,https://github.com/BerriAI/litellm/pull/23871,"<a href=""#""><img alt=""P2"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p2.svg?v=7"" align=""top""></a> **Inverted input/output cost in `doubao-seed-2-0-lite-260215` tier 3**
+
+The 128K–256K pricing tier for the `lite` model has its `input_cost_per_token` (`2.6e-06`) **higher than** `output_cost_per_token` (`1.6e-06`). This is inconsistent with every other tier for this model and every other model in this PR — output tokens always cost more than input tokens.
+
+Comparing the scaling pattern across the lite model's tiers reveals the likely typo:
+
+| Tier | Input | Output | Output/Input |
+|---|---|---|---|
+| 0–32K | 8.7e-08 | 5.2e-07 | ~6× |
+| 32K–128K | 1.3e-07 | 7.8e-07 | 6× |
+| 128K–256K | **2.6e-06** | 1.6e-06 | **0.6× (inverted!)** |
+
+Following the same 2× step-up applied between tiers 1→2 and 2→3 in all other models (e.g., `doubao-seed-2-0-pro` input: `7e-07 → 1.4e-06`), the expected value for the tier 3 input cost would be `2.6e-07`, not `2.6e-06`. The exponent appears to be off by one order of magnitude.
+
+```suggestion
+                ""input_cost_per_token"": 2.6e-07,
+                ""output_cost_per_token"": 1.6e-06,
+```",https://github.com/BerriAI/litellm/pull/23871#discussion_r2948045417,,2026-03-17T16:28:06.681000,Off-by-10x pricing error causing incorrect billing calculations,data_integrity,high,8,"This is a meaningful data integrity bug that would cause incorrect billing - the input cost is 10x higher than intended (2.6e-06 vs 2.6e-07), which would result in customers being overcharged. The analysis is thorough, showing cross-tier pattern comparison to prove the typo. This affects production billing calculations and would not be caught by automated tools.",2026-03-19T00:51:00.797088+00:00
+posthog/posthog,51529,chore(personhog): instrument connection level behavior,https://github.com/PostHog/posthog/pull/51529,"<a href=""#""><img alt=""P2"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p2.svg?v=7"" align=""top""></a> **In-flight gauge will leak on task cancellation**
+
+The `personhog_router_client_requests_in_flight` gauge is incremented before the `.await` and decremented after it, but if the enclosing task is cancelled at the `.await` point (e.g. due to a client disconnect or a `select!` timeout), the decrement code is never reached. This causes the gauge to permanently drift upward.
+
+This is exactly the problem the PR solves on the server side with `InFlightGuard`, but the same pattern was not applied here. A drop guard should be used instead:
+
+```rust
+struct ClientInFlightGuard {
+    backend: &'static str,
+}
+impl Drop for ClientInFlightGuard {
+    fn drop(&mut self) {
+        gauge!(""personhog_router_client_requests_in_flight"", ""backend"" => self.backend)
+            .decrement(1.0);
+    }
+}
+```
+
+and in the macro:
+
+```rust
+gauge!(""personhog_router_client_requests_in_flight"", ""backend"" => ""replica"").increment(1.0);
+let _in_flight = ClientInFlightGuard { backend: ""replica"" };
+let result = $self.replica_backend.$method($request).await;
+```
+
+Without this, `personhog_router_client_requests_in_flight` will monotonically increase under any load that produces request cancellations, which is routine in gRPC servers when clients disconnect mid-stream.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: rust/personhog-router/src/router/mod.rs
+Line: 42-56
+
+Comment:
+**In-flight gauge will leak on task cancellation**
+
+The `personhog_router_client_requests_in_flight` gauge is incremented before the `.await` and decremented after it, but if the enclosing task is cancelled at the `.await` point (e.g. due to a client disconnect or a `select!` timeout), the decrement code is never reached. This causes the gauge to permanently drift upward.
+
+This is exactly the problem the PR solves on the server side with `InFlightGuard`, but the same pattern was not applied here. A drop guard should be used instead:
+
+```rust
+struct ClientInFlightGuard {
+    backend: &'static str,
+}
+impl Drop for ClientInFlightGuard {
+    fn drop(&mut self) {
+        gauge!(""personhog_router_client_requests_in_flight"", ""backend"" => self.backend)
+            .decrement(1.0);
+    }
+}
+```
+
+and in the macro:
+
+```rust
+gauge!(""personhog_router_client_requests_in_flight"", ""backend"" => ""replica"").increment(1.0);
+let _in_flight = ClientInFlightGuard { backend: ""replica"" };
+let result = $self.replica_backend.$method($request).await;
+```
+
+Without this, `personhog_router_client_requests_in_flight` will monotonically increase under any load that produces request cancellations, which is routine in gRPC servers when clients disconnect mid-stream.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/51529#discussion_r2956160992,,2026-03-18T20:48:18.945000,In-flight gauge leaks on async task cancellation,resource_leak,high,8,"This catches a real concurrency bug where the in-flight request gauge will permanently drift upward when tasks are cancelled at await points (common in gRPC when clients disconnect). This causes monitoring to become increasingly inaccurate over time, which is a meaningful production issue. The fix is non-trivial and the reviewer correctly identifies that a drop guard pattern is needed.",2026-03-19T00:51:00.797088+00:00
