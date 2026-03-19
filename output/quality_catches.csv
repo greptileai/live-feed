@@ -16907,3 +16907,89 @@ The delta event should use `self._cached_reasoning_item_id` (or `self._reasoning
                 )
             )
 ```",https://github.com/BerriAI/litellm/pull/23830#discussion_r2944959832,,2026-03-17T07:46:58.008000,Mismatched item IDs break reasoning event correlation,logic,high,8,"The comment identifies a real bug where reasoning delta events use hash-based IDs while OutputItemAdded events use UUID-based IDs, causing event correlation to fail for all reasoning chunks. This would break client-side processing of reasoning content in production.",2026-03-19T14:27:46.632214+00:00
+gptme/gptme,1710,fix(ci): version release artifacts,https://github.com/gptme/gptme/pull/1710,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Python PEP 440 version incompatible with semver**
+
+For dev/scheduled release tags like `v0.31.1.dev20260310`, the stripped version becomes `0.31.1.dev20260310`. This format is Python PEP 440, **not valid semver**. Both `Cargo.toml` and `package.json` require strict semver (e.g. `0.31.1-dev.20260310` with a hyphen before the pre-release label). Injecting `0.31.1.dev20260310` will cause:
+
+- **Cargo** to fail with something like `error: invalid character in version`
+- **npm** to fail version validation when tauri-action reads `package.json`
+- **tauri-action** itself to reject the non-semver version string in `tauri.conf.json`
+
+The PR description explicitly mentions ""scheduled/dev releases"" as a target, but the version format used here will break those very builds.
+
+A minimal fix is to normalize the version before injection:
+
+```python
+import re, os
+version = os.environ[""VERSION""]
+# Convert Python PEP 440 dev/pre-release markers to semver-compatible form
+# e.g. 0.31.1.dev20260310 -> 0.31.1-dev.20260310
+version = re.sub(r'\.((dev|a|b|rc)(\d+))$', r'-\2.\3', version)
+# Fall back: strip everything after the third numeric component if still invalid
+```
+
+Or, simpler and sufficient for naming purposes: truncate to `MAJOR.MINOR.PATCH` for files that strictly require semver (the artifact names carry the full version via the `$TAG` in `tagName`).
+",https://github.com/gptme/gptme/pull/1710#discussion_r2960244023,"Fixed in 34f63e8b9. The workflow now converts prerelease/dev PEP 440 tags to semver before injecting them into Cargo.toml, package.json, and tauri.conf.json (for example `0.31.1.dev20260310` -> `0.31.1-dev.20260310`). I also validated the conversion locally on dev/a/b/rc examples.",2026-03-19T13:57:50.323000,PEP 440 version format breaks Cargo/npm semver validation,logic,high,8,"This catch identifies a meaningful logic bug where Python PEP 440 version strings (e.g., 0.31.1.dev20260310) would be injected into files requiring strict semver format, causing Cargo, npm, and tauri-action to fail validation. This would break scheduled/dev release builds - a core feature the PR was trying to enable.",2026-03-19T16:29:56.013873+00:00
+posthog/posthog,51564,fix(dashboards): Skip empty dashboard filters,https://github.com/PostHog/posthog/pull/51564,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Crash on 4-level deep non-empty property group structures**
+
+`AnyFilterLike` is defined as `AnyPropertyFilter | PropertyGroupFilter | PropertyGroupFilterValue` — so `'values' in v` is `true` for both `PropertyGroupFilter` and `PropertyGroupFilterValue`, triggering the recursive branch. The recursive call casts `v` as `PropertyGroupFilter` and iterates `v.values` as `PropertyGroupFilterValue[]`, then immediately accesses `group.values.some(...)` on each item. If those items are `AnyPropertyFilter` (which have no `values` field), `group.values` is `undefined` and `.some()` throws a `TypeError`.
+
+This crash path is reachable with any 4-level-deep structure where the innermost `PropertyGroupFilterValue` is non-empty:
+```
+PropertyGroupFilter → PropertyGroupFilterValue → PropertyGroupFilterValue → AnyPropertyFilter
+```
+
+The `deeply_nested_empty` test (where level-4 is `[]`) avoids the crash because `[].some(...)` never accesses any element. A parallel test with an actual filter at that depth would reproduce the error.
+
+A safer recursive implementation would keep the discriminated check at every level, rather than recursively re-entering through the `PropertyGroupFilter` path:
+```typescript
+function hasAnyPropertyFilters(filter: PropertyGroupFilter): boolean {
+    return filter.values.some((group: PropertyGroupFilterValue) => hasAnyFiltersInGroup(group))
+}
+
+function hasAnyFiltersInGroup(group: PropertyGroupFilterValue): boolean {
+    return group.values.some((v: AnyFilterLike | PropertyGroupFilterValue) =>
+        'values' in v && Array.isArray((v as PropertyGroupFilterValue).values)
+            ? hasAnyFiltersInGroup(v as PropertyGroupFilterValue)
+            : isValidPropertyFilter(v as AnyPropertyFilter)
+    )
+}
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: frontend/src/queries/nodes/InsightViz/PropertyGroupFilters/propertyGroupFilterLogic.ts
+Line: 118-124
+
+Comment:
+**Crash on 4-level deep non-empty property group structures**
+
+`AnyFilterLike` is defined as `AnyPropertyFilter | PropertyGroupFilter | PropertyGroupFilterValue` — so `'values' in v` is `true` for both `PropertyGroupFilter` and `PropertyGroupFilterValue`, triggering the recursive branch. The recursive call casts `v` as `PropertyGroupFilter` and iterates `v.values` as `PropertyGroupFilterValue[]`, then immediately accesses `group.values.some(...)` on each item. If those items are `AnyPropertyFilter` (which have no `values` field), `group.values` is `undefined` and `.some()` throws a `TypeError`.
+
+This crash path is reachable with any 4-level-deep structure where the innermost `PropertyGroupFilterValue` is non-empty:
+```
+PropertyGroupFilter → PropertyGroupFilterValue → PropertyGroupFilterValue → AnyPropertyFilter
+```
+
+The `deeply_nested_empty` test (where level-4 is `[]`) avoids the crash because `[].some(...)` never accesses any element. A parallel test with an actual filter at that depth would reproduce the error.
+
+A safer recursive implementation would keep the discriminated check at every level, rather than recursively re-entering through the `PropertyGroupFilter` path:
+```typescript
+function hasAnyPropertyFilters(filter: PropertyGroupFilter): boolean {
+    return filter.values.some((group: PropertyGroupFilterValue) => hasAnyFiltersInGroup(group))
+}
+
+function hasAnyFiltersInGroup(group: PropertyGroupFilterValue): boolean {
+    return group.values.some((v: AnyFilterLike | PropertyGroupFilterValue) =>
+        'values' in v && Array.isArray((v as PropertyGroupFilterValue).values)
+            ? hasAnyFiltersInGroup(v as PropertyGroupFilterValue)
+            : isValidPropertyFilter(v as AnyPropertyFilter)
+    )
+}
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/51564#discussion_r2959292350,,2026-03-19T11:02:32.941000,TypeError crash on deeply nested property group structures,runtime,high,8,"This is a genuine runtime bug where the recursive type discrimination fails at depth 4+, causing a TypeError when accessing `.some()` on undefined. The analysis is thorough, identifies the exact crash path, explains why existing tests don't catch it, and provides a concrete fix. This is a non-obvious bug that requires understanding the recursive type structure and wouldn't be caught by static analysis.",2026-03-19T16:29:56.013873+00:00
