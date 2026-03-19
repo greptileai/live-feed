@@ -16755,3 +16755,70 @@ gptme/gptme,1704,feat(cli): add --review flag for self-review pass after main ru
 ```
 
 This keeps the review pass consistent with the main pass's safety posture.",https://github.com/gptme/gptme/pull/1704#discussion_r2958051706,Fixed in prior commit (6e16ee6) —  is now propagated correctly.,2026-03-19T06:03:17.161000,Hardcoded no_confirm bypasses user's safety confirmation setting,security,high,8,"Comment 2 identifies a security issue where hardcoding `no_confirm=True` bypasses the user's explicit safety setting, allowing the review pass to execute shell commands and overwrite files without confirmation even when the user didn't authorize autonomous execution. This is a meaningful security bypass that could lead to unintended file modifications or command execution.",2026-03-19T08:24:28.013317+00:00
+berriai/litellm,24114,fix(google-genai): route streaming chunks to GeminiPassthroughLogging…,https://github.com/BerriAI/litellm/pull/24114,"<a href=""#""><img alt=""P0"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p0.svg?v=7"" align=""top""></a> **Pre-setting `async_complete_streaming_response` triggers unconditional early return, silently skipping all callbacks**
+
+`async_success_handler` has an early-exit guard at line 2486–2487 of `litellm_logging.py`:
+
+```python
+if ""async_complete_streaming_response"" in self.model_call_details:
+    return  # break out of this.
+```
+
+By setting `async_complete_streaming_response` on `model_call_details` **before** calling `async_success_handler`, this block causes the handler to return immediately — before the callback loops at lines 2571+ (CustomLogger, function-based, DynamoDB, OpenMeter, etc.) are ever reached.
+
+**Effect:** All callbacks are silently skipped for every passthrough provider — Anthropic, Vertex AI, OpenAI, and Google GenAI alike. This is worse than the original bug (#24097), which only affected Google GenAI.
+
+The prior working path for pass-through endpoints was: `async_success_handler` set `async_complete_streaming_response` internally (within the `elif self.call_type == ""pass_through_endpoint""` branch at line 2543), and then execution continued to the callback loop below. By pre-setting the key before the call, that path is bypassed entirely.
+
+The fix should set the key **inside** `async_success_handler` (or remove the pre-set), not before calling it.",https://github.com/BerriAI/litellm/pull/24114#discussion_r2959277450,,2026-03-19T11:00:00.506000,"Pre-setting flag causes early return, skipping all callbacks",logic,high,8,"Comment 1 identifies a significant logic bug where setting `async_complete_streaming_response` before calling `async_success_handler` triggers an early-exit guard that silently skips ALL callbacks for ALL passthrough providers. This is a real production bug that would cause callbacks to never fire, worse than the original issue being fixed.",2026-03-19T12:25:34.942715+00:00
+gptme/gptme,1707,fix(chat): don't exit on complete when chained prompts remain,https://github.com/gptme/gptme/pull/1707,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **`complete_hook` will re-fire on the next chained prompt**
+
+The control-flow fix is correct in isolation, but the real issue is that `complete_hook` (registered as a `GENERATION_PRE` hook in `gptme/tools/complete.py`) fires inside `reply()` — *before* a new response is generated — and it works by scanning all conversation messages for the last assistant message that contains a `complete` tool call:
+
+```python
+# complete.py – complete_hook
+last_assistant_msg = next(
+    (m for m in reversed(messages) if m.role == ""assistant""), None
+)
+tool_uses = list(ToolUse.iter_from_content(last_assistant_msg.content))
+for tool_use in tool_uses:
+    if tool_use.tool == ""complete"":
+        raise SessionCompleteException(...)
+```
+
+When the second chained prompt is processed, the conversation log looks like:
+
+```
+[..., user(""first prompt""), assistant(<complete>), system(""Task complete""), user(""second prompt"")]
+```
+
+`complete_hook` finds the **previous** assistant message (the one that originally called `complete`) as the last assistant message, sees the `complete` tool call, and immediately re-raises `SessionCompleteException`. At this point the queue is empty, so `_run_chat_loop` re-raises and the session exits — *without ever generating an LLM response for the second chained prompt*.
+
+In effect, the fix moves the failure from ""second prompt is never appended"" to ""second prompt is appended but never answered."" The core problem — `complete_hook` not distinguishing whether the `complete` call was in the *current* generation turn vs a *prior* one — must also be addressed.
+
+One possible fix in `complete_hook` is to check whether the `complete` tool call occurred **after** the most recent user message, making sure it belongs to the current turn:
+
+```python
+def complete_hook(messages, **kwargs):
+    if False:
+        yield
+    if not messages:
+        return
+    # Find the last user message index
+    last_user_idx = next(
+        (i for i, m in enumerate(reversed(messages)) if m.role == ""user""), None
+    )
+    if last_user_idx is None:
+        return
+    # Only look at messages after the last user message
+    recent_messages = messages[len(messages) - last_user_idx:]
+    last_assistant_msg = next(
+        (m for m in reversed(recent_messages) if m.role == ""assistant""), None
+    )
+    if not last_assistant_msg:
+        return
+    tool_uses = list(ToolUse.iter_from_content(last_assistant_msg.content))
+    for tool_use in tool_uses:
+        if tool_use.tool == ""complete"":
+            raise SessionCompleteException(""Session completed via complete tool"")
+```",https://github.com/gptme/gptme/pull/1707#discussion_r2958399169,"Fixed in c13d94af4. `complete_hook` now scopes its search to messages AFTER the most recent user message (the current turn), so a `complete` call from a prior turn doesn't re-trigger when the next chained prompt is processed.",2026-03-19T07:52:44.828000,Complete hook re-fires on subsequent prompts causing silent failure,logic,high,8,"This comment identifies a subtle but significant logic bug where the complete_hook would incorrectly re-trigger on subsequent chained prompts because it scans the entire conversation history rather than just the current turn. This would cause the second prompt to be appended but never answered, a real user-facing bug that the initial fix failed to address.",2026-03-19T12:25:34.942715+00:00
