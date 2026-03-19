@@ -16636,3 +16636,112 @@ def _build_code_interpreter_results(self) -> list:
 And update `_merge_provider_specific_fields` to use the same ""last value"" strategy for `code_interpreter_results`, or simply stop accumulating it in the streaming iterator and rely solely on `stream_chunk_builder`.",https://github.com/BerriAI/litellm/pull/23784#discussion_r2946913787,"Fixed — `_build_code_interpreter_results` now iterates all `self.tool_results` (cumulative), and `_merge_provider_specific_fields` uses last-value-wins.
 ---
 Fixed — `_build_code_interpreter_results` now iterates all `self.tool_results` (cumulative), and `_merge_provider_specific_fields` uses last-value-wins.",2026-03-17T13:49:18.155000,Incremental list emission causes data loss in streaming responses,data_integrity,high,8,"This comment identifies a significant data integrity bug where the incremental emission strategy conflicts with stream_chunk_builder's 'last value wins' merge strategy, causing earlier code execution results to be silently dropped when multiple executions occur. This would cause real data loss in production for users with multi-step code executions.",2026-03-19T03:14:15.206671+00:00
+simstudioai/sim,3660,feat(box): add Box and Box Sign integrations,https://github.com/simstudioai/sim/pull/3660,"<a href=""#""><img alt=""P2"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p2.svg?v=7"" align=""top""></a> **Silent failure hides malformed signer JSON**
+
+When `additionalSigners` is provided but contains invalid JSON, the parse error is silently swallowed. The sign request is then sent with only the primary signer, and the caller receives a successful response. This can silently drop signers that the user intended to include, with no indication that anything went wrong.
+
+Consider surfacing the error to the caller instead:
+
+```
+if (params.additionalSigners) {
+  try {
+    const additional =
+      typeof params.additionalSigners === 'string'
+        ? JSON.parse(params.additionalSigners)
+        : params.additionalSigners
+    if (Array.isArray(additional)) {
+      signers.push(...additional)
+    }
+  } catch {
+    throw new Error(
+      'Invalid JSON in additionalSigners. Expected a JSON array of signer objects.'
+    )
+  }
+}
+```",https://github.com/simstudioai/sim/pull/3660#discussion_r2957167934,Good catch — fixed in 8453d4bc7. Now throws an error with a descriptive message instead of silently dropping signers.,2026-03-19T01:22:45.301000,Silent JSON parse failure drops signers without warning,data_integrity,high,8,"This catch identifies a silent failure where malformed JSON in additionalSigners is swallowed, causing sign requests to be sent with missing signers while appearing successful. This is a meaningful data integrity bug that would cause user-intended signers to be silently dropped in production, leading to incomplete e-signature workflows.",2026-03-19T06:32:24.913553+00:00
+simstudioai/sim,3662,feat(ashby): add 15 new tools and fix existing tool accuracy,https://github.com/simstudioai/sim/pull/3662,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Migration will corrupt existing workflow data**
+
+The `emailType` sub-block stored values like `'Work'`, `'Personal'`, or `'Other'` (a type selector). After this migration renames it to `email`, any existing workflow that had `emailType` set (including the default value `'Work'` set by `value: () => 'Work'` in the block definition) will end up with `email = 'Work'`. Ashby's `candidate.create` now expects `email` to hold an actual email address like `user@example.com`, so this silently corrupts the field with a nonsensical value.
+
+The same problem applies to `phoneType: 'phoneNumber'` — a workflow with `phoneType = 'Personal'` would produce `phoneNumber = 'Personal'` after migration.
+
+These two old sub-block IDs should be **dropped** from persisted workflows, not renamed. Because the SUBBLOCK_ID_MIGRATIONS mechanism preserves the old value under the new key, it's the wrong tool here. Instead, the migration logic should explicitly remove `emailType` and `phoneType` entries from the Ashby block state without mapping their values forward.
+
+```suggestion
+  ashby: {
+    // emailType and phoneType are intentionally NOT migrated because their values
+    // ('Work', 'Personal', 'Other') are incompatible with the new email/phoneNumber
+    // fields that expect actual contact data. Old entries are dropped.
+  },
+```
+
+Or, if the migration framework provides a way to delete sub-blocks rather than rename them, use that mechanism for these two entries.",https://github.com/simstudioai/sim/pull/3662#discussion_r2957867651,,2026-03-19T05:01:04.542000,Migration corrupts workflow data by mapping type values to data fields,data_integrity,high,8,"This catch identifies a subtle but serious data corruption bug where existing workflow field values containing type selectors ('Work', 'Personal', 'Other') would be incorrectly migrated to fields expecting actual email addresses or phone numbers, silently corrupting user data in production.",2026-03-19T06:32:24.913553+00:00
+dyad-sh/dyad,3028,Adding notification for planning questionnaire,https://github.com/dyad-sh/dyad/pull/3028,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Missing migration for renamed setting key**
+
+The setting key was renamed from `enableChatCompletionNotifications` to `enableChatEventNotifications`, but `migrateStoredSettings()` (in `src/lib/schemas.ts` around line 415) has no migration step for this rename.
+
+Because `StoredUserSettingsSchema` uses `.passthrough()`, the old key is preserved in the parsed object, but the application now only reads `enableChatEventNotifications`. Any user who had notifications enabled (`enableChatCompletionNotifications: true` in their `user-settings.json`) will silently have that preference ignored after upgrading — they'll need to manually re-enable notifications.
+
+The fix is to add the migration in `migrateStoredSettings()`:
+
+```typescript
+export function migrateStoredSettings(
+  stored: StoredUserSettings,
+): UserSettings {
+  const result = {
+    ...stored,
+    selectedChatMode: migrateStoredChatMode(stored.selectedChatMode),
+    defaultChatMode: migrateStoredChatMode(stored.defaultChatMode),
+  };
+
+  // Migrate renamed notification setting
+  const legacy = (stored as Record<string, unknown>)
+    .enableChatCompletionNotifications;
+  if (legacy !== undefined && result.enableChatEventNotifications === undefined) {
+    result.enableChatEventNotifications = legacy as boolean;
+  }
+
+  return result;
+}
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: src/lib/schemas.ts
+Line: 334
+
+Comment:
+**Missing migration for renamed setting key**
+
+The setting key was renamed from `enableChatCompletionNotifications` to `enableChatEventNotifications`, but `migrateStoredSettings()` (in `src/lib/schemas.ts` around line 415) has no migration step for this rename.
+
+Because `StoredUserSettingsSchema` uses `.passthrough()`, the old key is preserved in the parsed object, but the application now only reads `enableChatEventNotifications`. Any user who had notifications enabled (`enableChatCompletionNotifications: true` in their `user-settings.json`) will silently have that preference ignored after upgrading — they'll need to manually re-enable notifications.
+
+The fix is to add the migration in `migrateStoredSettings()`:
+
+```typescript
+export function migrateStoredSettings(
+  stored: StoredUserSettings,
+): UserSettings {
+  const result = {
+    ...stored,
+    selectedChatMode: migrateStoredChatMode(stored.selectedChatMode),
+    defaultChatMode: migrateStoredChatMode(stored.defaultChatMode),
+  };
+
+  // Migrate renamed notification setting
+  const legacy = (stored as Record<string, unknown>)
+    .enableChatCompletionNotifications;
+  if (legacy !== undefined && result.enableChatEventNotifications === undefined) {
+    result.enableChatEventNotifications = legacy as boolean;
+  }
+
+  return result;
+}
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/dyad-sh/dyad/pull/3028#discussion_r2943896728,,2026-03-17T01:41:28.327000,Missing migration silently resets user notification preferences on upgrade,data_integrity,medium,8,"This is a meaningful catch that would cause real user impact - existing users with notifications enabled would silently lose that setting after upgrading. The AI correctly identified the schema rename without a corresponding migration, understood the passthrough behavior, and provided a complete fix. This isn't an obvious issue that tooling would catch, requiring understanding of the migration pattern and data persistence across versions.",2026-03-19T06:32:24.913553+00:00
