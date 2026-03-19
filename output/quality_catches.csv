@@ -16548,3 +16548,91 @@ Without this, `personhog_router_client_requests_in_flight` will monotonically in
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/PostHog/posthog/pull/51529#discussion_r2956160992,,2026-03-18T20:48:18.945000,In-flight gauge leaks on async task cancellation,resource_leak,high,8,"This catches a real concurrency bug where the in-flight request gauge will permanently drift upward when tasks are cancelled at await points (common in gRPC when clients disconnect). This causes monitoring to become increasingly inaccurate over time, which is a meaningful production issue. The fix is non-trivial and the reviewer correctly identifies that a drop guard pattern is needed.",2026-03-19T00:51:00.797088+00:00
+generaltranslation/gt,1129,feat: add derive for template literal macros,https://github.com/generaltranslation/gt/pull/1129,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **`void` expression silently drops side-effectful code after transformation**
+
+`void expr` in JavaScript evaluates `expr` for its side effects and returns `undefined`. When this handler returns a static `'undefined'` part, the entire `expr` is discarded from the transformed AST — `t\`${void sideEffect()}\`` is rewritten to `t(""undefined"")` and the call to `sideEffect()` disappears entirely.
+
+For the common no-op case (`void 0`) this is harmless, but any call with side effects will be silently eliminated from the compiled output, which is a correctness bug. Consider treating `void` expressions as `dynamic` parts (same as any unknown expression) rather than statically resolving them:
+
+```suggestion
+  if (t.isUnaryExpression(node) && node.operator === 'void') {
+    return [{ type: 'dynamic', node }];
+  }
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/compiler/src/transform/templates-and-concat/flattenExpressionToParts.ts
+Line: 35-37
+
+Comment:
+**`void` expression silently drops side-effectful code after transformation**
+
+`void expr` in JavaScript evaluates `expr` for its side effects and returns `undefined`. When this handler returns a static `'undefined'` part, the entire `expr` is discarded from the transformed AST — `t\`${void sideEffect()}\`` is rewritten to `t(""undefined"")` and the call to `sideEffect()` disappears entirely.
+
+For the common no-op case (`void 0`) this is harmless, but any call with side effects will be silently eliminated from the compiled output, which is a correctness bug. Consider treating `void` expressions as `dynamic` parts (same as any unknown expression) rather than statically resolving them:
+
+```suggestion
+  if (t.isUnaryExpression(node) && node.operator === 'void') {
+    return [{ type: 'dynamic', node }];
+  }
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/generaltranslation/gt/pull/1129#discussion_r2957170539,,2026-03-19T01:23:29.955000,void expression incorrectly drops side effects during AST transformation,logic,high,8,"This catches a genuine correctness bug where void expressions with side effects (like `void sideEffect()`) would be silently transformed to static 'undefined' strings, completely dropping the side-effectful code from the compiled output. This is a subtle but real bug that could cause unexpected behavior in production.",2026-03-19T03:14:15.206671+00:00
+simstudioai/sim,3656,"fix(subflows): subflow-child selection issues, subflow error logs",https://github.com/simstudioai/sim/pull/3656,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Direct mutation of serialized workflow config**
+
+`loopConfig.nodes = []` mutates the original `SerializedLoop` object that was passed into `dag.loopConfigs` via `initializeConfigs`. Since `initializeConfigs` stores a reference (not a deep copy) to each loop config from the incoming `SerializedWorkflow`, this mutation modifies the caller's data in-place.
+
+If `DAGBuilder.build()` is ever invoked more than once with the same `SerializedWorkflow` instance (e.g., in tests, retries, or loop-based re-execution), every subsequent build will see an already-emptied `nodes` array, making all children appear disabled even if they are not. Prefer building a shallow copy instead:
+
+```suggestion
+      if (!hasReachableChildren) {
+        loopConfig.nodes = []
+      }
+```
+
+Suggested safer approach:
+```ts
+const effectiveNodes = hasReachableChildren ? loopNodes : []
+// pass effectiveNodes into createSentinelPair / downstream rather than mutating loopConfig.nodes
+```
+
+The same issue exists in `parallels.ts` at the equivalent location.",https://github.com/simstudioai/sim/pull/3656#discussion_r2955742397,,2026-03-18T19:27:38.330000,Direct mutation corrupts workflow config on repeated builds,data_integrity,high,8,"This catches a real bug where mutating loopConfig.nodes = [] modifies the original serialized workflow data. On subsequent builds with the same workflow instance (retries, tests, re-execution), all loop children would incorrectly appear disabled, causing silent execution failures. This is a meaningful logic bug that would cause incorrect behavior in production.",2026-03-19T03:14:15.206671+00:00
+berriai/litellm,23784,fix: surface Anthropic code execution results as code_interpreter_call in Responses API,https://github.com/BerriAI/litellm/pull/23784,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Incremental emission conflicts with `stream_chunk_builder`'s list-merging strategy**
+
+`_build_code_interpreter_results()` intentionally returns only the *new* items since the last call (lines 701-702) to avoid the duplication bug. However, `stream_chunk_builder` in `main.py` (lines 7588-7592) uses a **""last value wins""** strategy for list-typed fields:
+
+```python
+# main.py:7588-7592
+elif isinstance(value, list) and isinstance(combined_provider_fields[key], list):
+    # For lists like web_search_results, take the last (most complete) one
+    combined_provider_fields[key] = value  # ← replaces, not extends
+```
+
+With two sequential code executions:
+- Chunk for `result_1`: `code_interpreter_results = [item_1]`
+- Chunk for `result_2`: `code_interpreter_results = [item_2]`
+
+After `stream_chunk_builder`, `choice.message.provider_specific_fields[""code_interpreter_results""]` will be `[item_2]` — `item_1` is silently lost.
+
+`_extract_tool_result_output_items()` in `transformation.py` reads from `choice.message.provider_specific_fields` (not from `_hidden_params`), so only the last code execution will appear in the Responses API output for streaming responses with multiple code executions.
+
+The fix is to emit the **full accumulated list** each time (matching `tool_results`' behaviour), so `stream_chunk_builder`'s ""last complete list"" assumption is satisfied:
+
+```python
+def _build_code_interpreter_results(self) -> list:
+    results = []
+    for tr in self.tool_results:  # iterate full list, not just new ones
+        call_id = tr.get(""tool_use_id"", """")
+        ...
+        results.append(OutputCodeInterpreterCall(...))
+    return results
+```
+
+And update `_merge_provider_specific_fields` to use the same ""last value"" strategy for `code_interpreter_results`, or simply stop accumulating it in the streaming iterator and rely solely on `stream_chunk_builder`.",https://github.com/BerriAI/litellm/pull/23784#discussion_r2946913787,"Fixed — `_build_code_interpreter_results` now iterates all `self.tool_results` (cumulative), and `_merge_provider_specific_fields` uses last-value-wins.
+---
+Fixed — `_build_code_interpreter_results` now iterates all `self.tool_results` (cumulative), and `_merge_provider_specific_fields` uses last-value-wins.",2026-03-17T13:49:18.155000,Incremental list emission causes data loss in streaming responses,data_integrity,high,8,"This comment identifies a significant data integrity bug where the incremental emission strategy conflicts with stream_chunk_builder's 'last value wins' merge strategy, causing earlier code execution results to be silently dropped when multiple executions occur. This would cause real data loss in production for users with multi-step code executions.",2026-03-19T03:14:15.206671+00:00
