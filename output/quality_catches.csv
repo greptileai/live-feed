@@ -17048,3 +17048,97 @@ The 202 status needs to be explicitly checked and thrown **before** the `!respon
     throw toContext7ApiError(response, payload);
   }
 ```",https://github.com/raycast/extensions/pull/26125#discussion_r2900692967,"Fixed. 202 is now handled before the generic success path, so “library still being finalized” surfaces correctly.",2026-03-07T22:12:58.108000,HTTP 202 success status bypasses intended error handling,logic,high,8,This is a genuine logic bug where HTTP 202 (Accepted) responses would never trigger the intended 'library still being finalized' error message because response.ok is true for all 2xx status codes. Users would see confusing behavior instead of the helpful retry message when a library is still processing.,2026-03-19T20:21:35.708831+00:00
+reflex-dev/reflex,6196,Fix race conditions in StateManagerRedis lock detection,https://github.com/reflex-dev/reflex/pull/6196,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Unbounded wait on subscription event may hang indefinitely**
+
+`await self._lock_updates_subscribed.wait()` has no timeout. If `_subscribe_lock_updates` fails before reaching `self._lock_updates_subscribed.set()` — for example, if `_enable_keyspace_notifications` raises — the event is never set. `ensure_task` wraps the coroutine in a retry loop that suppresses exceptions up to `exception_limit` (default 5). After those 5 failures the inner task is abandoned, `_lock_updates_subscribed` remains permanently unset, and every caller that hits the contended-lock branch in `_wait_for_lock` will block forever with no way to time out or surface an error.
+
+Consider adding a timeout and raising a descriptive error if the subscription never becomes ready:
+
+```python
+try:
+    await asyncio.wait_for(
+        self._lock_updates_subscribed.wait(),
+        timeout=self.lock_expiration / 1000,
+    )
+except (TimeoutError, asyncio.TimeoutError):
+    raise RuntimeError(
+        ""Timed out waiting for lock-updates subscription to be established""
+    )
+```
+",https://github.com/reflex-dev/reflex/pull/6196#discussion_r2962718554,,2026-03-19T21:08:44.249000,Unbounded await hangs forever if subscription setup fails,concurrency,high,8,"This catches a subtle concurrency bug where a failure in the subscription setup path leaves an event permanently unset, causing all subsequent callers to hang indefinitely. The analysis traces through the retry mechanism and exception handling to identify a real production deadlock scenario that would be difficult to debug.",2026-03-19T22:15:38.596909+00:00
+ethyca/fides,7658,ENG-3001: OAuth client management,https://github.com/ethyca/fides/pull/7658,"<a href=""#""><img alt=""P0"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p0.svg?v=7"" align=""top""></a> **Root client accessible via GET/PUT/POST secret endpoints**
+
+`get_client`, `update_client`, and `rotate_client_secret` all call `ClientDetail.get(db, object_id=client_id, config=CONFIG)`. When `client_id` equals the configured `oauth_root_client_id`, this returns an in-memory `ClientDetail` object (built from config, not persisted in the DB) rather than `None`. The `if not client` guard therefore does **not** fire, and all three endpoints proceed.
+
+For `rotate_client_secret` this is particularly dangerous: `rotate_secret` calls `self.update(...)`, which ultimately calls `db.add(self)` + `db.commit()` on the transient in-memory root-client object. Depending on SQLAlchemy's merge behaviour this will either **INSERT a new DB row with the root client's ID** (potentially corrupting the auth system) or raise an unhandled exception. `update_client` carries the same risk for name/description/scopes.
+
+All three endpoints should guard against the root client ID before the existing `if not client` check:
+
+```python
+if client_id == CONFIG.security.oauth_root_client_id:
+    raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail=""Client not found."")
+```
+
+This mirrors the intent of `list_clients`, which already explicitly excludes the root client.",https://github.com/ethyca/fides/pull/7658#discussion_r2956902439,"Alright, will add this.",2026-03-18T23:49:19.693000,Root OAuth client exposed via management endpoints causing auth corruption,security,critical,9,This is a significant security vulnerability where the root OAuth client (which should be protected) can be accessed and modified through GET/PUT/POST endpoints. The rotate_client_secret endpoint could corrupt the auth system by inserting a new DB row or causing unexpected behavior when operating on the in-memory root client object.,2026-03-19T22:15:38.596909+00:00
+berriai/litellm,24155,[Refactor] UI - API Reference: Migrate to Path-Based Routing,https://github.com/BerriAI/litellm/pull/24155,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **`proxyBaseUrl` always `""""` when redirect fires**
+
+The redirect effect reads `proxyBaseUrl` (a module-level variable set inside the `getUiConfig()` call at line 217), but `getUiConfig()` is `async` and hasn't resolved yet when this effect runs on mount. Effects execute in declaration order synchronously after the first render, so this effect fires before the `await getUiConfig()` at line 217 completes. The result is that `proxyBaseUrl` is always `""""` here, producing `/ui/api-reference` regardless of any configured custom base URL.
+
+The login-redirect effect at line 244 avoids this by gating on `redirectToLogin`, which is only set to `true` after `setAuthLoading(false)` (which happens after `getUiConfig()` resolves). The same guard should be applied here:
+
+```suggestion
+  // Redirect legacy query-param pages to their new path-based routes
+  const isLegacyRedirect = page in LEGACY_REDIRECTS;
+  useEffect(() => {
+    if (!authLoading && isLegacyRedirect) {
+      const base = (proxyBaseUrl || """") + ""/ui"";
+      router.replace(`${base}/${LEGACY_REDIRECTS[page]}`);
+    }
+  }, [authLoading, isLegacyRedirect, page, router]);
+```
+
+Without `!authLoading`, users on deployments with a non-empty `proxyBaseUrl` (custom server root) will be redirected to the wrong URL and land on a 404.",https://github.com/BerriAI/litellm/pull/24155#discussion_r2962701548,,2026-03-19T21:05:11.768000,Race condition causes redirect to wrong URL before config loads,concurrency,high,8,"Comment 0 identifies a real race condition where the redirect effect fires before the async getUiConfig() completes, causing proxyBaseUrl to always be empty string. This would cause users on deployments with custom base URLs to be redirected to wrong URLs and get 404s. The analysis is thorough and shows understanding of React effect execution order.",2026-03-19T22:15:38.596909+00:00
+simstudioai/sim,3683,"improvement(platform): landing page cleanup, MX cache fixes, and auth util extraction",https://github.com/simstudioai/sim/pull/3683,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Open redirect when `window` is undefined**
+
+When this utility runs in a server-side context (e.g., a Server Action or API route), `currentOrigin` is assigned `''`. In JavaScript, `anyString.startsWith('')` is always `true`, so every URL — including `https://attacker.com` — passes the check and `validateCallbackUrl` returns `true` for any input.
+
+The two current consumers are both `'use client'` components, so `window` is defined and the bug isn't currently exploitable. However, by extracting this into a shared `lib/auth/` utility, it is now far more likely to be reused in server-side code where `window` is undefined, making this a latent open-redirect vulnerability.
+
+The fix is to return `false` explicitly when running outside a browser environment instead of falling through to the origin comparison:
+
+```suggestion
+    const currentOrigin = typeof window !== 'undefined' ? window.location.origin : ''
+    if (!currentOrigin || url.startsWith(currentOrigin)) return !currentOrigin ? false : true
+```
+
+Or more clearly:
+
+```typescript
+    if (typeof window === 'undefined') return false   // server-side: no origin to compare against
+
+    const currentOrigin = window.location.origin
+    if (url.startsWith(currentOrigin)) return true
+```",https://github.com/simstudioai/sim/pull/3683#discussion_r2962625842,"Fixed in df55f5f. Now explicitly returns `false` when `window` is undefined (server-side), preventing the empty-string startsWith bypass. Absolute URL validation only runs in a browser context where the origin is known.",2026-03-19T20:48:06.763000,Open redirect vulnerability when window is undefined server-side,security,high,8,"The comment identifies a latent open redirect vulnerability where `url.startsWith('')` always returns true when running server-side (window undefined), allowing any malicious URL to pass validation. While not currently exploitable, extracting this to a shared utility makes server-side usage likely.",2026-03-19T22:15:38.596909+00:00
+onyx-dot-app/onyx,9476,feat: windows installer and install improvements,https://github.com/onyx-dot-app/onyx/pull/9476,"<a href=""#""><img alt=""P2"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p2.svg?v=7"" align=""top""></a> **`Fix-DockerCredStore` permanently renames system-wide credential helpers**
+
+The function renames Docker credential helper binaries (`docker-credential-desktop.exe`, `docker-credential-wincred.exe`) to `.bak` files (line 456). This is a **system-wide, irreversible** change — not scoped to the Onyx installation. Any other Docker-based tooling on the machine (e.g., a CI agent pulling from a private registry, VS Code Remote Containers, another project using Docker Hub) that relies on these helpers will silently break.
+
+There is no restore path: once renamed, they stay renamed even if Onyx is uninstalled. Consider removing the credential helper entries from the per-user `config.json` only (which the earlier part of the function already handles correctly by removing `credsStore`/`credHelpers` from the JSON) and **not** renaming the system binaries. The JSON cleanup alone is typically sufficient to stop Docker from invoking them.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: deployment/docker_compose/install.ps1
+Line: 450-461
+
+Comment:
+**`Fix-DockerCredStore` permanently renames system-wide credential helpers**
+
+The function renames Docker credential helper binaries (`docker-credential-desktop.exe`, `docker-credential-wincred.exe`) to `.bak` files (line 456). This is a **system-wide, irreversible** change — not scoped to the Onyx installation. Any other Docker-based tooling on the machine (e.g., a CI agent pulling from a private registry, VS Code Remote Containers, another project using Docker Hub) that relies on these helpers will silently break.
+
+There is no restore path: once renamed, they stay renamed even if Onyx is uninstalled. Consider removing the credential helper entries from the per-user `config.json` only (which the earlier part of the function already handles correctly by removing `credsStore`/`credHelpers` from the JSON) and **not** renaming the system binaries. The JSON cleanup alone is typically sufficient to stop Docker from invoking them.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/9476#discussion_r2962105282,,2026-03-19T18:58:51.101000,Installer permanently breaks system-wide Docker credential helpers,data_integrity,high,8,"This catches a serious system-level issue where the installer permanently renames Docker credential helper binaries system-wide, breaking other Docker tooling on the machine with no restore path. This is a meaningful bug that would cause real problems for users running other Docker-based tools.",2026-03-19T22:15:38.596909+00:00
