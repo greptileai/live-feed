@@ -16745,3 +16745,13 @@ export function migrateStoredSettings(
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/dyad-sh/dyad/pull/3028#discussion_r2943896728,,2026-03-17T01:41:28.327000,Missing migration silently resets user notification preferences on upgrade,data_integrity,medium,8,"This is a meaningful catch that would cause real user impact - existing users with notifications enabled would silently lose that setting after upgrading. The AI correctly identified the schema rename without a corresponding migration, understood the passthrough behavior, and provided a complete fix. This isn't an obvious issue that tooling would catch, requiring understanding of the migration pattern and data persistence across versions.",2026-03-19T06:32:24.913553+00:00
+gptme/gptme,1704,feat(cli): add --review flag for self-review pass after main run,https://github.com/gptme/gptme/pull/1704,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Review pass ignores user's `no_confirm` setting**
+
+`no_confirm=True` is hardcoded for the review pass, but it should respect whatever the user specified via `--no-confirm` (the `no_confirm` variable is already in scope). As written, a user who invokes `gptme --review 'write fib.py'` *without* `--no-confirm` will have their confirmations silently bypassed during the review pass — the assistant can execute shell commands, overwrite files, etc. without any prompt.
+
+```suggestion
+                no_confirm=no_confirm,
+                interactive=interactive,
+```
+
+This keeps the review pass consistent with the main pass's safety posture.",https://github.com/gptme/gptme/pull/1704#discussion_r2958051706,Fixed in prior commit (6e16ee6) —  is now propagated correctly.,2026-03-19T06:03:17.161000,Hardcoded no_confirm bypasses user's safety confirmation setting,security,high,8,"Comment 2 identifies a security issue where hardcoding `no_confirm=True` bypasses the user's explicit safety setting, allowing the review pass to execute shell commands and overwrite files without confirmation even when the user didn't authorize autonomous execution. This is a meaningful security bypass that could lead to unintended file modifications or command execution.",2026-03-19T08:24:28.013317+00:00
