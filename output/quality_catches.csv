@@ -17016,3 +17016,35 @@ Consider increasing the TTL (e.g. `72 * 60 * 60` for 3 days) to give retried act
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/PostHog/posthog/pull/51545#discussion_r2956672673,,2026-03-18T22:52:48.868000,TTL expiration causes workflow failures during retries,logic,high,8,"The comment correctly identifies that a 24-hour TTL is insufficient for workflows that can take up to 48 hours in worst-case retry scenarios (3 retries × 12h + delays). This would cause get_filters to return None and raise ValueError, breaking production workflows. The fix was addressed by changing TTL to 72 hours.",2026-03-19T18:29:33.250713+00:00
+simstudioai/sim,3675,improvement(react): replace unnecessary useEffect patterns with better React primitives,https://github.com/simstudioai/sim/pull/3675,"<a href=""#""><img alt=""P0"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p0.svg?v=7"" align=""top""></a> **Side effect (external callback) called during render**
+
+`onMatchCountChange?.(matchCount)` is invoked directly in the render body. If the parent uses this prop to update its own state (which is the obvious intent of any `onXxxChange` callback), React will throw — in Strict Mode you'll see:
+
+> Warning: Cannot update a component (`ParentComponent`) while rendering a different component (`VirtualizedViewerInner`).
+
+In concurrent mode the render function can be called multiple times for the same commit, meaning the callback would fire more than once per actual change. The previous `useEffect` was the correct tool here because it runs *after* paint, keeping the render pure.
+
+The same pattern is duplicated in `ViewerInner` at line 1070.",https://github.com/simstudioai/sim/pull/3675#discussion_r2961870221,"Fixed in 50b3987. Reverted to `useEffect` — calling parent callbacks during render is a side effect that can trigger ""Cannot update a component while rendering a different component"" and runs unpredictably in concurrent mode.",2026-03-19T18:18:23.100000,Side effect callback during render causes React concurrent mode bugs,runtime,high,8,"This catch identifies a meaningful React anti-pattern where calling parent callbacks during render violates React's rendering model, causing 'Cannot update a component while rendering' warnings and unpredictable behavior in concurrent mode. This would cause real production issues and is not something the IDE/compiler would catch.",2026-03-19T20:21:35.708831+00:00
+raycast/extensions,26125,Add context7 extension,https://github.com/raycast/extensions/pull/26125,"**HTTP 202 is a success status — its error case is unreachable**
+
+`response.ok` returns `true` for any 2xx status code, including `202`. Because of this, the `!response.ok` guard will never be triggered for a 202 response, so the corresponding error case in `toContext7ApiError` (line 168) that says `""This library is still being finalized. Try again shortly.""` can never be thrown.
+
+The 202 status needs to be explicitly checked and thrown **before** the `!response.ok` guard:
+
+```typescript
+  if (response.status === 202) {
+    throw toContext7ApiError(response, payload);
+  }
+
+  if (response.status === 301 && redirectCount < MAX_REDIRECTS) {
+    const redirectUrl = getRedirectUrl(payload);
+
+    if (redirectUrl) {
+      return requestJson(new URL(redirectUrl, API_BASE_URL), signal, redirectCount + 1);
+    }
+  }
+
+  if (!response.ok) {
+    throw toContext7ApiError(response, payload);
+  }
+```",https://github.com/raycast/extensions/pull/26125#discussion_r2900692967,"Fixed. 202 is now handled before the generic success path, so “library still being finalized” surfaces correctly.",2026-03-07T22:12:58.108000,HTTP 202 success status bypasses intended error handling,logic,high,8,This is a genuine logic bug where HTTP 202 (Accepted) responses would never trigger the intended 'library still being finalized' error message because response.ok is true for all 2xx status codes. Users would see confusing behavior instead of the helpful retry message when a library is still processing.,2026-03-19T20:21:35.708831+00:00
