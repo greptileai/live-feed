@@ -17328,3 +17328,20 @@ if (params.search) {
 ```
 
 The same issue exists in `apps/sim/tools/microsoft_ad/list_groups.ts`.",https://github.com/simstudioai/sim/pull/3686#discussion_r2962913700,"Fixed in 763de06. Now appending `$count=true` whenever `$search` is used, in both `list_users.ts` and `list_groups.ts`. The `ConsistencyLevel: eventual` header was already present — the missing `$count=true` was the gap.",2026-03-19T21:55:52.265000,Missing $count=true parameter causes API 400 errors with $search,logic,high,8,This catch identifies a real API integration bug where using $search without $count=true would cause all search requests to fail with 400 errors. This is non-obvious domain knowledge about Microsoft Graph API requirements that would definitely break functionality in production.,2026-03-20T03:11:03.795677+00:00
+pdfme/pdfme,1398,"fix(security): address decompression bomb, XSS, and SSRF vulnerabilities",https://github.com/pdfme/pdfme/pull/1398,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Incomplete IPv6 SSRF protection — private ranges exploitable via IPv4-mapped addresses**
+
+The current IPv6 check only blocks `::1` (loopback), but completely misses:
+
+1. **IPv4-mapped IPv6 addresses** — `::ffff:10.0.0.1`, `::ffff:127.0.0.1`, `::ffff:192.168.1.1`, etc. A user can pass `http://[::ffff:10.0.0.1]/` and bypass the entire IPv4 private-range check, because the `ipv4Match` regex won't match a bracketed IPv6 address.
+2. **Link-local IPv6** — `fe80::/10` range.
+3. **Unique-local IPv6** — `fc00::/7` range (analogous to RFC-1918 private IPv4).
+
+Exploitation example that currently returns `true` (unsafe):
+```
+isUrlSafeToFetch('http://[::ffff:10.0.0.1]/')  // → true (should be false)
+isUrlSafeToFetch('http://[::ffff:127.0.0.1]/')  // → true (should be false)
+```
+
+The `URL` API returns `hostname = '[::ffff:10.0.0.1]'` for such URLs, which matches neither the loopback string literals nor the `ipv4Match` regex.
+
+A more complete guard should parse IPv4-mapped IPv6, link-local, and unique-local prefixes before returning `true`. At minimum, the IPv4-mapped prefix `::ffff:0:0/96` must be checked and its embedded IPv4 part re-evaluated against the existing private-range rules.",https://github.com/pdfme/pdfme/pull/1398#discussion_r2963714641,,2026-03-20T03:00:42.547000,IPv4-mapped IPv6 addresses bypass SSRF protection,security,critical,9,"This is a significant security vulnerability where the SSRF protection can be completely bypassed using IPv4-mapped IPv6 addresses like `::ffff:10.0.0.1` or `::ffff:127.0.0.1`. An attacker could access internal network resources despite the protection being in place, making the security feature ineffective.",2026-03-20T04:43:28.014490+00:00
