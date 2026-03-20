@@ -17345,3 +17345,80 @@ isUrlSafeToFetch('http://[::ffff:127.0.0.1]/')  // → true (should be false)
 The `URL` API returns `hostname = '[::ffff:10.0.0.1]'` for such URLs, which matches neither the loopback string literals nor the `ipv4Match` regex.
 
 A more complete guard should parse IPv4-mapped IPv6, link-local, and unique-local prefixes before returning `true`. At minimum, the IPv4-mapped prefix `::ffff:0:0/96` must be checked and its embedded IPv4 part re-evaluated against the existing private-range rules.",https://github.com/pdfme/pdfme/pull/1398#discussion_r2963714641,,2026-03-20T03:00:42.547000,IPv4-mapped IPv6 addresses bypass SSRF protection,security,critical,9,"This is a significant security vulnerability where the SSRF protection can be completely bypassed using IPv4-mapped IPv6 addresses like `::ffff:10.0.0.1` or `::ffff:127.0.0.1`. An attacker could access internal network resources despite the protection being in place, making the security feature ineffective.",2026-03-20T04:43:28.014490+00:00
+posthog/posthog,51598,fix(insights): Split funnel breakdown by cohort queries,https://github.com/PostHog/posthog/pull/51598,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **OR-type `PropertyGroupFilter` semantics lost when spreading values**
+
+When the existing `properties` is a `PropertyGroupFilter` with `type=OR`, spreading its `.values` into the new AND group changes the filter semantics silently.
+
+For example, if the user had `OR(groupA, groupB)`, the resulting filter becomes:
+```
+AND(groupA, groupB, cohort_filter)
+```
+…instead of the semantically correct:
+```
+AND(OR(groupA, groupB), cohort_filter)
+```
+
+This would cause the cohort-filtered sub-queries to drastically over-restrict results whenever a user has top-level OR property groups on their funnel.
+
+The fix is to preserve the existing group as a nested `PropertyGroupFilterValue` rather than spreading its children:
+
+```python
+sub_query.properties = PropertyGroupFilter(
+    type=FilterLogicalOperator.AND_,
+    values=[
+        PropertyGroupFilterValue(
+            type=existing_props.type,
+            values=existing_props.values,
+        ),
+        PropertyGroupFilterValue(
+            type=FilterLogicalOperator.AND_,
+            values=[cohort_filter],
+        ),
+    ],
+)
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: posthog/hogql_queries/insights/funnels/funnels_query_runner.py
+Line: 160-171
+
+Comment:
+**OR-type `PropertyGroupFilter` semantics lost when spreading values**
+
+When the existing `properties` is a `PropertyGroupFilter` with `type=OR`, spreading its `.values` into the new AND group changes the filter semantics silently.
+
+For example, if the user had `OR(groupA, groupB)`, the resulting filter becomes:
+```
+AND(groupA, groupB, cohort_filter)
+```
+…instead of the semantically correct:
+```
+AND(OR(groupA, groupB), cohort_filter)
+```
+
+This would cause the cohort-filtered sub-queries to drastically over-restrict results whenever a user has top-level OR property groups on their funnel.
+
+The fix is to preserve the existing group as a nested `PropertyGroupFilterValue` rather than spreading its children:
+
+```python
+sub_query.properties = PropertyGroupFilter(
+    type=FilterLogicalOperator.AND_,
+    values=[
+        PropertyGroupFilterValue(
+            type=existing_props.type,
+            values=existing_props.values,
+        ),
+        PropertyGroupFilterValue(
+            type=FilterLogicalOperator.AND_,
+            values=[cohort_filter],
+        ),
+    ],
+)
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/51598#discussion_r2960692080,fixed!,2026-03-19T15:05:22.664000,OR filter semantics silently converted to AND causing wrong query results,logic,high,8,"This is a meaningful logic bug that would cause incorrect funnel query results in production when users have OR-type property filters. The spreading of OR group values into an AND group silently changes the filter semantics, leading to over-restricted results that would affect data accuracy for users. This is a subtle but impactful bug that requires understanding of the filter semantics to catch.",2026-03-20T08:23:46.391502+00:00
