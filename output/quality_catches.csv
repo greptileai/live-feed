@@ -17517,3 +17517,185 @@ The timeout path must do the same, or the entire purpose of this new `TimeoutExp
         _graceful_killpg(pgrp)
         return
 ```",https://github.com/gptme/gptme/pull/1713#discussion_r2964993001,,2026-03-20T10:24:05.473000,SIGTERM handler not reset causes timeout status overwritten with error,concurrency,high,8,"This catches a real race condition where the new TimeoutExpired handler correctly sets status='timeout' but then _graceful_killpg sends SIGTERM to the process group including the current process, triggering sigterm_handler which overwrites the result with status='error'. This defeats the entire purpose of distinguishing timeouts from errors in eval reports.",2026-03-20T14:25:43.124404+00:00
+posthog/posthog,51729,chore(personhog): gRPC connection churn tuning,https://github.com/PostHog/posthog/pull/51729,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **`backend_keepalive_timeout` doesn't honour ""0 = disabled""**
+
+The PR description says all four keepalive knobs can be set to `0` to disable them, and the field comment on the other timeout fields says `(0 = disabled)`. However, unlike `grpc_keepalive_timeout()` (which returns `Option<Duration>` with `0 → None`), this function always returns a raw `Duration`. Setting `BACKEND_KEEPALIVE_TIMEOUT_SECS=0` would therefore pass `Duration::from_secs(0)` to `Endpoint::keep_alive_timeout()`, meaning every keepalive ping that doesn't receive an *instant* ACK will tear the connection down — the opposite of ""disabled"".
+
+The field comment should say `(0 = disabled)` and the method should follow the same pattern as the other helpers:
+
+```suggestion
+    pub fn backend_keepalive_timeout(&self) -> Option<Duration> {
+        if self.backend_keepalive_timeout_secs == 0 {
+            None
+        } else {
+            Some(Duration::from_secs(self.backend_keepalive_timeout_secs))
+        }
+    }
+```
+
+The call-site in `replica.rs` would then need to handle `Option<Duration>` the same way `keepalive_interval` is handled (only calling `.keep_alive_timeout()` when `Some`).
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: rust/personhog-router/src/config.rs
+Line: 79-81
+
+Comment:
+**`backend_keepalive_timeout` doesn't honour ""0 = disabled""**
+
+The PR description says all four keepalive knobs can be set to `0` to disable them, and the field comment on the other timeout fields says `(0 = disabled)`. However, unlike `grpc_keepalive_timeout()` (which returns `Option<Duration>` with `0 → None`), this function always returns a raw `Duration`. Setting `BACKEND_KEEPALIVE_TIMEOUT_SECS=0` would therefore pass `Duration::from_secs(0)` to `Endpoint::keep_alive_timeout()`, meaning every keepalive ping that doesn't receive an *instant* ACK will tear the connection down — the opposite of ""disabled"".
+
+The field comment should say `(0 = disabled)` and the method should follow the same pattern as the other helpers:
+
+```suggestion
+    pub fn backend_keepalive_timeout(&self) -> Option<Duration> {
+        if self.backend_keepalive_timeout_secs == 0 {
+            None
+        } else {
+            Some(Duration::from_secs(self.backend_keepalive_timeout_secs))
+        }
+    }
+```
+
+The call-site in `replica.rs` would then need to handle `Option<Duration>` the same way `keepalive_interval` is handled (only calling `.keep_alive_timeout()` when `Some`).
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/51729#discussion_r2963706485,,2026-03-20T02:55:48.737000,Zero timeout causes instant connection teardown instead of disabling keepalive,logic,high,8,"The comment correctly identifies that setting backend_keepalive_timeout to 0 would pass Duration::from_secs(0) to the gRPC endpoint, causing connections to be torn down immediately on any keepalive ping (since instant ACK is impossible), which is the opposite of the intended 'disabled' behavior. This is a meaningful logic bug that would cause production connection instability.",2026-03-20T16:23:52.964853+00:00
+raycast/extensions,26469,[Mole] Add residual file cleanup to Uninstall command,https://github.com/raycast/extensions/pull/26469,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **AppleScript injection via unsanitized `scriptPath`**
+
+`scriptPath` is interpolated directly into an AppleScript string using a double-quoted template literal:
+
+```ts
+const appleScript = `do shell script ""${scriptPath}"" with administrator privileges`;
+```
+
+If `TMPDIR` (or the resulting `scriptPath`) contains a `""` character, a backslash, or spaces, the AppleScript will be malformed or the shell will interpret the path as multiple tokens — either failing silently or executing unexpected commands with admin privileges. The path must be escaped for both AppleScript string context and the underlying shell invocation.
+
+On a standard macOS install `TMPDIR` is `/var/folders/…/T/` and is safe, but this relies on an environment variable that a user or test environment could override.
+
+```suggestion
+    const escapedScriptPath = scriptPath.replace(/\\/g, ""\\\\"").replace(/""/g, '\\""');
+    const appleScript = `do shell script ""${escapedScriptPath}"" with administrator privileges`;
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: extensions/mole/src/uninstall.tsx
+Line: 140
+
+Comment:
+**AppleScript injection via unsanitized `scriptPath`**
+
+`scriptPath` is interpolated directly into an AppleScript string using a double-quoted template literal:
+
+```ts
+const appleScript = `do shell script ""${scriptPath}"" with administrator privileges`;
+```
+
+If `TMPDIR` (or the resulting `scriptPath`) contains a `""` character, a backslash, or spaces, the AppleScript will be malformed or the shell will interpret the path as multiple tokens — either failing silently or executing unexpected commands with admin privileges. The path must be escaped for both AppleScript string context and the underlying shell invocation.
+
+On a standard macOS install `TMPDIR` is `/var/folders/…/T/` and is safe, but this relies on an environment variable that a user or test environment could override.
+
+```suggestion
+    const escapedScriptPath = scriptPath.replace(/\\/g, ""\\\\"").replace(/""/g, '\\""');
+    const appleScript = `do shell script ""${escapedScriptPath}"" with administrator privileges`;
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/raycast/extensions/pull/26469#discussion_r2962258879,,2026-03-19T19:30:47.698000,AppleScript injection via unsanitized path in admin command,security,high,8,"This catches a genuine security vulnerability where an unsanitized path is interpolated into an AppleScript that runs with administrator privileges. While TMPDIR is typically safe on standard macOS, the environment variable can be overridden, potentially allowing command injection with elevated privileges.",2026-03-20T16:23:52.964853+00:00
+posthog/posthog,51733,fix(modeling): fail duckgres shadow jobs with meaningful errors,https://github.com/PostHog/posthog/pull/51733,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Duckgres job left in `RUNNING` when shadow activity raises an exception**
+
+`_resolve_duckgres_job` is only called when `await duckgres_shadow_handle` succeeds (i.e., the activity returns a `DuckgresShadowResult`). When the activity itself raises an exception (timeout, application error, etc.) the `except` block only logs and captures the error, but never marks the duckgres job as `FAILED`. Because `cleanup_running_jobs_activity` now filters to `engine=CLICKHOUSE` only, these duckgres jobs will be orphaned in `RUNNING` state indefinitely — the exact problem the PR describes.
+
+The same gap exists in `_collect_shadow_comparison` (line ~416), where an exception from `await shadow_handle` also skips `_resolve_duckgres_job`.
+
+Consider failing the job explicitly in both exception handlers:
+```python
+except Exception as shadow_err:
+    temporalio.workflow.logger.warning(
+        f""Duckgres shadow activity failed (duckgres_only): {str(shadow_err)}"",
+        extra=inputs.properties_to_log,
+    )
+    capture_exception(shadow_err)
+    # fail the duckgres job so it doesn't stay in RUNNING
+    await self._resolve_duckgres_job(
+        DuckgresShadowResult(error=str(shadow_err), row_count=0, duration_seconds=0, schema_name="""", table_name=""""),
+        duckgres_job_id,
+        inputs,
+    )
+```
+(Or extract a `_fail_duckgres_job` helper to avoid constructing a dummy result object.)
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: posthog/temporal/data_modeling/workflows/materialize_view.py
+Line: 308-313
+
+Comment:
+**Duckgres job left in `RUNNING` when shadow activity raises an exception**
+
+`_resolve_duckgres_job` is only called when `await duckgres_shadow_handle` succeeds (i.e., the activity returns a `DuckgresShadowResult`). When the activity itself raises an exception (timeout, application error, etc.) the `except` block only logs and captures the error, but never marks the duckgres job as `FAILED`. Because `cleanup_running_jobs_activity` now filters to `engine=CLICKHOUSE` only, these duckgres jobs will be orphaned in `RUNNING` state indefinitely — the exact problem the PR describes.
+
+The same gap exists in `_collect_shadow_comparison` (line ~416), where an exception from `await shadow_handle` also skips `_resolve_duckgres_job`.
+
+Consider failing the job explicitly in both exception handlers:
+```python
+except Exception as shadow_err:
+    temporalio.workflow.logger.warning(
+        f""Duckgres shadow activity failed (duckgres_only): {str(shadow_err)}"",
+        extra=inputs.properties_to_log,
+    )
+    capture_exception(shadow_err)
+    # fail the duckgres job so it doesn't stay in RUNNING
+    await self._resolve_duckgres_job(
+        DuckgresShadowResult(error=str(shadow_err), row_count=0, duration_seconds=0, schema_name="""", table_name=""""),
+        duckgres_job_id,
+        inputs,
+    )
+```
+(Or extract a `_fail_duckgres_job` helper to avoid constructing a dummy result object.)
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/51733#discussion_r2964131481,,2026-03-20T06:02:54.058000,Jobs stuck in RUNNING state when shadow activity throws exception,data_integrity,high,8,"This is a meaningful logic bug where exception handling paths fail to update job state, causing duckgres jobs to be orphaned in RUNNING state indefinitely. The reviewer correctly identified that the PR's cleanup activity change compounds this issue by excluding these jobs from cleanup. This is a non-obvious bug with real production impact that requires understanding the workflow's state management logic.",2026-03-20T16:23:52.964853+00:00
+gptme/gptme,1713,feat(eval): add Claude Code agent for cross-harness evaluation,https://github.com/gptme/gptme/pull/1713,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Sequential blocking `readline()` calls can deadlock**
+
+`p.stdout.readline()` and `p.stderr.readline()` are both blocking operations called sequentially. If the subprocess writes a burst of data to stderr (e.g. a verbose error from Claude Code on startup) while no stdout output has been produced yet, `p.stdout.readline()` will block indefinitely waiting for a newline on stdout. Meanwhile the subprocess is blocked on its stderr write because the pipe's 64 KB kernel buffer is full. Neither side can proceed — this is a classic inter-pipe deadlock.
+
+This can happen in practice if Claude Code encounters an API error or auth failure and emits a multi-kilobyte error to stderr before writing any JSON to stdout.
+
+The standard fix is to use two reader threads:
+
+```python
+import threading
+
+stdout_lines: list[str] = []
+stderr_lines: list[str] = []
+
+def _read(pipe, buf):
+    for line in iter(pipe.readline, """"):
+        buf.append(line)
+    pipe.close()
+
+t_out = threading.Thread(target=_read, args=(p.stdout, stdout_lines))
+t_err = threading.Thread(target=_read, args=(p.stderr, stderr_lines))
+t_out.start(); t_err.start()
+
+# Poll for timeout while threads drain both pipes concurrently
+while t_out.is_alive() or t_err.is_alive():
+    if time.time() - start > self.timeout:
+        p.kill()
+        timed_out = True
+        break
+    time.sleep(0.1)
+
+t_out.join(); t_err.join()
+```",https://github.com/gptme/gptme/pull/1713#discussion_r2964992810,,2026-03-20T10:24:05.454000,Sequential blocking readline calls can cause inter-pipe deadlock,concurrency,high,8,This catches a classic subprocess deadlock pattern where sequential blocking reads on stdout and stderr can cause the process to hang indefinitely if one pipe fills its buffer while the other is being read. This would cause production hangs when Claude Code emits large stderr output.,2026-03-20T16:23:52.964853+00:00
