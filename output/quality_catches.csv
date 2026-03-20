@@ -17454,3 +17454,25 @@ Use an explicit `is not None` check to preserve the original semantics and only 
 ```
 
 The same pattern applies to the `get_key_model_tpm_limit` counterpart at lines 646–649.",https://github.com/BerriAI/litellm/pull/24088#discussion_r2959449625,,2026-03-19T11:31:50.713000,Falsy check on empty dict breaks rate limit override semantics,logic,high,8,"Comment 2 identifies a meaningful logic bug where `if team_limit:` evaluates to False for an explicitly-configured empty dict `{}`, causing deployment-level rate limits to be incorrectly applied to teams that intentionally opted out of per-model limits. This breaks the expected behavior where an empty dict should stop the lookup chain and treat the team as unconstrained.",2026-03-20T10:22:09.842787+00:00
+solana-foundation/kora,394,fix(lib): harden CPI inner-instruction reconstruction edge cases,https://github.com/solana-foundation/kora/pull/394,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **`BurnChecked` included in 2-account fallback arm despite requiring 3 accounts**
+
+The combined `Burn | BurnChecked` match arm applies the 2-account fallback (`instruction.accounts[1].pubkey`) to both variants. `BurnChecked` by protocol specification always has 3 accounts: `[source, mint, authority]` — its authority is at index 2, not index 1.
+
+If a `BurnChecked` instruction were to arrive in the 2-account form (e.g., malformed data or a future code path that constructs it incorrectly), the fallback would silently extract `accounts[1]` as the authority — which in the 3-account layout is the **mint**, not the authority. This would pass validation while authorizing the wrong key as the owner.
+
+The defensive comment `// (Solana RPC doesn't include mint in parsed ""burn"" non-checked JSON)` correctly identifies that only `Burn` (non-checked) is subject to this behaviour, but the match arm does not enforce that:
+
+```rust
+spl_token_interface::instruction::TokenInstruction::Burn { .. } => {
+    // 2-account fallback applicable here
+}
+spl_token_interface::instruction::TokenInstruction::BurnChecked { .. } => {
+    // BurnChecked always has 3 accounts; treat < 3 as an error
+    validate_number_accounts!(
+        instruction,
+        instruction_indexes::spl_token_burn::REQUIRED_NUMBER_OF_ACCOUNTS
+    );
+}
+```
+
+The same pattern applies to the `spl_token_2022` arm at line ~1694.",https://github.com/solana-foundation/kora/pull/394#discussion_r2961120625,,2026-03-19T16:08:37.634000,BurnChecked instruction incorrectly extracts mint as authority,logic,high,8,"This catch identifies a meaningful logic bug where BurnChecked instructions would incorrectly extract the mint address (index 1) as the authority instead of the actual authority (index 2) due to being combined with the 2-account Burn fallback. This could lead to authorization of the wrong key, which is a significant security-adjacent logic error in blockchain transaction processing.",2026-03-20T12:24:49.696243+00:00
