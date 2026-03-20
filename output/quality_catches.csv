@@ -17476,3 +17476,44 @@ spl_token_interface::instruction::TokenInstruction::BurnChecked { .. } => {
 ```
 
 The same pattern applies to the `spl_token_2022` arm at line ~1694.",https://github.com/solana-foundation/kora/pull/394#discussion_r2961120625,,2026-03-19T16:08:37.634000,BurnChecked instruction incorrectly extracts mint as authority,logic,high,8,"This catch identifies a meaningful logic bug where BurnChecked instructions would incorrectly extract the mint address (index 1) as the authority instead of the actual authority (index 2) due to being combined with the 2-account Burn fallback. This could lead to authorization of the wrong key, which is a significant security-adjacent logic error in blockchain transaction processing.",2026-03-20T12:24:49.696243+00:00
+solana-foundation/kora,393,feat(fee): deduct operator ATA rent from client fee via dynamic_ata_deduction config,https://github.com/solana-foundation/kora/pull/393,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Empty `data` defaults to discriminator 0, parsing malformed instructions as ATA Creates**
+
+`instruction.data.first().copied().unwrap_or(0)` returns `0` when `data` is empty. Since `0` satisfies `discriminator <= 1`, any instruction sent to the ATA program with 6+ accounts but *no data* will be silently parsed as a `CreateAssociatedTokenAccount` instruction with whatever public keys happen to be in the account list.
+
+A well-formed ATA Create instruction always carries exactly one discriminator byte (`[0x00]` or `[0x01]`). Instructions with empty data are invalid and should be rejected at parse time rather than coerced:
+
+```suggestion
+                let discriminator = match instruction.data.first().copied() {
+                    Some(d) => d,
+                    None => continue, // empty data — not a valid ATA instruction
+                };
+                if discriminator <= 1 {
+```",https://github.com/solana-foundation/kora/pull/393#discussion_r2955607589,,2026-03-18T18:59:48.682000,Empty instruction data parsed as valid ATA Create instruction,logic,high,8,"This catches a real parsing bug where empty instruction data defaults to discriminator 0, causing malformed instructions to be silently parsed as valid ATA Creates. This could lead to incorrect fee calculations or transaction processing with arbitrary account data being treated as legitimate ATA creation parameters.",2026-03-20T14:25:43.124404+00:00
+gptme/gptme,1713,feat(eval): add Claude Code agent for cross-harness evaluation,https://github.com/gptme/gptme/pull/1713,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **SIGTERM handler not reset before `_graceful_killpg` — ""timeout"" status overwritten with ""error""**
+
+`_graceful_killpg(pgrp)` on line 458 sends `SIGTERM` to the entire process group (line 60 of the same file: `os.killpg(pgrp, signal.SIGTERM)`). Because `os.setpgrp()` puts the current process in that same group, `sigterm_handler` fires on the current process. `sigterm_handler` calls `error_handler(KeyboardInterrupt(""SIGTERM received""))`, which **overwrites** `sync_dict[""result""]` — replacing the `status=""timeout""` written on line 457 with `status=""error""`.
+
+The success path (line 486) correctly resets the handler before calling `_graceful_killpg`:
+```python
+signal.signal(signal.SIGTERM, signal.SIG_IGN)  # ← prevents overwrite
+_graceful_killpg(pgrp)
+```
+
+The timeout path must do the same, or the entire purpose of this new `TimeoutExpired` handler (producing a distinct `""timeout""` status) is negated at runtime:
+
+```python
+    except subprocess.TimeoutExpired as e:
+        duration = time.time() - start
+        subprocess_logger.error(f""Agent subprocess timed out: {e}"")
+        result_timeout: ProcessError = {
+            ""status"": ""timeout"",
+            ""message"": str(e),
+            ""stdout"": stdout.getvalue(),
+            ""stderr"": stderr.getvalue(),
+            ""duration"": duration,
+        }
+        sync_dict[""result""] = result_timeout
+        signal.signal(signal.SIGTERM, signal.SIG_IGN)  # ← add this
+        _graceful_killpg(pgrp)
+        return
+```",https://github.com/gptme/gptme/pull/1713#discussion_r2964993001,,2026-03-20T10:24:05.473000,SIGTERM handler not reset causes timeout status overwritten with error,concurrency,high,8,"This catches a real race condition where the new TimeoutExpired handler correctly sets status='timeout' but then _graceful_killpg sends SIGTERM to the process group including the current process, triggering sigterm_handler which overwrites the result with status='error'. This defeats the entire purpose of distinguishing timeouts from errors in eval reports.",2026-03-20T14:25:43.124404+00:00
