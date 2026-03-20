@@ -17187,3 +17187,144 @@ if (!OKTA_DOMAIN_PATTERN.test(domain)) {
 ```
 
 This same pattern applies to every tool in this PR (`activate_user.ts`, `create_user.ts`, `update_user.ts`, `get_user.ts`, `deactivate_user.ts`, `suspend_user.ts`, `unsuspend_user.ts`, `reset_password.ts`, `delete_user.ts`, `list_groups.ts`, `get_group.ts`, `create_group.ts`, `update_group.ts`, `delete_group.ts`, `add_user_to_group.ts`, `remove_user_from_group.ts`, `list_group_members.ts`).",https://github.com/simstudioai/sim/pull/3685#discussion_r2962875792,"Fixed in 93f13f574. Added `validateOktaDomain()` in `types.ts` that enforces a regex pattern matching known Okta domain suffixes (`.okta.com`, `.okta-gov.com`, `.okta-emea.com`, `.oktapreview.com`, `.trexcloud.com`). All 18 tools now use this validator instead of raw string replacement.",2026-03-19T21:47:20.447000,SSRF vulnerability via unvalidated Okta domain parameter,security,critical,9,"This is a critical SSRF vulnerability where user-supplied domain values are used directly in URL construction, allowing authenticated users to make credentialed requests to arbitrary internal hosts including cloud metadata endpoints. The fix required adding proper domain validation across all 18 tools.",2026-03-20T00:49:33.117485+00:00
+berriai/litellm,24140,feat(anthropic): support ANTHROPIC_AUTH_TOKEN and ANTHROPIC_BASE_URL env vars,https://github.com/BerriAI/litellm/pull/24140,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **`get_auth_header` mis-routes OAuth tokens to `x-api-key`**
+
+`get_api_key(api_key)` can return an OAuth token (prefix `sk-ant-oat`) if that is what `ANTHROPIC_API_KEY` holds or if an OAuth key is passed explicitly. When that happens, the helper unconditionally returns `{""x-api-key"": ""<oauth-token>""}`.
+
+OAuth tokens must be sent via `Authorization: Bearer`, not `x-api-key`. The correct routing already exists in `get_anthropic_headers` and `optionally_handle_anthropic_oauth`, but `get_auth_header` — now used by batches, files, skills, and the models endpoint — bypasses it entirely. A user with an OAuth key stored in their env var for those endpoints will get silent 401 responses from Anthropic.
+
+Add an `is_anthropic_oauth_key()` check before returning the `x-api-key` dict to route OAuth keys correctly.",https://github.com/BerriAI/litellm/pull/24140#discussion_r2962141250,,2026-03-19T19:06:41.403000,OAuth tokens incorrectly sent via x-api-key header causing auth failures,logic,high,8,"This catches a real authentication bug where OAuth tokens (sk-ant-oat prefix) stored in ANTHROPIC_API_KEY would be sent via x-api-key header instead of Authorization: Bearer, causing silent 401 failures for users of batches, files, skills, and models endpoints. This is a meaningful logic bug that would affect production users.",2026-03-20T03:11:03.795677+00:00
+berriai/litellm,24143,fix: short-circuit websearch for github_copilot provider,https://github.com/BerriAI/litellm/pull/24143,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Streaming short-circuit path is unreachable for github_copilot**
+
+The `async_pre_request_hook` in `WebSearchInterceptionLogger` converts `stream=True` to `stream=False` for providers in `enabled_providers` (which includes `github_copilot`). This conversion happens inside `_execute_pre_request_hooks()` at line 190, **before** `_try_websearch_short_circuit()` is called here.
+
+As a result, by the time `_try_websearch_short_circuit` is called with the extracted `stream` value (line 215), `stream` is already `False` for any `github_copilot` streaming request. This means:
+1. `_try_websearch_short_circuit` will always return a plain `dict` (never a `FakeAnthropicMessagesStreamIterator`) for the primary use case this PR targets.
+2. A client that sent `stream=True` will receive a non-streaming JSON body instead of the expected SSE format, likely causing a protocol error.
+
+The `_websearch_interception_converted_stream` flag is stored in `kwargs` but is never checked by `_try_websearch_short_circuit`. The fix would be to read the original stream value before the hooks run and pass it to the short-circuit:
+
+```python
+# Save original stream flag before hooks can convert it
+original_stream = stream
+
+request_kwargs = await _execute_pre_request_hooks(
+    model=model,
+    messages=messages,
+    tools=tools,
+    stream=stream,
+    custom_llm_provider=custom_llm_provider,
+    **kwargs,
+)
+
+tools = request_kwargs.pop(""tools"", tools)
+stream = request_kwargs.pop(""stream"", stream)
+request_kwargs.pop(""litellm_params"", None)
+kwargs.update(request_kwargs)
+
+short_circuit_response = await _try_websearch_short_circuit(
+    model=model,
+    messages=messages,
+    tools=tools,
+    custom_llm_provider=custom_llm_provider,
+    stream=original_stream,   # use original, not the hook-converted value
+)
+```
+
+This bug is not covered by the new tests because `test_returns_stream_iterator_when_streaming` passes `stream=True` directly to `_try_websearch_short_circuit`, bypassing the hook conversion step entirely.",https://github.com/BerriAI/litellm/pull/24143#discussion_r2961637664,Fixed — we now save `original_stream` before hooks run and pass that to the short-circuit.,2026-03-19T17:36:20.039000,Streaming short-circuit returns non-streaming response to streaming clients,logic,high,8,"This catch identifies a logic bug where streaming requests would receive non-streaming responses due to the stream flag being converted before the short-circuit check. This would cause protocol errors for clients expecting SSE format, breaking the primary use case the PR was designed for.",2026-03-20T03:11:03.795677+00:00
+berriai/litellm,24135,fix(proxy): defer logging until post-call guardrails complete,https://github.com/BerriAI/litellm/pull/24135,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Model-level non-default guardrails silently skipped at execution**
+
+`guardrail_data` (the model-merged dict) is only used for the outer `should_run_guardrail` gate, but both execution branches pass the original `captured_data` to the actual hook calls.
+
+`UnifiedLLMGuardrails.async_post_call_success_hook` re-runs `should_run_guardrail(data=data, ...)` **internally** (at `unified_guardrail.py` lines 211–216):
+
+```python
+if guardrail_to_apply.should_run_guardrail(
+    data=data, event_type=GuardrailEventHooks.post_call
+) is not True:
+    return   # silently skipped
+```
+
+Because `captured_data` does **not** contain the model-level guardrails that were merged into `guardrail_data`, this second `should_run_guardrail` call returns `False` for any `default_on=False` guardrail configured via `litellm_params.guardrails`, and the guardrail is silently dropped at execution time even though it passed the outer gate.
+
+The non-streaming `ProxyLogging.post_call_success_hook` avoids this by reassigning `data` after the merge so the same merged dict is used for both gating and execution. The fix is to pass `guardrail_data` (not `captured_data`) to all execution calls, and set `guardrail_data[""guardrail_to_apply""] = cb` on the merged dict:
+
+```python
+guardrail_data = _check_and_merge_model_level_guardrails(
+    data=captured_data, llm_router=_global_llm_router
+)
+for cb in litellm.callbacks:
+    ...
+    try:
+        guardrail_result = None
+        if ""apply_guardrail"" in type(cb).__dict__:
+            guardrail_data[""guardrail_to_apply""] = cb  # use merged dict
+            guardrail_result = await _unified_guardrail.async_post_call_success_hook(
+                data=guardrail_data,                   # pass merged dict
+                ...
+            )
+        else:
+            guardrail_result = await cb.async_post_call_success_hook(
+                data=guardrail_data,                   # pass merged dict
+                ...
+            )
+```
+",https://github.com/BerriAI/litellm/pull/24135#discussion_r2961057660,,2026-03-19T15:59:18.060000,Model-level guardrails silently skipped due to wrong data dict passed,logic,high,8,"This comment identifies a significant logic bug where model-level guardrails with `default_on=False` are silently skipped during execution. The merged guardrail configuration (`guardrail_data`) is used for the outer gate check but the original `captured_data` (without merged guardrails) is passed to the actual hook calls, causing the internal `should_run_guardrail` check to fail. This would cause security/compliance guardrails to not execute in production.",2026-03-20T03:11:03.795677+00:00
+onyx-dot-app/onyx,9479,feat(opensearch): Add functions for keyword and semantic retrieval,https://github.com/onyx-dot-app/onyx/pull/9479,"<a href=""#""><img alt=""P2"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p2.svg?v=7"" align=""top""></a> **`minimum_should_match` silently drops to 0 when filter is injected**
+
+In OpenSearch (and Elasticsearch), a `bool` query that contains **only** `should` clauses uses a default `minimum_should_match` of **1** — meaning at least one should clause must match for a document to be returned. However, as soon as **any** `filter` or `must` clause is added to the same `bool`, the default drops to **0**, making every should clause optional. Scores are still boosted by matches, but documents with **zero keyword relevance** are also returned as long as they satisfy the filter.
+
+`_get_title_content_combined_keyword_search_query` now conditionally adds `filter` clauses, which means every call from `get_keyword_search_query` (where `include_hidden=False` always produces at least a hidden-field filter) silently returns *all* filter-passing documents up to `num_hits`, ranked by keyword score rather than pruned to keyword-matching ones. The hybrid path is not affected because subqueries there are built without `search_filters`, but the standalone `keyword_retrieval` path always hits this.
+
+The fix is to explicitly pin `minimum_should_match: 1` in the bool structure so that the keyword constraint is preserved regardless of whether filters are present:
+
+```python
+query = {
+    ""bool"": {
+        ""should"": [...],
+        ""minimum_should_match"": 1,
+    }
+}
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: backend/onyx/document_index/opensearch/search.py
+Line: 807-813
+
+Comment:
+**`minimum_should_match` silently drops to 0 when filter is injected**
+
+In OpenSearch (and Elasticsearch), a `bool` query that contains **only** `should` clauses uses a default `minimum_should_match` of **1** — meaning at least one should clause must match for a document to be returned. However, as soon as **any** `filter` or `must` clause is added to the same `bool`, the default drops to **0**, making every should clause optional. Scores are still boosted by matches, but documents with **zero keyword relevance** are also returned as long as they satisfy the filter.
+
+`_get_title_content_combined_keyword_search_query` now conditionally adds `filter` clauses, which means every call from `get_keyword_search_query` (where `include_hidden=False` always produces at least a hidden-field filter) silently returns *all* filter-passing documents up to `num_hits`, ranked by keyword score rather than pruned to keyword-matching ones. The hybrid path is not affected because subqueries there are built without `search_filters`, but the standalone `keyword_retrieval` path always hits this.
+
+The fix is to explicitly pin `minimum_should_match: 1` in the bool structure so that the keyword constraint is preserved regardless of whether filters are present:
+
+```python
+query = {
+    ""bool"": {
+        ""should"": [...],
+        ""minimum_should_match"": 1,
+    }
+}
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/9479#discussion_r2962103300,"i think i fixed this in my current commit, check it out!",2026-03-19T18:58:23.007000,Missing minimum_should_match causes keyword search to return irrelevant documents,logic,high,8,"This is a subtle but significant OpenSearch/Elasticsearch behavior bug. When filters are added to a bool query with only 'should' clauses, minimum_should_match defaults to 0, causing the keyword search to return all filter-passing documents regardless of keyword relevance. This would silently degrade search quality in production and is not obvious without deep knowledge of OpenSearch semantics.",2026-03-20T03:11:03.795677+00:00
+simstudioai/sim,3686,feat(microsoft-ad): add Azure AD (Entra ID) integration,https://github.com/simstudioai/sim/pull/3686,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **`$count=true` required when using `$search` with `ConsistencyLevel: eventual`**
+
+The `ConsistencyLevel: eventual` header is sent unconditionally on every list request. However, when `$search` is used, Microsoft Graph API also requires the `$count=true` query parameter to be present — without it the request returns a `400` error with a message like *""Request needs 'ConsistencyLevel: eventual' and '$count=true'""*.
+
+Consider conditionally appending `$count=true` when a search term is provided:
+```typescript
+if (params.search) {
+  queryParts.push('$count=true')
+  queryParts.push(`$search=""${encodeURIComponent(params.search)}""`)
+}
+```
+
+The same issue exists in `apps/sim/tools/microsoft_ad/list_groups.ts`.",https://github.com/simstudioai/sim/pull/3686#discussion_r2962913700,"Fixed in 763de06. Now appending `$count=true` whenever `$search` is used, in both `list_users.ts` and `list_groups.ts`. The `ConsistencyLevel: eventual` header was already present — the missing `$count=true` was the gap.",2026-03-19T21:55:52.265000,Missing $count=true parameter causes API 400 errors with $search,logic,high,8,This catch identifies a real API integration bug where using $search without $count=true would cause all search requests to fail with 400 errors. This is non-obvious domain knowledge about Microsoft Graph API requirements that would definitely break functionality in production.,2026-03-20T03:11:03.795677+00:00
