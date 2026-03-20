@@ -17422,3 +17422,35 @@ sub_query.properties = PropertyGroupFilter(
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/PostHog/posthog/pull/51598#discussion_r2960692080,fixed!,2026-03-19T15:05:22.664000,OR filter semantics silently converted to AND causing wrong query results,logic,high,8,"This is a meaningful logic bug that would cause incorrect funnel query results in production when users have OR-type property filters. The spreading of OR group values into an AND group silently changes the filter semantics, leading to over-restricted results that would affect data accuracy for users. This is a subtle but impactful bug that requires understanding of the filter semantics to catch.",2026-03-20T08:23:46.391502+00:00
+nvidia/cloudai,830,Megatron-Bridge r0.3.0 enhancement,https://github.com/NVIDIA/cloudai/pull/830,"**Standalone boolean flags silently dropped**
+
+This parser only handles two token shapes: a flag with an inline equals sign, and a flag followed by a value token. A standalone boolean flag like `--exclusive` or `--overcommit` falls through both branches without being appended, so it is silently discarded.
+
+The test `test_test_run_extra_srun_args_forwarded` sets `extra_srun_args` to `""--exclusive""` but only asserts `""--additional_slurm_params"" in wrapper_content` — which passes because `gpus-per-node` is added through a different code path — so the bug is not caught.
+
+A minimal fix adds a fallthrough case for boolean flags:
+
+```python
+elif tok.startswith(""--""):
+    if i + 1 < len(tokens) and not tokens[i + 1].startswith(""--""):
+        key = tok[2:]
+        params.append(f""{key}={tokens[i + 1]}"")
+        i += 1
+    else:
+        params.append(tok[2:])  # boolean flag with no value
+```",https://github.com/NVIDIA/cloudai/pull/830#discussion_r2938791140,,2026-03-16T08:16:43.418000,Standalone boolean flags silently dropped in argument parser,logic,high,8,"This identifies a real logic bug where standalone boolean flags like --exclusive are silently discarded by the parser, causing user-specified Slurm options to be ignored. The comment correctly identifies that the test doesn't catch this because it only checks for a different code path. This would cause production jobs to run without intended constraints.",2026-03-20T10:22:09.842787+00:00
+berriai/litellm,24088,feat: add proxy-wide default api key tpm/rpm limits ,https://github.com/BerriAI/litellm/pull/24088,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **`if team_limit:` silently drops explicitly-empty team limits**
+
+`if team_limit:` evaluates to `False` for an empty dict `{}`. If an operator configured `model_rpm_limit: {}` at the team level (explicitly opting out of per-model limits), the previous code returned `{}` immediately, stopping the lookup chain. With this change, an empty dict falls through to the deployment default, unintentionally applying a deployment-level rate limit to keys that were deliberately unconstrained at the team level.
+
+Use an explicit `is not None` check to preserve the original semantics and only fall through to deployment defaults when the key is truly absent:
+
+```suggestion
+    # 3. Fallback to team metadata
+    if user_api_key_dict.team_metadata:
+        team_limit = user_api_key_dict.team_metadata.get(""model_rpm_limit"")
+        if team_limit is not None:
+            return team_limit
+```
+
+The same pattern applies to the `get_key_model_tpm_limit` counterpart at lines 646–649.",https://github.com/BerriAI/litellm/pull/24088#discussion_r2959449625,,2026-03-19T11:31:50.713000,Falsy check on empty dict breaks rate limit override semantics,logic,high,8,"Comment 2 identifies a meaningful logic bug where `if team_limit:` evaluates to False for an explicitly-configured empty dict `{}`, causing deployment-level rate limits to be incorrectly applied to teams that intentionally opted out of per-model limits. This breaks the expected behavior where an empty dict should stop the lookup chain and treat the team as unconstrained.",2026-03-20T10:22:09.842787+00:00
