@@ -17699,3 +17699,115 @@ while t_out.is_alive() or t_err.is_alive():
 
 t_out.join(); t_err.join()
 ```",https://github.com/gptme/gptme/pull/1713#discussion_r2964992810,,2026-03-20T10:24:05.454000,Sequential blocking readline calls can cause inter-pipe deadlock,concurrency,high,8,This catches a classic subprocess deadlock pattern where sequential blocking reads on stdout and stderr can cause the process to hang indefinitely if one pipe fills its buffer while the other is being read. This would cause production hangs when Claude Code emits large stderr output.,2026-03-20T16:23:52.964853+00:00
+berriai/litellm,24207,feat: add git-subdir source type to claude-code/plugins API,https://github.com/BerriAI/litellm/pull/24207,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Null byte injection bypasses `..` segment check**
+
+A path like `""..%00""` (null-byte appended) passes all current checks:
+
+```python
+>>> urllib.parse.unquote(""..%00"")
+'..\x00'
+>>> ""..\x00"".split(""/"")
+['..\x00']
+>>> "".."" in ['..\x00']  # segment check
+False
+>>> ""\\"" in '..\x00'    # backslash check
+False
+```
+
+Since `""..\x00"" != ""..""`, the traversal segment isn't caught. On systems that truncate paths at null bytes (many C-backed git tools), `..%00something` resolves to `..`, which would escape the repository root.
+
+Consider rejecting any path that contains a null byte after URL-decoding:
+
+```python
+segments = normalized.split(""/"")
+if normalized.startswith(""/"") or "".."" in segments or ""\\"" in normalized or ""\x00"" in normalized:
+    raise HTTPException(
+        status_code=400,
+        detail={
+            ""error"": ""git-subdir 'path' must be a relative path with no '..' segments""
+        },
+    )
+```
+
+You may also want to add `""..%00""` as a test case to `test_register_plugin_git_subdir_path_traversal` in the unit tests.",https://github.com/BerriAI/litellm/pull/24207#discussion_r2966126631,,2026-03-20T14:34:17.469000,Null byte injection bypasses path traversal security check,security,critical,9,"This identifies a sophisticated security vulnerability where null byte injection (..%00) bypasses the path traversal validation. On systems with C-backed git tools that truncate paths at null bytes, this could allow directory traversal attacks to escape the repository root, potentially accessing sensitive files.",2026-03-20T18:24:51.161264+00:00
+raycast/extensions,25301,Add kill-mcp extension,https://github.com/raycast/extensions/pull/25301,"**`getInstantCPU` will freeze the UI**
+
+`top -l 1` on macOS takes ~1-2 seconds to collect a sample. This function is called once per discovered MCP process inside the synchronous `getMCPProcesses()`, which itself runs on the main thread in a `useEffect` callback. If a user has 5 MCP servers, this blocks the Raycast UI for 5-10 seconds on every refresh (including the 5-second auto-refresh interval).
+
+Additionally, the regex `/([\d.]+)/` matches the first number found on any line — `top -l 1 -stats cpu` outputs several header lines (like `Processes: 450 total, ...`) before the actual process data, so this will likely return a header number instead of the actual CPU percentage.
+
+Consider removing per-process `top` calls and instead using `%cpu` from `ps` (even if cumulative, it's far cheaper), or running a single `top -l 1 -stats pid,cpu` for all processes in one call and parsing all results at once.",https://github.com/raycast/extensions/pull/25301#discussion_r2823733437,,2026-02-18T18:06:59.432000,Synchronous shell calls freeze UI for 5-10 seconds per refresh,performance,high,8,"This catch identifies a serious performance bug where `top -l 1` (taking 1-2 seconds) is called synchronously for each MCP process, blocking the UI for 5-10+ seconds on every 5-second refresh interval. Additionally, the regex parsing is incorrect and will return wrong CPU values from header lines. This would make the extension unusable in practice.",2026-03-20T18:24:51.161264+00:00
+posthog/posthog,48527,chore(messaging): implement UUID range partitioning for person properties backfill,https://github.com/PostHog/posthog/pull/48527,"**HAVING clause inconsistency with backfill query**
+
+`get_person_uuid_range_activity` uses `HAVING max(is_deleted) = 0` to determine the UUID boundaries, but the actual backfill query in the worker activity uses `HAVING argMax(is_deleted, version) = 0`. These semantics differ: `max(is_deleted)` will exclude any person who has `is_deleted = 1` in *any* version, even if their latest version has `is_deleted = 0` (i.e., they were deleted and then restored). `argMax(is_deleted, version)` only looks at the most recent version.
+
+If such a person has the globally smallest or largest UUID for a team, the computed `min_uuid`/`max_uuid` boundary will be narrower than what the backfill actually processes. As a result, that person's UUID falls outside the range assigned to any worker and they are silently skipped entirely.
+
+The fix is to use `argMax(is_deleted, version) = 0` in the UUID range query to match the backfill:
+```suggestion
+    query = """"""
+        SELECT
+            min(id) as min_uuid,
+            max(id) as max_uuid
+        FROM (
+            SELECT id
+            FROM person
+            WHERE team_id = %(team_id)s
+            GROUP BY id
+            HAVING argMax(is_deleted, version) = 0
+        )
+        FORMAT JSONEachRow
+    """"""
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: posthog/temporal/messaging/backfill_precalculated_person_properties_coordinator_workflow.py
+Line: 122-135
+
+Comment:
+**HAVING clause inconsistency with backfill query**
+
+`get_person_uuid_range_activity` uses `HAVING max(is_deleted) = 0` to determine the UUID boundaries, but the actual backfill query in the worker activity uses `HAVING argMax(is_deleted, version) = 0`. These semantics differ: `max(is_deleted)` will exclude any person who has `is_deleted = 1` in *any* version, even if their latest version has `is_deleted = 0` (i.e., they were deleted and then restored). `argMax(is_deleted, version)` only looks at the most recent version.
+
+If such a person has the globally smallest or largest UUID for a team, the computed `min_uuid`/`max_uuid` boundary will be narrower than what the backfill actually processes. As a result, that person's UUID falls outside the range assigned to any worker and they are silently skipped entirely.
+
+The fix is to use `argMax(is_deleted, version) = 0` in the UUID range query to match the backfill:
+```suggestion
+    query = """"""
+        SELECT
+            min(id) as min_uuid,
+            max(id) as max_uuid
+        FROM (
+            SELECT id
+            FROM person
+            WHERE team_id = %(team_id)s
+            GROUP BY id
+            HAVING argMax(is_deleted, version) = 0
+        )
+        FORMAT JSONEachRow
+    """"""
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/48527#discussion_r2934517045,,2026-03-14T02:22:08.572000,Query inconsistency causes persons to be silently skipped in backfill,data_integrity,high,8,"The HAVING clause mismatch between `max(is_deleted) = 0` and `argMax(is_deleted, version) = 0` creates a semantic difference that can cause deleted-then-restored persons at UUID boundaries to be silently skipped during backfill, resulting in incomplete data processing. This is a meaningful logic bug affecting production data integrity.",2026-03-20T18:24:51.161264+00:00
+gptme/gptme,1713,feat(eval): add Claude Code agent for cross-harness evaluation,https://github.com/gptme/gptme/pull/1713,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **`--allowedTools` value missing `shlex.quote()` in Docker command**
+
+The `tools` value is concatenated into a shell string without quoting, while every other dynamic value in the same command — `prompt`, `model` — is wrapped in `shlex.quote()`. The full `command` string is later passed to `/bin/bash -c`, so any unquoted special characters in a tool name (e.g., a comma, space, or shell metacharacter) would be interpreted by the shell rather than passed literally to `claude`.
+
+Compare with `DockerGPTMeEnv.run_gptme()` in the same file, which explicitly shell-escapes each tool individually before building the command string:
+
+```python
+for tool in tools:
+    cmd_parts.extend([""--tool"", shlex.quote(tool)])
+```
+
+The fix here is consistent with that pattern:
+
+```suggestion
+        if tools:
+            cmd_parts.extend([""--allowedTools"", shlex.quote("","".join(tools))])
+```",https://github.com/gptme/gptme/pull/1713#discussion_r2965196688,,2026-03-20T11:13:06.160000,Shell injection via unquoted tool names in Docker command,security,high,8,"Comment 1 identifies a shell injection vulnerability where tool names are passed to a shell command without shlex.quote(), allowing shell metacharacters in tool names to be interpreted by bash rather than passed literally. This could lead to command injection when running in Docker mode.",2026-03-20T18:24:51.161264+00:00
