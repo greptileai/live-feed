@@ -17142,3 +17142,48 @@ There is no restore path: once renamed, they stay renamed even if Onyx is uninst
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/onyx-dot-app/onyx/pull/9476#discussion_r2962105282,,2026-03-19T18:58:51.101000,Installer permanently breaks system-wide Docker credential helpers,data_integrity,high,8,"This catches a serious system-level issue where the installer permanently renames Docker credential helper binaries system-wide, breaking other Docker tooling on the machine with no restore path. This is a meaningful bug that would cause real problems for users running other Docker-based tools.",2026-03-19T22:15:38.596909+00:00
+cline/cline,9858,Latency improvements for remote workspaces,https://github.com/cline/cline/pull/9858,"<a href=""#""><img alt=""P0"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p0.svg?v=7"" align=""top""></a> **`flushInProgress = true` causes nested `runFlushCycle` to skip the flush, leaving the scheduler permanently stuck**
+
+When `requestFlush(""immediate"")` is called while flush #1 is in-flight, `requestFlush` sets `pendingPriority = ""immediate""` and returns (line 42–46). When flush #1 finishes, the post-flush continuation here (line 220) pre-emptively sets `this.flushInProgress = true` to prevent `flushNow()` observers from seeing an idle window. It then calls `await this.runFlushCycle(options)` at line 235.
+
+The nested `runFlushCycle` immediately sees `this.flushInProgress === true` (line 176) and enters the defensive branch. Since `this.currentFlushCompletion` was just set to `undefined` (line 222), it awaits `undefined` (resolves instantly), then checks `if (this.flushInProgress || ...)` at line 189 — `flushInProgress` is **still `true`** — and **returns early without flushing**.
+
+After both calls return:
+- `flushInProgress` is permanently stuck at `true`
+- `currentFlushCompletion` is `undefined`
+- `pendingPriority` remains `""immediate""` (never consumed)
+
+Any subsequent `flushNow()` call then enters the `while (this.flushInProgress)` loop at line 116, where `await this.currentFlushCompletion` becomes `await undefined` (resolves immediately in a loop) — an **infinite microtask spin** that never resolves.
+
+**When can this happen?** Tool-call chunks always have `""immediate""` priority (via `getPresentationPriorityForChunk`). A tool chunk arriving while the very first text/reasoning flush is still in-progress triggers exactly this path. The finalization call to `flushAssistantPresentationOrThrow()` (which calls `flushNow()`) would then hang forever.
+
+The comment on line 177–180 acknowledges that the `if (this.flushInProgress)` branch ""should not be hit in practice"" — but the `flushInProgress = true` assignment at line 220 is precisely what causes it to be hit in the recursive case.",https://github.com/cline/cline/pull/9858#discussion_r2950293059,This has been addressed.,2026-03-18T01:02:12.592000,Race condition causes scheduler to permanently hang with infinite loop,concurrency,critical,9,"This comment identifies a critical race condition where nested runFlushCycle calls with flushInProgress=true causes the scheduler to become permanently stuck, leading to an infinite microtask spin that hangs the application. This is a real concurrency bug that would cause production issues when tool-call chunks arrive during an in-flight flush.",2026-03-20T00:49:33.117485+00:00
+berriai/litellm,24150,[Infra] Merge daily internal branch with main,https://github.com/BerriAI/litellm/pull/24150,"<a href=""#""><img alt=""P2"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p2.svg?v=7"" align=""top""></a> **Raw API key exposed in error message**
+
+The error message includes the raw `token` value verbatim. Because `_hash_token_if_needed` only hashes `sk-` prefixed values for the DB lookup, the original unhashed key can still be surfaced in error responses and server logs.
+
+The same pattern appears at `block_key` (line 4946) and `unblock_key` (line 5055) where `data.key` is embedded directly in the message. While these are admin-only endpoints, echoing raw API keys back in error payloads is a security anti-pattern that can leak sensitive values through log aggregation pipelines.
+
+Consider masking or truncating the token in the message (e.g. show only the first 8 characters followed by `...`) so callers can still identify which key caused the error without exposing the full secret.",https://github.com/BerriAI/litellm/pull/24150#discussion_r2962129734,,2026-03-19T19:04:06.838000,Raw API key exposed in error messages and logs,security,high,8,"This is a legitimate security vulnerability where full API keys are exposed in error messages and could leak through log aggregation systems. While affecting admin endpoints, exposing raw credentials in logs is a real security anti-pattern that could lead to credential theft. The catch is specific, actionable, and identifies multiple instances of the pattern.",2026-03-20T00:49:33.117485+00:00
+simstudioai/sim,3685,feat(okta): add complete Okta identity management integration,https://github.com/simstudioai/sim/pull/3685,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Unvalidated `domain` parameter enables SSRF**
+
+The `domain` value is user-supplied and is used without server-side validation to construct request URLs:
+
+```ts
+const domain = params.domain.replace(/^https?:\/\//, '').replace(/\/$/, '')
+return `https://${domain}/api/v1/users`
+```
+
+Stripping the protocol prefix is not sufficient — a user could provide `internal-service.corp.com` (or even `169.254.169.254.xip.io/aws/latest/meta-data` for cloud metadata) as the domain, causing the server to make credentialed requests to arbitrary internal hosts. While `visibility: 'user-only'` prevents LLM injection, every authenticated platform user can exploit this to probe internal infrastructure.
+
+A minimal fix is to validate that the cleaned domain matches a known Okta domain suffix before constructing the URL:
+
+```ts
+const OKTA_DOMAIN_PATTERN = /^[a-zA-Z0-9-]+\.(okta|okta-gov|okta-emea|oktapreview)\.com$/
+const domain = params.domain.replace(/^https?:\/\//, '').replace(/\/$/, '')
+if (!OKTA_DOMAIN_PATTERN.test(domain)) {
+  throw new Error(`Invalid Okta domain: ${domain}`)
+}
+```
+
+This same pattern applies to every tool in this PR (`activate_user.ts`, `create_user.ts`, `update_user.ts`, `get_user.ts`, `deactivate_user.ts`, `suspend_user.ts`, `unsuspend_user.ts`, `reset_password.ts`, `delete_user.ts`, `list_groups.ts`, `get_group.ts`, `create_group.ts`, `update_group.ts`, `delete_group.ts`, `add_user_to_group.ts`, `remove_user_from_group.ts`, `list_group_members.ts`).",https://github.com/simstudioai/sim/pull/3685#discussion_r2962875792,"Fixed in 93f13f574. Added `validateOktaDomain()` in `types.ts` that enforces a regex pattern matching known Okta domain suffixes (`.okta.com`, `.okta-gov.com`, `.okta-emea.com`, `.oktapreview.com`, `.trexcloud.com`). All 18 tools now use this validator instead of raw string replacement.",2026-03-19T21:47:20.447000,SSRF vulnerability via unvalidated Okta domain parameter,security,critical,9,"This is a critical SSRF vulnerability where user-supplied domain values are used directly in URL construction, allowing authenticated users to make credentialed requests to arbitrary internal hosts including cloud metadata endpoints. The fix required adding proper domain validation across all 18 tools.",2026-03-20T00:49:33.117485+00:00
