@@ -18067,3 +18067,135 @@ When no `name` is provided in the request, `table_name` falls back to the raw, u
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/PostHog/posthog/pull/51711#discussion_r2963242807,,2026-03-19T23:23:32.709000,Unsanitized filename used in S3 key enabling path traversal,security,high,8,"Comment 0 identifies a security issue where the original unsanitized filename was being used as a fallback for table_name instead of the sanitized version. This inconsistency in the file upload handling could lead to path traversal vulnerabilities in S3 storage, which is a meaningful security concern for a data warehouse feature.",2026-03-20T20:17:50.791625+00:00
+posthog/posthog,51784,feat(phrocs): Publish phrocs on homebrew,https://github.com/PostHog/posthog/pull/51784,"<a href=""#""><img alt=""P2"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p2.svg?v=7"" align=""top""></a> **No checksum verification after download**
+
+The CI workflow publishes a `checksums.txt` alongside the binaries in each release, but the install script doesn't download or verify it. An attacker who can interfere with the download (even transiently) could serve a tampered binary.
+
+Consider downloading the checksums file and verifying before `chmod +x`:
+```sh
+CHECKSUMS_URL=""https://github.com/${REPO}/releases/download/${RELEASE_TAG}/checksums.txt""
+TMPDIR_PHROCS=""$(mktemp -d)""
+TMPBIN=""${TMPDIR_PHROCS}/phrocs""
+
+if command -v curl >/dev/null 2>&1; then
+    curl -fsSL ""$URL"" -o ""$TMPBIN""
+    curl -fsSL ""$CHECKSUMS_URL"" -o ""${TMPDIR_PHROCS}/checksums.txt""
+elif command -v wget >/dev/null 2>&1; then
+    wget -qO ""$TMPBIN"" ""$URL""
+    wget -qO ""${TMPDIR_PHROCS}/checksums.txt"" ""$CHECKSUMS_URL""
+fi
+
+# verify
+(cd ""$TMPDIR_PHROCS"" && grep ""$BINARY"" checksums.txt | sha256sum -c -)
+mv ""$TMPBIN"" ""${INSTALL_DIR}/phrocs""
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: tools/phrocs/install.sh
+Line: 48-55
+
+Comment:
+**No checksum verification after download**
+
+The CI workflow publishes a `checksums.txt` alongside the binaries in each release, but the install script doesn't download or verify it. An attacker who can interfere with the download (even transiently) could serve a tampered binary.
+
+Consider downloading the checksums file and verifying before `chmod +x`:
+```sh
+CHECKSUMS_URL=""https://github.com/${REPO}/releases/download/${RELEASE_TAG}/checksums.txt""
+TMPDIR_PHROCS=""$(mktemp -d)""
+TMPBIN=""${TMPDIR_PHROCS}/phrocs""
+
+if command -v curl >/dev/null 2>&1; then
+    curl -fsSL ""$URL"" -o ""$TMPBIN""
+    curl -fsSL ""$CHECKSUMS_URL"" -o ""${TMPDIR_PHROCS}/checksums.txt""
+elif command -v wget >/dev/null 2>&1; then
+    wget -qO ""$TMPBIN"" ""$URL""
+    wget -qO ""${TMPDIR_PHROCS}/checksums.txt"" ""$CHECKSUMS_URL""
+fi
+
+# verify
+(cd ""$TMPDIR_PHROCS"" && grep ""$BINARY"" checksums.txt | sha256sum -c -)
+mv ""$TMPBIN"" ""${INSTALL_DIR}/phrocs""
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/51784#discussion_r2966064493,,2026-03-20T14:23:43.705000,Missing checksum verification allows tampered binary installation,security,high,8,This is a legitimate security vulnerability where the install script downloads and executes a binary without verifying its integrity via the available checksums.txt file. An attacker performing a MITM attack could serve a malicious binary that would be installed and executed with user privileges.,2026-03-20T22:17:32.452079+00:00
+infisical/infisical,5738,feat(pki): adds automated intermediate CA signing and auto-renewal using AD CS,https://github.com/Infisical/infisical/pull/5738,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **CRLF injection via unsanitized template name**
+
+The `template` field is passed to `CertificateTemplate:${template.trim()}` without sanitizing CRLF characters. Since `certAttribParts` is joined with `\r\n` to form the final `CertAttrib` value, a template name that contains `\r\n` (stored as-is in the database from the signing config) can inject arbitrary additional certificate attributes into the ADCS submission.
+
+For example, if the stored template value is `SubCA\r\nEvilAttr:Value`, the resulting `CertAttrib` sent to ADCS would be:
+```
+CertificateTemplate:SubCA
+EvilAttr:Value
+```
+
+This could allow a sufficiently privileged user who configures the ADCS signing config to inject any ADCS-supported certificate attribute (e.g. `SAN:`, `SubjectAltName:`, extended key usage attributes, etc.), potentially getting a certificate with attributes not intended by the ADCS template policy.
+
+Add sanitization by stripping CRLF characters from the template before use:
+```typescript
+const sanitizedTemplate = template.trim().replace(RE2_CRLF_PATTERN, """");
+const certAttribParts: string[] = [`CertificateTemplate:${sanitizedTemplate}`];
+```
+",https://github.com/Infisical/infisical/pull/5738#discussion_r2948008412,added CRLF stripping and zod validation,2026-03-17T16:22:05.201000,CRLF injection allows arbitrary certificate attribute injection,security,high,8,"This is a genuine security vulnerability where unsanitized template names containing CRLF characters can inject arbitrary certificate attributes into ADCS submissions. A privileged user could exploit this to get certificates with unintended attributes like SAN or extended key usage, bypassing ADCS template policies.",2026-03-20T22:17:32.452079+00:00
+ethyca/fides,7720,ENG-3001: Protect default_oauth_client,https://github.com/ethyca/fides/pull/7720,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **NULL fides_key clients excluded from list**
+
+In SQL, `NULL != 'default_oauth_client'` evaluates to `NULL` (unknown), not `TRUE`. Because `fides_key` is defined as `nullable=True` in the `ClientDetail` model, any user-created client that has no `fides_key` (i.e., `fides_key IS NULL`) will fail this filter condition and be silently excluded from the paginated results.
+
+In practice, regular clients created through the `create_client` endpoint do not set a `fides_key`, so they will all have `fides_key = NULL`, meaning this endpoint would return an empty list for all non-system clients — breaking the entire listing functionality.
+
+The fix is to explicitly allow `NULL` values:
+
+```suggestion
+        .filter(or_(ClientDetail.fides_key.is_(None), ClientDetail.fides_key != DEFAULT_OAUTH_CLIENT_KEY))
+```
+
+Note: `or_` would also need to be imported from `sqlalchemy` (it is not currently imported in this file).",https://github.com/ethyca/fides/pull/7720#discussion_r2967637462,,2026-03-20T19:38:16.497000,SQL NULL comparison silently excludes all user-created OAuth clients,data_integrity,high,8,"This is a meaningful logic bug where SQL NULL comparison semantics would cause all user-created OAuth clients to be silently excluded from listing results, effectively breaking the entire client management functionality. The catch demonstrates good understanding of SQL NULL behavior that's easy to overlook.",2026-03-20T22:17:32.452079+00:00
+raycast/extensions,25565,Add portals extension,https://github.com/raycast/extensions/pull/25565,"**Import validation allows corrupted data**
+
+The import function only checks `Array.isArray(parsed)` before saving. Any valid JSON array (e.g., `[1, 2, 3]`, `[{""foo"": ""bar""}]`, or `[null]`) passes this check and gets saved as the folder tree. On next load, `browse-folders.tsx` calls `normalizeUrl(folder.url)` where `folder.url` is `undefined`, which invokes `undefined.trim()` and crashes the extension.
+
+At minimum, validate that each entry has the required `id`, `name`, and `url` string fields before saving:
+
+```suggestion
+  async function handleImport(values: { json: string }) {
+    try {
+      const parsed = JSON.parse(values.json) as FolderNode[];
+      if (!Array.isArray(parsed)) throw new Error(""Invalid format"");
+
+      function isValidNode(node: unknown): node is FolderNode {
+        if (typeof node !== ""object"" || node === null) return false;
+        const n = node as Record<string, unknown>;
+        if (typeof n.id !== ""string"" || typeof n.name !== ""string"" || typeof n.url !== ""string"") return false;
+        if (n.children !== undefined && (!Array.isArray(n.children) || !n.children.every(isValidNode))) return false;
+        return true;
+      }
+
+      if (!parsed.every(isValidNode)) throw new Error(""Invalid folder structure"");
+      await saveFolders(parsed);
+      await showToast({ style: Toast.Style.Success, title: ""Folders Imported"" });
+      onDone();
+      pop();
+    } catch {
+      await showToast({
+        style: Toast.Style.Failure,
+        title: ""Invalid JSON"",
+        message: ""Check the format and try again."",
+      });
+    }
+  }
+```",https://github.com/raycast/extensions/pull/25565#discussion_r2821114256,,2026-02-18T08:53:59.264000,Import validation allows malformed JSON to crash extension,data_integrity,high,8,"This catch identifies a real data validation bug where the import function accepts any JSON array without validating required fields, leading to runtime crashes when the extension tries to call methods on undefined properties (e.g., `undefined.trim()`). This would cause production crashes for users who import malformed data.",2026-03-20T22:17:32.452079+00:00
+berriai/litellm,24171,[Feature] Team MCP Server Manager Role,https://github.com/BerriAI/litellm/pull/24171,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **DELETE succeeds but team permission entry is never cleaned up**
+
+After a manager deletes a server, `delete_mcp_server` removes the record from `litellm_mcpservertable`, but the server ID is never removed from the team's `ObjectPermissionTable.mcp_servers` list. This leaves a ghost entry.
+
+The practical consequences:
+1. Future calls to `_get_team_allowed_mcp_servers` will still return the deleted ID, so any team member can ""use"" a server that no longer exists.
+2. If the same server ID is later re-created by a proxy admin (outside the team's scope), the team immediately gets access to it without any explicit grant — a latent privilege-escalation risk.
+3. A team manager who deletes a server and then tries to recreate it won't need to reassign it (the old entry is still there), but a fresh manager inheriting the team will see a ghost in their permission list.
+
+The `# TODO: Delete from teams` comment in the handler suggests this was known future work. Now that `mcp_server_manager` gives non-admin users the ability to delete servers, this gap has a real security surface. Consider adding the cleanup here even as a best-effort fire-and-forget call.",https://github.com/BerriAI/litellm/pull/24171#discussion_r2964138376,This is a pre-existing limitation — the delete endpoint already has `# TODO: Delete from teams` at line 1674. This PR only adds the `mcp_server_manager` role path; the manager delete path now does clean up the manager's own team via `_remove_mcp_server_from_team` (added in b8c9bf7d25). Multi-team cleanup on delete (for servers assigned to multiple teams) is out of scope and should be tracked separately as it affects the existing admin delete path too.,2026-03-20T06:05:49.889000,DELETE leaves stale permission entries causing privilege escalation risk,data_integrity,high,8,"This catches a real security-relevant data integrity bug: when an MCP server is deleted, the server ID is never removed from the team's permission list, leaving ghost entries. If the same server ID is later recreated by an admin, the team automatically gains unauthorized access - a latent privilege escalation vulnerability.",2026-03-20T22:17:32.452079+00:00
