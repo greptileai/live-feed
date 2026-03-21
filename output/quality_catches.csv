@@ -18415,3 +18415,47 @@ except Exception:
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/onyx-dot-app/onyx/pull/9467#discussion_r2956583739,,2026-03-18T22:30:02.709000,Audit execution log lost when hook update fails concurrently,data_integrity,high,8,"This catches a real data integrity bug where the execution audit log is silently discarded if update_hook__no_commit raises an exception (e.g., hook deleted concurrently). The audit trail is critical for debugging and compliance, and this silent failure would be hard to diagnose in production.",2026-03-21T00:45:42.744205+00:00
+berriai/litellm,24177,Fix blocking sync next in __anext__,https://github.com/BerriAI/litellm/pull/24177,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **PEP 479 wraps `StopIteration` into `RuntimeError` on stream exhaustion**
+
+When the sync iterator is exhausted, `next(self.completion_stream)` raises `StopIteration` inside the thread pool. `asyncio.to_thread` propagates it through its own `async def` frame (and through `asyncio.Future.__iter__`, which is also a generator). Because of PEP 479 (enforced for all generators and coroutines since Python 3.7), that `StopIteration` is silently converted to `RuntimeError: coroutine raised StopIteration` **before** it reaches the `except (StopAsyncIteration, StopIteration)` handler at line 2112.
+
+The net effect: when the sync iterator is fully consumed, instead of terminating the async iteration cleanly, callers will receive an unhandled `RuntimeError`. An `async for chunk in wrapper:` loop would raise an exception at end-of-stream rather than simply stopping.
+
+The fix is to prevent `StopIteration` from ever escaping the thread-callable:
+
+```python
+_STOP_SENTINEL = object()
+
+def _next_or_stop(it: Any) -> Any:
+    try:
+        return next(it)
+    except StopIteration:
+        return _STOP_SENTINEL
+
+chunk = await asyncio.to_thread(_next_or_stop, self.completion_stream)
+if chunk is _STOP_SENTINEL:
+    raise StopIteration  # caught by the outer except (StopAsyncIteration, StopIteration)
+```
+
+This keeps `StopIteration` inside the thread-callable so PEP 479 never sees it, and the existing exception handler at line 2112 continues to work correctly.",https://github.com/BerriAI/litellm/pull/24177#discussion_r2963695432,,2026-03-20T02:49:42.110000,PEP 479 converts StopIteration to RuntimeError breaking stream termination,runtime,high,8,This catches a real runtime bug where PEP 479's automatic conversion of StopIteration to RuntimeError in async contexts would cause stream iteration to crash with an unhandled exception instead of terminating cleanly. This would affect all users iterating over sync streams in async contexts.,2026-03-21T03:05:05.441576+00:00
+berriai/litellm,24181,feat(redis): add circuit breaker to RedisCache to fast-fail when Redis is down,https://github.com/BerriAI/litellm/pull/24181,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Incorrect fallback value when `in_memory_cache` is `None`**
+
+`result` is initialised to `value` — the *increment delta* (e.g. `1.0`). When `in_memory_cache` is `None`, the in-memory branch is skipped and `result` is never updated from its initial value. If the Redis call subsequently throws (circuit-breaker fast-fail or real timeout), the `except` block returns `value` (the increment delta) rather than any real accumulated counter value.
+
+Callers such as the rate-limiter interpret the return value as the *current counter total*. Returning `1.0` on every failed Redis call effectively resets every counter to 1 on Redis downtime, allowing all requests through regardless of actual traffic. 
+
+```python
+# result stays 1.0 (value delta) when in_memory_cache is None
+result: float = value   # ← initialized to increment delta
+try:
+    if self.in_memory_cache is not None:   # skipped when no in-memory cache
+        result = await self.in_memory_cache.async_increment(...)
+    if self.redis_cache is not None and local_only is False:
+        result = await self.redis_cache.async_increment(...)  # raises → fallback
+    return result
+except Exception as e:
+    ...
+    return result   # returns 1.0 (delta), not a real counter
+```
+
+Consider re-raising (or returning a sentinel like `0.0`) when `in_memory_cache is None` and Redis fails, so callers can handle the failure explicitly rather than silently receiving a garbage counter value.",https://github.com/BerriAI/litellm/pull/24181#discussion_r2963735557,,2026-03-20T03:12:21.434000,Incorrect fallback returns increment delta instead of counter value,logic,high,8,"This catches a meaningful logic bug where the rate limiter would receive the increment delta (e.g., 1.0) instead of the actual counter total when Redis fails and in_memory_cache is None. This would effectively disable rate limiting during Redis downtime by always returning a low value, allowing all requests through regardless of actual traffic.",2026-03-21T03:05:05.441576+00:00
