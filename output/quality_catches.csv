@@ -18543,3 +18543,23 @@ The fallback loop only handles error *strings* (via `_search_failed`), but not e
 ```
 
 Note: `search_perplexity` already wraps everything in `except Exception`, so it is safe. The lynx `search` function is the one that can raise.",https://github.com/gptme/gptme/pull/1721#discussion_r2967814170,"Fixed in 5a5e6a5ef — the fallback loop now catches exceptions from backends, logs them with a warning, and appends them to the error summary before continuing to the next candidate.",2026-03-20T20:20:09.968000,Exceptions bypass fallback loop breaking transparent fallback,logic,high,8,"This catch identifies a real bug where exceptions from backends (specifically lynx's subprocess.CalledProcessError) would propagate out of the fallback loop instead of being caught, preventing fallback to the next search engine - directly breaking the PR's stated goal of transparent fallback between search backends.",2026-03-21T10:13:17.321520+00:00
+gptme/gptme,1723,autoresearch(gptme): improve practical5 pass rate 0.778 → 1.000,https://github.com/gptme/gptme/pull/1723,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **No-op transformation — fix does not strip backticks**
+
+The expression `""```"" + line[3:]` is a mathematical no-op for a line that starts with exactly 6 backticks:
+
+```
+line       = ""``````patch file.py""          # 6 backticks + lang
+line[3:]   = ""```patch file.py""             # 3 backticks + lang  (first 3 removed)
+""```""+line[3:] = ""``````patch file.py""      # 3+3 = 6 backticks again — unchanged!
+```
+
+So the code detects the malformed line correctly but then rewrites it to the exact same string, leaving `fence_match` to still capture `fence_len=6`. The inner loop will then search for a 6-backtick closing fence, never find one (since `ToolUse._to_markdown` always emits triple fences), and the second block is never yielded.
+
+The correct transformation is to **discard** the first 3 backticks entirely (they represent the close of the previous block):
+
+```suggestion
+            line = line[3:]
+            lines[i] = line
+```
+
+That gives `""```patch file.py""` (3 backticks + lang), which `fence_match` correctly parses with `fence_len=3`.",https://github.com/gptme/gptme/pull/1723#discussion_r2968568678,"Fixed in f07c91f. Changed to line = line[3:] — the triple-backtick prefix was being re-added, making it a no-op.",2026-03-21T01:00:00.434000,"No-op transformation fails to strip backticks, silently drops code blocks",logic,high,8,"Comment 3 identifies a real logic bug where the transformation `""```"" + line[3:]` is mathematically a no-op for 6-backtick lines, causing the parser to search for a 6-backtick closing fence that never exists, silently dropping the second code block. This would cause production failures in code block parsing.",2026-03-21T12:18:45.132553+00:00
