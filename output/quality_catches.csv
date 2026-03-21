@@ -18716,3 +18716,72 @@ After `add_mcp_server_to_team` writes to the DB, the team object in the `user_ap
 The same problem affects `remove_mcp_server_from_team`: the stale cache will still list the deleted server as belonging to the team.
 
 Both helpers should invalidate the team cache (and the `object_permission` cache) after their DB writes. The same pattern was already added for `team_member_update` at `team_endpoints.py:2483` and should be applied consistently in `object_permission_utils.py` after each transaction completes.",https://github.com/BerriAI/litellm/pull/24266#discussion_r2969136684,,2026-03-21T05:36:17.798000,Cache invalidation missing causes immediate 403 on newly created servers,concurrency,high,8,This identifies a real bug where team admins can create MCP servers but immediately cannot delete or update them due to stale cache returning outdated team data. This is a significant functionality bug that would affect users in production.,2026-03-21T16:13:12.498867+00:00
+berriai/litellm,24174,Litellm oss staging 03 19 2026,https://github.com/BerriAI/litellm/pull/24174,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Pre-call model name may diverge from success-hook model group**
+
+The pre-call hook uses `data.get(""model"", None)` (the user-facing model from the request), while the success hook uses `get_model_group_from_litellm_kwargs(kwargs)` (the router model group). When requests arrive via a **model alias** (e.g. user sends `""my-gpt4""`, router group is `""gpt-4""`), these two strings differ.
+
+`_get_deployment_default_rpm_limit` returns a dict keyed by whichever `model_name` was passed. The resulting in-memory counter in `internal_usage_cache` is therefore stored under two separate keys:
+
+- Pre-call stores/reads under `""my-gpt4""` as the model segment
+- Success stores/reads under `""gpt-4""` as the model segment
+
+Because the counters are disjoint, the pre-call check sees a perpetually zero counter and never blocks — the deployment-default limits are effectively unenforced for alias-based requests.
+
+Consider preferring the router-resolved group at pre-call time:
+
+```python
+# prefer the router's model_group when available
+_model = (
+    data.get(""metadata"", {}).get(""model_group"")
+    or data.get(""model"", None)
+)
+```
+
+`get_model_group_from_request_data(data)` (already in `callback_utils.py`) does exactly this.",https://github.com/BerriAI/litellm/pull/24174#discussion_r2965650100,,2026-03-20T13:01:25.459000,Model alias mismatch causes rate limits to be unenforced,logic,high,8,"This catches a subtle but significant bug where rate limiting counters are stored under different keys in pre-call vs success hooks when model aliases are used. This causes deployment-default rate limits to be completely bypassed for alias-based requests, which is a meaningful production bug affecting rate limiting functionality.",2026-03-21T18:16:20.537480+00:00
+berriai/litellm,24075,[Feature] Search Tools: Add access control via object permissions,https://github.com/BerriAI/litellm/pull/24075,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Migration default backfills `[]` — silently denies search tools for all existing records**
+
+The migration adds the column with `DEFAULT ARRAY[]::TEXT[]`. In PostgreSQL, `ADD COLUMN ... DEFAULT` backfills *all existing rows* with the supplied default, so every current `LiteLLM_ObjectPermissionTable` record will immediately have `search_tools = []` after this migration runs.
+
+The Python access check in `_can_object_call_search_tools` treats `[]` as **""deny all""** (principle of least privilege). This means any team or API key that already has an `ObjectPermissionTable` record (e.g. for MCP or vector-store access control) will be silently denied access to every search tool the moment they upgrade, even though they never configured `search_tools` at all. This contradicts the PR description's backward-compatibility promise: *""None (field not set / no object_permission) → No restriction""*.
+
+The safe fix is to default to `NULL`, so the column is absent from existing rows and the Python `None`-means-allow path is taken:
+
+```suggestion
+-- AlterTable
+ALTER TABLE ""LiteLLM_ObjectPermissionTable"" ADD COLUMN     ""search_tools"" TEXT[];
+```
+
+The matching Prisma schema lines in all three `schema.prisma` files should also drop the `@default([])` annotation for this field so that new rows also get `NULL` unless explicitly set.",https://github.com/BerriAI/litellm/pull/24075#discussion_r2969756835,,2026-03-21T16:11:15.864000,Migration backfills empty array causing silent denial for all existing records,data_integrity,critical,9,"This catch identifies a critical data migration bug where the DEFAULT ARRAY[]::TEXT[] backfills all existing permission records with an empty list, which the access control logic interprets as 'deny all'. This would silently break search tool access for all existing users upon upgrade, directly contradicting the stated backward-compatibility goal.",2026-03-21T18:16:20.537480+00:00
+simstudioai/sim,3697,feat(kb): harden sync engine and add connector audit logging,https://github.com/simstudioai/sim/pull/3697,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **`finally` block can clobber a newly-started sync**
+
+The `finally` block fires after *every* exit from the `try-catch`, including successful completion. The success path sets `status = 'active'` in the DB, returns, and then `finally` runs its own DB query. There is a small but real window between when the success path writes `active` and when the `finally` block reads the status, during which a new sync can start (cron fires, lock-acquire sets status back to `syncing`). The `finally` of the *old* sync would then see `syncing`, overwrite it with `error`, and silently corrupt the new sync's state.
+
+A simpler and race-free guard would be to track whether the `try` block exited cleanly via a local flag rather than re-reading the DB:
+
+```typescript
+let syncExitedCleanly = false
+
+try {
+  // ... all existing sync logic ...
+  syncExitedCleanly = true
+  return result
+} catch (error) {
+  // ... existing catch ...
+  syncExitedCleanly = true   // error path also handled properly
+  return result
+} finally {
+  if (!syncExitedCleanly) {
+    try {
+      await db
+        .update(knowledgeConnector)
+        .set({ status: 'error', lastSyncError: 'Sync terminated unexpectedly', updatedAt: new Date() })
+        .where(and(eq(knowledgeConnector.id, connectorId), eq(knowledgeConnector.status, 'syncing')))
+      logger.warn('Reset stale syncing status in finally block', { connectorId })
+    } catch (finallyError) {
+      logger.warn('Failed to reset syncing status in finally block', { connectorId, error: ... })
+    }
+  }
+}
+```
+
+This avoids the extra DB round-trip and the race entirely.",https://github.com/simstudioai/sim/pull/3697#discussion_r2969761928,"Fixed in e0649add1. Replaced the DB-read approach with a local `syncExitedCleanly` flag — set to `true` on success, on connector-deleted cleanup, and after error handling. The `finally` block only resets status when the flag is `false` (unexpected termination), eliminating the race condition entirely.",2026-03-21T16:16:10.817000,Race condition in finally block corrupts concurrent sync state,concurrency,high,8,"This catches a real race condition where a finally block re-reads DB state and can overwrite a newly-started sync's 'syncing' status with 'error', corrupting the new sync's state. This is a meaningful concurrency bug that would cause intermittent production failures.",2026-03-21T18:16:20.537480+00:00
