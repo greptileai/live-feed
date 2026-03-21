@@ -18199,3 +18199,219 @@ The practical consequences:
 3. A team manager who deletes a server and then tries to recreate it won't need to reassign it (the old entry is still there), but a fresh manager inheriting the team will see a ghost in their permission list.
 
 The `# TODO: Delete from teams` comment in the handler suggests this was known future work. Now that `mcp_server_manager` gives non-admin users the ability to delete servers, this gap has a real security surface. Consider adding the cleanup here even as a best-effort fire-and-forget call.",https://github.com/BerriAI/litellm/pull/24171#discussion_r2964138376,This is a pre-existing limitation — the delete endpoint already has `# TODO: Delete from teams` at line 1674. This PR only adds the `mcp_server_manager` role path; the manager delete path now does clean up the manager's own team via `_remove_mcp_server_from_team` (added in b8c9bf7d25). Multi-team cleanup on delete (for servers assigned to multiple teams) is out of scope and should be tracked separately as it affects the existing admin delete path too.,2026-03-20T06:05:49.889000,DELETE leaves stale permission entries causing privilege escalation risk,data_integrity,high,8,"This catches a real security-relevant data integrity bug: when an MCP server is deleted, the server ID is never removed from the team's permission list, leaving ghost entries. If the same server ID is later recreated by an admin, the team automatically gains unauthorized access - a latent privilege escalation vulnerability.",2026-03-20T22:17:32.452079+00:00
+generaltranslation/gt,1142,feat(core): Add await helper,https://github.com/generaltranslation/gt/pull/1142,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **No default timeout — risk of infinite loop**
+
+When `timeoutSeconds` is not provided, `timeout` is `undefined` and the guard `if (timeout && ...)` never fires. If any job stays perpetually in `'queued'` or `'processing'` (e.g., a stuck server-side job, network issue, or API bug), the `while` loop will never exit and the returned `Promise` will never resolve.
+
+Consider adding a sensible default timeout (e.g., 10 minutes) so callers are protected even when they omit the option:
+
+```suggestion
+  const pollingInterval = (options?.pollingIntervalSeconds ?? 5) * 1000;
+  const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
+  const timeout =
+    options?.timeoutSeconds !== undefined
+      ? options.timeoutSeconds * 1000
+      : DEFAULT_TIMEOUT_MS;
+```
+
+At minimum, the JSDoc for `timeoutSeconds` should explicitly warn that omitting it can cause the function to loop indefinitely.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/core/src/translate/awaitJobs.ts
+Line: 37-40
+
+Comment:
+**No default timeout — risk of infinite loop**
+
+When `timeoutSeconds` is not provided, `timeout` is `undefined` and the guard `if (timeout && ...)` never fires. If any job stays perpetually in `'queued'` or `'processing'` (e.g., a stuck server-side job, network issue, or API bug), the `while` loop will never exit and the returned `Promise` will never resolve.
+
+Consider adding a sensible default timeout (e.g., 10 minutes) so callers are protected even when they omit the option:
+
+```suggestion
+  const pollingInterval = (options?.pollingIntervalSeconds ?? 5) * 1000;
+  const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
+  const timeout =
+    options?.timeoutSeconds !== undefined
+      ? options.timeoutSeconds * 1000
+      : DEFAULT_TIMEOUT_MS;
+```
+
+At minimum, the JSDoc for `timeoutSeconds` should explicitly warn that omitting it can cause the function to loop indefinitely.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/generaltranslation/gt/pull/1142#discussion_r2968359914,,2026-03-20T23:20:58.455000,Missing default timeout causes potential infinite loop,logic,high,8,"This catches a real bug where omitting the optional timeoutSeconds parameter would cause the polling loop to run forever if jobs get stuck, since the timeout check would never trigger. This is a meaningful production bug that could hang user processes indefinitely.",2026-03-21T00:45:42.744205+00:00
+generaltranslation/gt,1140,f/staged lockfile + fallback flag,https://github.com/generaltranslation/gt/pull/1140,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Staged flag lost on V1 lockfile round-trip**
+
+When a V1-format lockfile exists on disk, `readLockfile` sets `originalV1` to the parsed data, and `writeLockfile` then re-encodes it back to V1 format via `convertV2ToV1Branch`. However, `convertV2ToV1Branch` only writes locale-level translation data — it has no concept of `staged`. Staged entries (which have empty `translations: {}`) survive as `{ [fileId]: { [versionId]: {} } }` in V1 format but are read back without `staged: true`.
+
+As a result, any user with a V1 lockfile who calls `writeStagedEntries` will appear to succeed, but `getStagedEntriesFromLockfile` will return an empty object on the next call, so the subsequent `handleDownload` will receive no files.
+
+A targeted fix would be to avoid writing staged-only entries into the V1 branch, or to upgrade V1 lockfiles to V2 in-place once any staging operation is performed:
+
+```ts
+// In writeLockfile, if originalV1 is set but data contains staged entries,
+// consider forcing V2 format to preserve the staged flag:
+if (originalV1 && !data.entries.some((e) => e.staged)) {
+  // Only write V1 if there are no staged entries
+  const mergedV1 = { ... };
+  fs.writeFileSync(filepath, JSON.stringify(mergedV1, null, 2));
+} else {
+  fs.writeFileSync(filepath, JSON.stringify(data, null, 2));
+}
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/cli/src/fs/config/downloadedVersions.ts
+Line: 271
+
+Comment:
+**Staged flag lost on V1 lockfile round-trip**
+
+When a V1-format lockfile exists on disk, `readLockfile` sets `originalV1` to the parsed data, and `writeLockfile` then re-encodes it back to V1 format via `convertV2ToV1Branch`. However, `convertV2ToV1Branch` only writes locale-level translation data — it has no concept of `staged`. Staged entries (which have empty `translations: {}`) survive as `{ [fileId]: { [versionId]: {} } }` in V1 format but are read back without `staged: true`.
+
+As a result, any user with a V1 lockfile who calls `writeStagedEntries` will appear to succeed, but `getStagedEntriesFromLockfile` will return an empty object on the next call, so the subsequent `handleDownload` will receive no files.
+
+A targeted fix would be to avoid writing staged-only entries into the V1 branch, or to upgrade V1 lockfiles to V2 in-place once any staging operation is performed:
+
+```ts
+// In writeLockfile, if originalV1 is set but data contains staged entries,
+// consider forcing V2 format to preserve the staged flag:
+if (originalV1 && !data.entries.some((e) => e.staged)) {
+  // Only write V1 if there are no staged entries
+  const mergedV1 = { ... };
+  fs.writeFileSync(filepath, JSON.stringify(mergedV1, null, 2));
+} else {
+  fs.writeFileSync(filepath, JSON.stringify(data, null, 2));
+}
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/generaltranslation/gt/pull/1140#discussion_r2967789744,,2026-03-20T20:14:28.556000,Staged flag lost during V1 lockfile format round-trip,data_integrity,high,8,"This is a meaningful data integrity bug where the staged flag is silently lost when round-tripping through V1 lockfile format. Users would experience operations appearing to succeed but having no effect, causing subsequent download operations to fail. This requires understanding the complex interaction between V1/V2 format conversion and the staging workflow - not an obvious catch.",2026-03-21T00:45:42.744205+00:00
+onyx-dot-app/onyx,9513,feat(hook): Add hook management API,https://github.com/onyx-dot-app/onyx/pull/9513,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **SSRF via open-redirect bypass — `follow_redirects` not explicitly disabled**
+
+`_validate_endpoint` makes a POST with `httpx.Client` without explicitly disabling redirect-following. If the hook endpoint returns a `302 Location: http://169.254.169.254/` (or any other private/internal URL), httpx will follow that redirect — bypassing the `_check_ssrf_safety` guard that only validates the *initial* URL.
+
+While httpx >= 0.20 defaults to `follow_redirects=False`, relying on a library default for a security-critical property is fragile and easy to regress (e.g., future major version change, or a developer explicitly setting `follow_redirects=True` elsewhere). Set it explicitly:
+
+```suggestion
+    try:
+        with httpx.Client(timeout=timeout_seconds, follow_redirects=False) as client:
+            response = client.post(endpoint_url, headers=headers)
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: backend/onyx/server/features/hooks/api.py
+Line: 132-133
+
+Comment:
+**SSRF via open-redirect bypass — `follow_redirects` not explicitly disabled**
+
+`_validate_endpoint` makes a POST with `httpx.Client` without explicitly disabling redirect-following. If the hook endpoint returns a `302 Location: http://169.254.169.254/` (or any other private/internal URL), httpx will follow that redirect — bypassing the `_check_ssrf_safety` guard that only validates the *initial* URL.
+
+While httpx >= 0.20 defaults to `follow_redirects=False`, relying on a library default for a security-critical property is fragile and easy to regress (e.g., future major version change, or a developer explicitly setting `follow_redirects=True` elsewhere). Set it explicitly:
+
+```suggestion
+    try:
+        with httpx.Client(timeout=timeout_seconds, follow_redirects=False) as client:
+            response = client.post(endpoint_url, headers=headers)
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/9513#discussion_r2967622164,,2026-03-20T19:35:12.721000,SSRF bypass via HTTP redirect following not disabled,security,critical,9,"Comment 0 identifies a subtle but critical SSRF bypass: even though initial URL validation exists, the httpx client could follow redirects to internal/cloud metadata URLs. This is a more sophisticated catch than Comment 2's general SSRF concern, as it identifies a specific bypass mechanism that would evade the existing SSRF protection.",2026-03-21T00:45:42.744205+00:00
+onyx-dot-app/onyx,9467,chore(hook): Hook executor.,https://github.com/onyx-dot-app/onyx/pull/9467,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Execution log silently lost when `update_hook__no_commit` raises**
+
+`update_hook__no_commit` can raise `OnyxError(NOT_FOUND)` if the hook was concurrently deleted between the initial lookup and this persist block. When that happens, `create_hook_execution_log__no_commit` is **never reached**, and the entire persist block is swallowed by the outer `except Exception`. The audit trail for the call is silently discarded.
+
+Because `update_hook__no_commit` calls `db_session.flush()` internally, and the context manager rolls back on exception, neither write survives. The `is_reachable` change is also lost, but that's less critical — the execution log is the primary audit record.
+
+Consider separating the two writes so that a failure in the `is_reachable` update does not prevent the execution log from being written:
+
+```python
+try:
+    with get_session_with_current_tenant() as persist_session:
+        if is_reachable is not None:
+            try:
+                update_hook__no_commit(
+                    db_session=persist_session,
+                    hook_id=hook_id,
+                    is_reachable=is_reachable,
+                )
+            except Exception:
+                logger.exception(
+                    f""Failed to update is_reachable for hook_id={hook_id}""
+                )
+        create_hook_execution_log__no_commit(
+            db_session=persist_session,
+            hook_id=hook_id,
+            is_success=is_success,
+            error_message=error_message,
+            status_code=status_code,
+            duration_ms=duration_ms,
+        )
+        persist_session.commit()
+except Exception:
+    logger.exception(
+        f""Failed to persist hook execution result for hook_id={hook_id}""
+    )
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: backend/onyx/hooks/executor.py
+Line: 147-167
+
+Comment:
+**Execution log silently lost when `update_hook__no_commit` raises**
+
+`update_hook__no_commit` can raise `OnyxError(NOT_FOUND)` if the hook was concurrently deleted between the initial lookup and this persist block. When that happens, `create_hook_execution_log__no_commit` is **never reached**, and the entire persist block is swallowed by the outer `except Exception`. The audit trail for the call is silently discarded.
+
+Because `update_hook__no_commit` calls `db_session.flush()` internally, and the context manager rolls back on exception, neither write survives. The `is_reachable` change is also lost, but that's less critical — the execution log is the primary audit record.
+
+Consider separating the two writes so that a failure in the `is_reachable` update does not prevent the execution log from being written:
+
+```python
+try:
+    with get_session_with_current_tenant() as persist_session:
+        if is_reachable is not None:
+            try:
+                update_hook__no_commit(
+                    db_session=persist_session,
+                    hook_id=hook_id,
+                    is_reachable=is_reachable,
+                )
+            except Exception:
+                logger.exception(
+                    f""Failed to update is_reachable for hook_id={hook_id}""
+                )
+        create_hook_execution_log__no_commit(
+            db_session=persist_session,
+            hook_id=hook_id,
+            is_success=is_success,
+            error_message=error_message,
+            status_code=status_code,
+            duration_ms=duration_ms,
+        )
+        persist_session.commit()
+except Exception:
+    logger.exception(
+        f""Failed to persist hook execution result for hook_id={hook_id}""
+    )
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/9467#discussion_r2956583739,,2026-03-18T22:30:02.709000,Audit execution log lost when hook update fails concurrently,data_integrity,high,8,"This catches a real data integrity bug where the execution audit log is silently discarded if update_hook__no_commit raises an exception (e.g., hook deleted concurrently). The audit trail is critical for debugging and compliance, and this silent failure would be hard to diagnose in production.",2026-03-21T00:45:42.744205+00:00
