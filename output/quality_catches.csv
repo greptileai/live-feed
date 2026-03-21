@@ -18563,3 +18563,40 @@ The correct transformation is to **discard** the first 3 backticks entirely (the
 ```
 
 That gives `""```patch file.py""` (3 backticks + lang), which `fence_match` correctly parses with `fence_len=3`.",https://github.com/gptme/gptme/pull/1723#discussion_r2968568678,"Fixed in f07c91f. Changed to line = line[3:] — the triple-backtick prefix was being re-added, making it a no-op.",2026-03-21T01:00:00.434000,"No-op transformation fails to strip backticks, silently drops code blocks",logic,high,8,"Comment 3 identifies a real logic bug where the transformation `""```"" + line[3:]` is mathematically a no-op for 6-backtick lines, causing the parser to search for a 6-backtick closing fence that never exists, silently dropping the second code block. This would cause production failures in code block parsing.",2026-03-21T12:18:45.132553+00:00
+gptme/gptme,1727,feat(eval): add --eval-module flag for loading external eval specs,https://github.com/gptme/gptme/pull/1727,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **`isidentifier()` passes for Python reserved keywords**
+
+`str.isidentifier()` returns `True` for Python reserved keywords such as `class`, `import`, `return`, `for`, `while`, `with`, etc. These strings are valid identifiers but cannot be used as module names — `__import__(""class"")` raises a `SyntaxError`/`ValueError` on spawn-based worker processes (default on macOS ≥ Python 3.8 and Windows), defeating the purpose of this guard entirely.
+
+A filename like `return.py` or `class.py` would silently pass validation, load fine in the parent process (which already has the module in `sys.modules`), but cause every spawned worker to crash at unpickling time with a confusing error rather than a clear message here.
+
+Add a `keyword.iskeyword()` check alongside `isidentifier()`:
+
+```python
+import keyword
+
+mod_name = module_path.stem
+if not mod_name.isidentifier() or keyword.iskeyword(mod_name):
+    raise ValueError(
+        f""Eval module filename '{module_path.name}' produces module name ""
+        f""'{mod_name}' which is not a valid importable Python identifier. ""
+        f""Rename the file to use only letters, digits, and underscores ""
+        f""(no Python keywords, dashes or spaces) so that multiprocessing workers can reimport it.""
+    )
+```",https://github.com/gptme/gptme/pull/1727#discussion_r2969593624,"Fixed in e472ff35c: added `keyword.iskeyword(mod_name)` alongside `isidentifier()`. The guard now rejects both non-identifier stems and reserved keywords, with a clear error message telling the user to rename the file.",2026-03-21T13:33:19.516000,Reserved keyword validation missing for module names,runtime,high,8,"The comment catches a subtle but real bug where `isidentifier()` passes for Python reserved keywords like 'class' or 'return', which would cause spawn-based worker processes on macOS/Windows to crash at unpickling time with confusing errors. This is a non-obvious edge case that would cause production failures on specific platforms.",2026-03-21T14:13:24.173871+00:00
+gptme/gptme,1722,feat(skills): add dependency declarations to SKILL.md frontmatter,https://github.com/gptme/gptme/pull/1722,"<a href=""#""><img alt=""P0"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p0.svg?v=7"" align=""top""></a> **Non-iterable scalar `depends` crashes `parse_lesson`**
+
+When a `SKILL.md` file contains `depends: 42` (or any non-string, non-list scalar), `frontmatter.get(""depends"", [])` returns `42`. The `isinstance(raw_depends, str)` guard is `False`, so `raw_depends` stays as `42`. The list comprehension `for d in raw_depends` then raises `TypeError: 'int' object is not iterable`.
+
+The same defensive guard that `validate_skill()` applies — `if not isinstance(depends, list): errors.append(...)` — is missing here. This means a malformed SKILL.md causes an unhandled exception instead of a graceful fallback.
+
+```suggestion
+                        # Extract depends (skill dependency declarations)
+                        raw_depends = frontmatter.get(""depends"", [])
+                        if isinstance(raw_depends, str):
+                            raw_depends = [raw_depends]
+                        elif not isinstance(raw_depends, list):
+                            raw_depends = []
+                        depends = [
+                            d for d in raw_depends if isinstance(d, str) and d.strip()
+                        ]
+```",https://github.com/gptme/gptme/pull/1722#discussion_r2969523338,"✅ Fixed in 347ef3915: added `elif not isinstance(raw_depends, list): raw_depends = []` guard. Any non-string, non-list scalar (int, float, null, etc.) is now coerced to an empty list before the comprehension. Regression test `test_parse_lesson_non_iterable_depends_does_not_crash` added.",2026-03-21T12:20:33.345000,Non-iterable scalar `depends` value crashes parse_lesson with TypeError,runtime,high,8,"This catches a real runtime crash where `depends: 42` in a SKILL.md file causes a TypeError when iterating over the non-list value. The bug would cause parse_lesson to fail with an unhandled exception on malformed user input, affecting production reliability.",2026-03-21T14:13:24.173871+00:00
