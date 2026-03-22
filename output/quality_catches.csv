@@ -18924,3 +18924,19 @@ if prompt_tokens_details is not None:
 ```
 
 Alternatively, `CompletionTokensDetailsWrapper` should be made to extend `BaseLiteLLMOpenAIResponseObject` (like `OutputTokensDetails` does) to provide a consistent `.get()` interface.",https://github.com/BerriAI/litellm/pull/24112#discussion_r2958855999,,2026-03-19T09:35:13.983000,AttributeError silently swallows span attributes due to missing .get() method,runtime,high,8,"Comment 2 identifies a real runtime bug where calling .get() on CompletionTokensDetailsWrapper/PromptTokensDetailsWrapper objects would raise AttributeError since these classes don't have a .get() method. The try/except silently swallows the error, meaning span attributes would never be set - defeating the purpose of the PR fix. The fix was addressed by using getattr() instead.",2026-03-22T08:16:50.369761+00:00
+berriai/litellm,24246,fix(key_rotation): add distributed lock to prevent concurrent rotation across pods,https://github.com/BerriAI/litellm/pull/24246,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Redis cache not refreshed on dynamic Redis initialization**
+
+`key_rotation_pod_lock_manager` is created once at startup with `litellm.cache.cache` at that moment. Unlike `db_spend_update_writer.pod_lock_manager`, whose `.redis_cache` is reassigned when Redis is wired up later (see `litellm/proxy/utils.py` line 447), there is no equivalent update path for the key-rotation lock manager. If the proxy starts before Redis is fully configured (e.g. Redis URL is loaded from the DB config, or the cache is set up in a later startup step), the `PodLockManager` will silently behave as a no-op and the distributed lock will never be acquired, leaving every pod free to rotate concurrently.
+
+To stay consistent with the existing pattern, the `key_rotation_pod_lock_manager` should be updated in the same place where `db_spend_update_writer.pod_lock_manager.redis_cache` is reassigned.
+
+```python
+# In litellm/proxy/utils.py, wherever redis_cache is reassigned:
+if redis_cache is not None:
+    self.internal_usage_cache.dual_cache.redis_cache = redis_cache
+    self.db_spend_update_writer.redis_update_buffer.redis_cache = redis_cache
+    self.db_spend_update_writer.pod_lock_manager.redis_cache = redis_cache
+    # Also update key rotation lock manager if it exists
+    if key_rotation_pod_lock_manager is not None:
+        key_rotation_pod_lock_manager.redis_cache = redis_cache
+```",https://github.com/BerriAI/litellm/pull/24246#discussion_r2967836435,PR follows this pattern,2026-03-20T20:25:46.301000,Distributed lock silently disabled when Redis initializes late,concurrency,high,8,"This catch identifies a real race condition where the distributed lock manager is created before Redis is fully configured, causing it to silently operate as a no-op. This defeats the entire purpose of the PR (preventing concurrent key rotation across pods) and could lead to data corruption from parallel key rotations.",2026-03-22T10:13:11.264593+00:00
