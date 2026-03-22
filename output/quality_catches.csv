@@ -19165,3 +19165,81 @@ The subprocess mode also appends before starting the monitor thread. Thread mode
         t.start()
 ```
 ",https://github.com/gptme/gptme/pull/1773#discussion_r2971859742,Fixed in 75421a5 — moved `_subagents.append(sa)` before `t.start()` so the closure always finds the Subagent when it runs.,2026-03-22T18:07:44.202000,Race condition: thread started before Subagent registration,concurrency,high,8,"This is a genuine race condition where the worker thread can complete before the Subagent object is registered in _subagents, causing notify_completion and cleanup to never be called. The reviewer correctly identifies that other code paths (ACP mode, subprocess mode) already handle this correctly, making this an inconsistency that would cause real production issues.",2026-03-22T20:12:51.856756+00:00
+elizaos/eliza,6498,feat: add Mint Club V2 plugin — bonding curve token trading on Base,https://github.com/elizaOS/eliza/pull/6498,"command injection vulnerability: user input is concatenated directly into shell commands without sanitization (e.g., lines 54, 100, 162). A malicious token name like `""; rm -rf / #""` would execute arbitrary commands
+
+replace with `bunExec()` which passes args as array:
+
+```suggestion
+async function runMcCommand(cmd: string, args: string[]): Promise<string> {
+  try {
+    const result = await bunExec(cmd, args, { timeout: 30000 });
+    if (!result.success) {
+      throw new Error(`mc command failed: ${result.stderr}`);
+    }
+    return result.stdout;
+  } catch (error: any) {
+    throw new Error(`mc command failed: ${error.message}`);
+  }
+}
+```
+
+**Context Used:** Context from `dashboard` - CLAUDE.md ([source](https://app.greptile.com/review/custom-context?memory=8ef4c9a3-e221-4aef-8556-8c9b88bf6bbb))",https://github.com/elizaOS/eliza/pull/6498#discussion_r2804641388,,2026-02-13T14:58:17.507000,Command injection vulnerability via unsanitized user input in shell commands,security,high,8,"Comment 6 identifies a genuine command injection vulnerability where user-controlled input (token names) is passed directly to shell commands. A malicious input like `""; rm -rf / #""` could execute arbitrary commands on the server. This is a meaningful security issue in production code that handles untrusted user input.",2026-03-22T22:12:55.881240+00:00
+raycast/extensions,26130,Add vikunja extension,https://github.com/raycast/extensions/pull/26130,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **API pagination not handled — tasks will be silently truncated**
+
+The Vikunja REST API paginates results with a default page size of 50. Both `getAllTasks()` (line 156) and `getProjectTasks()` (line 150) only request page 1 implicitly, so any user with more than 50 tasks per project (or in total) will see an incomplete list with no indication that data is missing.
+
+The same problem affects `getProjects()` (line 89) and `getLabels()` (line 115).
+
+A straightforward fix is to pass `page_size=-1` (or the Vikunja equivalent) to return all records in one request, or to add a pagination loop:
+
+```typescript
+export async function getAllTasks(): Promise<Task[]> {
+  const all: Task[] = [];
+  let page = 1;
+  while (true) {
+    const batch = await request<Task[]>(`/tasks?sort_by=done&order_by=asc&page=${page}&per_page=50`);
+    all.push(...batch);
+    if (batch.length < 50) break;
+    page++;
+  }
+  return all;
+}
+```
+
+The same pattern should be applied to `getProjectTasks`, `getProjects`, and `getLabels`.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: extensions/vikunja/src/api.ts
+Line: 156-158
+
+Comment:
+**API pagination not handled — tasks will be silently truncated**
+
+The Vikunja REST API paginates results with a default page size of 50. Both `getAllTasks()` (line 156) and `getProjectTasks()` (line 150) only request page 1 implicitly, so any user with more than 50 tasks per project (or in total) will see an incomplete list with no indication that data is missing.
+
+The same problem affects `getProjects()` (line 89) and `getLabels()` (line 115).
+
+A straightforward fix is to pass `page_size=-1` (or the Vikunja equivalent) to return all records in one request, or to add a pagination loop:
+
+```typescript
+export async function getAllTasks(): Promise<Task[]> {
+  const all: Task[] = [];
+  let page = 1;
+  while (true) {
+    const batch = await request<Task[]>(`/tasks?sort_by=done&order_by=asc&page=${page}&per_page=50`);
+    all.push(...batch);
+    if (batch.length < 50) break;
+    page++;
+  }
+  return all;
+}
+```
+
+The same pattern should be applied to `getProjectTasks`, `getProjects`, and `getLabels`.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/raycast/extensions/pull/26130#discussion_r2966410562,,2026-03-20T15:23:48.669000,API pagination not handled causing silent data truncation,data_integrity,high,8,"This catch identifies a real bug where users with more than 50 tasks/projects would see incomplete data with no warning. This silent data truncation would cause confusion and missed tasks in production, affecting core functionality.",2026-03-22T22:12:55.881240+00:00
