@@ -18825,3 +18825,36 @@ if self.model_group_affinity_config and not any(
 ):
     ...
 ```",https://github.com/BerriAI/litellm/pull/24211#discussion_r2970318729,,2026-03-21T21:40:11.499000,Duplicate callbacks accumulate on every router reload causing redundant processing,logic,high,8,"The comment identifies a real bug where the deduplication check looks at the wrong collection (local empty list vs global manager), causing duplicate DeploymentAffinityCheck callbacks to accumulate on every proxy config reload. This would cause performance degradation and potentially incorrect behavior as multiple callbacks fire on every LLM call.",2026-03-22T00:50:36.920750+00:00
+assistant-ui/assistant-ui,3684,feat: native queue and steer support,https://github.com/assistant-ui/assistant-ui/pull/3684,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Index used as resource key instead of stable item ID**
+
+`withKey(index, ...)` means that if an item is removed from the middle of the queue, surviving items shift to lower indices. The `tapClientLookup` mechanism then sees key `n` mapped to a different item than before, and may incorrectly reuse/update a resource that should have been destroyed, or destroy one that should have been kept.
+
+Compare this with `attachmentClients` just above (line ~301), which correctly uses the stable `attachment.id` as the key. `QueueItemState` also exposes an `id` field, so the same pattern should be used here:
+
+```suggestion
+    const queueItemClients = tapClientLookup(
+      () =>
+        queueItems.map((item) =>
+          withKey(
+            item.id,
+            QueueItemClient({
+              item,
+              onSteer: () => queue?.steer(item.id),
+              onRemove: () => queue?.remove(item.id),
+            }),
+          ),
+        ),
+      [queueItems],
+    );
+```
+",https://github.com/assistant-ui/assistant-ui/pull/3684#discussion_r2968928166,,2026-03-21T03:33:40.150000,Array index as key causes incorrect resource reuse on removal,data_integrity,high,8,"This is a meaningful logic bug where using array indices as resource keys would cause incorrect client reuse/destruction when items are removed from the middle of the queue. The reviewer correctly identified that a stable ID should be used (like the pattern used for attachments), preventing potential data corruption and incorrect state management in production.",2026-03-22T03:13:24.380011+00:00
+berriai/litellm,24321,feat: registry-backed MCP + A2A agent orchestration in /v1/chat/completions,https://github.com/BerriAI/litellm/pull/24321,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Substring match routes external agent URLs to the internal registry**
+
+`LITELLM_PROXY_AGENTS_URL in server_url` uses a substring test, so any `a2a_agent` tool whose `server_url` merely *contains* `""litellm_proxy/agents""` — including an external URL like `""https://corp.example.com/litellm_proxy/agents""` — is silently hijacked. Instead of calling the specified external agent, the proxy discards the URL and expands the call to all agents in the internal registry. The user receives unexpected agents in their context and their intended agent is never called.
+
+Use an exact match or a `startswith` check:
+
+```suggestion
+                    if isinstance(server_url, str) and server_url == LITELLM_PROXY_AGENTS_URL:
+```
+",https://github.com/BerriAI/litellm/pull/24321#discussion_r2970448619,,2026-03-21T22:45:28.351000,Substring match hijacks external agent URLs to internal registry,logic,high,8,Using substring `in` instead of exact match causes external A2A agent URLs containing 'litellm_proxy/agents' to be silently routed to the internal registry instead of the intended external agent. This is a meaningful logic bug that would cause incorrect behavior in production - users' intended agents would never be called.,2026-03-22T03:13:24.380011+00:00
