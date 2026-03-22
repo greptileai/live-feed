@@ -18858,3 +18858,44 @@ Use an exact match or a `startswith` check:
                     if isinstance(server_url, str) and server_url == LITELLM_PROXY_AGENTS_URL:
 ```
 ",https://github.com/BerriAI/litellm/pull/24321#discussion_r2970448619,,2026-03-21T22:45:28.351000,Substring match hijacks external agent URLs to internal registry,logic,high,8,Using substring `in` instead of exact match causes external A2A agent URLs containing 'litellm_proxy/agents' to be silently routed to the internal registry instead of the intended external agent. This is a meaningful logic bug that would cause incorrect behavior in production - users' intended agents would never be called.,2026-03-22T03:13:24.380011+00:00
+berriai/litellm,24250,feat: Team-Scoped Default,https://github.com/BerriAI/litellm/pull/24250,"<a href=""#""><img alt=""P0"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p0.svg?v=7"" align=""top""></a> **Missing SQL migration for new schema columns**
+
+The PR adds two new columns (`LiteLLM_TeamTable.default_models` and `LiteLLM_TeamMembership.models`) across all three `schema.prisma` files, but no Prisma migration is included. The project already uses Prisma migrations (see `litellm-proxy-extras/litellm_proxy_extras/migrations/`), with the most recent being `20260318140652_add_index_to_team_table`.
+
+Without a migration, existing deployments will break in **two distinct failure modes**:
+
+1. **Auth path breakage (P0):** The SQL view in `litellm/proxy/utils.py` was also updated to `SELECT t.default_models AS team_default_models` and `tm.models AS team_member_models`. If these columns don't exist in the database, **every authentication request** that uses this view will fail with a DB error.
+
+2. **Write path breakage:** Any `litellm_teamtable.create()` or `litellm_teammembership.create()` call will also fail, since the Prisma client (generated from schema) will attempt to INSERT the new columns.
+
+The same applies to `litellm-proxy-extras/litellm_proxy_extras/schema.prisma` and `schema.prisma`.
+
+A migration file should be added, for example:
+```sql
+-- AlterTable
+ALTER TABLE ""LiteLLM_TeamTable"" ADD COLUMN ""default_models"" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[];
+
+-- AlterTable
+ALTER TABLE ""LiteLLM_TeamMembership"" ADD COLUMN ""models"" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[];
+```",https://github.com/BerriAI/litellm/pull/24250#discussion_r2968569778,,2026-03-21T01:00:59.557000,Missing SQL migration breaks all auth requests on deployment,data_integrity,critical,9,"The PR adds two new columns to the schema but includes no migration, causing the SQL view used in authentication to fail on every request when deployed to existing databases. This is a guaranteed production crash affecting all users.",2026-03-22T06:27:33.924396+00:00
+berriai/litellm,24211,Litellm dev sameer 16 march week,https://github.com/BerriAI/litellm/pull/24211,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Path added to `openai_routes` before `target is None` guard**
+
+In `_register_pass_through_endpoint`, when `auth` is enabled the path is appended to `LiteLLMRoutes.openai_routes.value` before the `if target is None: return` check. If `target` ends up being `None`, the route is registered for authentication purposes but no actual FastAPI handler is registered. Subsequent requests to that path will pass the auth check but receive a 404 or 422 from the router.
+
+Move the `target is None` guard before any mutation of `openai_routes` so a missing target results in a clean no-op with no auth side-effects:
+
+```python
+target = endpoint_data.get(""target"")
+path = endpoint_data.get(""path"")
+if path is None:
+    raise ValueError(""Path is required for pass-through endpoint"")
+
+# Validate target before registering any routes
+if target is None:
+    return
+
+# Only now register path for authentication
+if str(endpoint_data.get(""auth"", """")).lower() == ""true"":
+    if path not in LiteLLMRoutes.openai_routes.value:
+        LiteLLMRoutes.openai_routes.value.append(path)
+```",https://github.com/BerriAI/litellm/pull/24211#discussion_r2969942964,,2026-03-21T18:30:52.865000,Route registered for auth but no handler causes auth bypass to 404,logic,high,8,"This catches a meaningful logic bug where paths are added to openai_routes for authentication before validating that a target handler exists. When target is None, requests pass auth checks but hit 404s, creating a confusing state where routes appear protected but don't function. This is a real production bug affecting the authentication flow.",2026-03-22T06:27:33.924396+00:00
