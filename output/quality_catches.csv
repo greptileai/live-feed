@@ -18899,3 +18899,28 @@ if str(endpoint_data.get(""auth"", """")).lower() == ""true"":
     if path not in LiteLLMRoutes.openai_routes.value:
         LiteLLMRoutes.openai_routes.value.append(path)
 ```",https://github.com/BerriAI/litellm/pull/24211#discussion_r2969942964,,2026-03-21T18:30:52.865000,Route registered for auth but no handler causes auth bypass to 404,logic,high,8,"This catches a meaningful logic bug where paths are added to openai_routes for authentication before validating that a target handler exists. When target is None, requests pass auth checks but hit 404s, creating a confusing state where routes appear protected but don't function. This is a real production bug affecting the authentication flow.",2026-03-22T06:27:33.924396+00:00
+berriai/litellm,24112,fix(otel): use completion_tokens_details for Chat Completions API rea…,https://github.com/BerriAI/litellm/pull/24112,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Potential `AttributeError` on typed `CompletionTokensDetailsWrapper` and `PromptTokensDetailsWrapper` objects**
+
+`usage.get(""completion_tokens_details"", {})` (via `Usage.get()` → `getattr(self, key, default)`) returns a `CompletionTokensDetailsWrapper` instance when the field is populated. `CompletionTokensDetailsWrapper` inherits from OpenAI SDK's `CompletionTokensDetails` (a plain Pydantic `BaseModel`) which does **not** have a `.get()` method.
+
+This is an asymmetry with the existing code: `output_tokens_details` is typed as `OutputTokensDetails(BaseLiteLLMOpenAIResponseObject)`, and `BaseLiteLLMOpenAIResponseObject` explicitly defines `.get()` as `self.__dict__.get(key, default)`. The same pattern applies to `PromptTokensDetailsWrapper`; `SafeAttributeModel` only overrides `__delattr__` and doesn't add `.get()`.
+
+**Affected paths:**
+- `completion_tokens_details.get(""reasoning_tokens"")` — line 242 — will raise `AttributeError` if `Usage.completion_tokens_details` is a `CompletionTokensDetailsWrapper` instance (e.g. o-series models returning reasoning tokens via Chat Completions API)
+- `prompt_tokens_details.get(""cached_tokens"")` — line 252 — same issue with `PromptTokensDetailsWrapper`
+
+Because the outer `set_attributes()` wraps this in a broad `try/except`, the failure will be silently swallowed and the span attributes will never be set — exactly the bug this PR is trying to fix.
+
+The fix is to use `getattr` directly instead of `.get()`, or to access the attribute by name:
+
+```python
+# For reasoning_tokens:
+if completion_tokens_details is not None:
+    reasoning_tokens = getattr(completion_tokens_details, ""reasoning_tokens"", None)
+
+# For cached_tokens:
+if prompt_tokens_details is not None:
+    cached_tokens = getattr(prompt_tokens_details, ""cached_tokens"", None)
+```
+
+Alternatively, `CompletionTokensDetailsWrapper` should be made to extend `BaseLiteLLMOpenAIResponseObject` (like `OutputTokensDetails` does) to provide a consistent `.get()` interface.",https://github.com/BerriAI/litellm/pull/24112#discussion_r2958855999,,2026-03-19T09:35:13.983000,AttributeError silently swallows span attributes due to missing .get() method,runtime,high,8,"Comment 2 identifies a real runtime bug where calling .get() on CompletionTokensDetailsWrapper/PromptTokensDetailsWrapper objects would raise AttributeError since these classes don't have a .get() method. The try/except silently swallows the error, meaning span attributes would never be set - defeating the purpose of the PR fix. The fix was addressed by using getattr() instead.",2026-03-22T08:16:50.369761+00:00
