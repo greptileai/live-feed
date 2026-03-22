@@ -18964,3 +18964,122 @@ if (this.authCookiePromise) {
 ```
 
 This makes the SSE connection wait for the cookie handshake to finish (or fail) before deciding which auth method to use, eliminating the race.",https://github.com/gptme/gptme/pull/1760#discussion_r2971416911,✅ Fixed in 29a7e8e — `authCookiePromise` is now stored and awaited in `subscribeToEvents` before deciding auth method.,2026-03-22T11:37:06.803000,Race condition exposes auth token in URL query parameter,concurrency,high,8,"This catch identifies a race condition where the async cookie setup may not complete before SSE subscription, causing the code to fall back to exposing the auth token in query parameters - exactly the security issue the PR was trying to fix. The fix to store and await the promise is correct and important.",2026-03-22T14:15:08.247745+00:00
+berriai/litellm,23782,fix(factory): handle list content in map_system_message_pt,https://github.com/BerriAI/litellm/pull/23782,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **`None` content falls through to `str(None)` = `""None""`**
+
+When `content` is `None` (which can happen for assistant messages that carry only `tool_calls` and have `content=None`), the function falls through the two `isinstance` guards and returns `str(None)` → the four-character string `""None""`.
+
+This means that if the messages array contains a system message followed by an assistant tool-call message (`{""role"": ""assistant"", ""content"": None, ""tool_calls"": [...]}`), the merged content becomes `""<system_text> None""` — silently corrupting the assistant message's content.
+
+`convert_content_list_to_str` already handles `None` gracefully (it checks `if message_content:` and returns `""""` for falsy values), so the correct fallback here should be an empty string, not `str(content)`:
+
+```suggestion
+def _get_content_as_str(content: Union[str, list]) -> str:
+    """"""Extract text from content that may be a string or a list of content blocks.""""""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        return convert_content_list_to_str({""role"": ""user"", ""content"": content})
+    return """"
+```",https://github.com/BerriAI/litellm/pull/23782#discussion_r2944108378,"Good catch — `content=None` on tool-call assistant messages is a real scenario. Will add a `None` guard returning `""""` at the top of `_get_content_as_str`. Pushing fix now.",2026-03-17T03:09:23.476000,"None content silently converts to string ""None"" corrupting messages",data_integrity,high,8,"This catches a real bug where `content=None` (common in assistant tool-call messages) would fall through type guards and convert to the literal string ""None"", silently corrupting message content in production. The developer acknowledged this as a valid catch for a real scenario.",2026-03-22T16:14:02.006409+00:00
+raycast/extensions,26124,Add tabletop-dice-roller extension,https://github.com/raycast/extensions/pull/26124,"**Duplicate dice notation produces the same roll result**
+
+The `rolls` Map is keyed by dice notation string (e.g., `""2d6""`), so any duplicate notation in the input expression is rolled only once and reused. For example, `2d6 + 2d6` will always produce double the first roll rather than two independent rolls:
+
+1. The first `2d6` is rolled and stored: `rolls.set(""2d6"", 9)` (hypothetically)
+2. The second `2d6` already exists in the Map, so `rollDice` is **never called again**
+3. Both occurrences get replaced with `9`, giving `9 + 9 = 18`
+
+A user rolling `2d6 + 2d6` reasonably expects two independent 2d6 rolls (4 dice total). This breaks the core functionality of the extension.
+
+The fix is to remove the deduplication check and instead track each occurrence by a unique key or replace matches sequentially:
+
+```typescript
+while ((match = diceRegex.exec(input)) !== null) {
+  const numDice = parseInt(match[1]);
+  const numSides = parseInt(match[2]);
+  const diceNotation = match[0].toLowerCase();
+  const rolled = rollDice(numDice, numSides);
+  rolls.set(`${diceNotation}[${rolls.size}]`, rolled);
+  // Replace only the first occurrence in the expression
+  expression = expression.replace(new RegExp(diceNotation, ""i""), rolled.toString());
+}
+```",https://github.com/raycast/extensions/pull/26124#discussion_r2900641725,,2026-03-07T21:51:03.985000,Duplicate dice notation produces same roll instead of independent rolls,logic,high,8,"This is a meaningful logic bug that breaks core functionality - when a user types '2d6 + 2d6' expecting 4 independent dice, they only get one 2d6 roll doubled. The comment clearly explains the bug with a concrete example and provides a fix. This directly affects user experience for the primary use case.",2026-03-22T16:14:02.006409+00:00
+raycast/extensions,26481,"feat(karakeep): tag editing on edit forms, NoteEdit, and shared useTagPicker hook",https://github.com/raycast/extensions/pull/26481,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Form closes unconditionally on API failure**
+
+`runWithToast` catches all errors internally and returns `undefined` without re-throwing (see `utils/toast.ts` lines 26-35). This means `onRefresh?.()` and `pop()` on lines 82-83 execute even when the update API call fails — the user sees a failure toast but the form dismisses anyway, discarding their edits.
+
+The same issue exists in `BookmarkEdit.tsx` at lines 85-87.
+
+One way to fix this is to check the return value of `runWithToast` (it returns `T | undefined`, where `undefined` signals failure) — but since the `action` here returns `void`, success and failure both resolve to `undefined`, so that check won't work without a change to the `runWithToast` API. The safest fix is to use a manual try/catch instead:
+
+```
+async onSubmit(values) {
+  log.info(""Updating note"", { bookmarkId: bookmark.id });
+  const toast = await showToast({ title: t(""bookmark.updating""), style: Toast.Style.Animated });
+  try {
+    await fetchUpdateBookmark(bookmark.id, {
+      title: values.title.trim(),
+      text: values.content.trim(),
+    });
+    await Promise.all([
+      addedTagIds.length > 0 ? fetchAttachTagsToBookmark(bookmark.id, buildTagsToAttach()) : undefined,
+      removedTagIds.length > 0 ? fetchDetachTagsFromBookmark(bookmark.id, buildTagsToDetach()) : undefined,
+    ]);
+    toast.style = Toast.Style.Success;
+    toast.title = t(""bookmark.updateSuccess"");
+    log.info(""Note updated"", { bookmarkId: bookmark.id });
+    await onRefresh?.();
+    pop();
+  } catch (error) {
+    toast.style = Toast.Style.Failure;
+    toast.title = t(""bookmark.updateFailed"");
+    toast.message = String(error);
+  }
+},
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: extensions/karakeep/src/components/NoteEdit.tsx
+Line: 77-83
+
+Comment:
+**Form closes unconditionally on API failure**
+
+`runWithToast` catches all errors internally and returns `undefined` without re-throwing (see `utils/toast.ts` lines 26-35). This means `onRefresh?.()` and `pop()` on lines 82-83 execute even when the update API call fails — the user sees a failure toast but the form dismisses anyway, discarding their edits.
+
+The same issue exists in `BookmarkEdit.tsx` at lines 85-87.
+
+One way to fix this is to check the return value of `runWithToast` (it returns `T | undefined`, where `undefined` signals failure) — but since the `action` here returns `void`, success and failure both resolve to `undefined`, so that check won't work without a change to the `runWithToast` API. The safest fix is to use a manual try/catch instead:
+
+```
+async onSubmit(values) {
+  log.info(""Updating note"", { bookmarkId: bookmark.id });
+  const toast = await showToast({ title: t(""bookmark.updating""), style: Toast.Style.Animated });
+  try {
+    await fetchUpdateBookmark(bookmark.id, {
+      title: values.title.trim(),
+      text: values.content.trim(),
+    });
+    await Promise.all([
+      addedTagIds.length > 0 ? fetchAttachTagsToBookmark(bookmark.id, buildTagsToAttach()) : undefined,
+      removedTagIds.length > 0 ? fetchDetachTagsFromBookmark(bookmark.id, buildTagsToDetach()) : undefined,
+    ]);
+    toast.style = Toast.Style.Success;
+    toast.title = t(""bookmark.updateSuccess"");
+    log.info(""Note updated"", { bookmarkId: bookmark.id });
+    await onRefresh?.();
+    pop();
+  } catch (error) {
+    toast.style = Toast.Style.Failure;
+    toast.title = t(""bookmark.updateFailed"");
+    toast.message = String(error);
+  }
+},
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/raycast/extensions/pull/26481#discussion_r2963655149,,2026-03-20T02:26:57.053000,Form closes and discards edits even when API call fails,logic,high,8,This is a meaningful UX bug where the form dismisses and discards user edits even when the save operation fails. The user sees a failure toast but loses their work because pop() executes unconditionally. This would frustrate users in production.,2026-03-22T16:14:02.006409+00:00
