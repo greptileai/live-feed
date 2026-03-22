@@ -19127,3 +19127,41 @@ async function getServerIdentity(): Promise<ServerIdentity> {
   return serverIdentityPromise;
 }
 ```",https://github.com/raycast/extensions/pull/25927#discussion_r2908769465,,2026-03-10T01:24:25.445000,Rejected promise cached permanently blocks all retries,logic,high,8,"This catches a real bug where a transient network failure when fetching server identity causes the rejected promise to be cached forever, breaking all playback operations for the entire session with no way to recover. This is a meaningful logic error that would affect users in production.",2026-03-22T18:17:34.150632+00:00
+gptme/gptme,1773,refactor(subagent): split into modular package,https://github.com/gptme/gptme/pull/1773,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Race condition: thread started before `Subagent` is registered**
+
+In thread mode the worker thread is started (`t.start()`) before `sa` is created and appended to `_subagents`. If `_create_subagent_thread` returns very quickly (as it does in every test that mocks it), the `run_subagent` closure executes `next((s for s in _subagents if s.agent_id == agent_id), None)` before `_subagents.append(sa)` has been called, yielding `None`. As a result:
+
+- `notify_completion` is **never called** (the hook notification is skipped)
+- `_cleanup_isolation` is **never called** for `isolated=True` subagents
+
+Interestingly, the **ACP mode** block added in this same PR explicitly documents and addresses this exact problem:
+
+```python
+# Append sa before starting the thread so the finally block can find it
+# (avoids race condition where fast completion can't locate sa in _subagents)
+_subagents.append(sa)
+t.start()
+```
+
+The subprocess mode also appends before starting the monitor thread. Thread mode should follow the same pattern:
+
+```suggestion
+        sa = Subagent(
+            agent_id=agent_id,
+            prompt=prompt,
+            thread=t,
+            logdir=logdir,
+            model=model_name,
+            output_schema=output_schema,
+            process=None,
+            execution_mode=""thread"",
+            isolated=isolated,
+            worktree_path=worktree_path,
+            repo_path=repo_path,
+        )
+        # Append sa before starting the thread so run_subagent can find it
+        # (avoids race condition where fast completion can't locate sa in _subagents)
+        _subagents.append(sa)
+        t.start()
+```
+",https://github.com/gptme/gptme/pull/1773#discussion_r2971859742,Fixed in 75421a5 — moved `_subagents.append(sa)` before `t.start()` so the closure always finds the Subagent when it runs.,2026-03-22T18:07:44.202000,Race condition: thread started before Subagent registration,concurrency,high,8,"This is a genuine race condition where the worker thread can complete before the Subagent object is registered in _subagents, causing notify_completion and cleanup to never be called. The reviewer correctly identifies that other code paths (ACP mode, subprocess mode) already handle this correctly, making this an inconsistency that would cause real production issues.",2026-03-22T20:12:51.856756+00:00
