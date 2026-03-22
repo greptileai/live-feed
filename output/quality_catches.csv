@@ -18940,3 +18940,27 @@ if redis_cache is not None:
     if key_rotation_pod_lock_manager is not None:
         key_rotation_pod_lock_manager.redis_cache = redis_cache
 ```",https://github.com/BerriAI/litellm/pull/24246#discussion_r2967836435,PR follows this pattern,2026-03-20T20:25:46.301000,Distributed lock silently disabled when Redis initializes late,concurrency,high,8,"This catch identifies a real race condition where the distributed lock manager is created before Redis is fully configured, causing it to silently operate as a no-op. This defeats the entire purpose of the PR (preventing concurrent key rotation across pods) and could lead to data corruption from parallel key rotations.",2026-03-22T10:13:11.264593+00:00
+gptme/gptme,1760,fix(server): add cookie-based auth for SSE connections,https://github.com/gptme/gptme/pull/1760,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Race condition defeats the security goal**
+
+`ensureAuthCookie()` is called fire-and-forget in the constructor (its Promise is discarded). `subscribeToEvents` then checks `this.authCookieSet` synchronously — but if the `POST /api/v2/auth/cookie` network round-trip hasn't finished yet when the user navigates to a conversation, `authCookieSet` is still `false`. The code then falls back to appending the token as a query parameter, exactly the exposure this PR is trying to eliminate.
+
+The comment ""By the time user triggers SSE, the cookie POST should have completed"" documents the assumption but doesn't enforce it. On slow connections, fast navigation, or any automated flow this race will fire.
+
+The fix is to store the Promise and await it before building the SSE URL:
+
+```typescript
+// In the class:
+private authCookiePromise: Promise<void> | null = null;
+
+// In the constructor:
+if (this.authHeader) {
+  this.authCookiePromise = this.ensureAuthCookie();
+}
+
+// In subscribeToEvents(), before building `url`:
+if (this.authCookiePromise) {
+  await this.authCookiePromise;
+}
+```
+
+This makes the SSE connection wait for the cookie handshake to finish (or fail) before deciding which auth method to use, eliminating the race.",https://github.com/gptme/gptme/pull/1760#discussion_r2971416911,✅ Fixed in 29a7e8e — `authCookiePromise` is now stored and awaited in `subscribeToEvents` before deciding auth method.,2026-03-22T11:37:06.803000,Race condition exposes auth token in URL query parameter,concurrency,high,8,"This catch identifies a race condition where the async cookie setup may not complete before SSE subscription, causing the code to fall back to exposing the auth token in query parameters - exactly the security issue the PR was trying to fix. The fix to store and await the promise is correct and important.",2026-03-22T14:15:08.247745+00:00
