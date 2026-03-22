@@ -19083,3 +19083,47 @@ async onSubmit(values) {
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/raycast/extensions/pull/26481#discussion_r2963655149,,2026-03-20T02:26:57.053000,Form closes and discards edits even when API call fails,logic,high,8,This is a meaningful UX bug where the form dismisses and discards user edits even when the save operation fails. The user sees a failure toast but loses their work because pop() executes unconditionally. This would frustrate users in production.,2026-03-22T16:14:02.006409+00:00
+raycast/extensions,25927,Add plexamp extension,https://github.com/raycast/extensions/pull/25927,"**Rejected `serverIdentityPromise` is never cleared**
+
+If the inner async function throws (e.g., the Plex server is temporarily unreachable or times out), `serverIdentityPromise` is set to a rejected promise. Every subsequent call to `getServerIdentity()` skips the `if (!serverIdentityPromise)` guard and immediately re-awaits the same rejected promise, so all playback operations for the rest of that command session will permanently fail with the original error — even if the server becomes reachable again a moment later.
+
+The config invalidator only fires when the user changes their Plex configuration, so a simple retry via the UI will not help.
+
+Reset the cached promise on rejection so the next call retries:
+
+```typescript
+async function getServerIdentity(): Promise<ServerIdentity> {
+  if (!serverIdentityPromise) {
+    serverIdentityPromise = (async () => {
+      const config = await requireServerConfig();
+      const baseUrl = new URL(config.plexServerUrl);
+
+      let machineIdentifier = config.serverMachineIdentifier;
+
+      if (!machineIdentifier) {
+        machineIdentifier = asString((await requestServer(""/"")).machineIdentifier);
+      }
+
+      if (!machineIdentifier) {
+        machineIdentifier = asString((await requestServer(""/identity"")).machineIdentifier);
+      }
+
+      if (!machineIdentifier) {
+        throw new Error(""Unable to determine Plex server machine identifier."");
+      }
+
+      return {
+        machineIdentifier,
+        address: baseUrl.hostname,
+        port: baseUrl.port || (baseUrl.protocol === ""https:"" ? ""443"" : ""80""),
+        protocol: baseUrl.protocol.replace("":"", """"),
+      };
+    })().catch((err) => {
+      serverIdentityPromise = undefined; // allow retry on next call
+      return Promise.reject(err);
+    });
+  }
+
+  return serverIdentityPromise;
+}
+```",https://github.com/raycast/extensions/pull/25927#discussion_r2908769465,,2026-03-10T01:24:25.445000,Rejected promise cached permanently blocks all retries,logic,high,8,"This catches a real bug where a transient network failure when fetching server identity causes the rejected promise to be cached forever, breaking all playback operations for the entire session with no way to recover. This is a meaningful logic error that would affect users in production.",2026-03-22T18:17:34.150632+00:00
