@@ -18785,3 +18785,43 @@ try {
 ```
 
 This avoids the extra DB round-trip and the race entirely.",https://github.com/simstudioai/sim/pull/3697#discussion_r2969761928,"Fixed in e0649add1. Replaced the DB-read approach with a local `syncExitedCleanly` flag — set to `true` on success, on connector-deleted cleanup, and after error handling. The `finally` block only resets status when the flag is `false` (unexpected termination), eliminating the race condition entirely.",2026-03-21T16:16:10.817000,Race condition in finally block corrupts concurrent sync state,concurrency,high,8,"This catches a real race condition where a finally block re-reads DB state and can overwrite a newly-started sync's 'syncing' status with 'error', corrupting the new sync's state. This is a meaningful concurrency bug that would cause intermittent production failures.",2026-03-21T18:16:20.537480+00:00
+berriai/litellm,24250,feat: Team-Scoped Default,https://github.com/BerriAI/litellm/pull/24250,"<a href=""#""><img alt=""P0"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p0.svg?v=7"" align=""top""></a> **Stale override + post-cap empty list grants ""allow all""**
+
+When `team.default_models = []` and a member holds a stale override for a model that was since removed from `team.models`, capping reduces `effective_models` to `[]`. An empty list is then passed to `_can_object_call_model`, which treats it as ""no restriction"" — granting access to **every** model on the proxy, bypassing the team-level access control entirely.
+
+Concrete scenario:
+- `team.models = [""gpt-4""]`, `team.default_models = []`
+- Member has a stale `LiteLLM_TeamMembership.models = [""gpt-3.5""]`
+- `effective_models = [""gpt-3.5""]` (non-empty, so the early fallback is skipped)
+- After cap: `[]` ← this is the trigger
+- `_can_object_call_model(model=""any-model"", models=[])` → allow all
+
+The `test_stale_override_capped_by_team_models` test happens to pass only because it sets `default_models=[""m1""]`, which keeps the post-cap list non-empty. The dangerous scenario (empty `default_models`) has no test coverage.
+
+Fix: after capping, if `effective_models` becomes empty but `team_pool` is non-empty, fall back to `team_pool` rather than returning `[]`:
+
+```python
+# Cap effective models at team.models (the allowed pool).
+team_pool = team_object.models if team_object else []
+if team_pool:
+    effective_models = [m for m in effective_models if m in set(team_pool)]
+    # After cap, an empty result means all member overrides were stale.
+    # Return team_pool (not []) to avoid unintentional ""allow all"" semantics.
+    if not effective_models:
+        return team_pool
+
+return effective_models
+```",https://github.com/BerriAI/litellm/pull/24250#discussion_r2970013970,,2026-03-21T19:12:59.416000,Stale model override with empty defaults grants unrestricted access,security,critical,9,"This comment identifies a critical security vulnerability where a stale member model override combined with empty team defaults results in an empty `effective_models` list after capping, which then grants 'allow all' access to every model on the proxy - completely bypassing team-level access controls. This is a privilege escalation that could affect production users.",2026-03-22T00:50:36.920750+00:00
+berriai/litellm,24211,Litellm dev sameer 16 march week,https://github.com/BerriAI/litellm/pull/24211,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Duplicate `DeploymentAffinityCheck` accumulates in global callback manager on every router reload**
+
+The guard checks `self.optional_callbacks` (which is always empty at `Router.__init__` time), so the condition `not any(isinstance(cb, DeploymentAffinityCheck) for cb in (self.optional_callbacks or []))` is always `True` when `model_group_affinity_config` is set. On each proxy config reload a new `DeploymentAffinityCheck` is created and registered in the **global** `litellm.logging_callback_manager`, accumulating duplicate callbacks that fire on every successful LLM call.
+
+Mirror the de-duplication pattern used in `_setup_affinity_callback_for_router`, which checks the global manager:
+
+```python
+if self.model_group_affinity_config and not any(
+    isinstance(cb, DeploymentAffinityCheck)
+    for cb in litellm.logging_callback_manager.get_callbacks()
+):
+    ...
+```",https://github.com/BerriAI/litellm/pull/24211#discussion_r2970318729,,2026-03-21T21:40:11.499000,Duplicate callbacks accumulate on every router reload causing redundant processing,logic,high,8,"The comment identifies a real bug where the deduplication check looks at the wrong collection (local empty list vs global manager), causing duplicate DeploymentAffinityCheck callbacks to accumulate on every proxy config reload. This would cause performance degradation and potentially incorrect behavior as multiple callbacks fire on every LLM call.",2026-03-22T00:50:36.920750+00:00
