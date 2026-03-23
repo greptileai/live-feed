@@ -19425,3 +19425,25 @@ On line 494, `d.model_info.get(""team_public_model_name"")` is called unconditio
                 and (d.model_info or {}).get(""team_public_model_name"") == old_public_name
             ]
 ```",https://github.com/BerriAI/litellm/pull/24406#discussion_r2974528699,,2026-03-23T11:45:13.874000,AttributeError when model_info is None for legacy deployments,runtime,high,8,"Comment 1 identifies a clear runtime bug where calling `.get()` on a potentially `None` model_info field will raise an AttributeError, causing the rename operation to crash for legacy deployments created before team_public_model_name was introduced. This is a meaningful production bug that would affect existing users.",2026-03-23T14:35:14.386484+00:00
+simstudioai/sim,3712,improvement(mothership): add file patch tool,https://github.com/simstudioai/sim/pull/3712,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Worker subprocess inherits parent `process.env` — secrets are reachable on vm escape**
+
+`spawn()` is called without an explicit `env` option, so the subprocess inherits the full `process.env` of the Next.js process — including `DATABASE_URL`, `ANTHROPIC_API_KEY`, OAuth secrets, and any other secrets configured at startup. The previous review thread stated that ""a vm escape cannot reach…secrets,"" but that claim only holds if the subprocess does not carry those secrets.
+
+`vm.createContext` is explicitly documented by Node.js as **not a security sandbox**. A well-known escape (valid even against null-prototype contexts) uses the fact that any object thrown from the VM crosses the context boundary:
+
+```js
+// Inside vm.runInContext — works against a null-prototype sandbox
+try { null.x } catch (e) { e.constructor.constructor('return process')().env }
+```
+
+Passing an empty or minimal environment to the worker subprocess eliminates this risk entirely:
+
+```typescript
+proc = spawn('node', [WORKER_PATH], {
+  stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
+  serialization: 'json',
+  env: { PATH: process.env.PATH ?? '' }, // only what pptxgenjs actually needs
+})
+```",https://github.com/simstudioai/sim/pull/3712#discussion_r2975828378,"Fixed — `spawn` now passes `env: { PATH: process.env.PATH ?? '' }` so the subprocess does not inherit the parent process environment. This ensures DB URLs, API keys, and other secrets are not reachable even on a `vm.createContext` escape. Commit 7ab98e288.
+---
+Fixed — `spawn()` now receives `env: { PATH: process.env.PATH ?? '' }` so the subprocess does not inherit `DATABASE_URL`, `ANTHROPIC_API_KEY`, or any other secrets from the parent Next.js process. `PATH` is the only value needed for Node.js to locate its own binary; module resolution uses the filesystem, not `PATH`.",2026-03-23T15:34:14.079000,Worker subprocess inherits secrets enabling credential theft on VM escape,security,critical,9,"The subprocess spawning code passes the full parent process.env including DATABASE_URL, API keys, and OAuth secrets to the worker. Since vm.createContext is not a security sandbox and well-known escapes exist, this exposes all production secrets to user-controlled code execution.",2026-03-23T18:29:01.550455+00:00
