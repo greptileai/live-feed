@@ -19335,3 +19335,26 @@ The single-cask path in `actions.ts` correctly retains `{ maxBuffer: 1024 * 1024
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/raycast/extensions/pull/26228#discussion_r2962694307,,2026-03-19T21:03:47.419000,Removed maxBuffer causes crash regression for bulk brew upgrades,runtime,high,8,"The comment correctly identifies that removing BREW_MAX_BUFFER from the bulk upgrade path causes it to fall back to Node.js's 1MB default instead of the previous 10MB, making buffer overflow crashes more likely when processing many casks. This is a real runtime bug that contradicts the PR's stated fix.",2026-03-23T10:31:54.136962+00:00
+ever-co/ever-gauzy,9622,fix: handle check old local database on application startup,https://github.com/ever-co/ever-gauzy/pull/9622,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Unsynced data count is always zero — DB queried before initialization**
+
+`countUnsyncedData()` is called from `showPopup()`, which is called from `handleDesktopStartup()`. Both in `apps/desktop-timer/src/index.ts` (line 500) and `apps/desktop/src/index.ts` (line 623), `handleDesktopStartup()` is invoked **before** the database is initialized (`setupDatabase()` / `initialDatabase()`).
+
+At this point `ProviderFactory.instance` is `null`, so `db.connection(...)` throws a `TypeError`, the `catch` block silently returns `{ timers: 0, intervals: 0 }`, and `hasUnsyncedData` is always `false`. The unsynced-data warning dialog can never fire, which makes this safety feature non-functional.
+
+The fix would require either initializing the database connection before calling `handleDesktopStartup()`, or opening the SQLite file directly (without going through `ProviderFactory`) just for this count.",https://github.com/ever-co/ever-gauzy/pull/9622#discussion_r2971979642,,2026-03-22T19:39:54.809000,Unsynced data count always returns zero due to premature DB query,logic,high,8,"This catch identifies a significant logic bug where the unsynced data safety feature is completely non-functional because the database is queried before initialization. The count always returns zero, silently failing and preventing users from being warned about potential data loss.",2026-03-23T12:30:39.169046+00:00
+raycast/extensions,26201,Add easy-invoice extension,https://github.com/raycast/extensions/pull/26201,"**CSV formula injection not prevented**
+
+The `escapeCSV` helper handles commas, double-quotes, and newlines correctly, but does not guard against spreadsheet formula injection. Values starting with `=`, `+`, `-`, or `@` are interpreted as formulas by Excel and Google Sheets when the exported CSV is opened. Since invoice descriptions and client names are free-form user input, a crafted value could execute arbitrary spreadsheet formulas.
+
+Consider prefixing such values with a tab character to neutralise them:
+
+```typescript
+function escapeCSV(value: string): string {
+  // Prevent formula injection in spreadsheet applications
+  const sanitized = /^[=+\-@\t]/.test(value) ? `\t${value}` : value;
+  if (sanitized.includes("","") || sanitized.includes('""') || sanitized.includes(""\n"")) {
+    return `""${sanitized.replace(/""/g, '""""')}""`;
+  }
+  return sanitized;
+}
+```",https://github.com/raycast/extensions/pull/26201#discussion_r2911952257,,2026-03-10T13:59:50.038000,CSV formula injection vulnerability in exported invoices,security,high,8,"This catches a real security vulnerability where user-controlled input (client names, invoice descriptions) could be crafted to execute arbitrary spreadsheet formulas when the CSV is opened in Excel or Google Sheets. This is a well-known attack vector (CSV injection) that could lead to data exfiltration or code execution.",2026-03-23T12:30:39.169046+00:00
