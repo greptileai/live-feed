@@ -19447,3 +19447,242 @@ proc = spawn('node', [WORKER_PATH], {
 ```",https://github.com/simstudioai/sim/pull/3712#discussion_r2975828378,"Fixed — `spawn` now passes `env: { PATH: process.env.PATH ?? '' }` so the subprocess does not inherit the parent process environment. This ensures DB URLs, API keys, and other secrets are not reachable even on a `vm.createContext` escape. Commit 7ab98e288.
 ---
 Fixed — `spawn()` now receives `env: { PATH: process.env.PATH ?? '' }` so the subprocess does not inherit `DATABASE_URL`, `ANTHROPIC_API_KEY`, or any other secrets from the parent Next.js process. `PATH` is the only value needed for Node.js to locate its own binary; module resolution uses the filesystem, not `PATH`.",2026-03-23T15:34:14.079000,Worker subprocess inherits secrets enabling credential theft on VM escape,security,critical,9,"The subprocess spawning code passes the full parent process.env including DATABASE_URL, API keys, and OAuth secrets to the worker. Since vm.createContext is not a security sandbox and well-known escapes exist, this exposes all production secrets to user-controlled code execution.",2026-03-23T18:29:01.550455+00:00
+generaltranslation/gt,1145,fi: add string datatype formatting,https://github.com/generaltranslation/gt/pull/1145,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Hash-breaking change for STRING entries**
+
+Before this PR, `translateMany` always defaulted `dataFormat` to `'STRING'` when building the hash:
+
+```ts
+hashSource({
+  source,
+  dataFormat: metadata?.dataFormat ?? 'STRING',  // default was always present
+  ...(metadata ?? {}),
+});
+```
+
+After the change, when `metadata?.dataFormat` is `undefined`, the `dataFormat` key is absent from the object passed to `hashSource`. Inside `hashSource`, the initial `sanitizedData = { dataFormat }` will hold `{ dataFormat: undefined }`, and `fast-json-stable-stringify` strips `undefined` values — so the serialized object changes from `{""dataFormat"":""STRING"",""source"":""…""}` to `{""source"":""…""}`.
+
+This means every previously-cached runtime translation whose entry had no explicit `dataFormat` will get a new hash on the next request, causing a cache miss and triggering re-translation for all of those entries. Depending on whether the API uses these hashes as stable keys, this could be a silent but significant breaking change for existing users.
+
+If the intent is to stop forcing `'STRING'` as the default, consider making it explicit in `hashSource` itself or documenting that callers of `translateMany` must now always supply `metadata.dataFormat`.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/core/src/translate/translateMany.ts
+Line: 72-75
+
+Comment:
+**Hash-breaking change for STRING entries**
+
+Before this PR, `translateMany` always defaulted `dataFormat` to `'STRING'` when building the hash:
+
+```ts
+hashSource({
+  source,
+  dataFormat: metadata?.dataFormat ?? 'STRING',  // default was always present
+  ...(metadata ?? {}),
+});
+```
+
+After the change, when `metadata?.dataFormat` is `undefined`, the `dataFormat` key is absent from the object passed to `hashSource`. Inside `hashSource`, the initial `sanitizedData = { dataFormat }` will hold `{ dataFormat: undefined }`, and `fast-json-stable-stringify` strips `undefined` values — so the serialized object changes from `{""dataFormat"":""STRING"",""source"":""…""}` to `{""source"":""…""}`.
+
+This means every previously-cached runtime translation whose entry had no explicit `dataFormat` will get a new hash on the next request, causing a cache miss and triggering re-translation for all of those entries. Depending on whether the API uses these hashes as stable keys, this could be a silent but significant breaking change for existing users.
+
+If the intent is to stop forcing `'STRING'` as the default, consider making it explicit in `hashSource` itself or documenting that callers of `translateMany` must now always supply `metadata.dataFormat`.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/generaltranslation/gt/pull/1145#discussion_r2976406929,,2026-03-23T17:13:35.256000,Hash computation change breaks translation cache for existing entries,data_integrity,high,8,"This catch identifies a subtle but significant breaking change where removing the default 'STRING' dataFormat value causes hash computation to change for all existing cached translations, leading to cache misses and unnecessary re-translations. This is a non-obvious data integrity issue that could impact production users.",2026-03-23T20:21:46.168047+00:00
+infisical/infisical,5784,fix: improve isPrivateIp to handle IPV6 addresses,https://github.com/Infisical/infisical/pull/5784,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Missing NAT64 prefix `64:ff9b::/96` — SSRF bypass in NAT64 environments**
+
+The well-known NAT64 prefix `64:ff9b::/96` (RFC 6052) maps IPv6 addresses directly to IPv4 addresses in the last 32 bits. For example:
+- `64:ff9b::7f00:1` → `127.0.0.1`
+- `64:ff9b::c0a8:101` → `192.168.1.1`
+
+In environments that have NAT64 infrastructure (common in IPv6-only cloud environments), passing `64:ff9b::7f00:1` would bypass `isPrivateIp`, returning `false` despite resolving to loopback. The local-use NAT64 prefix `64:ff9b:1::/48` should also be considered.
+
+Consider adding:
+
+```typescript
+// NAT64 well-known prefix (64:ff9b::/96) — maps IPv6 to IPv4; covers ::127.0.0.1 bypass in NAT64 environments
+ipv6RangeLists.reserved.addSubnet(""64:ff9b::"", 96, ""ipv6"");
+// Local-use NAT64 prefix (64:ff9b:1::/48) — RFC 8215
+ipv6RangeLists.reserved.addSubnet(""64:ff9b:1::"", 48, ""ipv6"");
+```",https://github.com/Infisical/infisical/pull/5784#discussion_r2974993881,,2026-03-23T13:20:33.530000,Missing NAT64 prefix enables SSRF bypass to internal services,security,critical,9,"This is a critical security catch identifying that the NAT64 prefix 64:ff9b::/96 was missing from the IPv6 blocklist, allowing attackers to bypass SSRF protections by encoding private IPv4 addresses (like 127.0.0.1) in IPv6 format. This is a real SSRF vulnerability in security-critical IP validation code.",2026-03-23T20:21:46.168047+00:00
+nvidia/physicsnemo,1519,Natten ShardTensor and ND support,https://github.com/NVIDIA/physicsnemo/pull/1519,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Mixed-type inputs cause infinite recursion; `UndeterminedShardingError` is unreachable**
+
+`_natten_wrapper` is only ever invoked via the `__torch_function__` protocol — meaning at least one of `q`, `k`, `v` is a `ShardTensor`. Because `ShardTensor` is a subclass of `torch.Tensor`, `isinstance(shard_tensor, torch.Tensor)` is always `True`.
+
+The consequence is:
+1. If **all three** are `ShardTensor` → the first branch is taken correctly ✓
+2. If inputs are **mixed** (some `ShardTensor`, some plain `Tensor`) → the first check (`all ShardTensor`) fails, the second check (`all torch.Tensor`) **passes** (because `ShardTensor IS-A Tensor`), and `func(q, k, v, ...)` is called again with the ShardTensors still in it → `has_torch_function` fires again → back into `_natten_wrapper` → **infinite recursion / stack overflow**.
+3. The `else: raise UndeterminedShardingError` branch is **unreachable**.
+
+To fix, swap the check order so plain-tensor is checked first (using a stricter test that excludes subclasses):
+
+```python
+if all(type(_t) is torch.Tensor for _t in (q, k, v)):
+    return func(q, k, v, kernel_size=kernel_size, dilation=dilation, **natten_kwargs)
+elif all(isinstance(_t, ShardTensor) for _t in (q, k, v)):
+    return _partial_natten(
+        q, k, v, kernel_size, dilation, base_func=func, **natten_kwargs
+    )
+else:
+    raise UndeterminedShardingError(
+        ""q, k, and v must all be the same types (torch.Tensor or ShardTensor)""
+    )
+```
+
+Note: calling `func(q, k, v, ...)` for the plain-tensor branch is safe here only because `type(q) is torch.Tensor` guarantees `has_torch_function` returns `False` inside `na1d/na2d/na3d`, so there is no recursion.",https://github.com/NVIDIA/physicsnemo/pull/1519#discussion_r2957008370,,2026-03-19T00:24:31.491000,Mixed ShardTensor/Tensor inputs cause infinite recursion,logic,high,8,"This comment identifies a real logic bug where mixed input types (some ShardTensor, some plain Tensor) would cause infinite recursion due to isinstance checks not distinguishing subclasses. The analysis is thorough, explaining exactly why the bug occurs and providing a concrete fix using strict type checking.",2026-03-23T20:21:46.168047+00:00
+onyx-dot-app/onyx,9556,chore: web connector wait for page networkidle before continuing,https://github.com/onyx-dot-app/onyx/pull/9556,"<a href=""#""><img alt=""P0"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p0.svg?v=7"" align=""top""></a> **`timeout` must be passed as a keyword argument**
+
+`page.wait_for_load_state()` in Playwright Python has the signature:
+
+```python
+def wait_for_load_state(self, state=None, *, timeout=None) -> None:
+```
+
+The bare `*` makes `timeout` keyword-only, so passing `PAGE_RENDER_TIMEOUT_MS` as a second positional argument will raise a `TypeError` at runtime. Because `TypeError` is not a subclass of Playwright's `TimeoutError`, the `except TimeoutError: pass` block on the next line will not catch it — the exception will propagate up and crash the scrape for every URL visited.
+
+The existing call in the scroll block (line 587–589) already uses the correct `timeout=` keyword form, so this new call should match.
+
+```suggestion
+                page.wait_for_load_state(""networkidle"", timeout=PAGE_RENDER_TIMEOUT_MS)
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: backend/onyx/connectors/web/connector.py
+Line: 557
+
+Comment:
+**`timeout` must be passed as a keyword argument**
+
+`page.wait_for_load_state()` in Playwright Python has the signature:
+
+```python
+def wait_for_load_state(self, state=None, *, timeout=None) -> None:
+```
+
+The bare `*` makes `timeout` keyword-only, so passing `PAGE_RENDER_TIMEOUT_MS` as a second positional argument will raise a `TypeError` at runtime. Because `TypeError` is not a subclass of Playwright's `TimeoutError`, the `except TimeoutError: pass` block on the next line will not catch it — the exception will propagate up and crash the scrape for every URL visited.
+
+The existing call in the scroll block (line 587–589) already uses the correct `timeout=` keyword form, so this new call should match.
+
+```suggestion
+                page.wait_for_load_state(""networkidle"", timeout=PAGE_RENDER_TIMEOUT_MS)
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/9556#discussion_r2976503994,,2026-03-23T17:29:30.639000,Keyword-only argument passed positionally causes unhandled TypeError crash,runtime,high,8,"This is a genuine runtime bug that would crash the scraper for every URL. The catch is impressive because it requires understanding Python's keyword-only argument syntax (the bare `*`), knowing that TypeError wouldn't be caught by the existing except block, and recognizing this would cause production failures. Not a trivial IDE catch - it requires API knowledge of Playwright's signature.",2026-03-23T20:21:46.168047+00:00
+onyx-dot-app/onyx,9529,feat(fe): migrate root layout from SSR to CSR with SWR data fetching,https://github.com/onyx-dot-app/onyx/pull/9529,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **403 from `/api/enterprise-settings` fatally breaks the app for anonymous users in EE deployments**
+
+`errorHandlingFetcher` (see `lib/fetcher.ts` lines 25–32) throws a `RedirectError` on any `403` response. This means that if `/api/enterprise-settings` returns 403 — e.g. for an unauthenticated/anonymous user in a deployment where `NEXT_PUBLIC_ENABLE_PAID_EE_FEATURES=true` — `enterpriseSettingsError` becomes non-null and this `if` branch renders the full-page error.
+
+The old SSR code in `components/settings/lib.ts` lines 84–95 **explicitly** treated `403`/`401` from the enterprise-settings endpoint as ""EE not accessible, continue with `null`"":
+
+```ts
+if (!result_1.ok) {
+  if (result_1.status !== 403 && result_1.status !== 401) {
+    throw new Error(...)
+  }
+  // 403/401 → silently set enterpriseSettings = null
+}
+```
+
+The `/api/enterprise-settings` backend uses `current_user_with_expired_token` which rejects unauthenticated requests. In a deployment with both `EE_ENABLED=true` and `anonymous_user_enabled=true`, all anonymous visitors will see the error page instead of the app.
+
+Consider filtering out auth errors in `useEnterpriseSettings` — returning `null` data without surfacing the error when the response is `403`/`401` — to match the old behaviour:
+
+```ts
+// useSettings.ts
+export function useEnterpriseSettings(eeEnabledRuntime: boolean) {
+  const { data, error, isLoading } = useSWR<EnterpriseSettings>(
+    shouldFetch ? ""/api/enterprise-settings"" : null,
+    errorHandlingFetcher,
+    { ... }
+  );
+
+  // 403/401 means ""user can't access EE settings"" — treat as no EE settings
+  const isAuthError = error instanceof RedirectError;
+  return {
+    enterpriseSettings: data ?? null,
+    isLoading: shouldFetch ? isLoading : false,
+    error: isAuthError ? undefined : error,
+  };
+}
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: web/src/providers/SettingsProvider.tsx
+Line: 99-101
+
+Comment:
+**403 from `/api/enterprise-settings` fatally breaks the app for anonymous users in EE deployments**
+
+`errorHandlingFetcher` (see `lib/fetcher.ts` lines 25–32) throws a `RedirectError` on any `403` response. This means that if `/api/enterprise-settings` returns 403 — e.g. for an unauthenticated/anonymous user in a deployment where `NEXT_PUBLIC_ENABLE_PAID_EE_FEATURES=true` — `enterpriseSettingsError` becomes non-null and this `if` branch renders the full-page error.
+
+The old SSR code in `components/settings/lib.ts` lines 84–95 **explicitly** treated `403`/`401` from the enterprise-settings endpoint as ""EE not accessible, continue with `null`"":
+
+```ts
+if (!result_1.ok) {
+  if (result_1.status !== 403 && result_1.status !== 401) {
+    throw new Error(...)
+  }
+  // 403/401 → silently set enterpriseSettings = null
+}
+```
+
+The `/api/enterprise-settings` backend uses `current_user_with_expired_token` which rejects unauthenticated requests. In a deployment with both `EE_ENABLED=true` and `anonymous_user_enabled=true`, all anonymous visitors will see the error page instead of the app.
+
+Consider filtering out auth errors in `useEnterpriseSettings` — returning `null` data without surfacing the error when the response is `403`/`401` — to match the old behaviour:
+
+```ts
+// useSettings.ts
+export function useEnterpriseSettings(eeEnabledRuntime: boolean) {
+  const { data, error, isLoading } = useSWR<EnterpriseSettings>(
+    shouldFetch ? ""/api/enterprise-settings"" : null,
+    errorHandlingFetcher,
+    { ... }
+  );
+
+  // 403/401 means ""user can't access EE settings"" — treat as no EE settings
+  const isAuthError = error instanceof RedirectError;
+  return {
+    enterpriseSettings: data ?? null,
+    isLoading: shouldFetch ? isLoading : false,
+    error: isAuthError ? undefined : error,
+  };
+}
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/9529#discussion_r2970720819,,2026-03-22T03:17:01.154000,403 error from enterprise settings breaks app for anonymous users,logic,high,8,"This catch identifies a critical regression where anonymous users in EE deployments would see a full error page instead of the app. The old SSR code explicitly handled 403/401 as 'continue with null' but the new CSR implementation surfaces these as fatal errors, breaking a legitimate deployment configuration.",2026-03-23T20:21:46.168047+00:00
+gptme/gptme,1807,feat(eval): add trend tracking for regression/improvement detection,https://github.com/gptme/gptme/pull/1807,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **`--regressions`/`--improvements` filter silently ignored in JSON mode**
+
+The JSON output branch (`args.format == ""json""`) returns before the `--regressions`/`--improvements` filtering is applied. This means `python eval_trends.py --regressions --format json` outputs the full, unfiltered trend dict (all five categories) instead of just regressions, contradicting the `--regressions` help text (""Show only regressions"").
+
+The fix is to apply the filter before the format branch:
+
+```python
+    trends = compute_trends(results, model_filter=args.model, last_n_runs=args.last)
+
+    # Apply display filters before formatting
+    if args.regressions:
+        trends = {**trends, ""improvements"": [], ""flaky"": []}
+    elif args.improvements:
+        trends = {**trends, ""regressions"": [], ""flaky"": []}
+
+    if args.format == ""json"":
+        print(json.dumps(trends, indent=2, default=str))
+        return
+
+    print(format_table(trends))
+```",https://github.com/gptme/gptme/pull/1807#discussion_r2976327341,"Fixed in d9b6b680d — filter is now applied before JSON output, so `--regressions --format json` correctly returns only regressions.",2026-03-23T16:58:46.217000,Filter flags silently ignored in JSON output mode,logic,high,8,"This catches a real logic bug where `--regressions` or `--improvements` flags are completely ignored when combined with `--format json`, causing the command to return unfiltered data instead of the filtered subset the user explicitly requested. This would cause incorrect behavior in production when users try to filter JSON output.",2026-03-23T20:21:46.168047+00:00
