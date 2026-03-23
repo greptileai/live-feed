@@ -19300,3 +19300,38 @@ Fix: replace hyphens before constructing the variable name:
 ```python
 env_var = f""{provider_name.upper().replace('-', '_')}_API_KEY""
 ```",https://github.com/gptme/gptme/pull/1798#discussion_r2973220652,"Fixed in fe4e455: changed `provider_name.upper()` to `provider_name.upper().replace('-', '_')` in both `cli/util.py` and `config/models.py`.",2026-03-23T06:58:43.443000,Hyphenated provider names generate invalid environment variable names,logic,high,8,"This catches a real bug where provider names with hyphens (e.g., 'my-local-llm') generate invalid shell variable names ('MY-LOCAL-LLM_API_KEY' instead of 'MY_LOCAL_LLM_API_KEY'), causing users to silently fall back to a default key since they can never set the expected env var. This affects core functionality and would cause confusion in production.",2026-03-23T08:31:39.859183+00:00
+raycast/extensions,26228,Update vesslo extension,https://github.com/raycast/extensions/pull/26228,"<a href=""#""><img alt=""P0"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p0.svg?v=7"" align=""top""></a> **Bulk update `maxBuffer` regression**
+
+The PR description states this change ""Fixed potential crash in bulk update when `brew upgrade --cask` output exceeds the default 1MB buffer limit,"" but the fix removed `maxBuffer` entirely rather than increasing it. The previous code used `BREW_MAX_BUFFER` (10MB), and this call now falls back to Node.js's default of 1MB — making the crash *more* likely on systems with many casks.
+
+The single-cask path in `actions.ts` correctly retains `{ maxBuffer: 1024 * 1024 * 10 }` (10MB), but the bulk path — which processes all casks at once and produces far more output — needs an even larger limit.
+
+```suggestion
+      const { stdout } = await execAsync(`${brewPath} upgrade --cask`, {
+        maxBuffer: 50 * 1024 * 1024, // 50MB for bulk output
+      });
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: extensions/vesslo/src/bulk-homebrew-update.tsx
+Line: 75
+
+Comment:
+**Bulk update `maxBuffer` regression**
+
+The PR description states this change ""Fixed potential crash in bulk update when `brew upgrade --cask` output exceeds the default 1MB buffer limit,"" but the fix removed `maxBuffer` entirely rather than increasing it. The previous code used `BREW_MAX_BUFFER` (10MB), and this call now falls back to Node.js's default of 1MB — making the crash *more* likely on systems with many casks.
+
+The single-cask path in `actions.ts` correctly retains `{ maxBuffer: 1024 * 1024 * 10 }` (10MB), but the bulk path — which processes all casks at once and produces far more output — needs an even larger limit.
+
+```suggestion
+      const { stdout } = await execAsync(`${brewPath} upgrade --cask`, {
+        maxBuffer: 50 * 1024 * 1024, // 50MB for bulk output
+      });
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/raycast/extensions/pull/26228#discussion_r2962694307,,2026-03-19T21:03:47.419000,Removed maxBuffer causes crash regression for bulk brew upgrades,runtime,high,8,"The comment correctly identifies that removing BREW_MAX_BUFFER from the bulk upgrade path causes it to fall back to Node.js's 1MB default instead of the previous 10MB, making buffer overflow crashes more likely when processing many casks. This is a real runtime bug that contradicts the PR's stated fix.",2026-03-23T10:31:54.136962+00:00
