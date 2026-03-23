@@ -19258,3 +19258,45 @@ The old substring check blocked this because the string `'-exec'` still contains
 Replacing `cmd.split()` with `shlex.split(cmd)` (from the standard library `shlex` module) would strip the shell quoting before tokenizing, so the flag would be recognized correctly. This is an edge-case a deliberate adversary could use to bypass the flag filter, though it is unlikely to appear in natural LLM-generated commands.",https://github.com/gptme/gptme/pull/1792#discussion_r2972686235,"Fixed in 217e903 — switched to `shlex.split(cmd)` with a `cmd.split()` fallback for malformed input. Added test cases for single-quoted and double-quoted `-exec` flags.
 ---
 Already handled — the code uses `shlex.split(cmd)` as the primary tokenizer (line 301), which correctly strips shell quoting. The `cmd.split()` on line 303 is only a fallback for `ValueError` (unclosed quotes in malformed input). So `find . '-exec' rm {} \;` would be correctly caught by `shlex.split`.",2026-03-23T03:45:08.175000,Security bypass via shell-quoted dangerous flags,security,high,8,"This is a legitimate security bypass vulnerability where an adversary could circumvent dangerous flag detection by quoting flags like '-exec'. The catch demonstrates deep understanding of shell tokenization vs Python string splitting, and identifies a real attack vector that could be exploited to run dangerous shell commands. While it's an edge case, it's a meaningful security hole in a validation function.",2026-03-23T04:54:22.814957+00:00
+onyx-dot-app/onyx,9528,chore(fe): clean up table qualifier API and internals,https://github.com/onyx-dot-app/onyx/pull/9528,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Missing `""use client""` directive**
+
+`QualifierContainer` calls `useTableSize()` (a React hook) but is missing the `""use client""` directive. In this same PR, `ActionsContainer.tsx` was correctly updated to add `""use client""` at the top. Without it, Next.js App Router will treat this as a Server Component and throw a runtime error when the hook is invoked.
+
+```suggestion
+""use client"";
+
+import { useTableSize } from ""@opal/components/table/TableSizeContext"";
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: web/lib/opal/src/components/table/QualifierContainer.tsx
+Line: 1
+
+Comment:
+**Missing `""use client""` directive**
+
+`QualifierContainer` calls `useTableSize()` (a React hook) but is missing the `""use client""` directive. In this same PR, `ActionsContainer.tsx` was correctly updated to add `""use client""` at the top. Without it, Next.js App Router will treat this as a Server Component and throw a runtime error when the hook is invoked.
+
+```suggestion
+""use client"";
+
+import { useTableSize } from ""@opal/components/table/TableSizeContext"";
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/9528#discussion_r2968223484,,2026-03-20T22:28:09.298000,Missing 'use client' directive causes Next.js runtime error,runtime,high,8,"The component uses a React hook (useTableSize) but lacks the 'use client' directive required by Next.js App Router. This would cause a guaranteed runtime error when the server tries to render this component, making it a meaningful production bug that's not immediately caught by standard build tools.",2026-03-23T08:31:39.859183+00:00
+gptme/gptme,1798,feat(cli): add providers test command for connectivity validation,https://github.com/gptme/gptme/pull/1798,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Provider name hyphens produce invalid env var names**
+
+`provider_name.upper()` does not replace hyphens with underscores. A provider named `my-local-llm` generates `MY-LOCAL-LLM_API_KEY`, which is not a valid shell variable name and can never be set via `export` in bash/zsh. The user always silently hits the `""default-key""` fallback in this case.
+
+The PR description shows the expected output as `$MY_LOCAL_LLM_API_KEY` (underscores), directly revealing the discrepancy with the actual code output. The same issue is present in `ProviderConfig.get_api_key()` at `gptme/config/models.py:70`.
+
+Fix: replace hyphens before constructing the variable name:
+
+```python
+env_var = f""{provider_name.upper().replace('-', '_')}_API_KEY""
+```",https://github.com/gptme/gptme/pull/1798#discussion_r2973220652,"Fixed in fe4e455: changed `provider_name.upper()` to `provider_name.upper().replace('-', '_')` in both `cli/util.py` and `config/models.py`.",2026-03-23T06:58:43.443000,Hyphenated provider names generate invalid environment variable names,logic,high,8,"This catches a real bug where provider names with hyphens (e.g., 'my-local-llm') generate invalid shell variable names ('MY-LOCAL-LLM_API_KEY' instead of 'MY_LOCAL_LLM_API_KEY'), causing users to silently fall back to a default key since they can never set the expected env var. This affects core functionality and would cause confusion in production.",2026-03-23T08:31:39.859183+00:00
