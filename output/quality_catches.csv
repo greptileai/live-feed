@@ -19358,3 +19358,70 @@ function escapeCSV(value: string): string {
   return sanitized;
 }
 ```",https://github.com/raycast/extensions/pull/26201#discussion_r2911952257,,2026-03-10T13:59:50.038000,CSV formula injection vulnerability in exported invoices,security,high,8,"This catches a real security vulnerability where user-controlled input (client names, invoice descriptions) could be crafted to execute arbitrary spreadsheet formulas when the CSV is opened in Excel or Google Sheets. This is a well-known attack vector (CSV injection) that could lead to data exfiltration or code execution.",2026-03-23T12:30:39.169046+00:00
+posthog/posthog-js,3253,chore(browser): reduce bundle size by 6.6 KB (-3.7%),https://github.com/PostHog/posthog-js/pull/3253,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **`booleans_as_integers` can break strict boolean equality in consumer code**
+
+With `booleans_as_integers: true`, Terser replaces boolean literals `true`/`false` with integers `1`/`0` in the output (since `1` is one character shorter than `true`, and `0` is shorter than `false` or `!1`). This changes the *type* of those values from `boolean` to `number`.
+
+For SDK consumers, this creates a subtle breaking change. For example, the SDK has several places that hardcode `false` in returned objects:
+
+```ts
+// posthog-surveys.ts, posthog-core.ts, etc.
+return { visible: false, disabledReason: SURVEYS_NOT_AVAILABLE }
+```
+
+After minification with `booleans_as_integers`, this becomes `{ visible: 0, ... }`. Consumers doing strict equality checks would then fail silently:
+
+```js
+const result = posthog.canRenderSurvey('id')
+result.visible === false  // evaluates to false  because 0 !== false
+```
+
+Similarly, any function that contains `return true` or `return false` (like the `return true` branch in `is_capturing()`) will return a number instead of a boolean. The TypeScript types still declare these as `boolean`, so users who rely on `=== true` or `=== false` checks will hit unexpected behavior.
+
+Consider removing `booleans_as_integers: true` or auditing all public return paths that contain hardcoded boolean literals.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/browser/rollup.config.mjs
+Line: 109
+
+Comment:
+**`booleans_as_integers` can break strict boolean equality in consumer code**
+
+With `booleans_as_integers: true`, Terser replaces boolean literals `true`/`false` with integers `1`/`0` in the output (since `1` is one character shorter than `true`, and `0` is shorter than `false` or `!1`). This changes the *type* of those values from `boolean` to `number`.
+
+For SDK consumers, this creates a subtle breaking change. For example, the SDK has several places that hardcode `false` in returned objects:
+
+```ts
+// posthog-surveys.ts, posthog-core.ts, etc.
+return { visible: false, disabledReason: SURVEYS_NOT_AVAILABLE }
+```
+
+After minification with `booleans_as_integers`, this becomes `{ visible: 0, ... }`. Consumers doing strict equality checks would then fail silently:
+
+```js
+const result = posthog.canRenderSurvey('id')
+result.visible === false  // evaluates to false  because 0 !== false
+```
+
+Similarly, any function that contains `return true` or `return false` (like the `return true` branch in `is_capturing()`) will return a number instead of a boolean. The TypeScript types still declare these as `boolean`, so users who rely on `=== true` or `=== false` checks will hit unexpected behavior.
+
+Consider removing `booleans_as_integers: true` or auditing all public return paths that contain hardcoded boolean literals.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog-js/pull/3253#discussion_r2974298608,,2026-03-23T10:56:43.427000,Minifier option breaks strict boolean equality for SDK consumers,type_error,high,8,"This catches a subtle but impactful bug where the `booleans_as_integers` Terser option would cause `true`/`false` to become `1`/`0` in the minified output, breaking strict equality checks (`=== true`/`=== false`) for SDK consumers while TypeScript types still declare these as booleans. This would cause silent failures in production for users of the SDK.",2026-03-23T14:35:14.386484+00:00
+berriai/litellm,24406,fix(team-routing): preserve sibling deployment candidates for team public models,https://github.com/BerriAI/litellm/pull/24406,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **`AttributeError` when `model_info` is `None` for legacy deployments**
+
+On line 494, `d.model_info.get(""team_public_model_name"")` is called unconditionally. However, `model_info` is a JSON field in the Prisma model table and can be `None` for deployments created before `team_public_model_name` was introduced. Calling `.get()` on `None` will raise `AttributeError`, causing the entire rename operation to crash and leaving the deployment in a broken state.
+
+```suggestion
+            other_deployments_with_old_name = [
+                d
+                for d in response
+                if d.model_name != db_model.model_name
+                and (d.model_info or {}).get(""team_public_model_name"") == old_public_name
+            ]
+```",https://github.com/BerriAI/litellm/pull/24406#discussion_r2974528699,,2026-03-23T11:45:13.874000,AttributeError when model_info is None for legacy deployments,runtime,high,8,"Comment 1 identifies a clear runtime bug where calling `.get()` on a potentially `None` model_info field will raise an AttributeError, causing the rename operation to crash for legacy deployments created before team_public_model_name was introduced. This is a meaningful production bug that would affect existing users.",2026-03-23T14:35:14.386484+00:00
