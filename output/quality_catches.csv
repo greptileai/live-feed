@@ -19243,3 +19243,18 @@ The same pattern should be applied to `getProjectTasks`, `getProjects`, and `get
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/raycast/extensions/pull/26130#discussion_r2966410562,,2026-03-20T15:23:48.669000,API pagination not handled causing silent data truncation,data_integrity,high,8,"This catch identifies a real bug where users with more than 50 tasks/projects would see incomplete data with no warning. This silent data truncation would cause confusion and missed tasks in production, affecting core functionality.",2026-03-22T22:12:55.881240+00:00
+gptme/gptme,1792,fix(shell): fix -executable false positive in is_allowlisted flag detection,https://github.com/gptme/gptme/pull/1792,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Quoted-flag bypass with `str.split()`**
+
+`cmd.split()` tokenizes on whitespace only, so a shell-quoted argument like `'-exec'` or `""-exec""` produces the token `'-exec'` (with its surrounding quotes intact), which is **not** present in `dangerous_flags`. The shell, however, evaluates `'-exec'` as exactly `-exec`.
+
+For example, the following command would **not** be caught by the new check:
+
+```
+find . '-exec' rm {} \;
+```
+
+The old substring check blocked this because the string `'-exec'` still contains the sub-string `-exec`. The new token check does not.
+
+Replacing `cmd.split()` with `shlex.split(cmd)` (from the standard library `shlex` module) would strip the shell quoting before tokenizing, so the flag would be recognized correctly. This is an edge-case a deliberate adversary could use to bypass the flag filter, though it is unlikely to appear in natural LLM-generated commands.",https://github.com/gptme/gptme/pull/1792#discussion_r2972686235,"Fixed in 217e903 — switched to `shlex.split(cmd)` with a `cmd.split()` fallback for malformed input. Added test cases for single-quoted and double-quoted `-exec` flags.
+---
+Already handled — the code uses `shlex.split(cmd)` as the primary tokenizer (line 301), which correctly strips shell quoting. The `cmd.split()` on line 303 is only a fallback for `ValueError` (unclosed quotes in malformed input). So `find . '-exec' rm {} \;` would be correctly caught by `shlex.split`.",2026-03-23T03:45:08.175000,Security bypass via shell-quoted dangerous flags,security,high,8,"This is a legitimate security bypass vulnerability where an adversary could circumvent dangerous flag detection by quoting flags like '-exec'. The catch demonstrates deep understanding of shell tokenization vs Python string splitting, and identifies a real attack vector that could be exploited to run dangerous shell commands. While it's an edge case, it's a meaningful security hole in a validation function.",2026-03-23T04:54:22.814957+00:00
