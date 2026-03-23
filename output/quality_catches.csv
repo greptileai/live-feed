@@ -19686,3 +19686,180 @@ The fix is to apply the filter before the format branch:
 
     print(format_table(trends))
 ```",https://github.com/gptme/gptme/pull/1807#discussion_r2976327341,"Fixed in d9b6b680d — filter is now applied before JSON output, so `--regressions --format json` correctly returns only regressions.",2026-03-23T16:58:46.217000,Filter flags silently ignored in JSON output mode,logic,high,8,"This catches a real logic bug where `--regressions` or `--improvements` flags are completely ignored when combined with `--format json`, causing the command to return unfiltered data instead of the filtered subset the user explicitly requested. This would cause incorrect behavior in production when users try to filter JSON output.",2026-03-23T20:21:46.168047+00:00
+posthog/posthog,51485,feat(flags): evolve custom canary workflow,https://github.com/PostHog/posthog/pull/51485,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Stale approval bypasses `CHANGES_REQUESTED` reviews**
+
+`reviews.data.some(r => r.state === 'APPROVED')` returns `true` as long as *any* review in history is `APPROVED`, even if a subsequent review has `CHANGES_REQUESTED`. This means a PR where an approval was later overridden by a change request would still be allowed to deploy a canary to `prod-us`/`prod-eu`.
+
+A more accurate check would derive the latest review state per reviewer and ensure at least one reviewer's *current* state is `APPROVED` without any other reviewer's *current* state being `CHANGES_REQUESTED`:
+
+```js
+// Deduplicate: keep only the latest review per reviewer
+const latestByReviewer = reviews.data.reduce((acc, r) => {
+    if (!acc[r.user.login] || new Date(r.submitted_at) > new Date(acc[r.user.login].submitted_at)) {
+        acc[r.user.login] = r;
+    }
+    return acc;
+}, {});
+const latestReviews = Object.values(latestByReviewer);
+const approved = latestReviews.some(r => r.state === 'APPROVED') &&
+                 !latestReviews.some(r => r.state === 'CHANGES_REQUESTED');
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: .github/workflows/canary-flags-enable.yml
+Line: 285-288
+
+Comment:
+**Stale approval bypasses `CHANGES_REQUESTED` reviews**
+
+`reviews.data.some(r => r.state === 'APPROVED')` returns `true` as long as *any* review in history is `APPROVED`, even if a subsequent review has `CHANGES_REQUESTED`. This means a PR where an approval was later overridden by a change request would still be allowed to deploy a canary to `prod-us`/`prod-eu`.
+
+A more accurate check would derive the latest review state per reviewer and ensure at least one reviewer's *current* state is `APPROVED` without any other reviewer's *current* state being `CHANGES_REQUESTED`:
+
+```js
+// Deduplicate: keep only the latest review per reviewer
+const latestByReviewer = reviews.data.reduce((acc, r) => {
+    if (!acc[r.user.login] || new Date(r.submitted_at) > new Date(acc[r.user.login].submitted_at)) {
+        acc[r.user.login] = r;
+    }
+    return acc;
+}, {});
+const latestReviews = Object.values(latestByReviewer);
+const approved = latestReviews.some(r => r.state === 'APPROVED') &&
+                 !latestReviews.some(r => r.state === 'CHANGES_REQUESTED');
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/51485#discussion_r2962357434,,2026-03-19T19:50:49.573000,Stale approval bypasses CHANGES_REQUESTED reviews allowing unauthorized deployment,security,high,8,"This is a meaningful security/logic bug where a PR with a stale approval followed by CHANGES_REQUESTED would incorrectly be allowed to deploy canaries to production environments. The approval check logic fails to consider the temporal ordering of reviews, potentially allowing unapproved code to reach prod-us/prod-eu.",2026-03-23T22:16:52.845982+00:00
+dyad-sh/dyad,3048,issue-3040-gpu-cpu-fallback,https://github.com/dyad-sh/dyad/pull/3048,"<a href=""#""><img alt=""P0"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p0.svg?v=7"" align=""top""></a> **Wrong base URL — all Ollama requests will 404**
+
+The `ai-sdk-ollama` library constructs the chat endpoint as `${baseURL}/chat`. Ollama's native API lives at `http://localhost:11434/api/chat`, so the `baseURL` passed to `createOllama` **must** include the `/api` suffix.
+
+The JSDoc comment on line 9 already says the correct value (`http://localhost:11434/api`), but the actual default on line 31 is `http://localhost:11434` (missing `/api`). Every request will therefore hit `http://localhost:11434/chat` instead of `http://localhost:11434/api/chat`, causing a 404 or connection error.
+
+The same issue applies to `get_model_client.ts`: `getOllamaApiUrl()` returns a bare host like `http://localhost:11434` (no `/api`), so the mismatch propagates to every Ollama model invocation.
+
+```suggestion
+  const rawBaseURL = options?.baseURL ?? ""http://localhost:11434/api"";
+  const normalizedBaseURL = rawBaseURL.replace(/\/+$/, """");
+
+  const provider = createOllama({
+    baseURL: normalizedBaseURL,
+    headers: options?.headers,
+    fetch: options?.fetch,
+  });
+```
+
+Alternatively, `get_model_client.ts` should append `/api` when constructing the provider:
+
+```ts
+// in get_model_client.ts
+const provider = createOllamaProvider({ baseURL: `${getOllamaApiUrl()}/api` });
+```
+
+Pick one location and apply the fix consistently.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: src/ipc/utils/ollama_provider.ts
+Line: 31-38
+
+Comment:
+**Wrong base URL — all Ollama requests will 404**
+
+The `ai-sdk-ollama` library constructs the chat endpoint as `${baseURL}/chat`. Ollama's native API lives at `http://localhost:11434/api/chat`, so the `baseURL` passed to `createOllama` **must** include the `/api` suffix.
+
+The JSDoc comment on line 9 already says the correct value (`http://localhost:11434/api`), but the actual default on line 31 is `http://localhost:11434` (missing `/api`). Every request will therefore hit `http://localhost:11434/chat` instead of `http://localhost:11434/api/chat`, causing a 404 or connection error.
+
+The same issue applies to `get_model_client.ts`: `getOllamaApiUrl()` returns a bare host like `http://localhost:11434` (no `/api`), so the mismatch propagates to every Ollama model invocation.
+
+```suggestion
+  const rawBaseURL = options?.baseURL ?? ""http://localhost:11434/api"";
+  const normalizedBaseURL = rawBaseURL.replace(/\/+$/, """");
+
+  const provider = createOllama({
+    baseURL: normalizedBaseURL,
+    headers: options?.headers,
+    fetch: options?.fetch,
+  });
+```
+
+Alternatively, `get_model_client.ts` should append `/api` when constructing the provider:
+
+```ts
+// in get_model_client.ts
+const provider = createOllamaProvider({ baseURL: `${getOllamaApiUrl()}/api` });
+```
+
+Pick one location and apply the fix consistently.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/dyad-sh/dyad/pull/3048#discussion_r2962470510,,2026-03-19T20:14:09.255000,Wrong base URL causes all Ollama API requests to 404,runtime,critical,9,"This catch identifies a fundamental configuration error where the Ollama API base URL is missing the required '/api' suffix, causing all Ollama requests to hit the wrong endpoint and fail with 404 errors. This would completely break Ollama functionality in production.",2026-03-23T22:16:52.845982+00:00
+posthog/posthog,52000,fix(error-tracking): flush invocation results,https://github.com/PostHog/posthog/pull/52000,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Flush skipped on error path**
+
+When `runErrorTrackingPipeline` throws, the `catch` block re-throws the error and the flush on line 275 is never reached. This means `invocationResults` will continue to accumulate during persistent error conditions (e.g., a bad batch that keeps failing retries), which doesn't fully fix the memory growth the PR is trying to address.
+
+Moving the flush into a `finally` block ensures it runs regardless of success or failure:
+
+```suggestion
+        try {
+            await runErrorTrackingPipeline(this.pipeline, messages)
+            batchProcessedCounter.inc({ status: 'success' })
+        } catch (error) {
+            batchProcessedCounter.inc({ status: 'error' })
+            logger.error('❌', `${this.name} - batch processing failed`, {
+                error: error instanceof Error ? error.message : String(error),
+                size: messages.length,
+            })
+            throw error
+        } finally {
+            // Flush scheduled work and invocation results to prevent memory accumulation
+            await Promise.all([this.promiseScheduler.waitForAll(), this.deps.hogTransformer.processInvocationResults()])
+        }
+```
+
+`processInvocationResults` is safe to call in the `finally` block — it copies and clears the internal results array, so partial results from a failed batch are flushed to monitoring rather than left to accumulate.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: nodejs/src/ingestion/error-tracking/error-tracking-consumer.ts
+Line: 270-275
+
+Comment:
+**Flush skipped on error path**
+
+When `runErrorTrackingPipeline` throws, the `catch` block re-throws the error and the flush on line 275 is never reached. This means `invocationResults` will continue to accumulate during persistent error conditions (e.g., a bad batch that keeps failing retries), which doesn't fully fix the memory growth the PR is trying to address.
+
+Moving the flush into a `finally` block ensures it runs regardless of success or failure:
+
+```suggestion
+        try {
+            await runErrorTrackingPipeline(this.pipeline, messages)
+            batchProcessedCounter.inc({ status: 'success' })
+        } catch (error) {
+            batchProcessedCounter.inc({ status: 'error' })
+            logger.error('❌', `${this.name} - batch processing failed`, {
+                error: error instanceof Error ? error.message : String(error),
+                size: messages.length,
+            })
+            throw error
+        } finally {
+            // Flush scheduled work and invocation results to prevent memory accumulation
+            await Promise.all([this.promiseScheduler.waitForAll(), this.deps.hogTransformer.processInvocationResults()])
+        }
+```
+
+`processInvocationResults` is safe to call in the `finally` block — it copies and clears the internal results array, so partial results from a failed batch are flushed to monitoring rather than left to accumulate.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/52000#discussion_r2977405610,,2026-03-23T20:25:38.073000,Memory leak from unflushed invocation results on error path,resource_leak,high,8,"Comment 1 identifies a meaningful bug where invocation results accumulate in memory during persistent error conditions because the flush only runs on success. This is the exact issue the PR intended to fix, but the original implementation missed the error path, causing continued memory growth.",2026-03-23T22:16:52.845982+00:00
