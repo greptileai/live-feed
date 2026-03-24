@@ -20118,3 +20118,26 @@ if toolset_id_header and user_api_key_auth is not None:
         user_api_key_auth, toolset_id_header
     )
 ```",https://github.com/BerriAI/litellm/pull/24335#discussion_r2970672629,,2026-03-22T02:08:13.948000,Client-injectable header enables privilege escalation to any toolset,security,critical,9,"This is a critical security vulnerability where the `x-mcp-toolset-id` header is read directly from client-controlled ASGI scope headers, allowing any authenticated client to inject any toolset ID and gain access to tools they are not authorized to use. This bypasses the entire toolset access control system introduced in this PR.",2026-03-24T00:43:25.557708+00:00
+simstudioai/sim,3729,fix(mothership): tool call loop,https://github.com/simstudioai/sim/pull/3729,"<a href=""#""><img alt=""P0"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p0.svg?v=7"" align=""top""></a> **Unsandboxed `new Function()` bypasses existing PPTX sandbox**
+
+This new `generatePptxFromCode` function executes LLM-provided code directly in the main server process via `new Function()`, with no sandboxing:
+
+```ts
+const fn = new Function('pptx', 'getFileBase64', `return (async () => { ${code} })()`)
+await fn(pptx, getFileBase64)
+```
+
+However, a sandboxed implementation **already exists** at `@/lib/execution/pptx-vm`. That module spawns a restricted child process with a minimal environment (`{ PATH: ... }`) and communicates via IPC, specifically to prevent the user-provided code from accessing `process`, `require`, the filesystem, or the network from the main process.
+
+The code in this PR bypasses that sandbox entirely. Any LLM-generated (or prompt-injected) code in the `.pptx` file body can now:
+- Read environment variables (`process.env`)
+- Execute OS commands via `child_process`
+- Access the database/network from within the main server process
+
+The validation call and the file-serve route (`/api/files/serve`) both need to use the same sandboxed executor. The fix is to import `generatePptxFromCode` from `@/lib/execution/pptx-vm` instead of defining a new unsandboxed version here.
+
+```ts
+import { generatePptxFromCode } from '@/lib/execution/pptx-vm'
+```
+
+Then remove the locally-defined `generatePptxFromCode` function (lines 28–43) entirely and use the imported one in all three PPTX validation call sites (`write`, `update`, `patch` cases).",https://github.com/simstudioai/sim/pull/3729#discussion_r2978409841,,2026-03-24T00:51:51.509000,Unsandboxed code execution bypasses existing security sandbox,security,critical,10,"This is a critical security vulnerability where LLM-generated code is executed via `new Function()` directly in the main server process without sandboxing, allowing arbitrary code execution including reading environment variables, executing OS commands, and accessing the database/network. The comment correctly identifies that a sandboxed implementation already exists but was bypassed, making this a clear security regression that could lead to full server compromise.",2026-03-24T03:11:00.230554+00:00
