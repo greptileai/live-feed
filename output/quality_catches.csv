@@ -20141,3 +20141,32 @@ import { generatePptxFromCode } from '@/lib/execution/pptx-vm'
 ```
 
 Then remove the locally-defined `generatePptxFromCode` function (lines 28–43) entirely and use the imported one in all three PPTX validation call sites (`write`, `update`, `patch` cases).",https://github.com/simstudioai/sim/pull/3729#discussion_r2978409841,,2026-03-24T00:51:51.509000,Unsandboxed code execution bypasses existing security sandbox,security,critical,10,"This is a critical security vulnerability where LLM-generated code is executed via `new Function()` directly in the main server process without sandboxing, allowing arbitrary code execution including reading environment variables, executing OS commands, and accessing the database/network. The comment correctly identifies that a sandboxed implementation already exists but was bypassed, making this a clear security regression that could lead to full server compromise.",2026-03-24T03:11:00.230554+00:00
+berriai/litellm,24335,feat(mcp): MCP Toolsets — curated tool subsets from one or more MCP servers,https://github.com/BerriAI/litellm/pull/24335,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Responses API toolset resolution has no authorization check**
+
+When a toolset name is resolved from the `mcp_servers` list, there is no check that the calling key's `object_permission.mcp_toolsets` includes the resolved toolset ID. Any authenticated API key that can make a responses-API call can pass any toolset name and gain full access to that toolset's tools, even if the key was never granted that toolset.
+
+`_apply_toolset_scope` (used for `/toolset/{name}/mcp` routes in `server.py`) correctly checks:
+```python
+if granted is not None and toolset_id not in granted:
+    raise HTTPException(status_code=403, ...)
+```
+
+The same guard should be applied here before appending to `resolved_toolset_ids`:
+
+```python
+if toolset is not None:
+    # Access control: only allow if the key explicitly grants this toolset.
+    if user_api_key_auth is not None:
+        is_admin = getattr(user_api_key_auth, ""user_role"", None) == ""proxy_admin""
+        if not is_admin:
+            op = user_api_key_auth.object_permission
+            granted = getattr(op, ""mcp_toolsets"", None) if op else None
+            if granted is not None and toolset.toolset_id not in granted:
+                verbose_logger.debug(
+                    f""Key does not have access to toolset '{name}', skipping.""
+                )
+                continue
+    resolved_toolset_ids.append(toolset.toolset_id)
+    continue
+```
+",https://github.com/BerriAI/litellm/pull/24335#discussion_r2976636943,,2026-03-23T17:53:15.712000,Missing authorization check allows any key to access any toolset via responses API,security,high,8,"Comment 31 identifies a security vulnerability where the responses API toolset resolution path lacks authorization checks, allowing any authenticated API key to access any toolset by name regardless of whether their object_permission.mcp_toolsets grants access. This is a clear authorization bypass that could expose tools/functionality to unauthorized users.",2026-03-24T04:45:31.412187+00:00
