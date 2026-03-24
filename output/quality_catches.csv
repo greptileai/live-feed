@@ -20327,3 +20327,180 @@ Without `partition_by`, delta-rs may write the appended files to the table root 
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/PostHog/posthog/pull/51349#discussion_r2948413286,"and yes, this needs the `partition_by` keyword ",2026-03-17T17:28:07.320000,Missing partition_by breaks Delta table partition layout,data_integrity,high,8,"The comment correctly identifies that omitting `partition_by=PARTITION_KEY` in the new delete+append write path would cause data to be written to the wrong location, breaking physical partition layout and partition-pruning. This directly undermines the PR's goal of fixing OOM issues through proper partitioning, and the developer confirmed the fix was needed.",2026-03-24T10:27:30.765180+00:00
+raycast/extensions,26534,Add key-generator extension,https://github.com/raycast/extensions/pull/26534,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Passphrase exposed in process argument list**
+
+The passphrase is passed as a command-line argument (`-N`), which means it briefly appears in the system process table (visible via `ps aux` to any process running as the same user). For a security-focused SSH key manager this is a notable concern.
+
+This pattern also appears in `src/audit-keys.tsx` line 193 when setting a passphrase on an existing key:
+```ts
+await execFileAsync(""ssh-keygen"", [""-p"", ""-f"", props.issue.filePath, ""-P"", """", ""-N"", values.passphrase]);
+```
+
+A safer alternative is to write the passphrase to a temporary file and pass its path via the `SSH_ASKPASS` / `DISPLAY` mechanism, or on OpenSSH ≥ 8.9, use `ssh-keygen -f key --new-passphrase-fd 0` and pipe passphrase via stdin through `execFile`'s `input` option:
+```ts
+await execFileAsync(""ssh-keygen"", [""-t"", algorithm, ""-f"", filePath, ""-N"", """"], {
+  input: `${passphrase || """"}\n`,
+});
+```
+(Check the installed OpenSSH version before relying on `--new-passphrase-fd`.)
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: extensions/key-generator/src/utils/ssh.ts
+Line: 21
+
+Comment:
+**Passphrase exposed in process argument list**
+
+The passphrase is passed as a command-line argument (`-N`), which means it briefly appears in the system process table (visible via `ps aux` to any process running as the same user). For a security-focused SSH key manager this is a notable concern.
+
+This pattern also appears in `src/audit-keys.tsx` line 193 when setting a passphrase on an existing key:
+```ts
+await execFileAsync(""ssh-keygen"", [""-p"", ""-f"", props.issue.filePath, ""-P"", """", ""-N"", values.passphrase]);
+```
+
+A safer alternative is to write the passphrase to a temporary file and pass its path via the `SSH_ASKPASS` / `DISPLAY` mechanism, or on OpenSSH ≥ 8.9, use `ssh-keygen -f key --new-passphrase-fd 0` and pipe passphrase via stdin through `execFile`'s `input` option:
+```ts
+await execFileAsync(""ssh-keygen"", [""-t"", algorithm, ""-f"", filePath, ""-N"", """"], {
+  input: `${passphrase || """"}\n`,
+});
+```
+(Check the installed OpenSSH version before relying on `--new-passphrase-fd`.)
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/raycast/extensions/pull/26534#discussion_r2969672644,"Passphrase exposed in process argument list
+Implemented. I removed passphrase usage via -N in argv for key generation and switched to stdin-based input for ssh-keygen prompts via a small helper. I also updated the audit set-passphrase flow to use the same stdin-based approach, so the new passphrase is no longer passed as a process argument.",2026-03-21T14:52:57.454000,Passphrase exposed in process argument list via ps command,security,high,8,"This is a genuine security vulnerability where SSH key passphrases are passed as command-line arguments, making them visible to any process on the same system via 'ps aux'. For a security-focused SSH key manager, this is a significant issue that could expose sensitive credentials.",2026-03-24T16:34:16.537840+00:00
+onyx-dot-app/onyx,9560,chore(fe): always load an empty memory card,https://github.com/onyx-dot-app/onyx/pull/9560,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Stale closure bypasses `MAX_MEMORY_COUNT` guard**
+
+The `useEffect` with empty deps captures `handleAddMemory` from the first render, when `localMemories` is still `[]` (the initial `useState` value). The `useMemoryManager` initialization effect that populates `localMemories` from the `memories` prop runs in the same post-render flush, but the `useCallback` for `handleAddMemory` was already memoized against the empty initial state.
+
+Inside `handleAddMemory`, the guard `if (localMemories.length >= MAX_MEMORY_COUNT)` therefore always evaluates to `0 >= 10 → false`, regardless of how many memories the user actually has. If the user already has 10 memories (the maximum), an extra empty card is still appended, resulting in 11 visible items and a potential pathway to saving beyond the backend limit if the user types into that card and blurs.
+
+A safe fix is to check `canAddMemory` before calling `handleAddMemory`. Although `canAddMemory` is also derived from the initial stale `localMemories`, the empty-card addition is harmless at 0 items, and the guard is only needed at capacity. A more robust solution would be to move the initial-empty-card responsibility into `useMemoryManager` itself (e.g., an `addInitialEmpty` argument), so it can run synchronously with the initialization that populates `localMemories`:
+
+```tsx
+// In useMemoryManager, extend the args interface:
+initialEmpty?: boolean;
+
+// ...and in the initialization effect:
+useEffect(() => {
+  const existingMemories: LocalMemory[] = memories.map(...);
+  setLocalMemories((prev) => {
+    const emptyNewItems = prev.filter((m) => m.isNew && !m.content.trim());
+    if (emptyNewItems.length === 0 && initialEmpty && existingMemories.length < MAX_MEMORY_COUNT) {
+      return [{ id: Date.now(), content: """", isNew: true }, ...existingMemories];
+    }
+    return [...emptyNewItems, ...existingMemories];
+  });
+}, [memories]);
+```
+
+This ensures the max-count check sees the real populated list.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: web/src/refresh-components/modals/MemoriesModal.tsx
+Line: 238-247
+
+Comment:
+**Stale closure bypasses `MAX_MEMORY_COUNT` guard**
+
+The `useEffect` with empty deps captures `handleAddMemory` from the first render, when `localMemories` is still `[]` (the initial `useState` value). The `useMemoryManager` initialization effect that populates `localMemories` from the `memories` prop runs in the same post-render flush, but the `useCallback` for `handleAddMemory` was already memoized against the empty initial state.
+
+Inside `handleAddMemory`, the guard `if (localMemories.length >= MAX_MEMORY_COUNT)` therefore always evaluates to `0 >= 10 → false`, regardless of how many memories the user actually has. If the user already has 10 memories (the maximum), an extra empty card is still appended, resulting in 11 visible items and a potential pathway to saving beyond the backend limit if the user types into that card and blurs.
+
+A safe fix is to check `canAddMemory` before calling `handleAddMemory`. Although `canAddMemory` is also derived from the initial stale `localMemories`, the empty-card addition is harmless at 0 items, and the guard is only needed at capacity. A more robust solution would be to move the initial-empty-card responsibility into `useMemoryManager` itself (e.g., an `addInitialEmpty` argument), so it can run synchronously with the initialization that populates `localMemories`:
+
+```tsx
+// In useMemoryManager, extend the args interface:
+initialEmpty?: boolean;
+
+// ...and in the initialization effect:
+useEffect(() => {
+  const existingMemories: LocalMemory[] = memories.map(...);
+  setLocalMemories((prev) => {
+    const emptyNewItems = prev.filter((m) => m.isNew && !m.content.trim());
+    if (emptyNewItems.length === 0 && initialEmpty && existingMemories.length < MAX_MEMORY_COUNT) {
+      return [{ id: Date.now(), content: """", isNew: true }, ...existingMemories];
+    }
+    return [...emptyNewItems, ...existingMemories];
+  });
+}, [memories]);
+```
+
+This ensures the max-count check sees the real populated list.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/9560#discussion_r2976711276,,2026-03-23T18:07:42.786000,Stale closure bypasses MAX_MEMORY_COUNT validation guard,concurrency,high,8,"This catches a subtle React stale closure bug where the useEffect captures handleAddMemory from initial render when localMemories is empty, causing the MAX_MEMORY_COUNT guard to always pass. This could allow users to exceed the 10-memory limit and potentially corrupt data or cause backend errors.",2026-03-24T16:34:16.537840+00:00
+posthog/posthog,51977,perf: Related groups query optimization,https://github.com/PostHog/posthog/pull/51977,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **`_take_first` misuse truncates results to one group per type**
+
+`serialized_groups` is a `list[list[SerializedGroup]]` — each element is the full list of serialized groups for one group type (returned by `get_groups`). Passing this to `_take_first` calls `[row[0] for row in rows]`, which extracts only the **first group from each type**, silently discarding all other related groups of the same type.
+
+The control path returns all groups correctly via a flat list. The optimized path must do the same:
+
+```python
+        serialized_groups: list = []
+        for index in group_type_indexes:
+            group_keys = [result[1] for result in results if result[0] == index]
+            _, groups = get_groups(self.team.pk, index, group_keys)
+            serialized_groups.extend(groups)
+
+        return serialized_groups
+```
+
+The existing test only catches this as coincidence — each group type has exactly one related group, so `row[0]` happens to be the only element.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: ee/clickhouse/queries/related_actors_query.py
+Line: 177-183
+
+Comment:
+**`_take_first` misuse truncates results to one group per type**
+
+`serialized_groups` is a `list[list[SerializedGroup]]` — each element is the full list of serialized groups for one group type (returned by `get_groups`). Passing this to `_take_first` calls `[row[0] for row in rows]`, which extracts only the **first group from each type**, silently discarding all other related groups of the same type.
+
+The control path returns all groups correctly via a flat list. The optimized path must do the same:
+
+```python
+        serialized_groups: list = []
+        for index in group_type_indexes:
+            group_keys = [result[1] for result in results if result[0] == index]
+            _, groups = get_groups(self.team.pk, index, group_keys)
+            serialized_groups.extend(groups)
+
+        return serialized_groups
+```
+
+The existing test only catches this as coincidence — each group type has exactly one related group, so `row[0]` happens to be the only element.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/51977#discussion_r2981708981,good catch. added a test and will adjust,2026-03-24T13:46:01.204000,Data truncation bug silently drops related groups in optimized path,data_integrity,high,8,"The comment correctly identifies that `_take_first` is being misused on a list of lists, causing only the first group from each type to be returned while silently discarding all other related groups. This is a meaningful logic bug that would cause data loss in production, and the existing test happened to pass only by coincidence.",2026-03-24T16:34:16.537840+00:00
+nvidia/spark-rapids,14435,Add support for Coalesce reader for Delta Lake using cuDF deletion vector APIs [databricks],https://github.com/NVIDIA/spark-rapids/pull/14435,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Resource leak if `prepareForDecode` throws**
+
+`dataBuffer` is allocated by `readPartFiles` before `prepareForDecode` is called. If `prepareForDecode` throws (e.g., an I/O error loading a deletion-vector bitmap), `dataBuffer` is never closed and its native host memory leaks. Before this PR, there was no call between `readPartFiles` and the `withRetryNoSplit` wrapper, so this was not an issue.
+
+```suggestion
+          val decodeMeta = closeOnExcept(dataBuffer) { _ => prepareForDecode(meta) }
+          startNewBufferRetry
+```
+",https://github.com/NVIDIA/spark-rapids/pull/14435#discussion_r2957906781,,2026-03-19T05:14:24.647000,Native memory leak if prepareForDecode throws after buffer allocation,resource_leak,high,8,This catches a real resource leak where native host memory allocated by readPartFiles would be orphaned if the newly added prepareForDecode hook throws an exception. The fix using closeOnExcept is correct and this is a meaningful production bug that could cause memory exhaustion in Spark jobs processing Delta Lake tables.,2026-03-24T16:34:16.537840+00:00
+raycast/extensions,25638,Add network-speed-monitor extension,https://github.com/raycast/extensions/pull/25638,"command injection vulnerability - `iface` is interpolated without sanitization
+
+if a malicious interface name is returned (e.g., containing backticks or semicolons), it could execute arbitrary commands
+
+sanitize before interpolation:
+```
+const command = `/usr/sbin/netstat -ib | /usr/bin/grep -E ${JSON.stringify(iface + '.*Link')} | /usr/bin/head -1 | /usr/bin/awk '{print $7, $10}'`;
+```
+
+or use array-based execution instead of shell interpolation",https://github.com/raycast/extensions/pull/25638#discussion_r2830334639,,2026-02-19T21:50:58.287000,Command injection vulnerability via unsanitized interface name in shell command,security,high,8,"This comment identifies a real command injection vulnerability where the interface name from getActiveInterface() could contain malicious characters (backticks, semicolons) that would be executed in the shell command. While the risk is somewhat limited since the input comes from system commands, it's still a valid security concern that could lead to arbitrary command execution.",2026-03-24T16:34:16.537840+00:00
