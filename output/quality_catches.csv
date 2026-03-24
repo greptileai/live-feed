@@ -20799,3 +20799,182 @@ Consider resetting the flag at the start of a new load so it accurately reflects
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/PostHog/posthog/pull/51997#discussion_r2977495693,,2026-03-23T20:43:56.673000,State flag persists across navigations causing UI regression,logic,high,8,"This is a meaningful logic bug that would re-introduce the exact UX issue the PR was meant to fix. The reviewer correctly identified that the hasLoadedWorkflows flag never resets, causing the product introduction screen to incorrectly appear after a load failure on subsequent visits. The analysis includes a specific problematic sequence and understands the component lifecycle (logic not unmounting), making this a solid catch of a real production bug.",2026-03-24T20:23:11.716110+00:00
+posthog/posthog,52181,fix(hogql): postgres functions,https://github.com/PostHog/posthog/pull/52181,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Case-sensitivity regression in `_get_connection_supported_functions`**
+
+The old implementation lowercased every entry before storing it, so the set was case-insensitively comparable with `func_name = node.name.lower()` (line 99). The new implementation keeps the original casing, so any name returned from the metadata in upper- or mixed-case (e.g. `""My_Function""`, `""DATE_BIN""`) will never match the lowercased `func_name` lookup on line 114, silently making those functions uncallable.
+
+Consider restoring the `.lower()` transform while still applying the safety filter:
+
+```suggestion
+        return {
+            function_name.lower()
+            for function_name in available_functions
+            if isinstance(function_name, str) and _SAFE_FUNCTION_NAME_RE.match(function_name)
+        }
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: posthog/hogql/printer/postgres.py
+Line: 148-152
+
+Comment:
+**Case-sensitivity regression in `_get_connection_supported_functions`**
+
+The old implementation lowercased every entry before storing it, so the set was case-insensitively comparable with `func_name = node.name.lower()` (line 99). The new implementation keeps the original casing, so any name returned from the metadata in upper- or mixed-case (e.g. `""My_Function""`, `""DATE_BIN""`) will never match the lowercased `func_name` lookup on line 114, silently making those functions uncallable.
+
+Consider restoring the `.lower()` transform while still applying the safety filter:
+
+```suggestion
+        return {
+            function_name.lower()
+            for function_name in available_functions
+            if isinstance(function_name, str) and _SAFE_FUNCTION_NAME_RE.match(function_name)
+        }
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/52181#discussion_r2983952217,,2026-03-24T19:56:42.045000,Case-sensitivity regression silently breaks function lookup,logic,high,8,"This is a meaningful logic bug where a refactoring removed the .lower() transformation, causing case-insensitive lookups to fail silently. Functions with mixed or uppercase names would become uncallable without any error, making this a real production issue that could be difficult to debug. The catch required understanding the interaction between the old and new implementations.",2026-03-24T22:18:04.883778+00:00
+raycast/extensions,26577,Update coffee extension,https://github.com/raycast/extensions/pull/26577,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Shell injection risk from switching to `execSync` with string interpolation**
+
+The previous `spawn` approach passed arguments as an array, which is completely immune to shell injection because arguments are never interpreted by a shell. This new `execSync` approach passes `argsString` through `/bin/sh`, meaning any shell metacharacters in the string (`;`, `&&`, `|`, `$()`, etc.) would be executed.
+
+`argsString` is built from `additionalArgs`, which in callers like `caffeinateFor` and `caffeinateUntil` can include user-supplied time values. If a malicious or malformed input sneaks through (e.g., a scheduled duration expression containing `; rm -rf ~`), it would be executed as a shell command with the same user privileges.
+
+The double-fork goal can be achieved without a shell and without this risk by using `spawn` with `detached: true` combined with a post-fork `child.unref()` — the child is reparented to launchd once its parent (`unref`'d) exits, same as the shell backgrounding approach. Consider reverting to the array-based `spawn` pattern while still adding `-u` to the generated flags:
+
+```typescript
+const args = [""-u"", ...generateArgs(additionalArgs).split(/\s+/).filter(Boolean)];
+const child = spawn(""/usr/bin/caffeinate"", args, {
+  detached: true,
+  stdio: ""ignore"",
+});
+child.unref();
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: extensions/coffee/src/utils.ts
+Line: 25
+
+Comment:
+**Shell injection risk from switching to `execSync` with string interpolation**
+
+The previous `spawn` approach passed arguments as an array, which is completely immune to shell injection because arguments are never interpreted by a shell. This new `execSync` approach passes `argsString` through `/bin/sh`, meaning any shell metacharacters in the string (`;`, `&&`, `|`, `$()`, etc.) would be executed.
+
+`argsString` is built from `additionalArgs`, which in callers like `caffeinateFor` and `caffeinateUntil` can include user-supplied time values. If a malicious or malformed input sneaks through (e.g., a scheduled duration expression containing `; rm -rf ~`), it would be executed as a shell command with the same user privileges.
+
+The double-fork goal can be achieved without a shell and without this risk by using `spawn` with `detached: true` combined with a post-fork `child.unref()` — the child is reparented to launchd once its parent (`unref`'d) exits, same as the shell backgrounding approach. Consider reverting to the array-based `spawn` pattern while still adding `-u` to the generated flags:
+
+```typescript
+const args = [""-u"", ...generateArgs(additionalArgs).split(/\s+/).filter(Boolean)];
+const child = spawn(""/usr/bin/caffeinate"", args, {
+  detached: true,
+  stdio: ""ignore"",
+});
+child.unref();
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/raycast/extensions/pull/26577#discussion_r2975600712,,2026-03-23T14:57:19.271000,Shell injection vulnerability from execSync with string interpolation,security,critical,9,This is a genuine security vulnerability where switching from spawn with array arguments to execSync with string interpolation introduces shell injection risk. User-supplied time values could contain shell metacharacters that would be executed with user privileges. The comment provides excellent technical analysis and a safe alternative solution using spawn with detached mode.,2026-03-24T22:18:04.883778+00:00
+posthog/posthog,52088,fix: incorrect entries in access control table,https://github.com/PostHog/posthog/pull/52088,"<a href=""#""><img alt=""P0"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p0.svg?v=7"" align=""top""></a> **Inverted inheritance direction**
+
+The comment above `RESOURCE_INHERITANCE_MAP` says _""child resources inherit access from parent resources""_, and every existing entry maps `child → parent` (e.g., `""session_recording_playlist"": ""session_recording""`). Correspondingly, `access_level_for_resource` reads the map and recursively delegates to the parent:
+
+```python
+parent_resource = RESOURCE_INHERITANCE_MAP.get(resource)
+if parent_resource:
+    return self.access_level_for_resource(parent_resource)
+```
+
+The PR's intent (per the description) is to make `experiment_saved_metric` a **descendant** of `experiment`. The correct entry is therefore:
+
+```python
+""experiment_saved_metric"": ""experiment""
+```
+
+But the PR adds the reverse:
+
+```python
+""experiment"": ""experiment_saved_metric"",
+```
+
+With this entry, calling `access_level_for_resource(""experiment"")` delegates to `experiment_saved_metric`, which has no entries in `ACCESS_CONTROL_RESOURCES` (it was just removed). This means all experiment access checks will fall through to `default_access_level(""experiment_saved_metric"")` rather than using the actual experiment access controls — effectively breaking experiment-level access control enforcement.
+
+```suggestion
+    ""experiment_saved_metric"": ""experiment"",
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: posthog/rbac/user_access_control.py
+Line: 81
+
+Comment:
+**Inverted inheritance direction**
+
+The comment above `RESOURCE_INHERITANCE_MAP` says _""child resources inherit access from parent resources""_, and every existing entry maps `child → parent` (e.g., `""session_recording_playlist"": ""session_recording""`). Correspondingly, `access_level_for_resource` reads the map and recursively delegates to the parent:
+
+```python
+parent_resource = RESOURCE_INHERITANCE_MAP.get(resource)
+if parent_resource:
+    return self.access_level_for_resource(parent_resource)
+```
+
+The PR's intent (per the description) is to make `experiment_saved_metric` a **descendant** of `experiment`. The correct entry is therefore:
+
+```python
+""experiment_saved_metric"": ""experiment""
+```
+
+But the PR adds the reverse:
+
+```python
+""experiment"": ""experiment_saved_metric"",
+```
+
+With this entry, calling `access_level_for_resource(""experiment"")` delegates to `experiment_saved_metric`, which has no entries in `ACCESS_CONTROL_RESOURCES` (it was just removed). This means all experiment access checks will fall through to `default_access_level(""experiment_saved_metric"")` rather than using the actual experiment access controls — effectively breaking experiment-level access control enforcement.
+
+```suggestion
+    ""experiment_saved_metric"": ""experiment"",
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/52088#discussion_r2981881119,,2026-03-24T14:10:16.568000,Inverted access control inheritance breaks experiment permissions,security,critical,9,"This is a significant security/access control bug where the inheritance mapping was reversed, causing experiment access control checks to delegate to a non-existent resource instead of properly inheriting permissions. This would effectively break experiment-level access control enforcement, potentially allowing unauthorized access. The catch required understanding the inheritance pattern, the PR intent, and tracing through the recursive access control logic.",2026-03-24T22:18:04.883778+00:00
+nvidia/nvflare,4339,Add deterministic repo Markdown relative-link check,https://github.com/NVIDIA/NVFlare/pull/4339,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Premature fence closure on lines with info strings**
+
+The closing-fence check `stripped.startswith(fence_marker)` also matches *opening* fence lines that happen to include an info string (e.g., ` ```python ` or ` ~~~html `). Per CommonMark §4.5, a closing fence must contain **only** the marker characters plus optional trailing whitespace — no info string is allowed.
+
+Concretely, this Markdown block:
+
+````
+```shell
+#!/bin/bash
+```python
+# this is still inside the outer fence
+[broken](./missing.md)   # would be falsely extracted as a link
+```
+````
+
+…would prematurely close the fence at ` ```python `, causing `[broken](./missing.md)` to be scanned as a real link target and potentially reported as a broken link.
+
+Fix: require nothing but optional whitespace after the marker characters when deciding whether a line closes the fence:
+
+```python
+        if fence_marker is not None:
+            # A closing fence is the same marker characters followed only by optional whitespace.
+            rest = stripped[len(fence_marker):]
+            if stripped.startswith(fence_marker) and not rest.strip():
+                fence_marker = None
+            masked_lines.append(""\n"" if line.endswith(""\n"") else """")
+            continue
+```",https://github.com/NVIDIA/NVFlare/pull/4339#discussion_r2967184998,"Addressed on the current branch. The fence-closing logic in `ci/check_relative_doc_links.py` now only closes on a fence made of the same marker character with at least the opener length and optional trailing whitespace only, so a line like ```python no longer closes an outer ```shell block. I also added a regression test for this exact case in `tests/unit_test/ci/test_check_relative_doc_links.py` (`test_fenced_block_stays_masked_when_inner_line_looks_like_opening_fence`). Verified locally with `pytest -q tests/unit_test/ci/test_check_relative_doc_links.py -k opening_fence`.",2026-03-20T17:57:15.956000,Premature fence closure causes false positive broken link reports,logic,medium,8,"This is a meaningful logic bug where the fence-closing check incorrectly matches opening fence lines with info strings (e.g., ```python), causing the parser to prematurely exit fenced blocks and falsely report links inside code blocks as broken. This would cause incorrect behavior in production CI checks.",2026-03-24T22:18:04.883778+00:00
