@@ -20570,3 +20570,232 @@ if image_generation_config and task_type_in_body != ""BACKGROUND_REMOVAL"":
 ```
 
 Additionally, the existing `test_transform_request_background_removal` test doesn't exercise this path because it passes no image-generation params; a complementary test that passes `size=""1024x1024""` alongside `taskType=""BACKGROUND_REMOVAL""` and asserts `""imageGenerationConfig"" not in body` would prevent a regression.",https://github.com/BerriAI/litellm/pull/24459#discussion_r2978551088,,2026-03-24T01:55:00.801000,imageGenerationConfig sent for BACKGROUND_REMOVAL causes AWS validation error,logic,high,8,"This catches a real production bug where AWS will reject requests for BACKGROUND_REMOVAL task type when any image generation params (size, n, seed, quality) are passed, because the code unconditionally appends imageGenerationConfig without checking the task type. This would cause user-facing API errors.",2026-03-24T18:32:18.530388+00:00
+simstudioai/sim,3744,feat(billing): add appliesTo plan restriction for coupon codes,https://github.com/simstudioai/sim/pull/3744,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Silent partial failure can create under-restricted coupons**
+
+When some price lookups in the `Promise.all` fail (e.g., a transient Stripe error), individual errors are swallowed, and only successfully resolved products are included. This means a coupon created with `appliesTo: ['pro']` could silently end up restricted to only `pro_6000` instead of all pro tiers, making it usable by `pro_25000` subscribers even though that was not the intent.
+
+The guard at line 273 only rejects the request when **zero** products resolve — any partial success slips through with incorrect restrictions.
+
+Consider treating partial failures as a full failure and returning a 500 or a specific error, rather than silently creating a coupon with incomplete restrictions:
+
+```ts
+const results = await Promise.allSettled(
+  priceIds.map(async (priceId) => {
+    const price = await stripe.prices.retrieve(priceId)
+    return typeof price.product === 'string' ? price.product : price.product.id
+  })
+)
+
+const failures = results.filter((r) => r.status === 'rejected')
+if (failures.length > 0) {
+  logger.error('Failed to resolve all products for appliesTo', { failures })
+  throw new Error('Could not resolve all Stripe products for the specified plan categories.')
+}
+
+for (const r of results) {
+  if (r.status === 'fulfilled') productIds.add(r.value)
+}
+```
+
+At minimum, the warning should make it clear that the coupon is being created with partial restrictions.",https://github.com/simstudioai/sim/pull/3744#discussion_r2983916199,"Good catch — switched to `Promise.allSettled` and now treat any partial failure as a hard error (throws, surfaces as 500). A coupon with incomplete product restrictions is worse than no coupon. Fixed in 903ff2d.",2026-03-24T19:49:02.061000,Silent partial failure creates under-restricted discount coupons,data_integrity,high,8,"This is a meaningful logic bug where partial Stripe API failures would silently create coupons with incomplete product restrictions, potentially allowing discounts to be applied to unintended subscription tiers. The catch identifies a subtle error handling issue that wouldn't be immediately obvious and has real business impact on billing/revenue.",2026-03-24T20:23:11.716110+00:00
+onyx-dot-app/onyx,9533,feat(hook): integrate query processing hook point,https://github.com/onyx-dot-app/onyx/pull/9533,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **`OnyxError(QUERY_REJECTED)` swallowed by generic exception handler**
+
+`_apply_query_processing_hook` may raise `OnyxError(OnyxErrorCode.QUERY_REJECTED)` here, but at this point in the function `llm` is still `None` (it's assigned later via `get_llm_for_persona`). That means the exception falls into the `except Exception as e:` handler at the bottom of the generator, takes the `else` branch (since `llm is None`), and yields:
+
+```python
+StreamingError(
+    error=""Failed to initialize the chat. Please check your configuration and try again."",
+    error_code=""INIT_FAILED"",
+    is_retryable=True,
+)
+```
+
+This completely discards the hook's `rejection_message` and misleadingly signals a retryable init failure rather than an intentional query rejection. The PR description explicitly states: *""rejection raises QUERY_REJECTED (400) with the hook's rejection_message""* — that contract is broken.
+
+A minimal fix is to add an explicit `OnyxError` handler before `except Exception`:
+
+```python
+except OnyxError:
+    raise  # propagate to the FastAPI global handler for structured JSON
+```
+
+or, if the streaming design requires errors to be yielded rather than raised:
+
+```python
+except OnyxError as e:
+    yield StreamingError(
+        error=e.detail or ""Your query was rejected."",
+        error_code=e.error_code.value[0],
+        is_retryable=False,
+    )
+    db_session.rollback()
+    return
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: backend/onyx/chat/process_message.py
+Line: 532
+
+Comment:
+**`OnyxError(QUERY_REJECTED)` swallowed by generic exception handler**
+
+`_apply_query_processing_hook` may raise `OnyxError(OnyxErrorCode.QUERY_REJECTED)` here, but at this point in the function `llm` is still `None` (it's assigned later via `get_llm_for_persona`). That means the exception falls into the `except Exception as e:` handler at the bottom of the generator, takes the `else` branch (since `llm is None`), and yields:
+
+```python
+StreamingError(
+    error=""Failed to initialize the chat. Please check your configuration and try again."",
+    error_code=""INIT_FAILED"",
+    is_retryable=True,
+)
+```
+
+This completely discards the hook's `rejection_message` and misleadingly signals a retryable init failure rather than an intentional query rejection. The PR description explicitly states: *""rejection raises QUERY_REJECTED (400) with the hook's rejection_message""* — that contract is broken.
+
+A minimal fix is to add an explicit `OnyxError` handler before `except Exception`:
+
+```python
+except OnyxError:
+    raise  # propagate to the FastAPI global handler for structured JSON
+```
+
+or, if the streaming design requires errors to be yielded rather than raised:
+
+```python
+except OnyxError as e:
+    yield StreamingError(
+        error=e.detail or ""Your query was rejected."",
+        error_code=e.error_code.value[0],
+        is_retryable=False,
+    )
+    db_session.rollback()
+    return
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/9533#discussion_r2968540592,"good catch, add the except catch and yield",2026-03-21T00:42:23.811000,OnyxError swallowed by generic exception handler breaks rejection contract,logic,high,8,"This catches a real bug where OnyxError(QUERY_REJECTED) is swallowed by a generic exception handler, causing the hook's rejection message to be discarded and replaced with a misleading 'INIT_FAILED' error. This breaks the documented contract and would cause user-facing incorrect behavior in production.",2026-03-24T20:23:11.716110+00:00
+posthog/posthog,52137,fix: add admin permission checks to billing-modifying endpoints,https://github.com/PostHog/posthog/pull/52137,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Organization mismatch breaks admin check for `apply_startup_program`**
+
+`IsOrganizationAdmin.has_permission` resolves the organization via `view._get_org_required()`, which returns `request.user.organization` — the user's *primary* organization. But `apply_startup_program` resolves its target organization from `organization_id` in the *request body*, which can be a **different** organization.
+
+The old inline check was:
+```python
+membership = OrganizationMembership.objects.get(user=user, organization=organization)
+if membership.level < OrganizationMembership.Level.ADMIN:
+    raise PermissionDenied(...)
+```
+
+`organization` above was the body-specified org, so the membership check was against the correct target. The new `IsOrganizationAdmin` guard checks the user's primary org instead. A user who is admin of org A (primary) but only a member of org B could now pass the permission check and apply the startup program to org B by sending `organization_id=<org_B_uuid>` in the body.
+
+The simplest fix is to re-add an explicit membership check for the body-specified organization after it's resolved:
+
+```python
+organization = Organization.objects.get(id=organization_id)
+if not organization:
+    raise ValidationError({""organization_id"": ""Organization not found.""})
+
+membership = OrganizationMembership.objects.filter(
+    user=user, organization=organization, level__gte=OrganizationMembership.Level.ADMIN
+).first()
+if not membership:
+    raise PermissionDenied(""You need to be an organization admin or owner to apply for the startup program"")
+```
+
+All the other protected actions use `self._get_org_required()` (i.e., the primary org) inside the handler too, so for those actions the permission class and the handler are in sync — the mismatch is specific to `apply_startup_program`.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: ee/api/billing.py
+Line: 436-447
+
+Comment:
+**Organization mismatch breaks admin check for `apply_startup_program`**
+
+`IsOrganizationAdmin.has_permission` resolves the organization via `view._get_org_required()`, which returns `request.user.organization` — the user's *primary* organization. But `apply_startup_program` resolves its target organization from `organization_id` in the *request body*, which can be a **different** organization.
+
+The old inline check was:
+```python
+membership = OrganizationMembership.objects.get(user=user, organization=organization)
+if membership.level < OrganizationMembership.Level.ADMIN:
+    raise PermissionDenied(...)
+```
+
+`organization` above was the body-specified org, so the membership check was against the correct target. The new `IsOrganizationAdmin` guard checks the user's primary org instead. A user who is admin of org A (primary) but only a member of org B could now pass the permission check and apply the startup program to org B by sending `organization_id=<org_B_uuid>` in the body.
+
+The simplest fix is to re-add an explicit membership check for the body-specified organization after it's resolved:
+
+```python
+organization = Organization.objects.get(id=organization_id)
+if not organization:
+    raise ValidationError({""organization_id"": ""Organization not found.""})
+
+membership = OrganizationMembership.objects.filter(
+    user=user, organization=organization, level__gte=OrganizationMembership.Level.ADMIN
+).first()
+if not membership:
+    raise PermissionDenied(""You need to be an organization admin or owner to apply for the startup program"")
+```
+
+All the other protected actions use `self._get_org_required()` (i.e., the primary org) inside the handler too, so for those actions the permission class and the handler are in sync — the mismatch is specific to `apply_startup_program`.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/52137#discussion_r2983049370,"Kept the inline check for apply_startup_program since it validates against the request body's organization_id, not the user's primary org. All other endpoints use the permission class.",2026-03-24T17:04:54.496000,Authorization bypass allows non-admin to apply startup program to other orgs,security,critical,9,This is a genuine authorization bypass vulnerability. A user who is admin of org A but only a member of org B could apply the startup program to org B by exploiting the mismatch between the permission check (which uses primary org) and the action (which uses body-specified org_id). This is a security bug with real impact on billing operations.,2026-03-24T20:23:11.716110+00:00
+posthog/posthog,51997,fix(workflows): Show error toast instead of onboarding screen when workflow list fails to load,https://github.com/PostHog/posthog/pull/51997,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **`hasLoadedWorkflows` never resets, re-introducing the original bug on subsequent failures**
+
+`hasLoadedWorkflows` flips to `true` on `loadWorkflowsSuccess` but is never reset to `false` again — not on `loadWorkflowsFailure`, not on a new `loadWorkflows` call. Because the comment in `WorkflowsTable.tsx` explicitly notes that ""the logic isn't getting unmounted when navigating away"", this flag persists for the entire session.
+
+The problematic sequence:
+1. User visits the page, load succeeds with an empty list → `hasLoadedWorkflows: true`, product introduction is shown correctly.
+2. User navigates away and returns; `useOnMountEffect` triggers `loadWorkflows()` again.
+3. That reload fails (network blip) → `workflowsLoading: false`, `hasLoadedWorkflows: true` (still!), `workflows: []` → `showProductIntroduction` evaluates to `true` again, so the ""Create your first workflow"" screen is shown alongside the error toast — exactly the UX issue this PR is meant to prevent.
+
+Consider resetting the flag at the start of a new load so it accurately reflects whether the *current* load has succeeded:
+
+```suggestion
+        hasLoadedWorkflows: [
+            false as boolean,
+            {
+                loadWorkflows: () => false,
+                loadWorkflowsSuccess: () => true,
+            },
+        ],
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: products/workflows/frontend/Workflows/workflowsLogic.ts
+Line: 73-78
+
+Comment:
+**`hasLoadedWorkflows` never resets, re-introducing the original bug on subsequent failures**
+
+`hasLoadedWorkflows` flips to `true` on `loadWorkflowsSuccess` but is never reset to `false` again — not on `loadWorkflowsFailure`, not on a new `loadWorkflows` call. Because the comment in `WorkflowsTable.tsx` explicitly notes that ""the logic isn't getting unmounted when navigating away"", this flag persists for the entire session.
+
+The problematic sequence:
+1. User visits the page, load succeeds with an empty list → `hasLoadedWorkflows: true`, product introduction is shown correctly.
+2. User navigates away and returns; `useOnMountEffect` triggers `loadWorkflows()` again.
+3. That reload fails (network blip) → `workflowsLoading: false`, `hasLoadedWorkflows: true` (still!), `workflows: []` → `showProductIntroduction` evaluates to `true` again, so the ""Create your first workflow"" screen is shown alongside the error toast — exactly the UX issue this PR is meant to prevent.
+
+Consider resetting the flag at the start of a new load so it accurately reflects whether the *current* load has succeeded:
+
+```suggestion
+        hasLoadedWorkflows: [
+            false as boolean,
+            {
+                loadWorkflows: () => false,
+                loadWorkflowsSuccess: () => true,
+            },
+        ],
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/51997#discussion_r2977495693,,2026-03-23T20:43:56.673000,State flag persists across navigations causing UI regression,logic,high,8,"This is a meaningful logic bug that would re-introduce the exact UX issue the PR was meant to fix. The reviewer correctly identified that the hasLoadedWorkflows flag never resets, causing the product introduction screen to incorrectly appear after a load failure on subsequent visits. The analysis includes a specific problematic sequence and understands the component lifecycle (logic not unmounting), making this a solid catch of a real production bug.",2026-03-24T20:23:11.716110+00:00
