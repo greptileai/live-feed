@@ -20239,3 +20239,91 @@ How can I resolve this? If you propose a fix, please make it concise.
 </details>",https://github.com/raycast/extensions/pull/26498#discussion_r2965061316,"This is expected. It always saves this form as the `default` profile in templates folder
 ---
 Fixed handling",2026-03-20T10:40:55.544000,Form field value never captured causing permanent submission failure,logic,high,8,"This is a genuine logic bug where the profile field lacks the necessary value/onChange bindings, meaning the form would always fail validation and users could never successfully create an instance. This would completely break the feature in production and is not something immediately caught by linters or type checkers since the code is syntactically valid.",2026-03-24T06:35:12.464389+00:00
+posthog/posthog,52041,feat(experiments): add remove metrics from reorder modal,https://github.com/PostHog/posthog/pull/52041,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Race condition: `loadExperiment` called before `updateExperiment` completes**
+
+`updateExperiment` is a kea loader action — when called from a React component via `useActions`, `await updateExperiment(updatePayload)` resolves immediately after dispatching the action (the `await` is effectively a no-op on a non-Promise). The actual PATCH request runs asynchronously inside kea's listener.
+
+This means `loadExperiment` is dispatched immediately after `updateExperiment`, before the server has processed the PATCH. Depending on network timing, the GET from `loadExperiment` may return before the PATCH is persisted — overwriting the store with stale data (metrics that were just removed appearing to come back). Even if the PATCH finishes first, you now have two concurrent inflight requests writing to the same `experiment` kea state, with the winner being whoever finishes last.
+
+The `updateExperiment` kea loader already returns the server's updated experiment and stores it in the `experiment` reducer via its success handler (`setUnmodifiedExperiment`), so the explicit `loadExperiment` call is both redundant and racy. The non-removal path above doesn't call `loadExperiment` and works correctly.
+
+Consider removing the explicit `loadExperiment` call here, or triggering the reload from within the `updateExperimentSuccess` listener in `experimentLogic` (after the PATCH has already completed).
+
+```suggestion
+        await updateExperiment(updatePayload)
+
+        closeModal()
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: frontend/src/scenes/experiments/MetricsView/MetricsReorderModal.tsx
+Line: 217-218
+
+Comment:
+**Race condition: `loadExperiment` called before `updateExperiment` completes**
+
+`updateExperiment` is a kea loader action — when called from a React component via `useActions`, `await updateExperiment(updatePayload)` resolves immediately after dispatching the action (the `await` is effectively a no-op on a non-Promise). The actual PATCH request runs asynchronously inside kea's listener.
+
+This means `loadExperiment` is dispatched immediately after `updateExperiment`, before the server has processed the PATCH. Depending on network timing, the GET from `loadExperiment` may return before the PATCH is persisted — overwriting the store with stale data (metrics that were just removed appearing to come back). Even if the PATCH finishes first, you now have two concurrent inflight requests writing to the same `experiment` kea state, with the winner being whoever finishes last.
+
+The `updateExperiment` kea loader already returns the server's updated experiment and stores it in the `experiment` reducer via its success handler (`setUnmodifiedExperiment`), so the explicit `loadExperiment` call is both redundant and racy. The non-removal path above doesn't call `loadExperiment` and works correctly.
+
+Consider removing the explicit `loadExperiment` call here, or triggering the reload from within the `updateExperimentSuccess` listener in `experimentLogic` (after the PATCH has already completed).
+
+```suggestion
+        await updateExperiment(updatePayload)
+
+        closeModal()
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/52041#discussion_r2980001014,fixed,2026-03-24T08:57:54.674000,Race condition causes stale data after experiment update,concurrency,high,8,"This catches a genuine race condition where loadExperiment is called immediately after updateExperiment dispatches, but before the PATCH completes. This could cause removed metrics to reappear due to the GET returning stale data, a real user-facing bug that requires understanding of kea's async behavior.",2026-03-24T10:27:30.765180+00:00
+posthog/posthog,51349,fix(ws): replace delta merge with delete+append for Google Ads daily-partitioned tables to prevent OOM,https://github.com/PostHog/posthog/pull/51349,"<a href=""#""><img alt=""P2"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p2.svg?v=7"" align=""top""></a> **Missing `partition_by` in delete+append write**
+
+The `write_deltalake` call in the new `partition_overwrite` path omits `partition_by=PARTITION_KEY`, while every other `write_deltalake` invocation that handles partitioned data in this file explicitly passes it (see the full-refresh path on line 287 and the append write-type path on line 321).
+
+Without `partition_by`, delta-rs may write the appended files to the table root rather than the correct partition sub-directories. This breaks physical partition layout and defeats partition-pruning for downstream readers — the exact concern that motivated this PR.
+
+```suggestion
+                await asyncio.to_thread(
+                    deltalake.write_deltalake,
+                    table_or_uri=delta_table,
+                    data=data,
+                    partition_by=PARTITION_KEY,
+                    mode=""append"",
+                    schema_mode=""merge"",
+                )
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: posthog/temporal/data_imports/pipelines/pipeline/delta_table_helper.py
+Line: 199-205
+
+Comment:
+**Missing `partition_by` in delete+append write**
+
+The `write_deltalake` call in the new `partition_overwrite` path omits `partition_by=PARTITION_KEY`, while every other `write_deltalake` invocation that handles partitioned data in this file explicitly passes it (see the full-refresh path on line 287 and the append write-type path on line 321).
+
+Without `partition_by`, delta-rs may write the appended files to the table root rather than the correct partition sub-directories. This breaks physical partition layout and defeats partition-pruning for downstream readers — the exact concern that motivated this PR.
+
+```suggestion
+                await asyncio.to_thread(
+                    deltalake.write_deltalake,
+                    table_or_uri=delta_table,
+                    data=data,
+                    partition_by=PARTITION_KEY,
+                    mode=""append"",
+                    schema_mode=""merge"",
+                )
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/51349#discussion_r2948413286,"and yes, this needs the `partition_by` keyword ",2026-03-17T17:28:07.320000,Missing partition_by breaks Delta table partition layout,data_integrity,high,8,"The comment correctly identifies that omitting `partition_by=PARTITION_KEY` in the new delete+append write path would cause data to be written to the wrong location, breaking physical partition layout and partition-pruning. This directly undermines the PR's goal of fixing OOM issues through proper partitioning, and the developer confirmed the fix was needed.",2026-03-24T10:27:30.765180+00:00
