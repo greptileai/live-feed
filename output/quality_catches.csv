@@ -19863,3 +19863,258 @@ Moving the flush into a `finally` block ensures it runs regardless of success or
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/PostHog/posthog/pull/52000#discussion_r2977405610,,2026-03-23T20:25:38.073000,Memory leak from unflushed invocation results on error path,resource_leak,high,8,"Comment 1 identifies a meaningful bug where invocation results accumulate in memory during persistent error conditions because the flush only runs on success. This is the exact issue the PR intended to fix, but the original implementation missed the error path, causing continued memory growth.",2026-03-23T22:16:52.845982+00:00
+onyx-dot-app/onyx,9568,fix(migration): Fix duplicate Null Users issue,https://github.com/onyx-dot-app/onyx/pull/9568,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Dedup deletions rolled back together with the failed UPDATE**
+
+`_dedupe_null_notifications(connection)` is called *inside* the `with connection.begin_nested():` context, which means its `DELETE` statements are part of the same savepoint as the subsequent `UPDATE`. If the `UPDATE` still raises `IntegrityError` (however unlikely), Python propagates the exception to the `with` context manager, which issues `ROLLBACK TO SAVEPOINT`. That rollback undoes **both** the dedup deletions *and* the failed `UPDATE`. The `except IntegrityError` handler at line 153 then silently continues, leaving the `notification` table in the worst possible state: duplicate `NULL`-owned rows that were never migrated. The migration is recorded as successful despite the invariant being violated.
+
+Moving the call to *before* the `try / with begin_nested()` block ensures the dedup deletions are part of the outer Alembic transaction and will persist even if the savepoint for the `UPDATE` is rolled back:
+
+```python
+for table in TABLES_WITH_USER_ID:
+    if table == ""notification"":
+        _dedupe_null_notifications(connection)  # outside the savepoint
+    try:
+        with connection.begin_nested():
+            if table == ""credential"":
+                condition = ""user_id IS NULL AND id != 0""
+            elif table == ""tool"":
+                condition = ""user_id IS NULL AND in_code_tool_id IS NULL""
+            elif table == ""persona"":
+                condition = ""user_id IS NULL AND builtin_persona = false""
+            elif table == ""inputprompt"":
+                condition = ""user_id IS NULL AND is_public = false""
+            else:
+                condition = ""user_id IS NULL""
+
+            result = connection.execute(
+                sa.text(
+                    f""""""
+                    UPDATE ""{table}""
+                    SET user_id = :user_id
+                    WHERE {condition}
+                    """"""
+                ),
+                {""user_id"": ANONYMOUS_USER_UUID},
+            )
+            if result.rowcount > 0:
+                print(
+                    f""Updated {result.rowcount} rows in {table} to anonymous user""
+                )
+    except IntegrityError as e:
+        ...
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: backend/alembic/versions/e7f8a9b0c1d2_create_anonymous_user.py
+Line: 136-137
+
+Comment:
+**Dedup deletions rolled back together with the failed UPDATE**
+
+`_dedupe_null_notifications(connection)` is called *inside* the `with connection.begin_nested():` context, which means its `DELETE` statements are part of the same savepoint as the subsequent `UPDATE`. If the `UPDATE` still raises `IntegrityError` (however unlikely), Python propagates the exception to the `with` context manager, which issues `ROLLBACK TO SAVEPOINT`. That rollback undoes **both** the dedup deletions *and* the failed `UPDATE`. The `except IntegrityError` handler at line 153 then silently continues, leaving the `notification` table in the worst possible state: duplicate `NULL`-owned rows that were never migrated. The migration is recorded as successful despite the invariant being violated.
+
+Moving the call to *before* the `try / with begin_nested()` block ensures the dedup deletions are part of the outer Alembic transaction and will persist even if the savepoint for the `UPDATE` is rolled back:
+
+```python
+for table in TABLES_WITH_USER_ID:
+    if table == ""notification"":
+        _dedupe_null_notifications(connection)  # outside the savepoint
+    try:
+        with connection.begin_nested():
+            if table == ""credential"":
+                condition = ""user_id IS NULL AND id != 0""
+            elif table == ""tool"":
+                condition = ""user_id IS NULL AND in_code_tool_id IS NULL""
+            elif table == ""persona"":
+                condition = ""user_id IS NULL AND builtin_persona = false""
+            elif table == ""inputprompt"":
+                condition = ""user_id IS NULL AND is_public = false""
+            else:
+                condition = ""user_id IS NULL""
+
+            result = connection.execute(
+                sa.text(
+                    f""""""
+                    UPDATE ""{table}""
+                    SET user_id = :user_id
+                    WHERE {condition}
+                    """"""
+                ),
+                {""user_id"": ANONYMOUS_USER_UUID},
+            )
+            if result.rowcount > 0:
+                print(
+                    f""Updated {result.rowcount} rows in {table} to anonymous user""
+                )
+    except IntegrityError as e:
+        ...
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/9568#discussion_r2977917540,,2026-03-23T22:21:54.202000,Dedup deletions rolled back on IntegrityError leaving corrupted state,data_integrity,high,8,"This catch identifies a critical transaction handling bug where deduplication deletions are placed inside a savepoint that gets rolled back on IntegrityError, leaving duplicate NULL-owned rows unmigrated while the migration is recorded as successful. This would cause data integrity issues in production.",2026-03-24T00:43:25.557708+00:00
+onyx-dot-app/onyx,8831,chore(fe): action popover item UX,https://github.com/onyx-dot-app/onyx/pull/8831,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **`isUnavailable && isForced` unpin path is now unreachable — silent behavior regression**
+
+Because `disabled={isSearchToolWithNoConnectors || isUnavailable}` is set on `LineItem`, `LineItem.handleClick` blocks all click events for these cases before the `onClick` prop is ever invoked. This means the `isUnavailable && isForced → onForceToggle()` branch (lines 99–101) is now **dead code** and will never run.
+
+Before this PR, when a tool was unavailable *and* force-pinned, clicking it would call `onForceToggle()` to let the user un-pin it. Now that click is blocked entirely — there is no other control in the UI to un-pin an unavailable-but-forced tool (the Settings button navigates away; it doesn't un-force). The `isSearchToolWithNoConnectors` guard (line 98) is similarly dead.
+
+If blocking the main click for these states is intentional, the dead checks should be removed and the ""un-pin"" path for `isUnavailable && isForced` should be surfaced through a dedicated control (e.g., a slash-button in `rightChildren`). If the un-pin behavior should be preserved, the `disabled` prop should not block clicks when `isForced` is true for unavailable items.
+
+```tsx
+onClick={() => {
+  // isSearchToolWithNoConnectors: now blocked by LineItem.disabled — remove guard
+  // isUnavailable: now blocked by LineItem.disabled — un-pin path lost
+  if (disabled) onToggle();
+  onForceToggle();
+  if (isSearchToolAndNotInProject && !isForced)
+    onSourceManagementOpen?.();
+  else onClose?.();
+}}
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: web/src/refresh-components/popovers/ActionsPopover/ActionLineItem.tsx
+Line: 97-108
+
+Comment:
+**`isUnavailable && isForced` unpin path is now unreachable — silent behavior regression**
+
+Because `disabled={isSearchToolWithNoConnectors || isUnavailable}` is set on `LineItem`, `LineItem.handleClick` blocks all click events for these cases before the `onClick` prop is ever invoked. This means the `isUnavailable && isForced → onForceToggle()` branch (lines 99–101) is now **dead code** and will never run.
+
+Before this PR, when a tool was unavailable *and* force-pinned, clicking it would call `onForceToggle()` to let the user un-pin it. Now that click is blocked entirely — there is no other control in the UI to un-pin an unavailable-but-forced tool (the Settings button navigates away; it doesn't un-force). The `isSearchToolWithNoConnectors` guard (line 98) is similarly dead.
+
+If blocking the main click for these states is intentional, the dead checks should be removed and the ""un-pin"" path for `isUnavailable && isForced` should be surfaced through a dedicated control (e.g., a slash-button in `rightChildren`). If the un-pin behavior should be preserved, the `disabled` prop should not block clicks when `isForced` is true for unavailable items.
+
+```tsx
+onClick={() => {
+  // isSearchToolWithNoConnectors: now blocked by LineItem.disabled — remove guard
+  // isUnavailable: now blocked by LineItem.disabled — un-pin path lost
+  if (disabled) onToggle();
+  onForceToggle();
+  if (isSearchToolAndNotInProject && !isForced)
+    onSourceManagementOpen?.();
+  else onClose?.();
+}}
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/8831#discussion_r2978093748,,2026-03-23T23:00:50.618000,Dead code path prevents users from unpinning unavailable tools,logic,high,8,"This comment identifies a meaningful logic bug where the new disabled prop blocks clicks before the onClick handler runs, making the 'unpin unavailable but forced tool' code path completely unreachable. This is a silent behavior regression that removes user functionality with no alternative way to unpin.",2026-03-24T00:43:25.557708+00:00
+simstudioai/sim,3723,Allow loop-in-loop workflow edits,https://github.com/simstudioai/sim/pull/3723,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Orphaned grandchildren when a nested container is removed**
+
+When an existing nested container (inner loop/parallel) is not matched by any incoming node name and is therefore removed, only that container block itself is deleted. Its children — i.e. all blocks whose `data.parentId` equals the removed container's id — are left in `modifiedState.blocks` as orphaned blocks, and their edges remain in `modifiedState.edges`.
+
+Concrete scenario:
+- Workflow: `outer-loop` → `inner-loop` → `inner-agent`
+- Edit op on `outer-loop` with `nestedNodes` that contains no block whose name matches ""Inner Loop""
+- `inner-loop` is added to `removedIds` and deleted, but `inner-agent` (which has `parentId: 'inner-loop'`) is never visited by the removal loop and stays in `modifiedState.blocks`
+
+A recursive cleanup pass is needed when a removed block is itself a loop/parallel container:
+```typescript
+const removedIds = new Set<string>()
+for (const [existingId, existingBlock] of existingChildren) {
+  if (!matchedExistingIds.has(existingId)) {
+    delete modifiedState.blocks[existingId]
+    removedIds.add(existingId)
+    // Recursively remove descendants of removed containers
+    if (existingBlock.type === 'loop' || existingBlock.type === 'parallel') {
+      const collectDescendants = (containerId: string) => {
+        const children = Object.entries(modifiedState.blocks).filter(
+          ([, b]: [string, any]) => b.data?.parentId === containerId
+        )
+        for (const [childId, childBlock] of children) {
+          delete modifiedState.blocks[childId]
+          removedIds.add(childId)
+          if ((childBlock as any).type === 'loop' || (childBlock as any).type === 'parallel') {
+            collectDescendants(childId)
+          }
+        }
+      }
+      collectDescendants(existingId)
+    }
+  }
+}
+```",https://github.com/simstudioai/sim/pull/3723#discussion_r2977926845,,2026-03-23T22:24:30.710000,Orphaned blocks left when nested containers removed in workflow,data_integrity,high,8,"This is a meaningful logic bug that would cause data integrity issues in production - when removing nested loop/parallel containers, child blocks and their edges would be left orphaned in the workflow state, leading to inconsistent data and potentially broken workflows. The catch required understanding the recursive nature of nested containers and identifying a non-obvious edge case in the removal logic.",2026-03-24T00:43:25.557708+00:00
+cline/cline,9933,feat: add repeated tool call loop detection,https://github.com/cline/cline/pull/9933,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Hard escalation re-fires on every subsequent identical call**
+
+The hard-escalation condition uses `>=` (`consecutiveIdenticalToolCount >= LOOP_DETECTION_HARD_THRESHOLD`) while the soft-warning uses `===`. Because `consecutiveIdenticalToolCount` is never reset when the hard escalation fires, every identical call made *after* call 5 will also return `hardEscalation: true`.
+
+In non-YOLO mode the escalation dialog resets `consecutiveMistakeCount` to 0 (see `index.ts` line ~2439), but `consecutiveIdenticalToolCount` stays ≥ 5. So the very next identical tool call immediately re-fires escalation. The result is a dialog shown on every single subsequent identical call until the model changes behaviour — far more disruptive than the intended ""escalate once at 5"" described in the PR.
+
+Two possible fixes:
+
+**Option A – match the soft-warning pattern (fire exactly once):**
+```suggestion
+		hardEscalation: state.consecutiveIdenticalToolCount === LOOP_DETECTION_HARD_THRESHOLD,
+```
+
+**Option B – reset the counter when hard escalation fires (in `checkRepeatedToolCall` or `ToolExecutor.ts`):**
+```ts
+// In checkRepeatedToolCall, after building the result:
+if (result.hardEscalation) {
+    state.consecutiveIdenticalToolCount = 0
+}
+return result
+```
+
+Option A makes the behaviour symmetric with the soft-warning and matches the PR description (""Stage 2: 5 identical calls → set consecutiveMistakeCount to max""). Option B allows detection to restart after each escalation cycle.",https://github.com/cline/cline/pull/9933#discussion_r2973409063,updated,2026-03-23T07:52:56.517000,Hard escalation re-fires on every subsequent identical call,logic,high,8,"This catches a meaningful logic bug where using >= instead of === causes the hard escalation dialog to fire repeatedly on every subsequent identical tool call after the 5th, rather than just once as intended. This would significantly degrade user experience with constant disruptive dialogs.",2026-03-24T00:43:25.557708+00:00
+synnaxlabs/synnax,2110,SY-3965: Fix RT Config Applied to Wrong Thread on cRIO,https://github.com/synnaxlabs/synnax/pull/2110,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Unsynchronized access to shared static set**
+
+`migrated_cores()` returns a reference to a function-local `static std::set<int>`. `apply_config()` is called from multiple runtime threads (one per task), so concurrent calls can race on `already.insert(target_cpu)` and the subsequent read of `already` — both are unsynchronized mutations/reads of the same shared object, which is undefined behaviour.
+
+A `std::mutex` (or `std::atomic_flag` for the simpler ""already done"" gate) should guard all accesses to this set:
+
+```cpp
+std::set<int> &migrated_cores() {
+    static std::set<int> cores;
+    return cores;
+}
+
+std::mutex &migrated_cores_mutex() {
+    static std::mutex mtx;
+    return mtx;
+}
+```
+
+Then in `apply_config`:
+```cpp
+std::unique_lock lock(migrated_cores_mutex());
+auto &already = migrated_cores();
+if (already.insert(target_cpu).second) {
+    auto all_rt = already;
+    lock.unlock();          // release before the slow file I/O
+    migrate_irqs(all_rt);
+}
+```
+",https://github.com/synnaxlabs/synnax/pull/2110#discussion_r2978033389,,2026-03-23T22:45:40.355000,Race condition on shared static set causes undefined behavior,concurrency,high,8,"This catches a real concurrency bug where multiple runtime threads call apply_config() concurrently, causing unsynchronized access to a static std::set. This is undefined behavior in C++ and could cause data corruption, crashes, or incorrect IRQ migration in production real-time systems.",2026-03-24T00:43:25.557708+00:00
+berriai/litellm,24335,feat(mcp): MCP Toolsets — curated tool subsets from one or more MCP servers,https://github.com/BerriAI/litellm/pull/24335,"<a href=""#""><img alt=""P0"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p0.svg?v=7"" align=""top""></a> **`x-mcp-toolset-id` header is client-injectable — privilege escalation**
+
+`handle_streamable_http_mcp` reads the `x-mcp-toolset-id` header directly from the raw ASGI `scope[""headers""]`, which is fully client-controlled. An external client can send this header on a direct request to `/mcp` and trick the server into scoping their key's permissions to *any* toolset they know the ID of.
+
+`_apply_toolset_scope` then replaces the key's `mcp_servers` and `mcp_tool_permissions` with the toolset's values — with no check that the calling key is actually authorized to use that toolset. This allows a key with no MCP access to gain tool access by:
+1. Fetching a toolset ID (visible via `GET /v1/mcp/toolset` — open to all authenticated users)
+2. Sending `x-mcp-toolset-id: <id>` directly to `/mcp`
+
+The header was designed to be set server-side (by `toolset_mcp_route`/`dynamic_mcp_route`) but is indistinguishable from a client-supplied one.
+
+**Recommended fix:** Before applying the scope, verify that the toolset ID is in `user_api_key_auth.object_permission.mcp_toolsets`, or pass the toolset ID via a `ContextVar` instead of an HTTP header so it cannot be set by clients.
+
+```python
+# Add authorization check before applying scope
+if toolset_id_header and user_api_key_auth is not None:
+    op = user_api_key_auth.object_permission
+    allowed_toolsets = getattr(op, ""mcp_toolsets"", None) or []
+    if toolset_id_header not in allowed_toolsets:
+        # Toolset not authorized for this key
+        raise MCPError(ErrorCode.INVALID_REQUEST, ""Toolset not authorized"")
+    user_api_key_auth = await _apply_toolset_scope(
+        user_api_key_auth, toolset_id_header
+    )
+```",https://github.com/BerriAI/litellm/pull/24335#discussion_r2970672629,,2026-03-22T02:08:13.948000,Client-injectable header enables privilege escalation to any toolset,security,critical,9,"This is a critical security vulnerability where the `x-mcp-toolset-id` header is read directly from client-controlled ASGI scope headers, allowing any authenticated client to inject any toolset ID and gain access to tools they are not authorized to use. This bypasses the entire toolset access control system introduced in this PR.",2026-03-24T00:43:25.557708+00:00
