@@ -20170,3 +20170,72 @@ if toolset is not None:
     continue
 ```
 ",https://github.com/BerriAI/litellm/pull/24335#discussion_r2976636943,,2026-03-23T17:53:15.712000,Missing authorization check allows any key to access any toolset via responses API,security,high,8,"Comment 31 identifies a security vulnerability where the responses API toolset resolution path lacks authorization checks, allowing any authenticated API key to access any toolset by name regardless of whether their object_permission.mcp_toolsets grants access. This is a clear authorization bypass that could expose tools/functionality to unauthorized users.",2026-03-24T04:45:31.412187+00:00
+raycast/extensions,26498,Update colima extension,https://github.com/raycast/extensions/pull/26498,"<a href=""#""><img alt=""P0"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p0.svg?v=7"" align=""top""></a> **`profile` field value is never captured — instance creation always fails**
+
+The `onSubmit` callback ignores the values passed by Raycast's `Action.SubmitForm` and instead reads from the `formValues` reducer state. Because the `profile` text field has no `value` or `onChange` prop (line 164), `formValues.profile` is permanently `""""`. As a result, `handleSubmit` will always hit the `!trimmedProfile` guard and show the ""Profile name is required"" toast, making it impossible to create an instance.
+
+The profile field needs an `onChange` wired to the reducer, just like the `cpus`, `memory`, and `disk` fields:
+
+```suggestion
+          <Action.SubmitForm title=""Create Instance"" onSubmit={() => handleSubmit(formValues, onCreated)} />
+          <Action
+            title=""Save as Default Template""
+            icon={Icon.Document}
+            shortcut={{ modifiers: [""cmd""], key: ""s"" }}
+            onAction={() => {
+              void handleSaveTemplate(formValues);
+            }}
+          />
+        </ActionPanel>
+      }
+    >
+      <Form.TextField
+        id=""profile""
+        title=""Profile Name""
+        placeholder=""e.g. default, dev, test""
+        value={formValues.profile}
+        onChange={(v) => setFormValues({ profile: v })}
+      />
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: extensions/colima/src/components/CreateInstanceForm.tsx
+Line: 152-164
+
+Comment:
+**`profile` field value is never captured — instance creation always fails**
+
+The `onSubmit` callback ignores the values passed by Raycast's `Action.SubmitForm` and instead reads from the `formValues` reducer state. Because the `profile` text field has no `value` or `onChange` prop (line 164), `formValues.profile` is permanently `""""`. As a result, `handleSubmit` will always hit the `!trimmedProfile` guard and show the ""Profile name is required"" toast, making it impossible to create an instance.
+
+The profile field needs an `onChange` wired to the reducer, just like the `cpus`, `memory`, and `disk` fields:
+
+```suggestion
+          <Action.SubmitForm title=""Create Instance"" onSubmit={() => handleSubmit(formValues, onCreated)} />
+          <Action
+            title=""Save as Default Template""
+            icon={Icon.Document}
+            shortcut={{ modifiers: [""cmd""], key: ""s"" }}
+            onAction={() => {
+              void handleSaveTemplate(formValues);
+            }}
+          />
+        </ActionPanel>
+      }
+    >
+      <Form.TextField
+        id=""profile""
+        title=""Profile Name""
+        placeholder=""e.g. default, dev, test""
+        value={formValues.profile}
+        onChange={(v) => setFormValues({ profile: v })}
+      />
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/raycast/extensions/pull/26498#discussion_r2965061316,"This is expected. It always saves this form as the `default` profile in templates folder
+---
+Fixed handling",2026-03-20T10:40:55.544000,Form field value never captured causing permanent submission failure,logic,high,8,"This is a genuine logic bug where the profile field lacks the necessary value/onChange bindings, meaning the form would always fail validation and users could never successfully create an instance. This would completely break the feature in production and is not something immediately caught by linters or type checkers since the code is syntactically valid.",2026-03-24T06:35:12.464389+00:00
