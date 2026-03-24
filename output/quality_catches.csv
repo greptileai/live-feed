@@ -20504,3 +20504,69 @@ const command = `/usr/sbin/netstat -ib | /usr/bin/grep -E ${JSON.stringify(iface
 ```
 
 or use array-based execution instead of shell interpolation",https://github.com/raycast/extensions/pull/25638#discussion_r2830334639,,2026-02-19T21:50:58.287000,Command injection vulnerability via unsanitized interface name in shell command,security,high,8,"This comment identifies a real command injection vulnerability where the interface name from getActiveInterface() could contain malicious characters (backticks, semicolons) that would be executed in the shell command. While the risk is somewhat limited since the input comes from system commands, it's still a valid security concern that could lead to arbitrary command execution.",2026-03-24T16:34:16.537840+00:00
+posthog/posthog,52067,"fix(cli,cymbal): create per-UUID ZIP for dSYM uploads",https://github.com/PostHog/posthog/pull/52067,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **DWARF filename parsing breaks for app names with spaces**
+
+`line.rsplit(' ').next()` splits on every space and returns only the last token. For an app whose name contains a space (e.g. `""My App""`), `dwarfdump --uuid` produces a line ending in `.../DWARF/My App`, so `rsplit(' ').next()` yields `""App""` instead of `""My App""`. The subsequent `dwarf_dir.join(""App"")` will fail to open the file and the whole upload will bail out.
+
+A safer approach is to strip the UUID + arch prefix and take everything to the right of the closing `)`:
+
+```suggestion
+            // Extract the DWARF path: everything after the ""(arch) "" suffix
+            let arch_end = line.find("") "")? + 2;
+            let dwarf_path = line[arch_end..].trim();
+            let dwarf_filename = Path::new(dwarf_path)
+                .file_name()?
+                .to_str()?
+                .to_string();
+```
+
+This is robust to spaces in both the bundle path and the binary name because `dwarfdump` always formats the line as `UUID: <uuid> (<arch>) <path>`.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: cli/src/dsym/mod.rs
+Line: 119-123
+
+Comment:
+**DWARF filename parsing breaks for app names with spaces**
+
+`line.rsplit(' ').next()` splits on every space and returns only the last token. For an app whose name contains a space (e.g. `""My App""`), `dwarfdump --uuid` produces a line ending in `.../DWARF/My App`, so `rsplit(' ').next()` yields `""App""` instead of `""My App""`. The subsequent `dwarf_dir.join(""App"")` will fail to open the file and the whole upload will bail out.
+
+A safer approach is to strip the UUID + arch prefix and take everything to the right of the closing `)`:
+
+```suggestion
+            // Extract the DWARF path: everything after the ""(arch) "" suffix
+            let arch_end = line.find("") "")? + 2;
+            let dwarf_path = line[arch_end..].trim();
+            let dwarf_filename = Path::new(dwarf_path)
+                .file_name()?
+                .to_str()?
+                .to_string();
+```
+
+This is robust to spaces in both the bundle path and the binary name because `dwarfdump` always formats the line as `UUID: <uuid> (<arch>) <path>`.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/52067#discussion_r2981090654,,2026-03-24T12:09:40.675000,Filename parsing breaks for app names with spaces,logic,high,8,"This is a meaningful logic bug that would cause dSYM uploads to fail silently for any app with spaces in the name (a common scenario like 'My App'). The analysis correctly identifies that rsplit(' ').next() returns only the last token, breaking file path construction. This would cause real production failures for a significant subset of users.",2026-03-24T18:32:18.530388+00:00
+berriai/litellm,24459,feat(bedrock): Amazon Nova Canvas image edit (fixes #24267),https://github.com/BerriAI/litellm/pull/24459,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **`imageGenerationConfig` appended unconditionally, even for `BACKGROUND_REMOVAL`**
+
+Per the [AWS Nova Canvas API spec](https://docs.aws.amazon.com/nova/latest/userguide/image-gen-req-resp-structure.html), `BACKGROUND_REMOVAL` does not accept an `imageGenerationConfig` block. Because `image_generation_config` is assembled from the user's params (size, n, seed, quality, cfgScale) _before_ the task body is built, any caller that passes those params alongside `taskType=""BACKGROUND_REMOVAL""` will produce a request body that AWS rejects with a validation error.
+
+The current code does:
+```python
+if image_generation_config:
+    body[""imageGenerationConfig""] = image_generation_config
+```
+
+This condition is purely on whether the dict is non-empty — it is never aware of the task type. The fix is to gate it on the resolved task type:
+
+```python
+task_type_in_body = body.get(""taskType"")
+if image_generation_config and task_type_in_body != ""BACKGROUND_REMOVAL"":
+    body[""imageGenerationConfig""] = image_generation_config
+```
+
+Additionally, the existing `test_transform_request_background_removal` test doesn't exercise this path because it passes no image-generation params; a complementary test that passes `size=""1024x1024""` alongside `taskType=""BACKGROUND_REMOVAL""` and asserts `""imageGenerationConfig"" not in body` would prevent a regression.",https://github.com/BerriAI/litellm/pull/24459#discussion_r2978551088,,2026-03-24T01:55:00.801000,imageGenerationConfig sent for BACKGROUND_REMOVAL causes AWS validation error,logic,high,8,"This catches a real production bug where AWS will reject requests for BACKGROUND_REMOVAL task type when any image generation params (size, n, seed, quality) are passed, because the code unconditionally appends imageGenerationConfig without checking the task type. This would cause user-facing API errors.",2026-03-24T18:32:18.530388+00:00
