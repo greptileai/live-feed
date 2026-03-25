@@ -21854,3 +21854,87 @@ Because the workflow runs with the `PAT` secret, a successful injection could ex
 ```
 
 The same pattern applies to `.github/workflows/project-done-docs-update.yml` line 27.",https://github.com/NVIDIA-NeMo/Curator/pull/1663#discussion_r2989026225,,2026-03-25T15:25:40.022000,Expression injection vulnerability allows PAT token exfiltration,security,critical,9,"This is a genuine security vulnerability where unsanitized workflow_dispatch input is interpolated directly into shell script, allowing command injection. An attacker with write access could exfiltrate the PAT secret token. The comment provides a clear exploit example and proper fix.",2026-03-25T18:32:13.057750+00:00
+raycast/extensions,26292,Add netbird extension,https://github.com/raycast/extensions/pull/26292,"**Wrong path passed to `readFile`**
+
+`fs.promises.readFile(path, ""utf-8"")` is called with the *directory* path (e.g. `/var/lib/netbird`) instead of `fullPath` (the actual config file). Reading a directory as text will always throw, so the file-based admin URL lookup is completely non-functional.
+
+```suggestion
+            const configContent = await fs.promises.readFile(fullPath, ""utf-8"");
+```",https://github.com/raycast/extensions/pull/26292#discussion_r2932006268,,2026-03-13T15:33:04.230000,Wrong variable passed to readFile breaks config lookup,logic,high,8,"The code passes `path` (a directory) instead of `fullPath` (the actual file path) to fs.promises.readFile, causing the admin URL config lookup to always fail. This is a real logic bug that would break functionality in production.",2026-03-25T20:22:19.966903+00:00
+onyx-dot-app/onyx,9609,fix(notion): upgrade API version + logical changes,https://github.com/onyx-dot-app/onyx/pull/9609,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Fallback returns `ds_id` instead of `workspace_id` when data source not in map**
+
+When `ds_id` is truthy but is not present in `_data_source_to_database_map`, the code returns `ds_id` — a raw data source ID. No hierarchy node exists with that ID, so any page whose parent resolves to this path ends up referencing a non-existent node in the hierarchy tree, effectively orphaning it.
+
+The situation arises whenever `_get_parent_raw_id` is called for a page whose `parent.type` is `""data_source_id""` but whose data source was never registered in the map (e.g. a page returned via the general search before the database walk has completed, or a data source that was inaccessible during `_yield_database_hierarchy_nodes`). The safe fallback is `self.workspace_id`, consistent with every other unresolvable parent type in this method.
+
+```suggestion
+        elif parent_type == ""data_source_id"":
+            ds_id = parent.get(""data_source_id"")
+            if ds_id:
+                return self._data_source_to_database_map.get(ds_id, self.workspace_id)
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: backend/onyx/connectors/notion/connector.py
+Line: 379-382
+
+Comment:
+**Fallback returns `ds_id` instead of `workspace_id` when data source not in map**
+
+When `ds_id` is truthy but is not present in `_data_source_to_database_map`, the code returns `ds_id` — a raw data source ID. No hierarchy node exists with that ID, so any page whose parent resolves to this path ends up referencing a non-existent node in the hierarchy tree, effectively orphaning it.
+
+The situation arises whenever `_get_parent_raw_id` is called for a page whose `parent.type` is `""data_source_id""` but whose data source was never registered in the map (e.g. a page returned via the general search before the database walk has completed, or a data source that was inaccessible during `_yield_database_hierarchy_nodes`). The safe fallback is `self.workspace_id`, consistent with every other unresolvable parent type in this method.
+
+```suggestion
+        elif parent_type == ""data_source_id"":
+            ds_id = parent.get(""data_source_id"")
+            if ds_id:
+                return self._data_source_to_database_map.get(ds_id, self.workspace_id)
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/9609#discussion_r2985115637,Fixed — fallback now returns `self.workspace_id` instead of the raw `ds_id`.,2026-03-25T00:46:36.495000,Fallback returns invalid ID causing orphaned hierarchy nodes,logic,high,8,"This catch identifies a meaningful logic bug where returning a raw data source ID instead of workspace_id creates orphaned nodes in the hierarchy tree, as no hierarchy node exists with that ID. This would affect users by breaking the document organization structure in production.",2026-03-25T20:22:19.966903+00:00
+simstudioai/sim,3764,feat(rippling): add Rippling HR integration with 19 tools,https://github.com/simstudioai/sim/pull/3764,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **`candidateStartDate` silently overwrites the date filter for leave/activity operations**
+
+Both `startDate` (used as a filter for `list_leave_requests` / `get_company_activity`) and `candidateStartDate` (used as the candidate's start date for `push_candidate`) write to the same key — `mapped.startDate`. Since `candidateStartDate` is assigned **after** `startDate`, any non-empty value coming through the `candidateStartDate` input (e.g. piped from an upstream block's output) will clobber the date filter when the operation is `list_leave_requests` or `get_company_activity`.
+
+Because the block's `inputs` object exposes `candidateStartDate` as a connectible field, a workflow author can unknowingly wire a date into it, causing leave/activity queries to return results for the wrong date range with no warning.
+
+```suggestion
+        if (params.startDate && params.operation !== 'push_candidate')
+          mapped.startDate = params.startDate
+        if (params.endDate && params.operation !== 'push_candidate') mapped.endDate = params.endDate
+
+        if (params.candidateStartDate && params.operation === 'push_candidate')
+          mapped.startDate = params.candidateStartDate
+```
+",https://github.com/simstudioai/sim/pull/3764#discussion_r2990057721,Fixed in a73a0fb — applied exactly this pattern. `startDate`/`endDate` are now guarded with `operation !== 'push_candidate'` and `candidateStartDate` with `operation === 'push_candidate'`.,2026-03-25T18:03:52.075000,Field name collision silently overwrites date filter with unrelated data,logic,high,8,"This catch identifies a subtle but impactful bug where `candidateStartDate` overwrites `startDate` due to assignment order, causing leave/activity queries to silently use wrong date ranges when both fields are connected. This could lead to incorrect HR data being returned with no warning to users.",2026-03-25T20:22:19.966903+00:00
+nvidia-digital-bio/nvmolkit,116,Add BatchedForcefield Abstraction and pipe through the minimizer,https://github.com/NVIDIA-Digital-Bio/nvMolKit/pull/116,"<a href=""#""><img alt=""P0"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p0.svg?v=7"" align=""top""></a> **Dangling device pointer used after `ETKBatchedForcefield` is destroyed**
+
+`numImpropers` captures a raw device pointer from `forcefield.contribs().improperTorsionTerms.numImpropers.data()` (line 231). The `ETKBatchedForcefield forcefield` object is stack-allocated inside the `if (effectiveBackend == BfgsBackend::BATCHED)` block and is destroyed when that block ends (after line 238). Destruction frees the `AsyncDeviceVector` members inside `systemDevice_`, including the buffer backing `numImpropers`.
+
+`runPlanarToleranceCheck` at line 266 then passes this freed device pointer to a CUDA kernel — this is use-after-free of device memory and will cause undefined GPU behavior (likely corrupted data or a CUDA error) whenever `useBasicKnowledge == true` and the BATCHED backend is selected.
+
+The PER_MOLECULE branch is unaffected because `molSystemDevice` (and therefore its `numImpropers`) lives until the end of `execute()`.
+
+A minimal fix is to promote `forcefield` to a `std::optional<ETKBatchedForcefield>` at function scope and only emplace it inside the BATCHED branch, so its lifetime extends to the outer `if (embedParam_.useBasicKnowledge)` call:
+
+```cpp
+std::optional<ETKBatchedForcefield> batchedForcefield;
+// ...
+if (effectiveBackend == BfgsBackend::BATCHED) {
+  batchedForcefield.emplace(molSystemHost, ctx.systemHost.atomStarts, embedParam_.useBasicKnowledge, metadata_, stream_);
+  // use batchedForcefield.value() ...
+  numImpropers = batchedForcefield->contribs().improperTorsionTerms.numImpropers.data();
+  // ...
+}
+
+if (embedParam_.useBasicKnowledge) {
+  runPlanarToleranceCheck(*planarEnergies, numImpropers, ctx, stream_);
+}
+```
+",https://github.com/NVIDIA-Digital-Bio/nvMolKit/pull/116#discussion_r2982771388,,2026-03-24T16:17:32.769000,Use-after-free of device pointer causes undefined GPU behavior,resource_leak,critical,9,"This catches a genuine use-after-free bug where a device pointer is captured from a stack-allocated object that gets destroyed before the pointer is used in a CUDA kernel. This would cause undefined GPU behavior, data corruption, or crashes when specific conditions are met (useBasicKnowledge=true and BATCHED backend).",2026-03-25T20:22:19.966903+00:00
