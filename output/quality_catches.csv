@@ -20978,3 +20978,180 @@ Fix: require nothing but optional whitespace after the marker characters when de
             masked_lines.append(""\n"" if line.endswith(""\n"") else """")
             continue
 ```",https://github.com/NVIDIA/NVFlare/pull/4339#discussion_r2967184998,"Addressed on the current branch. The fence-closing logic in `ci/check_relative_doc_links.py` now only closes on a fence made of the same marker character with at least the opener length and optional trailing whitespace only, so a line like ```python no longer closes an outer ```shell block. I also added a regression test for this exact case in `tests/unit_test/ci/test_check_relative_doc_links.py` (`test_fenced_block_stays_masked_when_inner_line_looks_like_opening_fence`). Verified locally with `pytest -q tests/unit_test/ci/test_check_relative_doc_links.py -k opening_fence`.",2026-03-20T17:57:15.956000,Premature fence closure causes false positive broken link reports,logic,medium,8,"This is a meaningful logic bug where the fence-closing check incorrectly matches opening fence lines with info strings (e.g., ```python), causing the parser to prematurely exit fenced blocks and falsely report links inside code blocks as broken. This would cause incorrect behavior in production CI checks.",2026-03-24T22:18:04.883778+00:00
+dyad-sh/dyad,3042,fix/View Plan button disappears after switching chats ,https://github.com/dyad-sh/dyad/pull/3042,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **`usePlan` still disabled for the exact stale-`complete` case**
+
+The fix makes `showViewPlanButton` depend solely on `hasPlan`, but `hasPlan` is derived from `usePlan({ enabled: !isInProgress })`. Because `isInProgress` is `true` whenever `complete === ""false""` (the stale scenario), the hook's query is **disabled**, so `savedPlan` is never fetched from disk.
+
+This means the fix only resolves the regression when the plan is already held in `planStateAtom` memory (i.e. the plan was streamed in the same session before the chat switch). In a cold-load scenario — for example, after an app restart where `complete=""false""` is persisted in message metadata and the plan exists only on disk — `hasPlanInMemory` will be `false`, `savedPlan` will be `undefined`, so `showViewPlanButton` will remain `false` and the button will still be hidden.
+
+Consider removing or relaxing the `enabled: !isInProgress` guard now that `showViewPlanButton` is decoupled from `isInProgress`:
+
+```suggestion
+  const { savedPlan, hasPlanInMemory } = usePlan();
+```
+
+Or, if suppressing the query during active streaming is still desired, scope it only to the `state === ""pending""` check (which is reliable) rather than including the stale `complete === ""false""`:
+
+```suggestion
+  const { savedPlan, hasPlanInMemory } = usePlan({ enabled: state !== ""pending"" });
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: src/components/chat/DyadWritePlan.tsx
+Line: 45
+
+Comment:
+**`usePlan` still disabled for the exact stale-`complete` case**
+
+The fix makes `showViewPlanButton` depend solely on `hasPlan`, but `hasPlan` is derived from `usePlan({ enabled: !isInProgress })`. Because `isInProgress` is `true` whenever `complete === ""false""` (the stale scenario), the hook's query is **disabled**, so `savedPlan` is never fetched from disk.
+
+This means the fix only resolves the regression when the plan is already held in `planStateAtom` memory (i.e. the plan was streamed in the same session before the chat switch). In a cold-load scenario — for example, after an app restart where `complete=""false""` is persisted in message metadata and the plan exists only on disk — `hasPlanInMemory` will be `false`, `savedPlan` will be `undefined`, so `showViewPlanButton` will remain `false` and the button will still be hidden.
+
+Consider removing or relaxing the `enabled: !isInProgress` guard now that `showViewPlanButton` is decoupled from `isInProgress`:
+
+```suggestion
+  const { savedPlan, hasPlanInMemory } = usePlan();
+```
+
+Or, if suppressing the query during active streaming is still desired, scope it only to the `state === ""pending""` check (which is reliable) rather than including the stale `complete === ""false""`:
+
+```suggestion
+  const { savedPlan, hasPlanInMemory } = usePlan({ enabled: state !== ""pending"" });
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/dyad-sh/dyad/pull/3042#discussion_r2957645669,,2026-03-19T03:34:45.833000,usePlan hook disabled during cold-load stale scenario breaks button visibility,logic,high,8,"This catch identifies a significant logic bug where the fix is incomplete - the usePlan hook remains disabled when complete='false', meaning after an app restart the View Plan button will still be hidden because savedPlan is never fetched from disk. This is a real production bug affecting the core feature being fixed.",2026-03-25T00:51:05.165178+00:00
+onyx-dot-app/onyx,9538,feat(groups): add shared resources and token limit sections,https://github.com/onyx-dot-app/onyx/pull/9538,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **`federated_connectors` silently cleared on every doc-set PATCH**
+
+The local `DocumentSetSummary` interface (line 89) omits `federated_connector_summaries`, so the PATCH body sent to `/api/manage/admin/document-set` never includes a `federated_connectors` field:
+
+```ts
+body: JSON.stringify({
+  id: ds.id,
+  description: ds.description,
+  cc_pair_ids: ds.cc_pair_summaries.map((cc) => cc.id),
+  is_public: ds.is_public,
+  users: ds.users,
+  groups: updatedGroups,
+  // ← federated_connectors is missing
+}),
+```
+
+The canonical `DocumentSetUpdateRequest` (see `web/src/app/admin/documents/sets/lib.ts`) requires `federated_connectors`. When it is absent the backend will interpret the field as an empty list and silently remove every federated connector from any document set that has them.
+
+Fix requires two changes:
+1. Extend the local interface:
+```ts
+interface DocumentSetSummary {
+  id: number;
+  description: string;
+  cc_pair_summaries: { id: number }[];
+  federated_connector_summaries: { id: number }[];
+  is_public: boolean;
+  users: string[];
+  groups: number[];
+}
+```
+2. Include `federated_connectors` in both PATCH bodies:
+```ts
+federated_connectors: ds.federated_connector_summaries.map((fc) => fc.id),
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: web/src/refresh-pages/admin/GroupsPage/svc.ts
+Line: 89-166
+
+Comment:
+**`federated_connectors` silently cleared on every doc-set PATCH**
+
+The local `DocumentSetSummary` interface (line 89) omits `federated_connector_summaries`, so the PATCH body sent to `/api/manage/admin/document-set` never includes a `federated_connectors` field:
+
+```ts
+body: JSON.stringify({
+  id: ds.id,
+  description: ds.description,
+  cc_pair_ids: ds.cc_pair_summaries.map((cc) => cc.id),
+  is_public: ds.is_public,
+  users: ds.users,
+  groups: updatedGroups,
+  // ← federated_connectors is missing
+}),
+```
+
+The canonical `DocumentSetUpdateRequest` (see `web/src/app/admin/documents/sets/lib.ts`) requires `federated_connectors`. When it is absent the backend will interpret the field as an empty list and silently remove every federated connector from any document set that has them.
+
+Fix requires two changes:
+1. Extend the local interface:
+```ts
+interface DocumentSetSummary {
+  id: number;
+  description: string;
+  cc_pair_summaries: { id: number }[];
+  federated_connector_summaries: { id: number }[];
+  is_public: boolean;
+  users: string[];
+  groups: number[];
+}
+```
+2. Include `federated_connectors` in both PATCH bodies:
+```ts
+federated_connectors: ds.federated_connector_summaries.map((fc) => fc.id),
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/9538#discussion_r2984435400,,2026-03-24T21:40:42.501000,PATCH request silently clears federated connectors due to missing field,data_integrity,high,8,This catches a significant data integrity bug where updating document set group sharing would silently remove all federated connector associations because the PATCH body omits the required `federated_connectors` field. This would cause silent data loss in production affecting users who have federated connectors configured.,2026-03-25T00:51:05.165178+00:00
+posthog/posthog-js,3274,fix(browser): ignore dead clicks when tab visibility changes,https://github.com/PostHog/posthog-js/pull/3274,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Visibility change before click is not suppressed**
+
+The guard `click.timestamp <= this._lastVisibilityChange` only sets `visibilityChangedDelayMs` when the visibility change fires *after* the click. However, in the primary ""bring background tab to foreground"" scenario, browsers fire `visibilitychange` (hidden → visible) *before* the `click` event lands on the page. In that order `_lastVisibilityChange < click.timestamp`, so the condition is `false`, `visibilityChangedDelayMs` stays `undefined`, and the dead click is not suppressed.
+
+To also cover visibility changes that happened just before the click you'd need something like:
+
+```typescript
+click.visibilityChangedDelayMs =
+    this._lastVisibilityChange && click.timestamp <= this._lastVisibilityChange
+        ? this._lastVisibilityChange - click.timestamp
+        : this._lastVisibilityChange &&
+          click.timestamp - this._lastVisibilityChange < this._config.selection_change_threshold_ms
+        ? 0   // treat ""visibility changed just before click"" as delay 0
+        : undefined
+```
+
+(or store the absolute delta and check it in both directions). Without this, clicking on an unfocused tab to bring it to the foreground—the scenario described in the PR—will still produce a dead click event.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/browser/src/entrypoints/dead-clicks-autocapture.ts
+Line: 224-227
+
+Comment:
+**Visibility change before click is not suppressed**
+
+The guard `click.timestamp <= this._lastVisibilityChange` only sets `visibilityChangedDelayMs` when the visibility change fires *after* the click. However, in the primary ""bring background tab to foreground"" scenario, browsers fire `visibilitychange` (hidden → visible) *before* the `click` event lands on the page. In that order `_lastVisibilityChange < click.timestamp`, so the condition is `false`, `visibilityChangedDelayMs` stays `undefined`, and the dead click is not suppressed.
+
+To also cover visibility changes that happened just before the click you'd need something like:
+
+```typescript
+click.visibilityChangedDelayMs =
+    this._lastVisibilityChange && click.timestamp <= this._lastVisibilityChange
+        ? this._lastVisibilityChange - click.timestamp
+        : this._lastVisibilityChange &&
+          click.timestamp - this._lastVisibilityChange < this._config.selection_change_threshold_ms
+        ? 0   // treat ""visibility changed just before click"" as delay 0
+        : undefined
+```
+
+(or store the absolute delta and check it in both directions). Without this, clicking on an unfocused tab to bring it to the foreground—the scenario described in the PR—will still produce a dead click event.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog-js/pull/3274#discussion_r2975059113,,2026-03-23T13:32:15.205000,Visibility change before click not suppressed in tab focus scenario,logic,high,8,"This comment identifies a significant logic bug where the PR's intended fix for ignoring dead clicks on tab visibility changes would fail in the primary use case. The condition only checks if visibility changed after the click, but browsers typically fire visibilitychange before the click event when bringing a tab to foreground, meaning the fix wouldn't work as intended.",2026-03-25T00:51:05.165178+00:00
