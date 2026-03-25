@@ -21194,3 +21194,233 @@ infisical/infisical,5800,fix: add better servicing,https://github.com/Infisical/
 The `selectOrganization`/`finishWithOrgWorkflow` pattern works because `selectOrganization` checks the already-verified MFA session cookie/token issued by the OTP verify endpoint. There is no equivalent state that `oauthTokenExchange` can observe.
 
 The post-MFA callback should skip the exchange entirely and proceed with the token that was already set before the MFA prompt (the access token returned in the normal flow after MFA resolves), or use a dedicated post-MFA navigation path rather than re-calling the full exchange.",https://github.com/Infisical/infisical/pull/5800#discussion_r2985116785,,2026-03-25T00:47:00.696000,Infinite MFA loop in OAuth token exchange flow,logic,high,8,"This catches a real logic bug where the MFA success callback re-invokes the token exchange, which re-evaluates MFA requirements and triggers the MFA modal again indefinitely. This would make OAuth+MFA authentication completely broken in production.",2026-03-25T03:15:37.315772+00:00
+raycast/extensions,26622,"Vikunja: Add task detail view, search, caching",https://github.com/raycast/extensions/pull/26622,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Label removal never happens**
+
+When a user removes a label via the TagPicker and submits, `addLabelsToTask` is called with only the *remaining* label IDs — but this function only calls `PUT /tasks/{id}/labels` (which adds a single label per request). There is no call to `DELETE /tasks/{id}/labels/{labelId}`, so de-selected labels are never actually removed from the task.
+
+A `removeLabelFromTask` API function is missing from `src/api.ts`. The update logic needs to:
+1. Compute `toRemove = oldLabelIds.filter(id => !newLabelIds.includes(id))`
+2. Call a new `removeLabelsFromTask` (or equivalent) for those IDs
+3. Call `addLabelsToTask` for only the newly *added* IDs: `toAdd = newLabelIds.filter(id => !oldLabelIds.includes(id))`
+
+```
+// In api.ts:
+export async function removeLabelFromTask(taskId: number, labelId: number): Promise<void> {
+  await request(`/tasks/${taskId}/labels/${labelId}`, { method: ""DELETE"" });
+}
+```
+
+Without this fix, the edit form silently ignores any label removals.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: extensions/vikunja/src/components/edit-task-form.tsx
+Line: 59-68
+
+Comment:
+**Label removal never happens**
+
+When a user removes a label via the TagPicker and submits, `addLabelsToTask` is called with only the *remaining* label IDs — but this function only calls `PUT /tasks/{id}/labels` (which adds a single label per request). There is no call to `DELETE /tasks/{id}/labels/{labelId}`, so de-selected labels are never actually removed from the task.
+
+A `removeLabelFromTask` API function is missing from `src/api.ts`. The update logic needs to:
+1. Compute `toRemove = oldLabelIds.filter(id => !newLabelIds.includes(id))`
+2. Call a new `removeLabelsFromTask` (or equivalent) for those IDs
+3. Call `addLabelsToTask` for only the newly *added* IDs: `toAdd = newLabelIds.filter(id => !oldLabelIds.includes(id))`
+
+```
+// In api.ts:
+export async function removeLabelFromTask(taskId: number, labelId: number): Promise<void> {
+  await request(`/tasks/${taskId}/labels/${labelId}`, { method: ""DELETE"" });
+}
+```
+
+Without this fix, the edit form silently ignores any label removals.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/raycast/extensions/pull/26622#discussion_r2984429612,,2026-03-24T21:39:18.785000,Label removal silently ignored due to missing DELETE API call,logic,high,8,"This catches a genuine functional bug where users removing labels from tasks would see their changes silently ignored. The code only calls the add API, never the delete API, resulting in data integrity issues where the UI shows labels removed but they persist on the backend.",2026-03-25T04:48:53.448390+00:00
+generaltranslation/gt,1147,chore: add format field,https://github.com/generaltranslation/gt/pull/1147,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Wrong property name — locale is silently dropped**
+
+`options.$locales` (no underscore) is accessed here, but the field defined on `InlineTranslationOptions` (and set by every caller in this PR) is `$_locales` (double underscore prefix). Since `InlineTranslationOptions` extends `Record<string, any>`, TypeScript won't catch this mismatch, but at runtime `options.$locales` is always `undefined`, so `formatMessage` never receives the locale. This means all locale-sensitive number/date formatting inside the `i18n` package will silently fall back to the system default locale instead of the user's locale.
+
+All callers added in this PR (`sync-translation-resolution.ts`, `getGT.ts`) correctly set `$_locales`, but `interpolateMessage` never reads it.
+
+```suggestion
+      options.$_locales,
+      options.$format
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: packages/i18n/src/translation-functions/utils/interpolateMessage.ts
+Line: 49-50
+
+Comment:
+**Wrong property name — locale is silently dropped**
+
+`options.$locales` (no underscore) is accessed here, but the field defined on `InlineTranslationOptions` (and set by every caller in this PR) is `$_locales` (double underscore prefix). Since `InlineTranslationOptions` extends `Record<string, any>`, TypeScript won't catch this mismatch, but at runtime `options.$locales` is always `undefined`, so `formatMessage` never receives the locale. This means all locale-sensitive number/date formatting inside the `i18n` package will silently fall back to the system default locale instead of the user's locale.
+
+All callers added in this PR (`sync-translation-resolution.ts`, `getGT.ts`) correctly set `$_locales`, but `interpolateMessage` never reads it.
+
+```suggestion
+      options.$_locales,
+      options.$format
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/generaltranslation/gt/pull/1147#discussion_r2984910756,,2026-03-24T23:31:55.670000,Property name typo silently breaks locale-sensitive formatting,logic,high,8,"This catches a subtle but impactful bug where a property name mismatch (`$locales` vs `$_locales`) causes locale information to be silently dropped, making all locale-sensitive formatting fall back to system defaults. TypeScript won't catch this due to `Record<string, any>` extension, making it a genuine runtime bug that would affect users' localization experience in production.",2026-03-25T04:48:53.448390+00:00
+onyx-dot-app/onyx,9590,feat(metrics): add queue depth and connector health Prometheus collectors,https://github.com/onyx-dot-app/onyx/pull/9590,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **TTL cache bypassed when `_cached_result` is an empty list**
+
+The condition `and self._cached_result` short-circuits when `_cached_result = []` (falsy). This means the TTL is silently bypassed on every scrape whenever there is no stale data — specifically:
+
+1. **Persistent error storm**: If `_collect_fresh()` raises on the very first call (before any stale data exists), `_last_collect_time` stays `0.0` and `_cached_result` stays `[]`. Every subsequent scrape re-enters the `try` block and hits Redis/Postgres again with no back-off, potentially amplifying the failure.
+
+2. **Unconfigured collectors**: `QueueDepthCollector` (before `set_redis_factory`) and both DB collectors (before `configure()`) return `[]` from `_collect_fresh()`, which means the TTL window is never entered. In practice the fast-path returns are cheap, but the intent of the TTL is violated.
+
+The guard should test whether a collection has *ever* succeeded, independent of whether the result was empty:
+
+```python
+_SENTINEL = object()
+
+def __init__(self, cache_ttl: float = _DEFAULT_CACHE_TTL) -> None:
+    self._cache_ttl = cache_ttl
+    self._cached_result: list[GaugeMetricFamily] = []
+    self._last_collect_time: float = 0.0
+    self._has_cached: bool = False
+
+def collect(self) -> list[GaugeMetricFamily]:
+    now = time.monotonic()
+    if self._has_cached and now - self._last_collect_time < self._cache_ttl:
+        return self._cached_result
+    try:
+        result = self._collect_fresh()
+        self._cached_result = result
+        self._last_collect_time = now
+        self._has_cached = True
+        return result
+    except Exception:
+        logger.exception(f""Error in {type(self).__name__}.collect()"")
+        return self._cached_result
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: backend/onyx/server/metrics/indexing_pipeline.py
+Line: 78
+
+Comment:
+**TTL cache bypassed when `_cached_result` is an empty list**
+
+The condition `and self._cached_result` short-circuits when `_cached_result = []` (falsy). This means the TTL is silently bypassed on every scrape whenever there is no stale data — specifically:
+
+1. **Persistent error storm**: If `_collect_fresh()` raises on the very first call (before any stale data exists), `_last_collect_time` stays `0.0` and `_cached_result` stays `[]`. Every subsequent scrape re-enters the `try` block and hits Redis/Postgres again with no back-off, potentially amplifying the failure.
+
+2. **Unconfigured collectors**: `QueueDepthCollector` (before `set_redis_factory`) and both DB collectors (before `configure()`) return `[]` from `_collect_fresh()`, which means the TTL window is never entered. In practice the fast-path returns are cheap, but the intent of the TTL is violated.
+
+The guard should test whether a collection has *ever* succeeded, independent of whether the result was empty:
+
+```python
+_SENTINEL = object()
+
+def __init__(self, cache_ttl: float = _DEFAULT_CACHE_TTL) -> None:
+    self._cache_ttl = cache_ttl
+    self._cached_result: list[GaugeMetricFamily] = []
+    self._last_collect_time: float = 0.0
+    self._has_cached: bool = False
+
+def collect(self) -> list[GaugeMetricFamily]:
+    now = time.monotonic()
+    if self._has_cached and now - self._last_collect_time < self._cache_ttl:
+        return self._cached_result
+    try:
+        result = self._collect_fresh()
+        self._cached_result = result
+        self._last_collect_time = now
+        self._has_cached = True
+        return result
+    except Exception:
+        logger.exception(f""Error in {type(self).__name__}.collect()"")
+        return self._cached_result
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/9590#discussion_r2985218729,,2026-03-25T01:29:30.198000,TTL cache bypassed on empty results causes error storm,logic,high,8,"The comment identifies a real bug where the TTL cache logic uses `and self._cached_result` which is falsy for empty lists, causing the cache to be bypassed entirely. This can lead to an error storm where failed collections repeatedly hammer Redis/Postgres with no back-off, potentially amplifying failures in production.",2026-03-25T04:48:53.448390+00:00
+onyx-dot-app/onyx,9605,fix: confluence client retries,https://github.com/onyx-dot-app/onyx/pull/9605,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Silent `None` return after exhausting retries on persistent 5xx errors**
+
+If all `MAX_RETRIES` (5) attempts fail with a `>= 500` status code, the `for` loop in `handle_confluence_rate_limit` exhausts naturally and `wrapped_call` returns `None` implicitly — without raising. Callers that unpack or iterate the result (e.g. expecting a dict or list) will receive a `None` and likely crash with an `AttributeError` or `TypeError` far from the real error site, making debugging very hard.
+
+The `403` handler avoids this by calling `raise e` once `attempt >= FORBIDDEN_MAX_RETRY_ATTEMPTS`. The new `5xx` block should do the same on the final attempt:
+
+```suggestion
+    if e.response.status_code >= 500:
+        if attempt == MAX_RETRIES - 1:
+            raise e
+        delay = min(STARTING_DELAY * (BACKOFF**attempt), MAX_DELAY)
+        logger.warning(
+            f""Server error {e.response.status_code}. ""
+            f""Retrying in {delay} seconds (attempt {attempt + 1})...""
+        )
+        return math.ceil(time.monotonic() + delay)
+```
+
+Note that `MAX_RETRIES` is defined in `handle_confluence_rate_limit`, not inside `_handle_http_error`. You could either pass `max_retries` as a parameter to `_handle_http_error`, or check `attempt == MAX_RETRIES - 1` by importing/referencing the constant, or raise unconditionally and let the caller decide — any of these is better than the silent `None` path.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: backend/onyx/connectors/confluence/utils.py
+Line: 411-417
+
+Comment:
+**Silent `None` return after exhausting retries on persistent 5xx errors**
+
+If all `MAX_RETRIES` (5) attempts fail with a `>= 500` status code, the `for` loop in `handle_confluence_rate_limit` exhausts naturally and `wrapped_call` returns `None` implicitly — without raising. Callers that unpack or iterate the result (e.g. expecting a dict or list) will receive a `None` and likely crash with an `AttributeError` or `TypeError` far from the real error site, making debugging very hard.
+
+The `403` handler avoids this by calling `raise e` once `attempt >= FORBIDDEN_MAX_RETRY_ATTEMPTS`. The new `5xx` block should do the same on the final attempt:
+
+```suggestion
+    if e.response.status_code >= 500:
+        if attempt == MAX_RETRIES - 1:
+            raise e
+        delay = min(STARTING_DELAY * (BACKOFF**attempt), MAX_DELAY)
+        logger.warning(
+            f""Server error {e.response.status_code}. ""
+            f""Retrying in {delay} seconds (attempt {attempt + 1})...""
+        )
+        return math.ceil(time.monotonic() + delay)
+```
+
+Note that `MAX_RETRIES` is defined in `handle_confluence_rate_limit`, not inside `_handle_http_error`. You could either pass `max_retries` as a parameter to `_handle_http_error`, or check `attempt == MAX_RETRIES - 1` by importing/referencing the constant, or raise unconditionally and let the caller decide — any of these is better than the silent `None` path.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/9605#discussion_r2984847404,,2026-03-24T23:14:15.251000,Silent None return after exhausting retries causes downstream crashes,logic,high,8,Comment 0 identifies a real bug where exhausting all retries on 5xx errors causes the function to silently return None instead of raising an exception. This would cause callers expecting dict/list results to crash with confusing AttributeError/TypeError far from the actual error source. This is a meaningful production bug affecting error handling reliability.,2026-03-25T04:48:53.448390+00:00
+eventual-inc/daft,6444,perf: introduce Column type with ScalarColumn for O(1) scalar storage in RecordBatch,https://github.com/Eventual-Inc/Daft/pull/6444,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Incorrect `slice` length for scalar when `start > 0` and `end > s.len()`**
+
+The formula `s.len().min(end.saturating_sub(start))` does not account for the `start` offset when the column is shorter than `end`. Consider:
+
+- Column length = 25, `slice(10, 30)` → formula gives `25.min(20) = 20`, but the correct result is **15** (rows 10..25).
+- Column length = 5, `slice(10, 20)` → formula gives `5.min(10) = 5`, but the correct result is **0** (start is already past the end).
+- Column length = 100, `slice(10, 200)` → formula gives `100.min(190) = 100`, but the correct result is **90** (rows 10..100).
+
+The correct formula clamps both endpoints independently:
+
+```suggestion
+            Self::Scalar(s) => {
+                let clamped_start = start.min(s.len());
+                let clamped_end = end.min(s.len());
+                let new_len = clamped_end.saturating_sub(clamped_start);
+                Ok(Self::Scalar(s.resize(new_len)))
+            }
+```
+
+The existing test (`column_slice_scalar_stays_scalar`) only exercises the case where `end < s.len()` and `start == 10`, which masks the bug.",https://github.com/Eventual-Inc/Daft/pull/6444#discussion_r2967558907,,2026-03-20T19:19:16.211000,Incorrect slice length calculation for scalar columns,logic,high,9,"This is a significant logic bug that would cause wrong slice lengths in production. The formula fails to properly clamp both start and end against column length, returning incorrect results for common cases like slice(10, 30) on a 25-row column (returns 20 instead of 15). The comment provides clear examples and a correct fix.",2026-03-25T04:48:53.448390+00:00
