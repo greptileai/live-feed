@@ -21424,3 +21424,52 @@ The correct formula clamps both endpoints independently:
 ```
 
 The existing test (`column_slice_scalar_stays_scalar`) only exercises the case where `end < s.len()` and `start == 10`, which masks the bug.",https://github.com/Eventual-Inc/Daft/pull/6444#discussion_r2967558907,,2026-03-20T19:19:16.211000,Incorrect slice length calculation for scalar columns,logic,high,9,"This is a significant logic bug that would cause wrong slice lengths in production. The formula fails to properly clamp both start and end against column length, returning incorrect results for common cases like slice(10, 30) on a 25-row column (returns 20 instead of 15). The comment provides clear examples and a correct fix.",2026-03-25T04:48:53.448390+00:00
+onyx-dot-app/onyx,9602,feat(metrics): add task lifecycle and per-connector Prometheus metrics,https://github.com/onyx-dot-app/onyx/pull/9602,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Timezone-naive `last_success` subtracted from timezone-aware `now` will raise `TypeError`**
+
+`now` is created as `datetime.now(tz=timezone.utc)` (timezone-aware), but `ConnectorCredentialPair.last_successful_index_time` is stored as a PostgreSQL `TIMESTAMP` (without time zone) column. SQLAlchemy returns it as a timezone-naive `datetime`, so `(now - last_success)` raises:
+
+```
+TypeError: can't subtract offset-naive and offset-aware datetimes
+```
+
+When this happens inside the `for` loop in `_collect_fresh`, the exception propagates out of `ConnectorHealthCollector._collect_fresh` and is caught by the base `collect()` method, which then returns stale cache — or an empty list on the first scrape. This silently disables **all** connector health metrics (not just staleness), because the exception aborts the entire loop.
+
+The safest fix is to normalise `last_success` to UTC before the subtraction:
+
+```python
+if last_success is not None:
+    last_success_utc = last_success.replace(tzinfo=timezone.utc) if last_success.tzinfo is None else last_success
+    age = (now - last_success_utc).total_seconds()
+    staleness_gauge.add_metric(label_vals, age)
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: backend/onyx/server/metrics/indexing_pipeline.py
+Line: 355-358
+
+Comment:
+**Timezone-naive `last_success` subtracted from timezone-aware `now` will raise `TypeError`**
+
+`now` is created as `datetime.now(tz=timezone.utc)` (timezone-aware), but `ConnectorCredentialPair.last_successful_index_time` is stored as a PostgreSQL `TIMESTAMP` (without time zone) column. SQLAlchemy returns it as a timezone-naive `datetime`, so `(now - last_success)` raises:
+
+```
+TypeError: can't subtract offset-naive and offset-aware datetimes
+```
+
+When this happens inside the `for` loop in `_collect_fresh`, the exception propagates out of `ConnectorHealthCollector._collect_fresh` and is caught by the base `collect()` method, which then returns stale cache — or an empty list on the first scrape. This silently disables **all** connector health metrics (not just staleness), because the exception aborts the entire loop.
+
+The safest fix is to normalise `last_success` to UTC before the subtraction:
+
+```python
+if last_success is not None:
+    last_success_utc = last_success.replace(tzinfo=timezone.utc) if last_success.tzinfo is None else last_success
+    age = (now - last_success_utc).total_seconds()
+    staleness_gauge.add_metric(label_vals, age)
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/9602#discussion_r2985746268,,2026-03-25T04:54:43.876000,"Timezone-naive datetime subtraction raises TypeError, disabling all metrics",runtime,critical,9,"This is a guaranteed runtime crash - subtracting a timezone-naive datetime from a timezone-aware datetime will raise TypeError, and since it occurs in a loop, it silently disables ALL connector health metrics (not just staleness). This is a real bug that would cause production problems.",2026-03-25T06:35:37.549774+00:00
