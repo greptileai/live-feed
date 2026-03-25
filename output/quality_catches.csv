@@ -21155,3 +21155,42 @@ click.visibilityChangedDelayMs =
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/PostHog/posthog-js/pull/3274#discussion_r2975059113,,2026-03-23T13:32:15.205000,Visibility change before click not suppressed in tab focus scenario,logic,high,8,"This comment identifies a significant logic bug where the PR's intended fix for ignoring dead clicks on tab visibility changes would fail in the primary use case. The condition only checks if visibility changed after the click, but browsers typically fire visibilitychange before the click event when bringing a tab to foreground, meaning the fix wouldn't work as intended.",2026-03-25T00:51:05.165178+00:00
+elizaos/eliza,6661,fix(core): parse XML action tags instead of comma-splitting actions,https://github.com/elizaOS/eliza/pull/6661,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **`basic-capabilities/index.ts` caller broken by raw-string return**
+
+`parseKeyValueXml` now returns a raw XML string for `actions` when `<action>` tags are detected, but `basic-capabilities/index.ts` (line 563–567) does not have the `typeof === ""string""` guard that `message.ts` has. When it receives a string for `actionsRaw`, it wraps the whole XML blob in a single-element array:
+
+```ts
+// basic-capabilities/index.ts ~line 563
+actions: Array.isArray(actionsRaw)
+    ? actionsRaw
+    : actionsRaw
+        ? [actionsRaw]          // ← entire XML string becomes one ""action name""
+        : [""IGNORE""],
+```
+
+The resulting `actions` array would contain a value like `""\n\t\t\t\t\t<action>\n\t\t\t\t\t\t<name>REPLY</name>...""`, which will never match any registered action, causing silent ""Action not found"" failures in that code path.
+
+`message.ts` already has the correct guard (`if (typeof parsedXml.actions === ""string"") { … }`) and correctly extracts action names via `matchAll`. The same XML-extraction logic (or at minimum a `typeof === ""string""` branch that handles the new format) needs to be added to `basic-capabilities/index.ts` as well, otherwise this path regresses for any LLM response that produces structured `<action>` XML.",https://github.com/elizaOS/eliza/pull/6661#discussion_r2984407298,,2026-03-24T21:33:28.100000,Caller not updated to handle new raw XML string return type,logic,high,8,"This catch identifies a real production bug where changing parseKeyValueXml to return raw XML strings for actions breaks a downstream consumer (basic-capabilities/index.ts) that lacks the typeof guard. This would cause silent 'Action not found' failures when LLMs produce structured XML responses, affecting real user functionality.",2026-03-25T03:15:37.315772+00:00
+nvidia/transformerengine,2798,[PyT][Commong] Disable fused attention for sm120 if determinism is required,https://github.com/NVIDIA/TransformerEngine/pull/2798,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Determinism check blocks inference unnecessarily**
+
+The new guard (line 537) fires for any value of `deterministic=true` on SM120, including non-training (inference-only) forward passes. However, the existing comment just above (lines 466–468) explicitly states that **forward passes are always deterministic** on Blackwell (`pre-9.18.1: fwd: deterministic; bwd: non-deterministic`). The non-determinism concern on SM120 is therefore limited to the *backward pass*, which only runs when `is_training == true`.
+
+As written, any user who calls with `deterministic=True` and `is_training=False` on SM120 will silently lose fused attention, even though the forward path would have been fully deterministic. This is a regression compared to the pre-PR behavior where inference on SM120 worked fine with `deterministic=True`.
+
+If the intent is specifically to guard against non-deterministic *backward* computation on SM120, the condition should be gated on `is_training`:
+
+```suggestion
+      } else if (deterministic && is_training) {
+        backend = NVTE_Fused_Attn_Backend::NVTE_No_Backend;
+        std::cout << ""Warning: Deterministic fused attention backward pass on SM120 is not supported.""
+                  << std::endl;
+```
+
+If SM120 forward is also non-deterministic for some other reason, please add a clarifying comment explaining why `!is_training` cases must also be disabled.",https://github.com/NVIDIA/TransformerEngine/pull/2798#discussion_r2984314412,Pushing a change for this,2026-03-24T21:15:55.294000,Overly broad determinism check disables fused attention for inference,logic,high,8,"This is a meaningful logic bug where the guard condition is too broad - it blocks fused attention for all deterministic=True cases on SM120, even though only backward passes are non-deterministic. This would silently degrade inference performance for users on SM120 hardware, which is a real regression affecting production workloads. The catch demonstrates good understanding of the codebase context and the existing documentation.",2026-03-25T03:15:37.315772+00:00
+infisical/infisical,5800,fix: add better servicing,https://github.com/Infisical/infisical/pull/5800,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Infinite MFA loop when using OAuth with MFA**
+
+`setMfaSuccessCallback(() => handleExchange)` causes an infinite loop. After the Mfa component verifies the OTP and calls `successCallback()`, it invokes `handleExchange` again. Inside `handleExchange`, `oauthTokenExchange` is called with the same stateless `email` and `providerAuthToken`. The server-side `oauth2TokenExchange` unconditionally re-evaluates `shouldCheckMfa = org?.enforceMfa || user.isMfaEnabled`, which is still `true`. It therefore issues a *new* MFA token and returns `isMfaEnabled: true` again — re-triggering the MFA modal indefinitely.
+
+The `selectOrganization`/`finishWithOrgWorkflow` pattern works because `selectOrganization` checks the already-verified MFA session cookie/token issued by the OTP verify endpoint. There is no equivalent state that `oauthTokenExchange` can observe.
+
+The post-MFA callback should skip the exchange entirely and proceed with the token that was already set before the MFA prompt (the access token returned in the normal flow after MFA resolves), or use a dedicated post-MFA navigation path rather than re-calling the full exchange.",https://github.com/Infisical/infisical/pull/5800#discussion_r2985116785,,2026-03-25T00:47:00.696000,Infinite MFA loop in OAuth token exchange flow,logic,high,8,"This catches a real logic bug where the MFA success callback re-invokes the token exchange, which re-evaluates MFA requirements and triggers the MFA modal again indefinitely. This would make OAuth+MFA authentication completely broken in production.",2026-03-25T03:15:37.315772+00:00
