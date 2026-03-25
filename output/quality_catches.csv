@@ -21752,3 +21752,65 @@ The correct field is the top-level `data.isMfaEnabled`:
 ```suggestion
         isMfaEnabled: data.isMfaEnabled,
 ```",https://github.com/Infisical/infisical/pull/5803#discussion_r2987862107,,2026-03-25T12:26:03.831000,Wrong field breaks org-enforced MFA authentication flow,logic,high,8,"This is a meaningful security-adjacent logic bug. When an organization enforces MFA but a user hasn't personally enabled it, the client would receive incorrect MFA status (false instead of true), causing the MFA step to be skipped. This could lead to authentication failures or security bypass. The catch required understanding the data structure returned by the service and the MFA enforcement logic.",2026-03-25T14:38:25.923434+00:00
+ethyca/fides,7725,New policies builder,https://github.com/ethyca/fides/pull/7725,"<a href=""#""><img alt=""P0"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p0.svg?v=7"" align=""top""></a> **Node ID collision after delete-then-add**
+
+When a condition node is deleted and then a new one is added, the new ID is derived from the current count of condition nodes. This can collide with an existing node's ID.
+
+Example: Add condition-1, condition-2, condition-3 → delete condition-1 (remaining: condition-2, condition-3) → add new condition: `conditionCount = 2`, `conditionId = ""condition-3""` → **duplicate ID with the existing condition-3**.
+
+This causes React key conflicts and silently drops one condition from the serialized YAML (the BFS walk in `collectConditionNodes` stops on first visited match).
+
+The same issue exists in `handleAddConstraint` (line 551–552).
+
+Use a monotonically increasing counter (e.g., `useRef`) instead of deriving the ID from the current count:
+
+```tsx
+// At the top of PolicyCanvasPanel
+const conditionCounterRef = useRef(0);
+
+// In handleAddCondition:
+conditionCounterRef.current += 1;
+const conditionId = `condition-${conditionCounterRef.current}`;
+```
+
+Apply the same pattern for `constraintCounterRef` in `handleAddConstraint`.",https://github.com/ethyca/fides/pull/7725#discussion_r2982075998,,2026-03-24T14:38:10.841000,Node ID collision after delete-then-add causes data loss,logic,high,8,This catch identifies a real logic bug where deriving node IDs from current count instead of a monotonic counter causes ID collisions after delete operations. This leads to React key conflicts and silent data loss when nodes are serialized to YAML - a meaningful production bug affecting users.,2026-03-25T16:38:02.349080+00:00
+nvidia-nemo/curator,1660,Add Fern docs preview workflow,https://github.com/NVIDIA-NeMo/Curator/pull/1660,"<a href=""#""><img alt=""P0"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p0.svg?v=7"" align=""top""></a> **Security: `pull_request_target` + PR head checkout = secret exposure**
+
+This workflow uses the `pull_request_target` trigger (which has read access to secrets) and then **manually checks out untrusted PR head code** before running `fern` commands with `DOCS_FERN_TOKEN` exposed as `FERN_TOKEN`. This is one of the most well-documented GitHub Actions security anti-patterns.
+
+GitHub's own documentation explicitly warns: *""you should make sure that you do not check out, build, or run untrusted code from the pull request with this trigger.""*
+
+**Attack vector:** A malicious contributor forks the repo, adds a crafted `fern/` config (e.g., a generator plugin, custom workspace config, or post-build script that `fern docs md generate` processes), opens a PR, and the workflow checks out their code and runs it with `FERN_TOKEN` in the environment. The token can then be exfiltrated (e.g., via a `curl` in a custom generator script or a malicious fern plugin reference).
+
+**Recommended fix:** Split into two workflows:
+
+1. `pull_request` workflow (no secrets, runs untrusted code): runs `fern generate --docs --preview`, captures the URL as a workflow artifact or via `actions/upload-artifact`.
+2. `workflow_run` workflow (has secrets, never touches PR code): downloads the artifact and posts the comment using `DOCS_FERN_TOKEN`.
+
+```yaml
+# Workflow 1 – triggered by pull_request (no secret access, safe to run untrusted code)
+on:
+  pull_request:
+    paths: ['fern/**']
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: fern-api/setup-fern-cli@v1
+      - name: Generate preview URL
+        env:
+          FERN_TOKEN: ${{ secrets.DOCS_FERN_TOKEN }}  # move token here only if safe
+        run: ...
+
+# Workflow 2 – triggered by workflow_run (has secrets, posts comment)
+on:
+  workflow_run:
+    workflows: [""Preview Fern Docs Build""]
+    types: [completed]
+jobs:
+  comment:
+    ...
+```
+
+Alternatively, if the two-workflow split is too complex, the minimum viable fix is to **remove the PR head checkout** (keep only the base branch) and only use `pull_request_target` for the comment-posting step while keeping the build itself in a `pull_request` context.",https://github.com/NVIDIA-NeMo/Curator/pull/1660#discussion_r2983984781,,2026-03-24T20:03:41.899000,Secret exposure via pull_request_target with untrusted code checkout,security,critical,9,"This identifies a critical security vulnerability where the workflow uses pull_request_target (which has secret access) combined with checking out untrusted PR code, allowing malicious contributors to exfiltrate the DOCS_FERN_TOKEN. This is a well-documented GitHub Actions security anti-pattern that could lead to credential theft.",2026-03-25T16:38:02.349080+00:00
