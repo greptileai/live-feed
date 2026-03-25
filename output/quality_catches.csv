@@ -21612,3 +21612,143 @@ impl Hash for Column {
 }
 ```
 If the performance cost of always materializing is a concern, you can also special-case `Scalar` vs `Scalar` (already handled by `PartialEq`), but the cross-variant case must still produce matching hashes.",https://github.com/Eventual-Inc/Daft/pull/6444#discussion_r2967763270,,2026-03-20T20:07:50.367000,Hash/Eq contract violation breaks HashMap/HashSet operations,logic,critical,9,"This is an excellent catch of a subtle but serious Rust contract violation. When Hash and Eq are inconsistent (equal values hash differently), HashMap/HashSet silently malfunction with missed lookups and duplicate keys. This is a non-obvious bug that wouldn't be caught by the compiler and could cause silent data corruption in production. The detailed explanation of why the invariant is violated and how to fix it demonstrates deep understanding.",2026-03-25T12:29:24.161072+00:00
+ethyca/fides,7710,ENG-3028: Fix GPC title and description showing i18n keys instead of default values in the Privacy Center consent page (gpc.title and gpc.description),https://github.com/ethyca/fides/pull/7710,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **GPC fallbacks always resolve to the English locale for all non-English locales**
+
+`i18n.t(staticKey)` looks up the message from `allMessages[currentLocale]`. At the time `loadMessagesFromExperience` is called from `initializeI18n`, `i18n.activate()` has not yet been called, so `currentLocale` is still the initial default (`""en""`). This means that when iterating over non-English locales (e.g., `""es""`), `i18n.t(""static.gpc.title"")` still resolves against the English catalog and returns `""Global Privacy Control detected""` instead of the Spanish `""Control de privacidad global detectado""`.
+
+The static messages _are_ already loaded for every locale (via `loadMessagesFromFiles`), but the `t()` function only checks `currentLocale`, so Spanish (and all other non-English) locales incorrectly receive English GPC fallback text.
+
+A direct fix would be to look up the static message for the specific locale being iterated, rather than going through `i18n.t()`:
+
+```typescript
+  availableLocales.forEach((locale) => {
+    const messages = allMessages[locale] || {};
+    const gpcDefaults: Record<string, string> = {};
+    Object.entries(GPC_FALLBACKS).forEach(([expKey, staticKey]) => {
+      if (!messages[expKey]) {
+        // Use locale-specific static message, falling back to default locale
+        const localeStaticMessages =
+          STATIC_MESSAGES[locale] ?? STATIC_MESSAGES[DEFAULT_LOCALE] ?? {};
+        gpcDefaults[expKey] =
+          (localeStaticMessages as Messages)[staticKey] ?? staticKey;
+      }
+    });
+    i18n.load(locale, { ...messages, ...gpcDefaults });
+  });
+```
+
+Note: `STATIC_MESSAGES` and `DEFAULT_LOCALE` are already imported in this file.",https://github.com/ethyca/fides/pull/7710#discussion_r2966092685,,2026-03-20T14:28:29.463000,GPC fallbacks always return English text for all locales,logic,high,8,This catches a real i18n bug where non-English locales would incorrectly display English GPC text because i18n.t() uses the default locale before activation. This would cause visible wrong behavior for all non-English users viewing GPC messages.,2026-03-25T14:38:25.923434+00:00
+posthog/posthog,52210,feat: add query profiling with flamegraph to ClickHouse debug panel,https://github.com/PostHog/posthog/pull/52210,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **SQL comments bypass `_is_select_only`**
+
+`^\s*` only skips leading whitespace — not SQL comments. A query like:
+
+```sql
+-- safe-looking comment
+INSERT INTO events VALUES (...)
+```
+
+starts with `--`, which does not match any disallowed token, so `_is_select_only` returns `True` and the INSERT is forwarded to ClickHouse. Because the pool is opened with `readonly=False`, ClickHouse will happily execute the INSERT after stripping the comment.
+
+The same bypass applies to block comments (`/* … */`). Consider stripping comments before the regex check, or — more robustly — open the pool with `readonly=2` (allows reads and per-query settings changes, but blocks all writes at the server level). `readonly=2` is the right tool here because the profiling settings (`query_profiler_cpu_time_period_ns`, etc.) are session-level settings that are still allowed under `readonly=2`.
+
+```python
+with get_client_from_pool(workload=Workload.OFFLINE, readonly=2) as client:
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: posthog/api/debug_ch_queries.py
+Line: 274-281
+
+Comment:
+**SQL comments bypass `_is_select_only`**
+
+`^\s*` only skips leading whitespace — not SQL comments. A query like:
+
+```sql
+-- safe-looking comment
+INSERT INTO events VALUES (...)
+```
+
+starts with `--`, which does not match any disallowed token, so `_is_select_only` returns `True` and the INSERT is forwarded to ClickHouse. Because the pool is opened with `readonly=False`, ClickHouse will happily execute the INSERT after stripping the comment.
+
+The same bypass applies to block comments (`/* … */`). Consider stripping comments before the regex check, or — more robustly — open the pool with `readonly=2` (allows reads and per-query settings changes, but blocks all writes at the server level). `readonly=2` is the right tool here because the profiling settings (`query_profiler_cpu_time_period_ns`, etc.) are session-level settings that are still allowed under `readonly=2`.
+
+```python
+with get_client_from_pool(workload=Workload.OFFLINE, readonly=2) as client:
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/52210#discussion_r2985420051,done,2026-03-25T02:50:13.468000,SQL comment bypass allows arbitrary query execution,security,critical,9,"This is a critical security vulnerability where SQL comments can bypass the `_is_select_only` validation, allowing INSERT/UPDATE/DELETE queries to be executed on ClickHouse when the connection is opened with readonly=False. The reviewer provides a clear exploit path and a robust fix using readonly=2.",2026-03-25T14:38:25.923434+00:00
+posthog/posthog,52235,fix: Prevent 'slow' tasks from increasing queue depth in temporal,https://github.com/PostHog/posthog/pull/52235,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Overlapping runs will cause new parent to fail**
+
+With `ALLOW_ALL`, when the schedule fires a new `ScheduleAllSubscriptionsWorkflow` while a previous run is still processing child workflows, the new parent will call `execute_child_workflow` with the same idempotent IDs (e.g. `process-subscription-{id}`) as the still-running children. Since no `workflow_id_conflict_policy` is set, Temporal uses the default (`FAIL`), and those calls immediately raise a `ChildWorkflowError` / `WorkflowAlreadyStartedError`.
+
+In `ScheduleAllSubscriptionsWorkflow.run()`, these errors are caught by `asyncio.gather(return_exceptions=True)`, collected into `failed_ids`, and the parent raises:
+
+```python
+raise ApplicationError(
+    f""Subscription deliveries failed for IDs: {failed_ids}"",
+    non_retryable=True,
+)
+```
+
+This marks every new parent run as **FAILED** in Temporal, with a misleading ""deliveries failed"" message, even though those subscriptions are actually still being processed correctly by the previous run's child workflows (which survive due to `ABANDON`). This directly undermines the observability benefit of the fix and will produce false-positive alerts on every overlap.
+
+To make the behavior truly safe, the `ScheduleAllSubscriptionsWorkflow` in `workflows.py` should distinguish `WorkflowAlreadyStartedError` from genuine delivery failures — e.g. by setting `workflow_id_conflict_policy=WorkflowIDConflictPolicy.USE_EXISTING` on the child workflow starts (which attaches to the running execution and considers it a success), or by catching that specific error type and not counting it as a failed delivery.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: posthog/temporal/schedule.py
+Line: 114
+
+Comment:
+**Overlapping runs will cause new parent to fail**
+
+With `ALLOW_ALL`, when the schedule fires a new `ScheduleAllSubscriptionsWorkflow` while a previous run is still processing child workflows, the new parent will call `execute_child_workflow` with the same idempotent IDs (e.g. `process-subscription-{id}`) as the still-running children. Since no `workflow_id_conflict_policy` is set, Temporal uses the default (`FAIL`), and those calls immediately raise a `ChildWorkflowError` / `WorkflowAlreadyStartedError`.
+
+In `ScheduleAllSubscriptionsWorkflow.run()`, these errors are caught by `asyncio.gather(return_exceptions=True)`, collected into `failed_ids`, and the parent raises:
+
+```python
+raise ApplicationError(
+    f""Subscription deliveries failed for IDs: {failed_ids}"",
+    non_retryable=True,
+)
+```
+
+This marks every new parent run as **FAILED** in Temporal, with a misleading ""deliveries failed"" message, even though those subscriptions are actually still being processed correctly by the previous run's child workflows (which survive due to `ABANDON`). This directly undermines the observability benefit of the fix and will produce false-positive alerts on every overlap.
+
+To make the behavior truly safe, the `ScheduleAllSubscriptionsWorkflow` in `workflows.py` should distinguish `WorkflowAlreadyStartedError` from genuine delivery failures — e.g. by setting `workflow_id_conflict_policy=WorkflowIDConflictPolicy.USE_EXISTING` on the child workflow starts (which attaches to the running execution and considers it a success), or by catching that specific error type and not counting it as a failed delivery.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/52235#discussion_r2987711408,"Fair, agreed that it's cleaner to properly handle those! 
+
+Updated in: https://github.com/PostHog/posthog/pull/52235/commits/1a552dd438463c4c8dcb8383e04519f74a46c029",2026-03-25T11:56:26.831000,Race condition causes false-positive workflow failures on overlap,concurrency,high,8,"This is a meaningful concurrency bug where overlapping Temporal workflows would fail with misleading error messages due to workflow ID conflicts, causing false-positive alerts in production. The analysis correctly identifies the interaction between ALLOW_ALL policy, idempotent child IDs, and default FAIL conflict policy, showing deep understanding of Temporal's semantics.",2026-03-25T14:38:25.923434+00:00
+nvidia-holoscan/holohub,1475,Add DOCA GPUNetIO receiver to GPU-resident IMX274,https://github.com/nvidia-holoscan/holohub/pull/1475,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Allocation failure returns `DOCA_SUCCESS`**
+
+If `calloc` returns `NULL`, the function jumps to `exit` with `result` still holding the value from the last successful `doca_verbs_cq_attr_set_cq_overrun` call — which is `DOCA_SUCCESS`. The caller then believes the CQ was created successfully and proceeds with a `nullptr` CQ ring, leading to a crash or silent data corruption downstream.
+
+```suggestion
+    cq_ring_haddr = (struct mlx5_cqe64*)(calloc(external_umem_size, sizeof(uint8_t)));
+    if (!cq_ring_haddr) { result = DOCA_ERROR_NO_MEMORY; goto exit; }
+```",https://github.com/nvidia-holoscan/holohub/pull/1475#discussion_r2945846887,Done,2026-03-17T10:37:13.051000,Allocation failure silently returns success causing crash,logic,high,8,"This catch identifies a serious bug where calloc failure incorrectly returns DOCA_SUCCESS instead of an error, causing the caller to proceed with a NULL pointer and leading to crashes or data corruption. This is a meaningful logic bug that would cause real problems in production when memory allocation fails.",2026-03-25T14:38:25.923434+00:00
+infisical/infisical,5803,feat: resolved mfa error in token exchange mode,https://github.com/Infisical/infisical/pull/5803,"<a href=""#""><img alt=""P2"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p2.svg?v=7"" align=""top""></a> **Wrong field used for `isMfaEnabled` — breaks org-enforced MFA**
+
+The service's `oauth2TokenExchange` returns `isMfaEnabled` as a **top-level** field on the `data` object, not on `data.user`. Using `data.user.isMfaEnabled` reads the user's *personal* MFA setting from the database, which will be `false` when an organisation has `enforceMfa = true` but the individual user has not personally enabled MFA.
+
+In that scenario:
+1. `shouldCheckMfa` is `true` (org-enforced), so the service issues an MFA token and returns `data.isMfaEnabled = true`.
+2. The router returns `isMfaEnabled: false` to the client (because `data.user.isMfaEnabled = false`).
+3. The client skips the MFA step and treats the MFA token as a regular access token → the subsequent authenticated request fails.
+
+The correct field is the top-level `data.isMfaEnabled`:
+
+```suggestion
+        isMfaEnabled: data.isMfaEnabled,
+```",https://github.com/Infisical/infisical/pull/5803#discussion_r2987862107,,2026-03-25T12:26:03.831000,Wrong field breaks org-enforced MFA authentication flow,logic,high,8,"This is a meaningful security-adjacent logic bug. When an organization enforces MFA but a user hasn't personally enabled it, the client would receive incorrect MFA status (false instead of true), causing the MFA step to be skipped. This could lead to authentication failures or security bypass. The catch required understanding the data structure returned by the service and the MFA enforcement logic.",2026-03-25T14:38:25.923434+00:00
