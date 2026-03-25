@@ -21473,3 +21473,142 @@ if last_success is not None:
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/onyx-dot-app/onyx/pull/9602#discussion_r2985746268,,2026-03-25T04:54:43.876000,"Timezone-naive datetime subtraction raises TypeError, disabling all metrics",runtime,critical,9,"This is a guaranteed runtime crash - subtracting a timezone-naive datetime from a timezone-aware datetime will raise TypeError, and since it occurs in a loop, it silently disables ALL connector health metrics (not just staleness). This is a real bug that would cause production problems.",2026-03-25T06:35:37.549774+00:00
+posthog/posthog,52165,"refactor(ActionFilterRow): extract types, utils, and MathSelector",https://github.com/PostHog/posthog/pull/52165,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Pre-existing bug surfaced by refactoring: weekly active always falls back to `MonthlyActiveUsers`**
+
+The `getActiveActorOptionByPeriod` function receives a `mathType: BaseMathType` parameter (correctly set to `BaseMathType.WeeklyActiveUsers` or `BaseMathType.MonthlyActiveUsers` by the callers), but the `onSelect` handler ignores it — it declares a new local `mathType` variable that shadows the parameter and hardcodes `BaseMathType.MonthlyActiveUsers` as the fallback when `groupIndex` is `undefined` (i.e. when the user selects ""users"" rather than a group).
+
+This means: if a user first picks a group from the **Weekly active** row and then switches back to ""users"", the math type submitted will be `BaseMathType.MonthlyActiveUsers` instead of `BaseMathType.WeeklyActiveUsers`.
+
+This was already present in the original `ActionFilterRow.tsx` and is preserved unchanged here. Since the code is being actively touched in this PR, this would be a good opportunity to fix it:
+
+```suggestion
+                    const selectedMathType =
+                        groupIndex !== undefined
+                            ? `${period}ly_active::${groupIndex}`
+                            : mathType
+                    onMathSelect(index, selectedMathType)
+```
+
+(renaming the local variable to `selectedMathType` avoids shadowing the `mathType` parameter)
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: frontend/src/scenes/insights/filters/ActionFilter/ActionFilterRow/useMathSelectorOptions.tsx
+Line: 368-371
+
+Comment:
+**Pre-existing bug surfaced by refactoring: weekly active always falls back to `MonthlyActiveUsers`**
+
+The `getActiveActorOptionByPeriod` function receives a `mathType: BaseMathType` parameter (correctly set to `BaseMathType.WeeklyActiveUsers` or `BaseMathType.MonthlyActiveUsers` by the callers), but the `onSelect` handler ignores it — it declares a new local `mathType` variable that shadows the parameter and hardcodes `BaseMathType.MonthlyActiveUsers` as the fallback when `groupIndex` is `undefined` (i.e. when the user selects ""users"" rather than a group).
+
+This means: if a user first picks a group from the **Weekly active** row and then switches back to ""users"", the math type submitted will be `BaseMathType.MonthlyActiveUsers` instead of `BaseMathType.WeeklyActiveUsers`.
+
+This was already present in the original `ActionFilterRow.tsx` and is preserved unchanged here. Since the code is being actively touched in this PR, this would be a good opportunity to fix it:
+
+```suggestion
+                    const selectedMathType =
+                        groupIndex !== undefined
+                            ? `${period}ly_active::${groupIndex}`
+                            : mathType
+                    onMathSelect(index, selectedMathType)
+```
+
+(renaming the local variable to `selectedMathType` avoids shadowing the `mathType` parameter)
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/52165#discussion_r2986649235,,2026-03-25T08:37:32.017000,Variable shadowing causes wrong math type selection for weekly active users,logic,high,8,This is a meaningful logic bug where variable shadowing causes the weekly active users selection to incorrectly fall back to monthly active users when switching from group to users. The catch demonstrates good understanding of the code flow and identifies a real user-facing bug that would cause incorrect analytics behavior. Extra credit for being a pre-existing bug surfaced during refactoring.,2026-03-25T12:29:24.161072+00:00
+posthog/posthog,52162,fix: handle cross-region Vercel SSO when resource_id is missing,https://github.com/PostHog/posthog/pull/52162,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Cache entry consumed before `authenticate_sso` can use it**
+
+`_get_cached_claims` is implemented as single-use: it deletes the cache entry when it finds one. When the new block runs on US and `_get_cached_claims` returns non-`None` but `_should_redirect_to_eu` then evaluates to `False` (installation IS local), the claims have already been removed from cache. The `authenticate_sso` call a few lines below calls `_get_cached_claims` again, finds nothing, then falls back to `_get_sso_claims_from_code` — but the Vercel code may already be consumed from a prior exchange.
+
+The clearest way this surfaces is the **email-mismatch retry**: after an email-mismatch, `authenticate_sso` re-caches the claims under the same code and redirects to `/login`. If the user navigates back to the original `/login/vercel/redirect?…` URL, the new block will consume those re-cached claims, `_should_redirect_to_eu` returns `False` for a US installation, and `authenticate_sso` fails when trying to re-exchange an already-consumed code.
+
+The fix is to call `set_cached_claims` again before falling through to `authenticate_sso` whenever the claims came from the cache (i.e. were not freshly obtained via `_get_sso_claims_from_code`).
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: ee/api/vercel/vercel_sso.py
+Line: 145-161
+
+Comment:
+**Cache entry consumed before `authenticate_sso` can use it**
+
+`_get_cached_claims` is implemented as single-use: it deletes the cache entry when it finds one. When the new block runs on US and `_get_cached_claims` returns non-`None` but `_should_redirect_to_eu` then evaluates to `False` (installation IS local), the claims have already been removed from cache. The `authenticate_sso` call a few lines below calls `_get_cached_claims` again, finds nothing, then falls back to `_get_sso_claims_from_code` — but the Vercel code may already be consumed from a prior exchange.
+
+The clearest way this surfaces is the **email-mismatch retry**: after an email-mismatch, `authenticate_sso` re-caches the claims under the same code and redirects to `/login`. If the user navigates back to the original `/login/vercel/redirect?…` URL, the new block will consume those re-cached claims, `_should_redirect_to_eu` returns `False` for a US installation, and `authenticate_sso` fails when trying to re-exchange an already-consumed code.
+
+The fix is to call `set_cached_claims` again before falling through to `authenticate_sso` whenever the claims came from the cache (i.e. were not freshly obtained via `_get_sso_claims_from_code`).
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/52162#discussion_r2983562191,"Removed the `_get_cached_claims` call (it's single-use and would consume the entry). Now always exchanges the code, and re-caches after the local-path check so `authenticate_sso` can find them.",2026-03-24T18:36:29.095000,Race condition consumes cache before SSO authentication can use it,concurrency,high,8,"This catches a meaningful race condition where single-use cache entries are consumed prematurely, causing SSO authentication to fail when trying to re-exchange an already-consumed Vercel code. This would break the email-mismatch retry flow in production.",2026-03-25T12:29:24.161072+00:00
+posthog/posthog,52161,fix(dev): Dont run post checkout if flox isn't setup,https://github.com/PostHog/posthog/pull/52161,"<a href=""#""><img alt=""P0"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p0.svg?v=7"" align=""top""></a> **`.flox/cache` check will always be false in worktrees**
+
+This hook only ever executes in git worktrees (line 8 exits early for the main repo where `.git` is a directory). In a worktree, the current directory is the worktree root — and `.flox/cache` is listed in `.flox/.gitignore`, meaning it is never committed and therefore never present in a fresh worktree checkout.
+
+As a result, `[ -d "".flox/cache"" ]` will always evaluate to false here, the entire `if` block is dead code, and the bootstrap (PATH augmentation + `pnpm install`) will **never** run — which is a regression from the original behaviour.
+
+`MAIN_REPO` needs to be computed before the condition, and the check should reference the main repo's cache:
+
+```suggestion
+MAIN_REPO=""$(cd ""$(dirname ""$0"")/.."" && pwd)""
+if command -v flox > /dev/null 2>&1 && [ -d ""$MAIN_REPO/.flox/cache"" ] && [ -z ""$FLOX_ENV"" ]; then
+    for p in ""$MAIN_REPO/.flox/run""/*/bin; do
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: .husky/post-checkout
+Line: 12
+
+Comment:
+**`.flox/cache` check will always be false in worktrees**
+
+This hook only ever executes in git worktrees (line 8 exits early for the main repo where `.git` is a directory). In a worktree, the current directory is the worktree root — and `.flox/cache` is listed in `.flox/.gitignore`, meaning it is never committed and therefore never present in a fresh worktree checkout.
+
+As a result, `[ -d "".flox/cache"" ]` will always evaluate to false here, the entire `if` block is dead code, and the bootstrap (PATH augmentation + `pnpm install`) will **never** run — which is a regression from the original behaviour.
+
+`MAIN_REPO` needs to be computed before the condition, and the check should reference the main repo's cache:
+
+```suggestion
+MAIN_REPO=""$(cd ""$(dirname ""$0"")/.."" && pwd)""
+if command -v flox > /dev/null 2>&1 && [ -d ""$MAIN_REPO/.flox/cache"" ] && [ -z ""$FLOX_ENV"" ]; then
+    for p in ""$MAIN_REPO/.flox/run""/*/bin; do
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/52161#discussion_r2983536447,,2026-03-24T18:31:15.739000,Dead code path prevents bootstrap from running in worktrees,logic,high,8,"This is a meaningful logic bug where the reviewer correctly identifies that the directory check `.flox/cache` will always fail in git worktrees because the file is gitignored and thus never present. This would cause the bootstrap process (PATH setup and pnpm install) to silently never execute, breaking the developer workflow. The analysis requires understanding git worktrees, gitignore behavior, and the hook's control flow - not something a linter would catch.",2026-03-25T12:29:24.161072+00:00
+eventual-inc/daft,6444,perf: introduce Column type with ScalarColumn for O(1) scalar storage in RecordBatch,https://github.com/Eventual-Inc/Daft/pull/6444,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **`Hash` and `Eq` contract violated between `Scalar` and `Series` variants**
+
+Rust requires that `a == b` implies `hash(a) == hash(b)`, but the current `Hash` + `PartialEq` implementations break this invariant when a `Column::Scalar` and a `Column::Series` hold the same underlying values.
+
+**`PartialEq`** uses the `_ =>` catch-all arm when one side is `Scalar` and the other is `Series`, materializing both and comparing element-wise — so `Column::Scalar(""x"", 42, len=3)` **equals** `Column::Series(""x"", [42, 42, 42])`.
+
+**`Hash`** uses completely different algorithms for each variant:
+- `Series` → element-wise arrow hashing over every row
+- `Scalar` → `name().hash` + `scalar().hash` + `len().hash`
+
+These will practically never produce the same hash value for equivalent columns. Any `HashMap<Column, _>` or `HashSet<Column>` will silently malfunction (missed lookups, duplicate keys).
+
+The fix is to make `Hash` consistent with `Eq` — the simplest approach is to always hash via the materialized series:
+```rust
+impl Hash for Column {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        let hashes = self.as_materialized_series()
+            .hash(None)
+            .expect(""Failed to hash Column"");
+        for h in &hashes {
+            h.hash(state);
+        }
+    }
+}
+```
+If the performance cost of always materializing is a concern, you can also special-case `Scalar` vs `Scalar` (already handled by `PartialEq`), but the cross-variant case must still produce matching hashes.",https://github.com/Eventual-Inc/Daft/pull/6444#discussion_r2967763270,,2026-03-20T20:07:50.367000,Hash/Eq contract violation breaks HashMap/HashSet operations,logic,critical,9,"This is an excellent catch of a subtle but serious Rust contract violation. When Hash and Eq are inconsistent (equal values hash differently), HashMap/HashSet silently malfunction with missed lookups and duplicate keys. This is a non-obvious bug that wouldn't be caught by the compiler and could cause silent data corruption in production. The detailed explanation of why the invariant is violated and how to fix it demonstrates deep understanding.",2026-03-25T12:29:24.161072+00:00
