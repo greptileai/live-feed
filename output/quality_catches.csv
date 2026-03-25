@@ -21938,3 +21938,100 @@ if (embedParam_.useBasicKnowledge) {
 }
 ```
 ",https://github.com/NVIDIA-Digital-Bio/nvMolKit/pull/116#discussion_r2982771388,,2026-03-24T16:17:32.769000,Use-after-free of device pointer causes undefined GPU behavior,resource_leak,critical,9,"This catches a genuine use-after-free bug where a device pointer is captured from a stack-allocated object that gets destroyed before the pointer is used in a CUDA kernel. This would cause undefined GPU behavior, data corruption, or crashes when specific conditions are met (useBasicKnowledge=true and BATCHED backend).",2026-03-25T20:22:19.966903+00:00
+posthog/posthog,52303,chore(): have Claude to write permissions changes to settings.local.json instead of settings.json,https://github.com/PostHog/posthog/pull/52303,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **`deny` entries silently deleted from `settings.json`**
+
+The migration only reads the `allow` list (line 34) and merges it into `settings.local.json`, but `del settings['permissions']` removes the entire `permissions` block — including any `deny` entries that were never migrated. If `settings.json` contains team-enforced `deny` rules alongside a newly-added `allow` entry (e.g., written simultaneously by a developer or another process), those deny rules will be silently discarded rather than preserved or migrated.
+
+Consider only removing `allow` from `settings['permissions']`, and cleaning up the key entirely only when it becomes empty:
+
+```python
+# Remove only the allow list that was just migrated
+perms = settings.get('permissions', {})
+perms.pop('allow', None)
+if perms:
+    settings['permissions'] = perms
+else:
+    settings.pop('permissions', None)
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: .claude/hooks/migrate-permissions.sh
+Line: 72
+
+Comment:
+**`deny` entries silently deleted from `settings.json`**
+
+The migration only reads the `allow` list (line 34) and merges it into `settings.local.json`, but `del settings['permissions']` removes the entire `permissions` block — including any `deny` entries that were never migrated. If `settings.json` contains team-enforced `deny` rules alongside a newly-added `allow` entry (e.g., written simultaneously by a developer or another process), those deny rules will be silently discarded rather than preserved or migrated.
+
+Consider only removing `allow` from `settings['permissions']`, and cleaning up the key entirely only when it becomes empty:
+
+```python
+# Remove only the allow list that was just migrated
+perms = settings.get('permissions', {})
+perms.pop('allow', None)
+if perms:
+    settings['permissions'] = perms
+else:
+    settings.pop('permissions', None)
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/52303#discussion_r2990071893,fixed,2026-03-25T18:06:05.497000,Migration script silently deletes deny permission entries,data_integrity,high,8,"The comment identifies a significant data integrity bug where the migration script deletes the entire permissions block including deny entries that were never migrated, causing team-enforced deny rules to be silently lost. This could lead to security policy violations in production.",2026-03-25T22:20:31.098854+00:00
+berriai/litellm,24262,Update apply_guardrail to allow tool call deletion,https://github.com/BerriAI/litellm/pull/24262,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Full input tool call deletion produces an invalid assistant message**
+
+When a guardrail marks all tool calls in an assistant input message as deleted, `messages[msg_idx].pop(""tool_calls"", None)` removes the key but leaves `content: null` intact (or absent). The resulting message `{""role"": ""assistant"", ""content"": null}` is rejected by the OpenAI Chat Completions API with a 400 error because a non-streaming assistant message must have either non-null `content` or at least one tool call.
+
+Consider setting `content` to an empty string or removing the entire message when all tool calls are deleted:
+
+```python
+if not message_tool_calls:
+    messages[msg_idx].pop(""tool_calls"", None)
+    # Ensure the message remains valid: give it empty content if none exists
+    if messages[msg_idx].get(""content"") is None:
+        messages[msg_idx][""content""] = """"
+```
+
+Alternatively, document this as a known limitation that callers must handle.",https://github.com/BerriAI/litellm/pull/24262#discussion_r2969283238,"Good catch. When all tool calls are deleted from an input message and content is None, we now set content to empty string to keep the message valid.",2026-03-21T07:45:13.083000,Deleting all tool calls creates invalid OpenAI API message,logic,high,8,This catch identifies a real production bug where deleting all tool calls from an assistant message leaves an invalid message structure (content: null with no tool calls) that OpenAI's API will reject with a 400 error. This would cause runtime failures when guardrails remove all tool calls.,2026-03-25T22:20:31.098854+00:00
+eventual-inc/daft,6426,feat: google text embedder,https://github.com/Eventual-Inc/Daft/pull/6426,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Dimensions silently dropped for unknown models**
+
+When a user specifies `dimensions` for a model that is not in `_models`, `__post_init__` skips the entire `if self.model_name in _models:` block. This means `supports_overriding_dimensions` is never set in `embed_options`.
+
+Later in `instantiate()`:
+```python
+dimensions=self.dimensions if self.embed_options.get(""supports_overriding_dimensions"", False) else None,
+```
+`embed_options.get(""supports_overriding_dimensions"", False)` returns `False`, so `dimensions=None` is passed to `GoogleTextEmbedder` and `output_dimensionality` is never included in the API call. The user-specified `dimensions` are silently ignored for unknown/custom models.
+
+`get_dimensions()` correctly returns the user-specified size (line 119), so the schema reports the right shape, but the actual API call returns the model's default dimensions — causing a shape mismatch at runtime.
+
+The fix is to set the flag for unknown models when dimensions are explicitly provided:
+```python
+def __post_init__(self) -> None:
+    if self.model_name in _models:
+        model = _models[self.model_name]
+        if self.dimensions is not None:
+            if not model.supports_overriding_dimensions:
+                raise ValueError(
+                    f""Google embedding model '{self.model_name}' does not support specifying dimensions""
+                )
+            if model.min_dimensions is not None and self.dimensions < model.min_dimensions:
+                raise ValueError(
+                    f""dimensions={self.dimensions} is below the minimum of {model.min_dimensions} ""
+                    f""for model '{self.model_name}'""
+                )
+            if model.max_dimensions is not None and self.dimensions > model.max_dimensions:
+                raise ValueError(
+                    f""dimensions={self.dimensions} exceeds the maximum of {model.max_dimensions} ""
+                    f""for model '{self.model_name}'""
+                )
+            if ""supports_overriding_dimensions"" not in self.embed_options:
+                self.embed_options[""supports_overriding_dimensions""] = True
+    elif self.dimensions is not None:
+        # Unknown model with explicit dimensions — assume the model supports dimension override
+        if ""supports_overriding_dimensions"" not in self.embed_options:
+            self.embed_options[""supports_overriding_dimensions""] = True
+```",https://github.com/Eventual-Inc/Daft/pull/6426#discussion_r2964067890,,2026-03-20T05:35:01.221000,User-specified dimensions silently ignored causing schema mismatch,logic,high,8,"This catches a meaningful logic bug where user-specified dimensions for unknown models are silently dropped, causing the schema to report one shape while the API returns a different shape - leading to a runtime mismatch. The analysis is thorough and identifies the exact code path causing the issue.",2026-03-25T22:20:31.098854+00:00
