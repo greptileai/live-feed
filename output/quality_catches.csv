@@ -22327,3 +22327,12 @@ def get_worker_status(self) -> dict[str, bool]:
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/onyx-dot-app/onyx/pull/9633#discussion_r2990828844,,2026-03-25T20:21:37.419000,Memory leak from dead workers never evicted from tracking dict,resource_leak,high,8,"Comment 7 identifies a significant data integrity and resource leak issue where crashed workers (SIGKILL, OOM) that never send worker-offline events will accumulate indefinitely in _worker_last_seen, causing unbounded memory growth and stale Prometheus metrics in production environments with worker churn.",2026-03-26T04:56:11.818662+00:00
+gptme/gptme,1841,feat(gh): add gh search issues and gh search prs commands,https://github.com/gptme/gptme/pull/1841,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **`labels` null crash when API returns null**
+
+If the GitHub API returns `null` for the `labels` field (which can happen in some edge cases), `issue.get(""labels"", [])` will return `None` (because the key exists with a null value), and iterating over `None` raises `TypeError`.
+
+The same issue is present in `search_github_prs` at the equivalent line (1225).
+
+```suggestion
+            labels_list = [lbl.get(""name"", """") for lbl in (issue.get(""labels"") or [])]
+```",https://github.com/gptme/gptme/pull/1841#discussion_r2993064281,"Fixed before this review in a23c610. The search helpers now treat `labels: null` as an empty list, and the PR includes regression coverage for the null-label case.",2026-03-26T07:48:47.882000,Null labels field causes TypeError crash when iterating,null,high,8,"This catches a real runtime crash where GitHub API can return null for the labels field, causing iteration over None to raise TypeError. This is a meaningful production bug that would affect users when certain edge-case API responses are received.",2026-03-26T10:30:18.680007+00:00
