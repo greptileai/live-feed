@@ -22035,3 +22035,126 @@ def __post_init__(self) -> None:
         if ""supports_overriding_dimensions"" not in self.embed_options:
             self.embed_options[""supports_overriding_dimensions""] = True
 ```",https://github.com/Eventual-Inc/Daft/pull/6426#discussion_r2964067890,,2026-03-20T05:35:01.221000,User-specified dimensions silently ignored causing schema mismatch,logic,high,8,"This catches a meaningful logic bug where user-specified dimensions for unknown models are silently dropped, causing the schema to report one shape while the API returns a different shape - leading to a runtime mismatch. The analysis is thorough and identifies the exact code path causing the issue.",2026-03-25T22:20:31.098854+00:00
+eventual-inc/daft,6454,chore: Collection of random Swordfish cleanups,https://github.com/Eventual-Inc/Daft/pull/6454,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Row-count logic uses chunk count instead of row count**
+
+`all_results` changed type from `MicroPartitionRef` to `Vec<MicroPartition>`, so `all_results.len()` now returns the number of MicroPartition **chunks** in the vec rather than the number of **rows**. This silently breaks the `TOTAL_ROWS` cap:
+
+- `num_rows = all_results.len()` → always starts at 1 (the initial empty partition) and increments per result chunk, not per row.
+- `result.head(TOTAL_ROWS - num_rows)` uses the chunk count as a row offset, so successive calls take `head(9)`, `head(8)`, ... `head(1)` — accumulating up to 45 rows in the dashboard preview instead of the intended 10.
+
+The same problem applies to the `debug_assert!(results.len() <= TOTAL_ROWS)` in `on_query_end`, which now asserts the chunk count rather than the row count.
+
+A correct approach would compute the total row count across the accumulated partitions before comparing to `TOTAL_ROWS`:
+
+```rust
+let num_rows: usize = all_results.iter().map(|mp| mp.len()).sum();
+if num_rows < TOTAL_ROWS && !result.is_empty() {
+    let result = result.head(TOTAL_ROWS - num_rows)?;
+    all_results.push(result);
+}
+```
+And fix the assertion:
+```rust
+debug_assert!(results.iter().map(|mp| mp.len()).sum::<usize>() <= TOTAL_ROWS);
+```
+",https://github.com/Eventual-Inc/Daft/pull/6454#discussion_r2985417219,,2026-03-25T02:49:03.941000,Row count logic broken after type change to Vec,logic,high,8,"This is a genuine logic bug where changing the type from MicroPartitionRef to Vec<MicroPartition> caused .len() to return chunk count instead of row count, breaking the TOTAL_ROWS cap and allowing up to 45 rows instead of the intended 10. The comment correctly identifies the root cause and provides a proper fix.",2026-03-26T00:52:47.268867+00:00
+stack-auth/stack-auth,1262,team member and team invite clickhouse tables,https://github.com/stack-auth/stack-auth/pull/1262,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Non-transactional deletion risks data inconsistency**
+
+`recordExternalDbSyncDeletion` and `verificationCode.delete` are two separate round-trips to the database with no wrapping transaction. If the `verificationCode.delete` call fails (network hiccup, concurrent deletion, etc.) after the `DeletedRow` record has already been inserted, the sync will propagate a deletion event to the external DB — but the `VerificationCode` still exists in Postgres.
+
+On the next sequencer cycle the row is already marked `shouldUpdateSequenceId = FALSE`, so it won't be picked up again. The external DB will permanently show the invitation as deleted while the source record still exists. Every other deletion helper in this PR (`permissions.tsx`, `crud.tsx` files) correctly runs inside the caller's `tx`. Consider wrapping these two steps in a transaction:
+
+```typescript
+await globalPrismaClient.$transaction(async (tx) => {
+  if (options.type === 'TEAM_INVITATION') {
+    await recordExternalDbSyncDeletion(tx, {
+      tableName: ""VerificationCode_TEAM_INVITATION"",
+      tenancyId: tenancy.id,
+      verificationCodeProjectId: project.id,
+      verificationCodeBranchId: branchId,
+      verificationCodeId: revokeOptions.id,
+    });
+  }
+
+  await tx.verificationCode.delete({
+    where: {
+      projectId_branchId_id: {
+        projectId: project.id,
+        branchId,
+        id: revokeOptions.id,
+      },
+    },
+  });
+});
+```",https://github.com/stack-auth/stack-auth/pull/1262#discussion_r2949492929,,2026-03-17T20:50:01.227000,Non-transactional deletion causes data sync inconsistency,data_integrity,high,8,"This catches a real race condition where if the second database operation fails after the first succeeds, the external DB will permanently show deleted data while Postgres still has the record. The comment correctly identifies the specific failure mode and notes that other similar code in the PR correctly uses transactions, making this an inconsistency that would cause production data integrity issues.",2026-03-26T00:52:47.268867+00:00
+onyx-dot-app/onyx,9623,feat(opal): add Text component with inline markdown support,https://github.com/onyx-dot-app/onyx/pull/9623,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **`javascript:` URLs not sanitized in link renderer**
+
+The custom `a` renderer forwards the parsed `href` directly to the DOM `<a>` element without any protocol validation. `react-markdown` does **not** strip unsafe protocols by default — `rehype-sanitize` must be added explicitly to get that protection. This means a markdown string like `[click me](javascript:alert(1))` will render a live XSS payload when the user clicks it.
+
+The risk is real even though the docs advise `preventMarkdown` for user-generated content: since markdown is on by default, any code path that forgets the opt-out will be vulnerable.
+
+Add a protocol guard before forwarding the href:
+
+```suggestion
+  a: ({ children, href }: { children?: React.ReactNode; href?: string }) => {
+    const safeSrc =
+      href && /^https?:|^mailto:|^tel:/i.test(href) ? href : undefined;
+    return (
+      <a
+        href={safeSrc}
+        className=""underline underline-offset-2""
+        target=""_blank""
+        rel=""noopener noreferrer""
+      >
+        {children}
+      </a>
+    );
+  },
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: web/lib/opal/src/components/text/InlineMarkdown.tsx
+Line: 9-18
+
+Comment:
+**`javascript:` URLs not sanitized in link renderer**
+
+The custom `a` renderer forwards the parsed `href` directly to the DOM `<a>` element without any protocol validation. `react-markdown` does **not** strip unsafe protocols by default — `rehype-sanitize` must be added explicitly to get that protection. This means a markdown string like `[click me](javascript:alert(1))` will render a live XSS payload when the user clicks it.
+
+The risk is real even though the docs advise `preventMarkdown` for user-generated content: since markdown is on by default, any code path that forgets the opt-out will be vulnerable.
+
+Add a protocol guard before forwarding the href:
+
+```suggestion
+  a: ({ children, href }: { children?: React.ReactNode; href?: string }) => {
+    const safeSrc =
+      href && /^https?:|^mailto:|^tel:/i.test(href) ? href : undefined;
+    return (
+      <a
+        href={safeSrc}
+        className=""underline underline-offset-2""
+        target=""_blank""
+        rel=""noopener noreferrer""
+      >
+        {children}
+      </a>
+    );
+  },
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/9623#discussion_r2990073990,"Fixed in 0d11e6a90. Added protocol allowlist (http, https, mailto, tel) — unsafe protocols like javascript: are now stripped.",2026-03-25T18:06:28.978000,XSS vulnerability via unsanitized javascript: URLs in markdown links,security,critical,9,"This catches a real XSS vulnerability where markdown links with javascript: protocol would execute arbitrary code when clicked. The react-markdown library doesn't sanitize protocols by default, so [click me](javascript:alert(1)) would render a live XSS payload. This is a critical security issue that could lead to data theft or session hijacking.",2026-03-26T00:52:47.268867+00:00
+simstudioai/sim,3766,feat(ui): add request a demo modal,https://github.com/simstudioai/sim/pull/3766,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Unsanitized user input in email subject header**
+
+`firstName` and `lastName` are only validated with `.trim()` and `.max(100)` — neither prevents embedded newlines (`\r\n`). Placing them directly in the `subject` header introduces a potential email header injection vector. For example, a `firstName` of `foo\r\nBcc: attacker@evil.com` would inject an extra header if the underlying mail library does not strip control characters.
+
+Consider stripping newlines from both values before constructing the subject, or adding a `.regex(/^[^\r\n]*$/)` constraint to the schema:
+
+```typescript
+firstName: z.string().trim().min(1, 'First name is required').max(100).regex(/^[^\r\n]*$/, 'Invalid characters'),
+lastName: z.string().trim().min(1, 'Last name is required').max(100).regex(/^[^\r\n]*$/, 'Invalid characters'),
+```",https://github.com/simstudioai/sim/pull/3766#discussion_r2990653499,,2026-03-25T19:47:59.443000,Email header injection vulnerability via unsanitized user input,security,high,8,"This catches a real security vulnerability where user-controlled firstName/lastName values containing newlines could inject additional email headers (like Bcc), potentially allowing attackers to hijack email delivery. This is a classic email header injection attack that could have real security implications.",2026-03-26T00:52:47.268867+00:00
