@@ -22260,3 +22260,70 @@ then call `_parse_canvas_datetime(page.updated_at)` in all three conversion meth
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/onyx-dot-app/onyx/pull/9389#discussion_r2944221127,,2026-03-17T03:58:54.284000,datetime.fromisoformat fails on Python 3.10 with Z suffix,runtime,high,8,"This catches a real runtime bug where datetime.fromisoformat() with 'Z' suffix only works on Python 3.11+. Since Canvas API returns timestamps in this format, every page indexing call would crash with ValueError on Python 3.10 deployments, causing complete connector failure.",2026-03-26T03:15:57.807451+00:00
+onyx-dot-app/onyx,9633,fix(metrics): replace inspect.ping() with event-based worker health monitoring,https://github.com/onyx-dot-app/onyx/pull/9633,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Dead workers accumulate forever in `_worker_last_seen`**
+
+The old `WorkerHealthCollector` had an explicit eviction policy (`_MAX_CONSECUTIVE_MISSES = 10`, ~10 minutes) so that workers that crash without sending `worker-offline` were eventually cleaned up. The new implementation removes this eviction entirely.
+
+Workers are only removed from `_worker_last_seen` via `_on_offline`. If a worker crashes (SIGKILL, OOM, host lost), no `worker-offline` event is ever emitted. Those entries will persist in the dict indefinitely, always returning `alive=False`. In environments that regularly restart or scale workers, `_worker_last_seen` will grow without bound over time and the `worker_up` Prometheus metric will accumulate stale series (always `0`) for every worker pod/container that has ever existed.
+
+The old 10-minute window was a reasonable eviction heuristic. Consider adding a maximum staleness eviction in `get_worker_status()` or in a periodic cleanup call:
+
+```python
+_EVICTION_TIMEOUT_SECONDS = 600.0  # 10 min — matches old _MAX_CONSECUTIVE_MISSES
+
+def get_worker_status(self) -> dict[str, bool]:
+    now = time.monotonic()
+    with self._lock:
+        # Evict workers not seen for a long time
+        stale = [h for h, t in self._worker_last_seen.items()
+                 if now - t > self._EVICTION_TIMEOUT_SECONDS]
+        for h in stale:
+            del self._worker_last_seen[h]
+
+        result: dict[str, bool] = {}
+        for hostname, last_seen in self._worker_last_seen.items():
+            short_name = hostname.split(""@"")[0]
+            alive = (now - last_seen) < self._HEARTBEAT_TIMEOUT_SECONDS
+            result[short_name] = alive
+        return result
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: backend/onyx/server/metrics/indexing_pipeline.py
+Line: 514-526
+
+Comment:
+**Dead workers accumulate forever in `_worker_last_seen`**
+
+The old `WorkerHealthCollector` had an explicit eviction policy (`_MAX_CONSECUTIVE_MISSES = 10`, ~10 minutes) so that workers that crash without sending `worker-offline` were eventually cleaned up. The new implementation removes this eviction entirely.
+
+Workers are only removed from `_worker_last_seen` via `_on_offline`. If a worker crashes (SIGKILL, OOM, host lost), no `worker-offline` event is ever emitted. Those entries will persist in the dict indefinitely, always returning `alive=False`. In environments that regularly restart or scale workers, `_worker_last_seen` will grow without bound over time and the `worker_up` Prometheus metric will accumulate stale series (always `0`) for every worker pod/container that has ever existed.
+
+The old 10-minute window was a reasonable eviction heuristic. Consider adding a maximum staleness eviction in `get_worker_status()` or in a periodic cleanup call:
+
+```python
+_EVICTION_TIMEOUT_SECONDS = 600.0  # 10 min — matches old _MAX_CONSECUTIVE_MISSES
+
+def get_worker_status(self) -> dict[str, bool]:
+    now = time.monotonic()
+    with self._lock:
+        # Evict workers not seen for a long time
+        stale = [h for h, t in self._worker_last_seen.items()
+                 if now - t > self._EVICTION_TIMEOUT_SECONDS]
+        for h in stale:
+            del self._worker_last_seen[h]
+
+        result: dict[str, bool] = {}
+        for hostname, last_seen in self._worker_last_seen.items():
+            short_name = hostname.split(""@"")[0]
+            alive = (now - last_seen) < self._HEARTBEAT_TIMEOUT_SECONDS
+            result[short_name] = alive
+        return result
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/9633#discussion_r2990828844,,2026-03-25T20:21:37.419000,Memory leak from dead workers never evicted from tracking dict,resource_leak,high,8,"Comment 7 identifies a significant data integrity and resource leak issue where crashed workers (SIGKILL, OOM) that never send worker-offline events will accumulate indefinitely in _worker_last_seen, causing unbounded memory growth and stale Prometheus metrics in production environments with worker churn.",2026-03-26T04:56:11.818662+00:00
