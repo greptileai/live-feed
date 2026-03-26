@@ -22336,3 +22336,65 @@ The same issue is present in `search_github_prs` at the equivalent line (1225).
 ```suggestion
             labels_list = [lbl.get(""name"", """") for lbl in (issue.get(""labels"") or [])]
 ```",https://github.com/gptme/gptme/pull/1841#discussion_r2993064281,"Fixed before this review in a23c610. The search helpers now treat `labels: null` as an empty list, and the PR includes regression coverage for the null-label case.",2026-03-26T07:48:47.882000,Null labels field causes TypeError crash when iterating,null,high,8,"This catches a real runtime crash where GitHub API can return null for the labels field, causing iteration over None to raise TypeError. This is a meaningful production bug that would affect users when certain edge-case API responses are received.",2026-03-26T10:30:18.680007+00:00
+raycast/extensions,26264,Add browser-profile-launcher extension,https://github.com/raycast/extensions/pull/26264,"**Shell injection via `profileDirectory`**
+
+`execAsync` runs the command through `/bin/sh`, so any shell metacharacters in `profileDirectory` (e.g., `""`, `;`, `&&`, `$()`) will be interpreted by the shell. `profileDirectory` originates from `context.profileDirectory` (a deeplink launch context), meaning a maliciously-crafted quicklink URL could inject arbitrary shell commands.
+
+For example, if `profileDirectory` were `foo"" && touch /tmp/pwned #`, the resulting shell command would be:
+```
+open -a ""Google Chrome"" --args --profile-directory=""foo"" && touch /tmp/pwned #""
+```
+
+Use `execFile` with a properly separated argument list to avoid shell interpretation entirely:
+```typescript
+import { execFile } from ""child_process"";
+const execFileAsync = promisify(execFile);
+
+// replace both occurrences (lines ~62-64 and ~73-75) with:
+await execFileAsync(""open"", [""-a"", browserName, ""--args"", `--profile-directory=${profileDirectory}`]);
+```
+
+The same issue applies to the second `execAsync` call at line 73.",https://github.com/raycast/extensions/pull/26264#discussion_r2928569192,,2026-03-13T02:10:26.783000,Shell injection vulnerability via user-controlled profileDirectory parameter,security,high,8,Comment 5 identifies a shell injection vulnerability where profileDirectory originates from deeplink launch context (user-controllable input) and is passed through exec() which uses shell interpretation. A malicious quicklink URL could inject arbitrary shell commands. This is a real security vulnerability with a clear exploitation path.,2026-03-26T12:34:28.262316+00:00
+posthog/posthog,52254,fix(replay): fall back to unhashed js when hashed CDN asset is missing,https://github.com/PostHog/posthog/pull/52254,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Fallback fires for chunk failures, not just the hashed entry file**
+
+`ESBUILD_LOAD_SCRIPT` is called for both the main entry file (`jsFile`, e.g. `index-HASH.js`) and for every chunk loaded by `ESBUILD_LOAD_CHUNKS` (e.g. `chunk-HASH.js`). With the current guard condition `file !== jsFileFallback`, any failed chunk load will also trigger the fallback and import `index.js` again.
+
+That's not what this fix intends — reloading the entire app bundle in response to a missing chunk doesn't fix the missing chunk, and could interfere with the already-bootstrapped application (even if the module cache prevents double-execution, it re-initialises the `index.js` module as a side-effect of a completely different file failing).
+
+The condition should be narrowed to only trigger when the *hashed entry file* itself fails:
+
+```suggestion
+                if (file === ${JSON.stringify(jsFile)} && file !== ${JSON.stringify(jsFileFallback)}) {
+                    await import((window.JS_URL || '') + '/static/' + ${JSON.stringify(jsFileFallback)})
+                }
+```
+
+This way the fallback is a no-op in dev mode (where `jsFile` already equals `jsFileFallback`) and only fires when the specific hashed entrypoint that was originally requested fails — which is exactly the scenario described in the PR.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: common/esbuilder/utils.mjs
+Line: 93-95
+
+Comment:
+**Fallback fires for chunk failures, not just the hashed entry file**
+
+`ESBUILD_LOAD_SCRIPT` is called for both the main entry file (`jsFile`, e.g. `index-HASH.js`) and for every chunk loaded by `ESBUILD_LOAD_CHUNKS` (e.g. `chunk-HASH.js`). With the current guard condition `file !== jsFileFallback`, any failed chunk load will also trigger the fallback and import `index.js` again.
+
+That's not what this fix intends — reloading the entire app bundle in response to a missing chunk doesn't fix the missing chunk, and could interfere with the already-bootstrapped application (even if the module cache prevents double-execution, it re-initialises the `index.js` module as a side-effect of a completely different file failing).
+
+The condition should be narrowed to only trigger when the *hashed entry file* itself fails:
+
+```suggestion
+                if (file === ${JSON.stringify(jsFile)} && file !== ${JSON.stringify(jsFileFallback)}) {
+                    await import((window.JS_URL || '') + '/static/' + ${JSON.stringify(jsFileFallback)})
+                }
+```
+
+This way the fallback is a no-op in dev mode (where `jsFile` already equals `jsFileFallback`) and only fires when the specific hashed entrypoint that was originally requested fails — which is exactly the scenario described in the PR.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/52254#discussion_r2988308737,,2026-03-25T13:39:19.724000,"Fallback logic incorrectly triggers for chunk failures, not just entry file",logic,high,8,"This is a meaningful logic bug where the fallback mechanism would incorrectly fire for any chunk failure, potentially re-initializing the entire application bundle when only a specific chunk fails. This could cause production issues with already-bootstrapped applications. The catch requires understanding of the esbuild loading mechanism and how chunks vs entry files work, making it non-obvious.",2026-03-26T12:34:28.262316+00:00
