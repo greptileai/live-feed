@@ -22528,3 +22528,95 @@ if (!resource || !resource.encryptedRotationAccountCredentials) {
 ```
 
 Apply the same pattern to the `if (!rotationAccountCredentials) return;` guard on line 1135.",https://github.com/Infisical/infisical/pull/5694#discussion_r2963095765,,2026-03-19T22:43:18.260000,Rotation lock acquired but never released on early returns,concurrency,critical,9,"This catch identifies a critical bug where acquiring the 'rotating' status lock and then returning early without resetting it permanently deadlocks the account from future rotations. Both automated rotation queries and manual rotation attempts will reject the account forever, with no recovery path.",2026-03-26T18:32:52.761495+00:00
+posthog/posthog,52215,fix: improve early access features site app rendering,https://github.com/PostHog/posthog/pull/52215,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **`escapeHTML` doesn't encode single quotes — attribute injection still possible**
+
+The `escapeHTML` function works by appending a text node and reading `innerHTML`. Per the HTML spec, only `&`, `<`, and `>` are encoded in text-node serialisation — single quotes (`'`) are left as-is. Because the `data-name` attribute is delimited by single quotes, a feature name containing `'` breaks the attribute boundary.
+
+A concrete exploit: if an admin names a feature `' onclick='alert(document.cookie)`, the emitted HTML becomes:
+```html
+<div class='list-item' data-name='' onclick='alert(document.cookie)'>
+```
+
+This executes as soon as the element is clicked. The body content usages (`list-item-name`, `list-item-description`) are safe because they sit inside element text nodes, not inside attribute values.
+
+Fix options:
+1. Switch `data-name` to double-quote delimiters (since `escapeHTML` via the DOM approach *does* encode `""` as `&quot;` in attribute serialisation when you use `setAttribute`).
+2. Extend `escapeHTML` to also replace `'` with `&#39;` after the DOM encoding step.
+3. Use `element.setAttribute('data-name', item.name)` in a post-processing step instead of string interpolation.
+
+```suggestion
+                        <div class='list-item' data-name=""${escapeHTML(item.name)}"">
+```
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: posthog/cdp/templates/_siteapps/template_early_access_features.py
+Line: 377
+
+Comment:
+**`escapeHTML` doesn't encode single quotes — attribute injection still possible**
+
+The `escapeHTML` function works by appending a text node and reading `innerHTML`. Per the HTML spec, only `&`, `<`, and `>` are encoded in text-node serialisation — single quotes (`'`) are left as-is. Because the `data-name` attribute is delimited by single quotes, a feature name containing `'` breaks the attribute boundary.
+
+A concrete exploit: if an admin names a feature `' onclick='alert(document.cookie)`, the emitted HTML becomes:
+```html
+<div class='list-item' data-name='' onclick='alert(document.cookie)'>
+```
+
+This executes as soon as the element is clicked. The body content usages (`list-item-name`, `list-item-description`) are safe because they sit inside element text nodes, not inside attribute values.
+
+Fix options:
+1. Switch `data-name` to double-quote delimiters (since `escapeHTML` via the DOM approach *does* encode `""` as `&quot;` in attribute serialisation when you use `setAttribute`).
+2. Extend `escapeHTML` to also replace `'` with `&#39;` after the DOM encoding step.
+3. Use `element.setAttribute('data-name', item.name)` in a post-processing step instead of string interpolation.
+
+```suggestion
+                        <div class='list-item' data-name=""${escapeHTML(item.name)}"">
+```
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/PostHog/posthog/pull/52215#discussion_r2986075370,,2026-03-25T06:23:09.437000,XSS vulnerability via single quote attribute injection in escapeHTML,security,critical,9,"Comment 1 identifies a critical XSS vulnerability where the escapeHTML function fails to encode single quotes, allowing attribute injection attacks. A malicious feature name like `' onclick='alert(document.cookie)` would execute arbitrary JavaScript when clicked. This is a real security bug with a concrete exploit path.",2026-03-26T20:19:12.292670+00:00
+onyx-dot-app/onyx,9678,fix(api-key): clarify upgrade message for trial accounts,https://github.com/onyx-dot-app/onyx/pull/9678,"<a href=""#""><img alt=""P0"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p0.svg?v=7"" align=""top""></a> **Mock/screenshot value left in production**
+
+`canCreateKeys` is hardcoded to `false` with an explicit ""MOCK: hardcoded for screenshot"" comment. This means **no user — including paid subscribers — can create or view API keys**. The entire existing-keys table at line 160 (`{canCreateKeys && ...}`) is also gated on this variable, so all existing API keys are hidden too.
+
+The `useCloudSubscription` hook is still imported but is now dead code.
+
+```suggestion
+  const canCreateKeys = useCloudSubscription();
+```
+
+**Rule Used:** Remove temporary debugging code before merging to ... ([source](https://app.greptile.com/review/custom-context?memory=b39fa59b-2568-4dd3-9576-83b46251a7b8))
+
+**Learnt From**
+[onyx-dot-app/onyx#4792](https://github.com/onyx-dot-app/onyx/pull/4792)
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: web/src/app/admin/api-key/page.tsx
+Line: 49
+
+Comment:
+**Mock/screenshot value left in production**
+
+`canCreateKeys` is hardcoded to `false` with an explicit ""MOCK: hardcoded for screenshot"" comment. This means **no user — including paid subscribers — can create or view API keys**. The entire existing-keys table at line 160 (`{canCreateKeys && ...}`) is also gated on this variable, so all existing API keys are hidden too.
+
+The `useCloudSubscription` hook is still imported but is now dead code.
+
+```suggestion
+  const canCreateKeys = useCloudSubscription();
+```
+
+**Rule Used:** Remove temporary debugging code before merging to ... ([source](https://app.greptile.com/review/custom-context?memory=b39fa59b-2568-4dd3-9576-83b46251a7b8))
+
+**Learnt From**
+[onyx-dot-app/onyx#4792](https://github.com/onyx-dot-app/onyx/pull/4792)
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/9678#discussion_r2996758165,,2026-03-26T18:04:08.134000,Mock/debug code blocks all users from creating API keys,logic,high,8,"Comment 1 catches a critical production bug where hardcoded mock values would completely disable API key creation and viewing for all users, including paid subscribers. This would cause significant user-facing functionality to break in production.",2026-03-26T20:19:12.292670+00:00
