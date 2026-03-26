@@ -22158,3 +22158,105 @@ Consider stripping newlines from both values before constructing the subject, or
 firstName: z.string().trim().min(1, 'First name is required').max(100).regex(/^[^\r\n]*$/, 'Invalid characters'),
 lastName: z.string().trim().min(1, 'Last name is required').max(100).regex(/^[^\r\n]*$/, 'Invalid characters'),
 ```",https://github.com/simstudioai/sim/pull/3766#discussion_r2990653499,,2026-03-25T19:47:59.443000,Email header injection vulnerability via unsanitized user input,security,high,8,"This catches a real security vulnerability where user-controlled firstName/lastName values containing newlines could inject additional email headers (like Bcc), potentially allowing attackers to hijack email delivery. This is a classic email header injection attack that could have real security implications.",2026-03-26T00:52:47.268867+00:00
+simstudioai/sim,3777,"feat(misc): skills import, MCP modal, workmark, dispatch modals, collapsed tasks and workflows manipulation, README",https://github.com/simstudioai/sim/pull/3777,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **`saveRename` has no concurrent-invocation guard**
+
+`saveRename` is designed to be called on both `Enter` (via `handleKeyDown`) and `blur`. When the user presses Enter, `handleKeyDown` calls `void saveRename()`, which immediately sets `isSaving = true` and then awaits `onSave(...)`. Because React state updates are asynchronous, the input may not be disabled (and thus re-renders have not propagated) before the browser fires a `blur` event as focus moves away. That second `blur` call will invoke `saveRename` again — at that point `cancelRequestedRef.current` is still `false`, `editingTarget` is still set (the `setEditingTarget(null)` from the first call hasn't committed yet), and `value` is still the edited value — so `onSave` is called a second time.
+
+Adding a ref-based in-progress flag avoids the race:
+
+```ts
+const isSavingRef = useRef(false)
+
+const saveRename = useCallback(async () => {
+  if (cancelRequestedRef.current) {
+    cancelRequestedRef.current = false
+    return
+  }
+  if (!editingTarget || isSavingRef.current) return   // ← add this guard
+
+  const trimmedValue = value.trim()
+  if (!trimmedValue || trimmedValue === editingTarget.name) {
+    setEditingTarget(null)
+    return
+  }
+
+  isSavingRef.current = true
+  setIsSaving(true)
+  try {
+    await onSave(editingTarget.id, trimmedValue)
+    setEditingTarget(null)
+  } catch (error) {
+    // ...
+  } finally {
+    isSavingRef.current = false
+    setIsSaving(false)
+  }
+}, [editingTarget, itemType, onSave, value])
+```",https://github.com/simstudioai/sim/pull/3777#discussion_r2992146360,"Fixed. Added `isSavingRef = useRef(false)` as a synchronous in-progress guard. `saveRename` now returns early if `isSavingRef.current` is already `true`, and sets/clears it around the `onSave` call. Unlike the `isSaving` state, the ref update is synchronous so any concurrent blur-triggered invocation is blocked before it can reach `onSave`.",2026-03-26T02:46:01.565000,Race condition allows duplicate save calls on Enter+blur,concurrency,medium,8,"This catches a real race condition where pressing Enter triggers saveRename, but the async state update hasn't propagated before blur fires, causing onSave to be called twice. This is a meaningful concurrency bug that could cause duplicate API calls and potential data issues in production.",2026-03-26T03:15:57.807451+00:00
+eventual-inc/daft,6492,feat: async data sources and tasks,https://github.com/Eventual-Inc/Daft/pull/6492,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **`inspect.isasyncgen` does not detect `async def` coroutines that *return* an `AsyncIterator`**
+
+`inspect.isasyncgen(result)` returns `True` only when `get_tasks` is an **async generator function** (i.e., contains a `yield`). It returns `False` for a regular `async def` that returns an `AsyncIterator` without any `yield` at its top level:
+
+```python
+# This is a regular coroutine, NOT an async generator
+async def get_tasks(self, pushdowns):
+    return some_pre_built_async_iterator()
+```
+
+In that case `result` is a coroutine object; `inspect.isasyncgen(result)` is `False`, so the code falls into the `else` branch, emits a misleading deprecation warning (`""Sync get_tasks() is deprecated""`), and then `yield from result` raises `TypeError: 'coroutine' object is not iterable` at runtime.
+
+A defensive guard against this case would be:
+
+```python
+if inspect.isasyncgen(result):
+    yield from _drain_async_iter(result)
+elif inspect.iscoroutine(result):
+    raise TypeError(
+        f""{type(self._source).__name__}.get_tasks() must be an async generator ""
+        ""(use 'async def ... yield ...' rather than returning an AsyncIterator).""
+    )
+else:
+    # legacy sync path
+    ...
+```",https://github.com/Eventual-Inc/Daft/pull/6492#discussion_r2991432624,,2026-03-25T22:27:35.814000,inspect.isasyncgen fails to detect coroutines returning AsyncIterator,runtime,high,8,"This catches a real runtime bug where `inspect.isasyncgen()` returns False for async functions that return an AsyncIterator (rather than using yield), causing a TypeError at runtime when the code attempts `yield from` on a coroutine object. This is a meaningful logic bug that would cause production failures for users implementing the DataSource interface in a valid but unexpected way.",2026-03-26T03:15:57.807451+00:00
+onyx-dot-app/onyx,9389,Feat/canvas 5 tests core,https://github.com/onyx-dot-app/onyx/pull/9389,"<a href=""#""><img alt=""P2"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p2.svg?v=7"" align=""top""></a> **`datetime.fromisoformat` with `Z` suffix requires Python 3.11+**
+
+`datetime.fromisoformat` only recognises `Z` as a UTC designator on Python 3.11+. On Python 3.10 the call below raises `ValueError: Invalid isoformat string: '2025-06-01T12:00:00Z'`. The Canvas REST API returns timestamps in this exact format, so on any Python 3.10 deployment (or CI runner) every page indexing call will crash.
+
+The same pattern is repeated for assignments (`updated_at`, line 341) and announcements (`posted_at`, line 365).
+
+A backwards-compatible fix is to replace the suffix before parsing:
+
+```python
+def _parse_canvas_datetime(ts: str) -> datetime:
+    return datetime.fromisoformat(ts.replace(""Z"", ""+00:00"")).astimezone(timezone.utc)
+```
+
+then call `_parse_canvas_datetime(page.updated_at)` in all three conversion methods. The same fix is needed in the corresponding test mocks (`test_canvas_connector.py` lines 74, 97, 108) so the test assertions still hold on Python 3.10.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: backend/onyx/connectors/canvas/connector.py
+Line: 314-317
+
+Comment:
+**`datetime.fromisoformat` with `Z` suffix requires Python 3.11+**
+
+`datetime.fromisoformat` only recognises `Z` as a UTC designator on Python 3.11+. On Python 3.10 the call below raises `ValueError: Invalid isoformat string: '2025-06-01T12:00:00Z'`. The Canvas REST API returns timestamps in this exact format, so on any Python 3.10 deployment (or CI runner) every page indexing call will crash.
+
+The same pattern is repeated for assignments (`updated_at`, line 341) and announcements (`posted_at`, line 365).
+
+A backwards-compatible fix is to replace the suffix before parsing:
+
+```python
+def _parse_canvas_datetime(ts: str) -> datetime:
+    return datetime.fromisoformat(ts.replace(""Z"", ""+00:00"")).astimezone(timezone.utc)
+```
+
+then call `_parse_canvas_datetime(page.updated_at)` in all three conversion methods. The same fix is needed in the corresponding test mocks (`test_canvas_connector.py` lines 74, 97, 108) so the test assertions still hold on Python 3.10.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/9389#discussion_r2944221127,,2026-03-17T03:58:54.284000,datetime.fromisoformat fails on Python 3.10 with Z suffix,runtime,high,8,"This catches a real runtime bug where datetime.fromisoformat() with 'Z' suffix only works on Python 3.11+. Since Canvas API returns timestamps in this format, every page indexing call would crash with ValueError on Python 3.10 deployments, causing complete connector failure.",2026-03-26T03:15:57.807451+00:00
