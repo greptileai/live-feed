@@ -22479,3 +22479,52 @@ This also eliminates the redundant triple call to `urlparse(url)` — the curren
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/onyx-dot-app/onyx/pull/9385#discussion_r2949824701,,2026-03-17T22:14:57.394000,Pagination URL missing HTTPS validation allows bearer token leak,security,high,8,"Comment 22 identifies a security vulnerability where `_parse_next_link` validates the hostname but not the scheme of pagination URLs. A malicious or misconfigured Canvas server could return an HTTP pagination link, causing the bearer token to be transmitted in plaintext. This is a real security issue that could lead to credential exposure.",2026-03-26T16:36:25.131511+00:00
+onyx-dot-app/onyx,9645,feat(hook): Hook connect/manage modal,https://github.com/onyx-dot-app/onyx/pull/9645,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Placeholder message contradicts actual submit behavior for the API key field**
+
+`buildInitialState` populates the API key form field with `hook.api_key_masked` as the field **value**, not as placeholder text. Because the field starts non-empty, the placeholder string `""Leave blank to keep current key""` only becomes visible after the user clears the pre-filled string.
+
+At that point the submit path sends `null` to the backend, which **removes** the key — the exact opposite of what the placeholder promises. A user who clears the field to type a new value, then changes their mind and leaves it empty, will silently delete their existing key.
+
+The PR description says the intent is ""left blank = keep current key"". That intent requires the field to start **empty** and display the partially-masked representation only as the placeholder attribute. In `handleSubmit`, the key update should be omitted when the field is empty, so a blank submission genuinely keeps the existing key on the backend.
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: web/src/refresh-pages/admin/HooksPage/HookFormModal.tsx
+Line: 83
+
+Comment:
+**Placeholder message contradicts actual submit behavior for the API key field**
+
+`buildInitialState` populates the API key form field with `hook.api_key_masked` as the field **value**, not as placeholder text. Because the field starts non-empty, the placeholder string `""Leave blank to keep current key""` only becomes visible after the user clears the pre-filled string.
+
+At that point the submit path sends `null` to the backend, which **removes** the key — the exact opposite of what the placeholder promises. A user who clears the field to type a new value, then changes their mind and leaves it empty, will silently delete their existing key.
+
+The PR description says the intent is ""left blank = keep current key"". That intent requires the field to start **empty** and display the partially-masked representation only as the placeholder attribute. In `handleSubmit`, the key update should be omitted when the field is empty, so a blank submission genuinely keeps the existing key on the backend.
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/9645#discussion_r2991335030,"The field now starts empty with the masked value shown as placeholder. We track an apiKeyCleared boolean: if the user had a key and clears the field, we send api_key: null to remove it; if the field is left untouched (empty, never modified), we omit api_key from the PATCH entirely so the existing key is preserved. New value typed → sends the new key. All three cases handled.",2026-03-25T22:02:09.439000,API key field behavior contradicts placeholder text causing silent data deletion,logic,high,8,"This catches a meaningful logic bug where the UI behavior contradicts user expectations - clearing the API key field to type a new value then leaving it blank would silently delete the existing key, opposite of what the placeholder promises. This could cause production issues with users accidentally losing their API keys.",2026-03-26T18:32:52.761495+00:00
+infisical/infisical,5694,feat(pam): rotation revamp + windows rotation + pam ui changes,https://github.com/Infisical/infisical/pull/5694,"<a href=""#""><img alt=""P0"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p0.svg?v=7"" align=""top""></a> **Early returns after claiming rotation lock leave account permanently stuck**
+
+After `PamAccountRotationStatus.Rotating` is written to the DB (line 1119), lines 1127 and 1135 silently `return` without resetting the status. This happens if:
+- The resource record is missing (`findById` returns null)
+- `encryptedRotationAccountCredentials` was deleted from the resource
+- `decryptResource` returns no `rotationAccountCredentials`
+
+Because `findRotationCandidates` explicitly excludes accounts with `rotationStatus = 'rotating'`, and `triggerManualRotation` throws `BadRequestError` for them, the account will be permanently stuck with no automated recovery path.
+
+Fix these guard clauses by setting the status to `failed` before returning:
+
+```ts
+const resource = await pamResourceDAL.findById(account.resourceId);
+if (!resource || !resource.encryptedRotationAccountCredentials) {
+  await pamAccountDAL.updateById(account.id, {
+    rotationStatus: PamAccountRotationStatus.Failed
+  });
+  return;
+}
+```
+
+Apply the same pattern to the `if (!rotationAccountCredentials) return;` guard on line 1135.",https://github.com/Infisical/infisical/pull/5694#discussion_r2963095765,,2026-03-19T22:43:18.260000,Rotation lock acquired but never released on early returns,concurrency,critical,9,"This catch identifies a critical bug where acquiring the 'rotating' status lock and then returning early without resetting it permanently deadlocks the account from future rotations. Both automated rotation queries and manual rotation attempts will reject the account forever, with no recovery path.",2026-03-26T18:32:52.761495+00:00
