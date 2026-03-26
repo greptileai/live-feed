@@ -22398,3 +22398,84 @@ This way the fallback is a no-op in dev mode (where `jsFile` already equals `jsF
 How can I resolve this? If you propose a fix, please make it concise.
 `````
 </details>",https://github.com/PostHog/posthog/pull/52254#discussion_r2988308737,,2026-03-25T13:39:19.724000,"Fallback logic incorrectly triggers for chunk failures, not just entry file",logic,high,8,"This is a meaningful logic bug where the fallback mechanism would incorrectly fire for any chunk failure, potentially re-initializing the entire application bundle when only a specific chunk fails. This could cause production issues with already-bootstrapped applications. The catch requires understanding of the esbuild loading mechanism and how chunks vs entry files work, making it non-obvious.",2026-03-26T12:34:28.262316+00:00
+onyx-dot-app/onyx,9385,"feat(canvas): add API client, data models, and connector scaffold 1/6",https://github.com/onyx-dot-app/onyx/pull/9385,"<a href=""#""><img alt=""P1"" src=""https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7"" align=""top""></a> **Pagination URL scheme not validated — bearer token can leak over HTTP**
+
+`_parse_next_link` only checks that `urlparse(url).hostname` matches `expected_host`; it never checks that the scheme is still `https`. A misconfigured or adversarial Canvas server could return a `Link` header whose `rel=""next""` URL starts with `http://` and shares the same hostname. Because the hostname check would pass, the client would then issue an HTTP request to that URL with the `Authorization: Bearer <token>` header, transmitting the token in plaintext.
+
+This is especially relevant in SSRF scenarios or environments where TLS termination happens at a proxy that returns non-HTTPS pagination URLs.
+
+Add a scheme check alongside the hostname check:
+
+```suggestion
+        expected_host = urlparse(self.base_url).hostname
+        for match in _NEXT_LINK_PATTERN.finditer(link_header):
+            url = match.group(1)
+            parsed_url = urlparse(url)
+            if parsed_url.hostname != expected_host:
+                raise OnyxError(
+                    OnyxErrorCode.BAD_GATEWAY,
+                    detail=(
+                        ""Canvas pagination returned an unexpected host ""
+                        f""({parsed_url.hostname}); expected {expected_host}""
+                    ),
+                )
+            if parsed_url.scheme != ""https"":
+                raise OnyxError(
+                    OnyxErrorCode.BAD_GATEWAY,
+                    detail=(
+                        ""Canvas pagination link must use https, ""
+                        f""got {parsed_url.scheme!r}""
+                    ),
+                )
+            return url
+        return None
+```
+
+This also eliminates the redundant triple call to `urlparse(url)` — the current code parses the same URL three times in the error path (comparison, error message format).
+
+<details><summary>Prompt To Fix With AI</summary>
+
+`````markdown
+This is a comment left during a code review.
+Path: backend/onyx/connectors/canvas/client.py
+Line: 119-129
+
+Comment:
+**Pagination URL scheme not validated — bearer token can leak over HTTP**
+
+`_parse_next_link` only checks that `urlparse(url).hostname` matches `expected_host`; it never checks that the scheme is still `https`. A misconfigured or adversarial Canvas server could return a `Link` header whose `rel=""next""` URL starts with `http://` and shares the same hostname. Because the hostname check would pass, the client would then issue an HTTP request to that URL with the `Authorization: Bearer <token>` header, transmitting the token in plaintext.
+
+This is especially relevant in SSRF scenarios or environments where TLS termination happens at a proxy that returns non-HTTPS pagination URLs.
+
+Add a scheme check alongside the hostname check:
+
+```suggestion
+        expected_host = urlparse(self.base_url).hostname
+        for match in _NEXT_LINK_PATTERN.finditer(link_header):
+            url = match.group(1)
+            parsed_url = urlparse(url)
+            if parsed_url.hostname != expected_host:
+                raise OnyxError(
+                    OnyxErrorCode.BAD_GATEWAY,
+                    detail=(
+                        ""Canvas pagination returned an unexpected host ""
+                        f""({parsed_url.hostname}); expected {expected_host}""
+                    ),
+                )
+            if parsed_url.scheme != ""https"":
+                raise OnyxError(
+                    OnyxErrorCode.BAD_GATEWAY,
+                    detail=(
+                        ""Canvas pagination link must use https, ""
+                        f""got {parsed_url.scheme!r}""
+                    ),
+                )
+            return url
+        return None
+```
+
+This also eliminates the redundant triple call to `urlparse(url)` — the current code parses the same URL three times in the error path (comparison, error message format).
+
+How can I resolve this? If you propose a fix, please make it concise.
+`````
+</details>",https://github.com/onyx-dot-app/onyx/pull/9385#discussion_r2949824701,,2026-03-17T22:14:57.394000,Pagination URL missing HTTPS validation allows bearer token leak,security,high,8,"Comment 22 identifies a security vulnerability where `_parse_next_link` validates the hostname but not the scheme of pagination URLs. A malicious or misconfigured Canvas server could return an HTTP pagination link, causing the bearer token to be transmitted in plaintext. This is a real security issue that could lead to credential exposure.",2026-03-26T16:36:25.131511+00:00
